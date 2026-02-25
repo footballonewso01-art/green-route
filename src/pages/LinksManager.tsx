@@ -161,16 +161,19 @@ export default function LinksManager() {
           </div>
         ) : (
           <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="links-list">
+            <Droppable droppableId="links-list" isDropDisabled={filtered.length <= 1}>
               {(provided) => (
                 <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
                   {filtered.map((link, index) => (
-                    <Draggable key={link.id} draggableId={link.id} index={index} isDragDisabled={search.length > 0}>
+                    <Draggable key={link.id} draggableId={link.id} index={index} isDragDisabled={search.length > 0 || filtered.length <= 1}>
                       {(provided, snapshot) => (
                         <div
                           ref={provided.innerRef}
                           {...provided.draggableProps}
-                          className={`glass-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-all duration-200 ${snapshot.isDragging ? 'shadow-xl border-accent shadow-accent/10 z-50' : 'hover:border-accent/20'}`}
+                          style={{
+                            ...provided.draggableProps.style,
+                          }}
+                          className={`glass-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-all duration-200 ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:border-accent/20'}`}
                         >
                           <div {...provided.dragHandleProps} className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing p-1">
                             <GripVertical className="w-5 h-5" />
@@ -178,8 +181,8 @@ export default function LinksManager() {
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-sm font-semibold text-accent">/{link.slug}</span>
-                              <span className="text-xs font-medium px-2 py-0.5 rounded bg-surface border border-border">{link.title || "Untitled"}</span>
+                              <span className="text-sm font-semibold text-accent">{link.slug}</span>
+                              {link.title && <span className="text-xs font-medium px-2 py-0.5 rounded bg-surface border border-border">{link.title}</span>}
                               <button onClick={() => copyToClipboard(link.slug)} className="text-muted-foreground hover:text-foreground transition-colors">
                                 <Copy className="w-3.5 h-3.5" />
                               </button>
@@ -190,8 +193,8 @@ export default function LinksManager() {
                                 {link.destination_url}
                               </span>
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${link.mode === 'smart' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
-                                  link.mode === 'landing' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
-                                    'bg-accent/10 text-accent border border-accent/20'
+                                link.mode === 'landing' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
+                                  'bg-accent/10 text-accent border border-accent/20'
                                 }`}>
                                 {link.mode || 'redirect'}
                               </span>

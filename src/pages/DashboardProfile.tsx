@@ -47,7 +47,6 @@ export default function DashboardProfile() {
   const [showCreate, setShowCreate] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
   const [createUrl, setCreateUrl] = useState("");
-  const [createShowOnProfile, setCreateShowOnProfile] = useState(true);
   const [createLoading, setCreateLoading] = useState(false);
 
   // Inline Edit State
@@ -75,7 +74,7 @@ export default function DashboardProfile() {
     if (!user) return;
     try {
       const records = await pb.collection('links').getFullList<LinkItem>({
-        filter: `user_id="${user.id}"`,
+        filter: `user_id="${user.id}" && show_on_profile=true`,
         sort: 'order,-created',
       });
       setLinks(records);
@@ -132,7 +131,7 @@ export default function DashboardProfile() {
         title: createTitle,
         destination_url: createUrl,
         slug: randomSlug,
-        show_on_profile: createShowOnProfile,
+        show_on_profile: true,
         order: highestOrder + 1,
         active: true,
         mode: "redirect"
@@ -142,7 +141,6 @@ export default function DashboardProfile() {
       // Reset form
       setCreateTitle("");
       setCreateUrl("");
-      setCreateShowOnProfile(true);
       setShowCreate(false);
       toast.success("Link added");
     } catch (error: any) {
@@ -325,7 +323,7 @@ export default function DashboardProfile() {
           </div>
 
           {/* Links Section */}
-          <div className="glass-card p-6 space-y-5">
+          <div className="bg-card/60 border border-border rounded-2xl p-6 space-y-5">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
                 <Globe className="w-5 h-5 text-accent" /> Links
@@ -352,10 +350,10 @@ export default function DashboardProfile() {
                   <input value={createUrl} onChange={(e) => setCreateUrl(e.target.value)} placeholder="URL (https://...)" type="url" className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm" />
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm">
-                    <input type="checkbox" checked={createShowOnProfile} onChange={(e) => setCreateShowOnProfile(e.target.checked)} className="accent-accent" />
-                    <span className="text-muted-foreground">Show in Profile</span>
-                  </label>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-accent/5 px-2 py-1 rounded-md border border-accent/10">
+                    <Check className="w-3 h-3 text-accent" />
+                    Automatically added to profile
+                  </div>
                   <button
                     onClick={handleCreateLink}
                     disabled={createLoading || !createUrl}
@@ -374,16 +372,20 @@ export default function DashboardProfile() {
               <div className="text-center py-6 text-muted-foreground text-sm">No links added yet.</div>
             ) : (
               <DragDropContext onDragEnd={handleDragEnd}>
-                <Droppable droppableId="profile-links">
+                <Droppable droppableId="profile-links" isDropDisabled={links.length <= 1}>
                   {(provided) => (
                     <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
                       {links.map((link, index) => (
-                        <Draggable key={link.id} draggableId={link.id} index={index}>
+                        <Draggable key={link.id} draggableId={link.id} index={index} isDragDisabled={links.length <= 1}>
                           {(provided, snapshot) => (
                             <div
                               ref={provided.innerRef}
                               {...provided.draggableProps}
-                              className={`group bg-surface border border-border rounded-xl p-3 flex gap-3 transition-colors ${snapshot.isDragging ? 'shadow-xl border-accent/50 z-50' : 'hover:border-accent/30'}`}
+                              style={{
+                                ...provided.draggableProps.style,
+                                // Prevent the item from snapping to 0,0 or disappearing when dragged outside
+                              }}
+                              className={`group bg-surface border border-border rounded-xl p-3 flex gap-3 transition-colors ${snapshot.isDragging ? 'shadow-xl border-accent/50 z-50 ring-2 ring-accent shadow-accent/20' : 'hover:border-accent/30'}`}
                             >
                               <div {...provided.dragHandleProps} className="text-muted-foreground hover:text-white cursor-grab active:cursor-grabbing self-center p-1">
                                 <GripVertical className="w-4 h-4" />
@@ -406,9 +408,6 @@ export default function DashboardProfile() {
                                     <div className="flex items-center justify-between gap-2">
                                       <p className="text-sm font-medium text-white truncate">{link.title || "Untitled"}</p>
                                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)} className="p-1.5 rounded hover:bg-white/10" title="Toggle Profile Visibility">
-                                          {link.show_on_profile !== false ? <Eye className="w-3.5 h-3.5 text-accent" /> : <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />}
-                                        </button>
                                         <button onClick={() => startEditing(link)} className="p-1.5 rounded hover:bg-white/10 text-muted-foreground hover:text-white">
                                           <Edit className="w-3.5 h-3.5" />
                                         </button>

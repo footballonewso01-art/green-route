@@ -17,7 +17,7 @@ export default function CreateLink() {
     title: "",
     url: "",
     slug: "",
-    show_on_profile: true,
+    show_on_profile: false,
     cloaking: false,
     utm_source: "",
     utm_medium: "",
@@ -151,8 +151,8 @@ export default function CreateLink() {
               type="button"
               onClick={() => update("mode", m)}
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${form.mode === m
-                  ? "bg-accent text-white shadow-lg shadow-accent/20"
-                  : "text-muted-foreground hover:text-foreground"
+                ? "bg-accent text-white shadow-lg shadow-accent/20"
+                : "text-muted-foreground hover:text-foreground"
                 }`}
             >
               {m}
@@ -163,10 +163,12 @@ export default function CreateLink() {
 
       <form onSubmit={handleSubmit} className="glass-card p-6 space-y-5">
         {/* Title, URL & Slug */}
-        <div>
-          <label className="text-sm font-medium text-foreground mb-1.5 block">Link Title (shown on profile)</label>
-          <input required type="text" value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="My Awesome Project" className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors" />
-        </div>
+        {form.show_on_profile && (
+          <div className="animate-fade-in">
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Link Title (shown on profile)</label>
+            <input required type="text" value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="My Awesome Project" className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors" />
+          </div>
+        )}
         <div>
           <label className="text-sm font-medium text-foreground mb-1.5 block">Destination URL</label>
           <input required type="url" value={form.url} onChange={(e) => update("url", e.target.value)} placeholder="https://example.com/your-page" className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors" />
@@ -187,6 +189,7 @@ export default function CreateLink() {
             description="Display this link on your public Link-in-Bio page"
             checked={form.show_on_profile}
             onChange={(v) => update("show_on_profile", v)}
+            tooltip="If enabled, this link will appear on your public Link-in-Bio page. You MUST provide a Link Title if this is enabled."
           />
           <ToggleRow
             icon={Shield}
@@ -196,12 +199,6 @@ export default function CreateLink() {
             onChange={(v) => update("interstitial_enabled", v)}
             tooltip="Filters bots by requiring a screen tap before redirection. Essential for Instagram and TikTok traffic to prevent automated scanning."
           />
-          {form.cloaking && (
-            <div className="pl-11 animate-fade-in text-sm">
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Safe Page URL (shown to bots)</label>
-              <input type="url" value={form.safe_page_url} onChange={(e) => update("safe_page_url", e.target.value)} placeholder="https://google.com" className="w-full px-4 py-2 rounded-xl bg-surface border border-border text-sm" />
-            </div>
-          )}
 
           <ToggleRow
             icon={Globe}
