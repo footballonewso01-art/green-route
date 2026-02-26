@@ -3,13 +3,14 @@ import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, Shield, Zap, Globe, MousePointer, ExternalLink, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
+import { PlanType, PLAN_RANKS } from "@/lib/plans";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import heroDashboard from "@/assets/hero-dashboard.jpg";
 
 const features = [
   {
     icon: Shield,
-    title: "Link Cloaking",
+    title: "Link Optimization",
     description: "Hide your destination URLs. Protect your campaigns from competitors and prying eyes.",
   },
   {
@@ -40,47 +41,50 @@ const features = [
 
 const plans = [
   {
+    id: "creator",
     name: "Creator",
     price: "0",
     description: "Perfect for getting started",
     features: [
-      { text: "1 Active Smart Link", icon: "🔗", tooltip: "Only one smart link can be active at a time on the free plan." },
-      { text: "Custom Profile Page", icon: "🚀", tooltip: "Create a basic public profile to host your links." },
-      { text: "Basic Analytics (Clicks)", icon: "📊", tooltip: "See how many times your links have been clicked." },
-      { text: "Smart Mobile Redirection", icon: "📱", tooltip: "Automatic optimization for mobile visitors." }
+      { text: "3 Smart Links", icon: "🔗", tooltip: "Now includes 3 Smart Links on Free plan!" },
+      { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
+      { text: "Geo Targeting", icon: "🌍", tooltip: "Redirect users by country for free." },
+      { text: "Standard Support", icon: "💬" }
     ],
-    buttonText: "Get Started",
+    buttonText: "Start for Free",
     popular: false
   },
   {
+    id: "pro",
     name: "Creator Pro",
-    price: "19",
-    annualPrice: "15",
-    description: "Everything you need to grow",
+    price: "9",
+    annualPrice: "7",
+    description: "Advanced tools for growing creators",
     features: [
-      { text: "Everything in Creator", icon: "📸", tooltip: "Includes all features from the Creator plan." },
-      { text: "Unlimited Smart Links", icon: "🔗", tooltip: "Create as many smart links as you need." },
-      { text: "Advanced Geo-Targeting", icon: "🌍", tooltip: "Route traffic based on the visitor's country." },
-      { text: "Professional Link Cloaking", icon: "🛡️", tooltip: "Advanced protection to hide your destination URLs." },
-      { text: "No Branded Logos", icon: "🚫", tooltip: "Remove the GreenRoute branding from your links and profile." },
-      { text: "A/B Split Testing", icon: "🔄", tooltip: "Test multiple destinations for a single link to optimize conversions." }
+      { text: "10 Smart Links", icon: "🔗" },
+      { text: "Remove GreenRoute Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
+      { text: "Deep Links (Direct)", icon: "⚡", tooltip: "Create direct links without intermediate pages." },
+      { text: "Advanced Analytics", icon: "📊" },
+      { text: "Link Optimization", icon: "🛡️" },
+      { text: "Device Targeting", icon: "📱" }
     ],
-    buttonText: "14-Day Free Trial",
+    buttonText: "Upgrade to Pro",
     popular: true
   },
   {
+    id: "agency",
     name: "Agency",
-    price: "49",
-    annualPrice: "39",
+    price: "29",
+    annualPrice: "24",
     description: "For agencies and power users",
     features: [
-      { text: "Everything in Creator Pro", icon: "💼", tooltip: "Includes all professional features from Creator Pro." },
-      { text: "Custom Domains", icon: "🏢", tooltip: "Use your own brand domains for your smart links." },
-      { text: "Full Analytics Export", icon: "📈", tooltip: "Export your detailed click data to CSV or Excel." },
-      { text: "Developer API Access", icon: "🔑", tooltip: "Integrate GreenRoute with your own tools via our API." },
-      { text: "Priority 24/7 Support", icon: "🤝", tooltip: "Get help whenever you need it with our dedicated support team." }
+      { text: "Unlimited Smart Links", icon: "🚀" },
+      { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
+      { text: "Everything in Creator Pro", icon: "✅" },
+      { text: "Priority 24/7 Support", icon: "⚡" },
+      { text: "Team Access", icon: "👥" }
     ],
-    buttonText: "14-Day Free Trial",
+    buttonText: "Upgrade to Agency",
     popular: false
   },
 ];
@@ -88,6 +92,8 @@ const plans = [
 export default function LandingPage() {
   const { user } = useAuth();
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
+
+  const userPlan = (user as any)?.plan as PlanType | undefined;
 
   // Helper to get avatar URL
   const getAvatarUrl = () => {
@@ -154,19 +160,19 @@ export default function LandingPage() {
         </div>
 
         <div className="max-w-7xl mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-accent text-sm mb-8 animate-fade-in">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-accent text-sm mb-8">
             <Zap className="w-3.5 h-3.5" />
             Smart Link Management Platform
           </div>
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 animate-fade-in" style={{ animationDelay: "0.1s" }}>
+          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6">
             Control Your Traffic.
             <br />
             <span className="gradient-text">Maximize Every Click.</span>
           </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 animate-fade-in" style={{ animationDelay: "0.2s" }}>
+          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
             Advanced link management with cloaking, smart routing, and real-time analytics. Built for creators, affiliates, and marketers.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in" style={{ animationDelay: "0.3s" }}>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {user ? (
               <Link to="/dashboard" className="btn-primary-glow text-base inline-flex items-center justify-center gap-2">
                 Open Dashboard <ArrowRight className="w-4 h-4" />
@@ -182,7 +188,7 @@ export default function LandingPage() {
           </div>
 
           {/* Dashboard Preview */}
-          <div className="mt-16 relative animate-fade-in-up" style={{ animationDelay: "0.5s" }}>
+          <div className="mt-16 relative">
             <div className="absolute inset-0 bg-accent/10 blur-3xl rounded-3xl" />
             <div className="relative glass-card p-2 rounded-2xl overflow-hidden shadow-glow">
               <img src={heroDashboard} alt="GreenRoute Dashboard" className="w-full rounded-xl" />
@@ -225,7 +231,7 @@ export default function LandingPage() {
             <p className="text-muted-foreground text-lg">Start free, upgrade when you're ready.</p>
 
             {/* Billing Toggle */}
-            <div className="mt-10 flex items-center justify-center gap-4">
+            <div className="mt-10 flex flex-col items-center justify-center gap-3">
               <div className="p-1 rounded-xl bg-surface border border-border flex items-center">
                 <button
                   onClick={() => setBillingCycle("monthly")}
@@ -245,55 +251,94 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
+              {billingCycle === "annual" && (
+                <p className="text-xs font-bold text-green-500 animate-fade-in">
+                  ✨ Save up to $60 / year with annual billing
+                </p>
+              )}
             </div>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {plans.map((plan) => (
-              <div key={plan.name} className={`glass-card p-10 rounded-3xl relative flex flex-col h-full transition-all duration-300 hover:translate-y-[-8px] ${plan.popular ? "ring-2 ring-accent shadow-[0_0_40px_-10px_rgba(var(--accent-rgb),0.3)]" : ""}`}>
-                {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-accent to-accent/80 text-accent-foreground text-xs font-bold rounded-full shadow-lg flex items-center gap-1.5">
-                    <Zap className="w-3 h-3 fill-current" /> Most Popular
-                  </div>
-                )}
-                <div className="text-center mb-8">
-                  <h3 className="text-2xl font-bold text-foreground mb-2">{plan.name}</h3>
-                  <p className="text-sm text-muted-foreground mb-6 h-4">{plan.description}</p>
-                  <div className="text-5xl font-extrabold text-foreground mb-1">
-                    ${billingCycle === "annual" && plan.annualPrice ? plan.annualPrice : plan.price}
-                    <span className="text-base font-normal text-muted-foreground ml-1">/mo</span>
-                  </div>
-                </div>
+            {plans.map((plan) => {
+              const isCurrent = userPlan === plan.id;
+              const isDowngrade = PLAN_RANKS[plan.id as PlanType] < PLAN_RANKS[userPlan as PlanType];
+              const isDisabled = isCurrent || isDowngrade;
 
-                <ul className="space-y-4 mb-10 flex-1">
-                  {plan.features.map((f, idx) => (
-                    <li key={idx} className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <span className="text-lg">{f.icon}</span>
-                      <span className="flex-1">{f.text}</span>
-                      {f.tooltip && (
-                        <Tooltip delayDuration={0}>
-                          <TooltipTrigger asChild>
-                            <button type="button" className="w-4 h-4 rounded-full border border-muted-foreground/30 flex items-center justify-center text-[10px] cursor-help opacity-50 hover:opacity-100 hover:border-accent hover:text-accent transition-all">
-                              i
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-xs text-[10px] leading-relaxed p-2 bg-surface border-border text-foreground shadow-2xl">
-                            <p>{f.tooltip}</p>
-                          </TooltipContent>
-                        </Tooltip>
+              // Highlight logic:
+              // If user is Free, highlight "pro" (Most Popular).
+              // If user is Pro or Agency, highlight their "isCurrent" plan instead.
+              const shouldHighlight = (userPlan === "creator" && plan.id === "pro") || isCurrent;
+              const showPopularBadge = (userPlan === "creator" && plan.id === "pro");
+
+              return (
+                <div key={plan.name} className={`glass-card p-10 rounded-3xl relative flex flex-col h-full transition-all duration-300 hover:translate-y-[-8px] ${shouldHighlight ? "ring-2 ring-accent shadow-[0_0_40px_-10px_rgba(var(--accent-rgb),0.3)]" : ""}`}>
+                  {showPopularBadge && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-accent to-accent/80 text-accent-foreground text-xs font-bold rounded-full shadow-lg flex items-center gap-1.5">
+                      <Zap className="w-3 h-3 fill-current" /> Most Popular
+                    </div>
+                  )}
+                  <div className="text-center mb-8">
+                    <h3 className="text-2xl font-bold text-foreground mb-2">{plan.name}</h3>
+                    <p className="text-sm text-muted-foreground mb-6 h-4">{plan.description}</p>
+                    <div className="text-5xl font-extrabold text-foreground mb-1">
+                      ${billingCycle === "annual" && plan.annualPrice ? plan.annualPrice : plan.price}
+                      <span className="text-base font-normal text-muted-foreground ml-1">/mo</span>
+                    </div>
+                  </div>
+
+                  <ul className="space-y-4 mb-10 flex-1">
+                    {plan.features.map((f, idx) => (
+                      <li key={idx} className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <span className="text-lg">{f.icon}</span>
+                        <span className="flex-1">{f.text}</span>
+                        {f.tooltip && (
+                          <Tooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                              <button type="button" className="w-4 h-4 rounded-full border border-muted-foreground/30 flex items-center justify-center text-[10px] cursor-help opacity-50 hover:opacity-100 hover:border-accent hover:text-accent transition-all">
+                                i
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs text-[10px] leading-relaxed p-2 bg-surface border-border text-foreground shadow-2xl">
+                              <p>{f.tooltip}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {user ? (
+                    <Link
+                      to="/dashboard/pricing"
+                      className={`block text-center py-4 rounded-2xl font-bold transition-all duration-300 transform active:scale-95 ${isDisabled
+                        ? (isCurrent ? "bg-accent/25 border-transparent ring-2 ring-accent shadow-[0_0_25px_-5px_rgba(var(--accent-rgb),0.6)] opacity-100 pointer-events-none" : "bg-surface-hover text-muted-foreground pointer-events-none opacity-80")
+                        : (shouldHighlight
+                          ? "btn-primary-glow"
+                          : "bg-surface border border-border text-foreground hover:bg-surface-hover shadow-sm")
+                        }`}
+                    >
+                      {isCurrent ? (
+                        <span className="text-white">
+                          Your Current Plan
+                        </span>
+                      ) : isDowngrade ? (
+                        "Downgrade Unavailable"
+                      ) : (
+                        "Upgrade"
                       )}
-                    </li>
-                  ))}
-                </ul>
-
-                <Link
-                  to="/register"
-                  className={`block text-center py-4 rounded-2xl font-bold transition-all duration-300 transform active:scale-95 ${plan.popular ? "btn-primary-glow" : "bg-surface border border-border text-foreground hover:bg-surface-hover shadow-sm"}`}
-                >
-                  {plan.buttonText}
-                </Link>
-              </div>
-            ))}
+                    </Link>
+                  ) : (
+                    <Link
+                      to="/register"
+                      className={`block text-center py-4 rounded-2xl font-bold transition-all duration-300 transform active:scale-95 ${plan.id === "pro" ? "btn-primary-glow" : "bg-surface border border-border text-foreground hover:bg-surface-hover shadow-sm"}`}
+                    >
+                      {plan.buttonText}
+                    </Link>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Benefits Footer */}

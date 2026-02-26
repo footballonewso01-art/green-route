@@ -3,23 +3,41 @@ import { Check, Zap } from "lucide-react";
 
 const plans = [
   {
-    name: "Free",
+    name: "Creator",
     price: "$0",
     description: "Perfect for getting started",
-    features: ["10 links", "Basic analytics", "1 profile page", "GreenRoute branding"],
+    features: [
+      "3 Smart Links",
+      "Full Profile Customization",
+      "Geo Targeting",
+      "Standard Support"
+    ],
   },
   {
-    name: "Pro",
-    price: "$19",
-    description: "For creators and marketers",
+    name: "Creator Pro",
+    price: "$9",
+    description: "Advanced tools for growing creators",
     popular: true,
-    features: ["Unlimited links", "Full analytics & geo data", "Custom domains", "Link cloaking", "QR codes", "No branding"],
+    features: [
+      "10 Smart Links",
+      "Remove GreenRoute Branding",
+      "Deep Links (Direct)",
+      "Advanced Analytics",
+      { text: "Link Optimization", icon: "🛡️" },
+      "Device Targeting"
+    ],
   },
   {
-    name: "Advanced",
-    price: "$49",
+    name: "Agency",
+    price: "$29",
     description: "For agencies and power users",
-    features: ["Everything in Pro", "Smart geo routing", "A/B split testing", "API access", "Team members", "Priority support", "Dedicated account manager"],
+    features: [
+      "Unlimited Smart Links",
+      "Custom Slugs (e.g. /my-link)",
+      "Everything in Pro",
+      "Priority 24/7 Support",
+      "Team Access"
+    ],
   },
 ];
 
@@ -57,10 +75,15 @@ export default function PricingPage() {
                 <div className="text-4xl font-extrabold text-foreground mt-4">{plan.price}<span className="text-base font-normal text-muted-foreground">/mo</span></div>
 
                 <ul className="mt-8 space-y-3 flex-1">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
+                  {plan.features.map((f: any) => (
+                    <li key={typeof f === 'string' ? f : f.text} className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Check className="w-4 h-4 text-accent flex-shrink-0" />
-                      {f}
+                      {typeof f === 'string' ? f : (
+                        <>
+                          {f.icon && <span role="img" aria-label={f.text}>{f.icon}</span>}
+                          {f.text}
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>

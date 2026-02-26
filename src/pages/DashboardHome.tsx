@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { BarChart3, Link2, MousePointer, TrendingUp, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
+import { BarChart3, Link2, MousePointer, TrendingUp, ArrowUpRight, ArrowDownRight, Loader2, Plus, Share2, Sparkles, Calendar } from "lucide-react";
+import { Link } from "react-router-dom";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
@@ -19,8 +20,16 @@ export default function DashboardHome() {
       try {
         const userId = pb.authStore.model?.id;
         const [links, clicks] = await Promise.all([
-          pb.collection('links').getFullList({ filter: `user_id="${userId}"` }),
-          pb.collection('clicks').getFullList({ filter: `link_id.user_id="${userId}"`, sort: '-created', limit: 50 })
+          pb.collection('links').getFullList({
+            filter: `user_id="${userId}"`,
+            requestKey: null
+          }),
+          pb.collection('clicks').getFullList({
+            filter: `link_id.user_id="${userId}"`,
+            sort: '-created',
+            limit: 50,
+            requestKey: null
+          })
         ]);
 
         const activeLinks = links.filter(l => l.active).length;
@@ -57,7 +66,9 @@ export default function DashboardHome() {
         setTrendData(last7Days.map(({ name, clicks }) => ({ name, clicks })));
 
       } catch (error: any) {
-        toast.error("Failed to load dashboard data");
+        if (!error.isAbort) {
+          toast.error("Failed to load dashboard data");
+        }
       } finally {
         setLoading(false);
       }
@@ -68,8 +79,41 @@ export default function DashboardHome() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <div className="h-7 w-40 bg-surface rounded-lg animate-pulse" />
+          <div className="h-4 w-56 bg-surface rounded animate-pulse" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="glass-card p-5 space-y-3">
+              <div className="flex justify-between">
+                <div className="w-9 h-9 rounded-xl bg-surface animate-pulse" />
+                <div className="w-12 h-4 bg-surface rounded animate-pulse" />
+              </div>
+              <div className="h-7 w-20 bg-surface rounded animate-pulse" />
+              <div className="h-3 w-24 bg-surface rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 glass-card p-6 space-y-4">
+            <div className="h-5 w-36 bg-surface rounded animate-pulse" />
+            <div className="h-[280px] bg-surface rounded-xl animate-pulse" />
+          </div>
+          <div className="glass-card p-6 space-y-4">
+            <div className="h-5 w-28 bg-surface rounded animate-pulse" />
+            {[1, 2, 3].map(i => (
+              <div key={i} className="flex justify-between py-2">
+                <div className="space-y-1.5">
+                  <div className="h-4 w-16 bg-surface rounded animate-pulse" />
+                  <div className="h-3 w-24 bg-surface rounded animate-pulse" />
+                </div>
+                <div className="h-3 w-10 bg-surface rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -81,12 +125,46 @@ export default function DashboardHome() {
     { title: "Revenue", value: "$0", change: "+0%", up: true, icon: BarChart3 },
   ];
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const displayName = pb.authStore.model?.name || pb.authStore.model?.username || "Friend";
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground text-sm mt-1">Overview of your link performance</p>
+    <div className="space-y-8">
+      {/* Welcome Card */}
+      <div className="relative overflow-hidden glass-card p-8 group">
+        {/* Background decorative elements */}
+        <div className="absolute -right-12 -top-12 w-48 h-48 bg-accent/10 rounded-full blur-3xl group-hover:bg-accent/20 transition-colors duration-500" />
+        <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl" />
+
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold text-foreground">
+              Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-emerald-400">{displayName}</span>!
+            </h1>
+            <p className="text-muted-foreground text-sm max-w-md">
+              Your links have gained <span className="text-foreground font-semibold">{stats.totalClicks.toLocaleString()}</span> clicks so far.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Link to="/dashboard/profile" className="btn-primary-glow flex items-center gap-2 px-6 !py-2.5 text-sm shadow-xl shadow-accent/20">
+              <Plus className="w-4 h-4" /> Create Link
+            </Link>
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/${pb.authStore.model?.username}`;
+                navigator.clipboard.writeText(url);
+                toast.success("Profile URL copied to clipboard!");
+              }}
+              className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold rounded-xl bg-surface border border-border text-foreground hover:bg-surface-hover hover:border-accent/30 transition-all"
+            >
+              <Share2 className="w-4 h-4 text-muted-foreground" /> Share Profile
+            </button>
+          </div>
+        </div>
       </div>
+
 
       {/* Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

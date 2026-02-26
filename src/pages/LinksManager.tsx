@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, ExternalLink, BarChart3, ToggleLeft, ToggleRight, Copy, Trash2, Edit, Loader2, GripVertical, Eye, EyeOff } from "lucide-react";
+import { Plus, Search, ExternalLink, BarChart3, ToggleLeft, ToggleRight, Copy, Trash2, Edit, Loader2, GripVertical, Eye, EyeOff, Globe, QrCode, Download, X, Link2 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { QRCodeCanvas } from 'qrcode.react';
+import { IconRenderer } from '@/components/icons/IconRenderer';
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 
@@ -16,12 +18,16 @@ interface LinkItem {
   order?: number;
   show_on_profile?: boolean;
   mode?: string;
+  icon_type?: "preset" | "emoji" | "custom" | "none";
+  icon_value?: string;
 }
 
 export default function LinksManager() {
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [qrModal, setQrModal] = useState<{ slug: string; title: string } | null>(null);
+  const qrRef = useRef<HTMLDivElement>(null);
 
   const fetchLinks = async () => {
     try {
@@ -121,10 +127,42 @@ export default function LinksManager() {
     toast.success("Link copied to clipboard");
   };
 
+  const downloadQR = () => {
+    if (!qrRef.current || !qrModal) return;
+    const canvas = qrRef.current.querySelector('canvas');
+    if (!canvas) return;
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `greenroute-${qrModal.slug}.png`;
+    a.click();
+    toast.success('QR code downloaded!');
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div className="space-y-2">
+            <div className="h-7 w-32 bg-surface rounded-lg animate-pulse" />
+            <div className="h-4 w-24 bg-surface rounded animate-pulse" />
+          </div>
+          <div className="h-10 w-28 bg-surface rounded-xl animate-pulse" />
+        </div>
+        <div className="h-11 w-full bg-surface rounded-xl animate-pulse" />
+        <div className="space-y-3">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="glass-card p-4 flex items-center gap-4">
+              <div className="w-5 h-8 bg-surface rounded animate-pulse" />
+              <div className="w-10 h-10 bg-surface rounded-lg animate-pulse" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-24 bg-surface rounded animate-pulse" />
+                <div className="h-3 w-48 bg-surface rounded animate-pulse" />
+              </div>
+              <div className="h-8 w-16 bg-surface rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -156,8 +194,19 @@ export default function LinksManager() {
       {/* Links list */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
-          <div className="text-center py-12 glass-card">
-            <p className="text-muted-foreground">No links found</p>
+          <div className="text-center py-16 glass-card space-y-4">
+            <div className="w-20 h-20 mx-auto rounded-full bg-accent/5 border border-accent/10 flex items-center justify-center">
+              <Link2 className="w-9 h-9 text-accent/40" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">{search ? 'No results found' : 'No links yet'}</h3>
+              <p className="text-sm text-muted-foreground mt-1">{search ? 'Try a different search term' : 'Create your first smart link to get started'}</p>
+            </div>
+            {!search && (
+              <Link to="/dashboard/links/create" className="btn-primary-glow text-sm !py-2 !px-6 inline-flex items-center gap-2">
+                <Plus className="w-4 h-4" /> Create First Link
+              </Link>
+            )}
           </div>
         ) : (
           <DragDropContext onDragEnd={handleDragEnd}>
@@ -179,25 +228,30 @@ export default function LinksManager() {
                             <GripVertical className="w-5 h-5" />
                           </div>
 
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-sm font-semibold text-accent">{link.slug}</span>
-                              {link.title && <span className="text-xs font-medium px-2 py-0.5 rounded bg-surface border border-border">{link.title}</span>}
-                              <button onClick={() => copyToClipboard(link.slug)} className="text-muted-foreground hover:text-foreground transition-colors">
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="p-2 bg-background border border-border rounded-lg flex items-center justify-center shrink-0">
+                              <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className="w-5 h-5 text-accent" />
                             </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs text-muted-foreground truncate max-w-[200px] flex items-center gap-1">
-                                <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                                {link.destination_url}
-                              </span>
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${link.mode === 'smart' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
-                                link.mode === 'landing' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
-                                  'bg-accent/10 text-accent border border-accent/20'
-                                }`}>
-                                {link.mode || 'redirect'}
-                              </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-semibold text-accent">{link.slug}</span>
+                                {link.title && <span className="text-xs font-medium px-2 py-0.5 rounded bg-surface border border-border">{link.title}</span>}
+                                <button onClick={() => copyToClipboard(link.slug)} className="text-muted-foreground hover:text-foreground transition-colors">
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-muted-foreground truncate max-w-[200px] flex items-center gap-1">
+                                  <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                  {link.destination_url}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${link.mode === 'smart' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
+                                  link.mode === 'landing' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
+                                    'bg-accent/10 text-accent border border-accent/20'
+                                  }`}>
+                                  {link.mode || 'redirect'}
+                                </span>
+                              </div>
                             </div>
                           </div>
 
@@ -225,6 +279,9 @@ export default function LinksManager() {
                             </button>
 
                             <div className="flex items-center gap-1">
+                              <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug })} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
+                                <QrCode className="w-4 h-4" />
+                              </button>
                               <Link to={`/dashboard/analytics?link=${link.id}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
                                 <BarChart3 className="w-4 h-4" />
                               </Link>
@@ -247,6 +304,48 @@ export default function LinksManager() {
           </DragDropContext>
         )}
       </div>
+
+      {/* QR Code Modal */}
+      {qrModal && (
+        <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setQrModal(null)}>
+          <div className="bg-surface border border-border rounded-2xl p-8 w-full max-w-sm shadow-2xl text-center space-y-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-foreground">QR Code</h3>
+              <button onClick={() => setQrModal(null)} className="p-1 rounded-lg hover:bg-surface-hover text-muted-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div ref={qrRef} className="bg-white rounded-2xl p-6 inline-block mx-auto">
+              <QRCodeCanvas
+                value={`${window.location.origin}/${qrModal.slug}`}
+                size={200}
+                bgColor="#ffffff"
+                fgColor="#0a0a0a"
+                level="H"
+                includeMargin={false}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground font-medium truncate">{qrModal.title}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/${qrModal.slug}`);
+                  toast.success('Link copied!');
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-surface border border-border text-foreground font-medium hover:bg-surface-hover transition-colors flex items-center justify-center gap-2 text-sm"
+              >
+                <Copy className="w-4 h-4" /> Copy Link
+              </button>
+              <button
+                onClick={downloadQR}
+                className="flex-1 py-2.5 rounded-xl btn-primary-glow font-medium flex items-center justify-center gap-2 text-sm"
+              >
+                <Download className="w-4 h-4" /> Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

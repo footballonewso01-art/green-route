@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 import { ExternalLink, Globe, Loader2 } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
+import { IconRenderer } from '@/components/icons/IconRenderer';
+import { checkPlan } from "@/lib/plans";
 
 interface ProfileData {
   id: string;
@@ -11,6 +13,8 @@ interface ProfileData {
   avatar: string;
   theme: string;
   full_avatar_url?: string;
+  custom_theme_bg?: string;
+  social_links?: any[];
 }
 
 interface LinkItem {
@@ -21,6 +25,8 @@ interface LinkItem {
   title?: string;
   order?: number;
   show_on_profile?: boolean;
+  icon_type?: "preset" | "emoji" | "custom" | "none";
+  icon_value?: string;
 }
 
 const THEME_STYLES: Record<string, string> = {
@@ -29,11 +35,25 @@ const THEME_STYLES: Record<string, string> = {
   "ocean": "bg-gradient-to-br from-blue-700/30 via-cyan-600/20 to-blue-900/40 text-white",
   "emerald": "bg-gradient-to-br from-emerald-700/30 via-teal-600/20 to-emerald-900/40 text-white",
   "glass": "bg-white/5 backdrop-blur-2xl text-white border-white/10",
+  "custom": "text-white"
 };
+
+const SOCIAL_PLATFORMS = [
+  { key: 'instagram', pattern: /instagram\.com/i, icon: '📸', label: 'Instagram' },
+  { key: 'tiktok', pattern: /tiktok\.com/i, icon: '🎵', label: 'TikTok' },
+  { key: 'youtube', pattern: /youtube\.com|youtu\.be/i, icon: '▶️', label: 'YouTube' },
+  { key: 'twitter', pattern: /twitter\.com|x\.com/i, icon: '𝕏', label: 'X / Twitter' },
+  { key: 'telegram', pattern: /t\.me|telegram/i, icon: '✈️', label: 'Telegram' },
+  { key: 'github', pattern: /github\.com/i, icon: '🐙', label: 'GitHub' },
+  { key: 'linkedin', pattern: /linkedin\.com/i, icon: '💼', label: 'LinkedIn' },
+  { key: 'discord', pattern: /discord\.gg|discord\.com/i, icon: '🎮', label: 'Discord' },
+  { key: 'twitch', pattern: /twitch\.tv/i, icon: '🟣', label: 'Twitch' },
+  { key: 'spotify', pattern: /spotify\.com|open\.spotify/i, icon: '🎧', label: 'Spotify' },
+];
 
 export default function PublicProfile() {
   const { username } = useParams();
-  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [profile, setProfile] = useState<(ProfileData & { plan?: string }) | null>(null);
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -51,7 +71,11 @@ export default function PublicProfile() {
           theme: userRecord.theme || "minimal-dark",
           avatar: userRecord.name ? userRecord.name.charAt(0).toUpperCase() : userRecord.username.charAt(0).toUpperCase(),
           full_avatar_url: userRecord.avatar ? pb.files.getUrl(userRecord, userRecord.avatar) : undefined,
+          custom_theme_bg: userRecord.custom_theme_bg ? pb.files.getUrl(userRecord, userRecord.custom_theme_bg) : undefined,
+          social_links: Array.isArray(userRecord.social_links) ? userRecord.social_links : [],
+          plan: userRecord.plan || "creator",
         });
+        // ... (rest of the code update below)
 
         // Fetch active links for this user, sorted by 'order'
         const linkRecords = await pb.collection('links').getFullList<LinkItem>({
@@ -102,75 +126,127 @@ export default function PublicProfile() {
   const currentThemeClass = THEME_STYLES[profile.theme] || THEME_STYLES["minimal-dark"];
 
   return (
-    <div className={`min-h-screen ${currentThemeClass} relative overflow-hidden flex flex-col items-center px-4 py-16 sm:py-24 transition-colors duration-700`}>
-      {/* Background Glow (Conditional based on theme) */}
-      {profile.theme === "minimal-dark" && (
-        <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-accent/20 blur-[120px] rounded-full pointer-events-none opacity-50" />
-      )}
+    <div className={`min-h-screen ${currentThemeClass} relative overflow-hidden flex items-start justify-center px-4 pt-4 sm:pt-8 transition-colors duration-700`}
+      style={profile.theme === "custom" && profile.custom_theme_bg ? {
+        backgroundImage: `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.9)), url('${profile.custom_theme_bg}')`,
+        backgroundSize: "cover",
+        backgroundPosition: "center"
+      } : {}}
+    >
+      {/* Background Blur Overlay */}
+      <div className="absolute inset-0 backdrop-blur-[10px] bg-black/10 z-0" />
 
-      <div className="w-full max-w-md z-10 flex flex-col items-center animate-fade-in">
-        {/* Avatar */}
-        <div className="relative group">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-accent to-accent/50 rounded-full blur opacity-40 group-hover:opacity-60 transition duration-500"></div>
-          <div className="relative w-28 h-28 rounded-full bg-surface border border-white/10 flex items-center justify-center overflow-hidden shadow-2xl">
-            {profile.full_avatar_url ? (
-              <img src={profile.full_avatar_url} alt={profile.name} className="w-full h-full object-cover" />
+      {/* Background Glow */}
+      <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-accent/10 blur-[150px] rounded-full pointer-events-none opacity-30 z-0" />
+
+      {/* Main Profile Card */}
+      <div className="w-full max-w-[528px] bg-black rounded-[1.5rem] min-h-[90vh] mt-[3vh] sm:mt-[0vh] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] animate-fade-in relative z-10 flex flex-col">
+
+        {/* Top Header with Avatar and Fade */}
+        <div className="relative h-[30%] min-h-[300px] w-full overflow-hidden shrink-0">
+          {profile.full_avatar_url ? (
+            <img
+              src={profile.full_avatar_url}
+              alt={profile.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-surface flex items-center justify-center">
+              <span className="text-6xl font-bold bg-gradient-to-br from-white to-white/30 bg-clip-text text-transparent">
+                {profile.avatar}
+              </span>
+            </div>
+          )}
+          {/* Fade to Black Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-black transition-all duration-700" />
+        </div>
+
+        {/* Profile Content */}
+        <div className="px-8 pb-10 -mt-16 relative">
+          <div className="text-center space-y-1">
+            <h1 className="text-3xl font-black tracking-tight text-white drop-shadow-lg uppercase">
+              {profile.name}
+            </h1>
+            <p className="text-muted-foreground text-sm font-medium tracking-wide">
+              @{username}
+            </p>
+          </div>
+
+          {/* Social Icons Quick Bar */}
+          {profile.social_links && profile.social_links.length > 0 && (
+            <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
+              {profile.social_links.map((social: any) => (
+                <a
+                  key={social.id}
+                  href={social.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-accent/20 hover:border-accent/40 hover:scale-105 transition-all duration-300 shadow-lg group"
+                >
+                  <IconRenderer type={social.icon_type} value={social.icon_value} className="w-5 h-5 text-white/80 group-hover:text-white transition-colors" />
+                </a>
+              ))}
+            </div>
+          )}
+
+          {/* Bio */}
+          <div className="mt-3 text-center">
+            <p className="text-muted-foreground text-sm leading-relaxed max-w-[280px] mx-auto italic opacity-80">
+              {profile.bio}
+            </p>
+          </div>
+
+          {/* Links Section */}
+          <div className="mt-6 space-y-3.5">
+            {links.length === 0 ? (
+              <div className="text-center p-10 rounded-2xl border border-white/5 bg-white/5 backdrop-blur-sm">
+                <Globe className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No public links yet</p>
+              </div>
             ) : (
-              <span className="text-4xl font-bold bg-gradient-to-br from-white to-white/50 bg-clip-text text-transparent">{profile.avatar}</span>
+              links.map((link) => (
+                <a
+                  key={link.id}
+                  href={`/${link.slug}`}
+                  className="group relative block w-full bg-[#111] hover:bg-[#161616] border border-white/5 hover:border-accent/30 rounded-2xl p-4 transition-all duration-300 hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="shrink-0 w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group-hover:bg-accent/10 transition-colors">
+                      <IconRenderer
+                        type={link.icon_type}
+                        value={link.icon_value}
+                        url={link.destination_url}
+                        className="w-5 h-5 text-white/60 group-hover:text-accent transition-colors"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="block text-sm font-bold text-white/90 group-hover:text-accent transition-colors uppercase tracking-wider">
+                        {link.title || `/${link.slug}`}
+                      </span>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ExternalLink className="w-3.5 h-3.5 text-accent" />
+                    </div>
+                  </div>
+                </a>
+              ))
             )}
           </div>
-        </div>
 
-        {/* Info */}
-        <div className="text-center mt-6">
-          <h1 className="text-2xl font-bold tracking-tight text-white mb-2">@{profile.name}</h1>
-          <p className="text-muted-foreground text-sm max-w-sm mx-auto leading-relaxed italic">{profile.bio}</p>
-        </div>
-
-        {/* Links */}
-        <div className="w-full mt-10 space-y-4">
-          {links.length === 0 ? (
-            <div className="text-center p-8 rounded-2xl border border-white/5 bg-white/5 backdrop-blur-sm">
-              <Globe className="w-8 h-8 text-muted-foreground mx-auto mb-3 opacity-50" />
-              <p className="text-sm text-muted-foreground">No public links yet.</p>
-            </div>
-          ) : (
-            links.map((link) => (
-              <a
-                key={link.id}
-                href={`/${link.slug}`}
-                className="relative block w-full group overflow-hidden rounded-2xl p-[1px] transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-accent/20"
-              >
-                {/* Border gradient effect */}
-                <div className="absolute inset-0 bg-gradient-to-r from-white/10 via-white/5 to-white/10 group-hover:from-accent/40 group-hover:via-accent/20 group-hover:to-accent/40 transition-colors duration-500" />
-
-                {/* Inner card */}
-                <div className="relative min-h-[64px] h-full w-full bg-surface hover:bg-surface-hover backdrop-blur-xl rounded-[15px] flex items-center justify-between px-6 py-4 transition-colors duration-300">
-                  <div className="flex flex-col truncate pr-4">
-                    <span className="text-sm font-semibold text-white truncate group-hover:text-accent transition-colors duration-300 uppercase tracking-wide">
-                      {link.title || `/${link.slug}`}
-                    </span>
+          {/* Footer Branding */}
+          {!checkPlan(profile.plan, "remove_branding") && (
+            <div className="mt-10 mb-2 text-center">
+              <a href="/" className="inline-flex items-center gap-2 text-[10px] text-muted-foreground/50 hover:text-white transition-colors group">
+                <span className="uppercase tracking-widest font-medium">Powered by</span>
+                <span className="font-black flex items-center gap-1.5 group-hover:opacity-100">
+                  <div className="w-4 h-4 rounded-lg bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
+                    <div className="w-1.5 h-1.5 rounded-sm bg-black"></div>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-accent/20 transition-colors duration-300 shrink-0">
-                    <ExternalLink className="w-3.5 h-3.5 text-white/50 group-hover:text-accent transition-colors duration-300" />
-                  </div>
-                </div>
+                  <span className="uppercase tracking-tighter text-[11px] text-white/80 group-hover:text-white">GreenRoute</span>
+                </span>
               </a>
-            ))
+            </div>
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="mt-16 text-center">
-          <a href="/" className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-white transition-colors group">
-            <span className="opacity-60">Powered by</span>
-            <span className="font-bold flex items-center gap-1 group-hover:opacity-100">
-              <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-accent to-accent/50 flex items-center justify-center">
-                <div className="w-1.5 h-1.5 rounded-full bg-background"></div>
-              </div>
-              GreenRoute
-            </span>
-          </a>
         </div>
       </div>
     </div>

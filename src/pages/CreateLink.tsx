@@ -1,10 +1,24 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Globe, Smartphone, Clock, Shuffle, Loader2, Shield, Info, ExternalLink } from "lucide-react";
+import { ArrowLeft, Globe, Smartphone, Clock, Shuffle, Loader2, Shield, Info, ExternalLink, Lock, Zap, CalendarRange } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { IconPicker } from '@/components/icons/IconPicker';
+import { IconRenderer } from '@/components/icons/IconRenderer';
+import { detectIconFromUrl } from '@/components/icons/detector';
+import { checkPlan, canUseResource, PlanLimits } from '@/lib/plans';
+import { UpgradeModal } from "@/components/UpgradeModal";
+
+const generateRandomSlug = () => {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
+  for (let i = 0; i < 8; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
 
 export default function CreateLink() {
   const navigate = useNavigate();
@@ -12,28 +26,40 @@ export default function CreateLink() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(!!id);
+  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; feature: string; description: string }>({
+    open: false,
+    feature: "",
+    description: "",
+  });
+
+  const userPlan = (user as any)?.plan || "creator";
+  const canDeepLink = checkPlan(userPlan, "deep_links");
 
   const [form, setForm] = useState({
     title: "",
     url: "",
-    slug: "",
+    slug: !id && !checkPlan((user as any)?.plan || "creator", "custom_slug") ? generateRandomSlug() : "",
     show_on_profile: false,
     cloaking: false,
+    icon_type: "none" as "preset" | "emoji" | "custom" | "none",
+    icon_value: "",
     utm_source: "",
     utm_medium: "",
     utm_campaign: "",
     geo_targeting: false,
     device_targeting: false,
     ab_split: false,
+    start_at: "",
     expire_at: "",
     safe_page_url: "",
     interstitial_enabled: false,
-    mode: "redirect", // "redirect" | "landing" | "smart"
+    mode: "redirect", // "redirect" | "landing" | "smart" | "direct"
   });
 
   const [geoData, setGeoData] = useState<{ code: string; url: string }[]>([]);
   const [deviceData, setDeviceData] = useState<{ type: "Mobile" | "Desktop" | "Tablet"; url: string }[]>([]);
   const [splitUrls, setSplitUrls] = useState<string[]>([]);
+  const [showIconPicker, setShowIconPicker] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -46,6 +72,8 @@ export default function CreateLink() {
             slug: record.slug,
             show_on_profile: record.show_on_profile !== false,
             cloaking: record.cloaking,
+            icon_type: record.icon_type || "none",
+            icon_value: record.icon_value || "",
             utm_source: record.utm_source || "",
             utm_medium: record.utm_medium || "",
             utm_campaign: record.utm_campaign || "",
@@ -56,6 +84,7 @@ export default function CreateLink() {
             safe_page_url: record.safe_page_url || "",
             interstitial_enabled: !!record.interstitial_enabled,
             mode: record.mode || "redirect",
+            start_at: record.start_at ? new Date(record.start_at).toISOString().slice(0, 16) : "",
           });
 
           if (record.geo_targeting) {
@@ -80,6 +109,28 @@ export default function CreateLink() {
 
   const update = (key: string, value: any) => setForm(prev => ({ ...prev, [key]: value }));
 
+  const handleToggle = (key: keyof typeof form, featureKey: keyof PlanLimits, label: string, desc: string) => {
+    if (checkPlan(userPlan, featureKey)) {
+      update(String(key), !form[key]);
+    } else {
+      setUpgradeModal({
+        open: true,
+        feature: label,
+        description: desc,
+      });
+    }
+  };
+
+  // Auto-detect icon based on URL input
+  useEffect(() => {
+    if (!id && form.url && (form.icon_type === "none" || !form.icon_type)) {
+      const detected = detectIconFromUrl(form.url);
+      if (detected) {
+        setForm(prev => ({ ...prev, icon_type: "preset", icon_value: detected }));
+      }
+    }
+  }, [form.url, id]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -91,6 +142,8 @@ export default function CreateLink() {
       slug: form.slug,
       show_on_profile: form.show_on_profile,
       cloaking: form.cloaking,
+      icon_type: form.icon_type,
+      icon_value: form.icon_value,
       utm_source: form.utm_source,
       utm_medium: form.utm_medium,
       utm_campaign: form.utm_campaign,
@@ -98,6 +151,7 @@ export default function CreateLink() {
       device_targeting: form.device_targeting ? Object.fromEntries(deviceData.filter(d => d.url).map(d => [d.type, d.url])) : null,
       ab_split: form.ab_split,
       split_urls: form.ab_split ? splitUrls.filter(Boolean) : null,
+      start_at: form.start_at ? new Date(form.start_at).toISOString() : null,
       expire_at: form.expire_at ? new Date(form.expire_at).toISOString() : null,
       safe_page_url: form.safe_page_url,
       interstitial_enabled: form.interstitial_enabled,
@@ -107,10 +161,21 @@ export default function CreateLink() {
     };
 
     try {
+      console.log("Submitting link data:", data);
       if (id) {
         await pb.collection('links').update(id, data);
         toast.success("Link updated successfully");
       } else {
+        const currentLinks = await pb.collection('links').getList(1, 1, { filter: `user_id="${user.id}"` });
+        if (!canUseResource(userPlan, "links", currentLinks.totalItems)) {
+          setUpgradeModal({
+            open: true,
+            feature: "Additional Links",
+            description: "You've reached your plan limit. Upgrade to create more smart links.",
+          });
+          setLoading(false);
+          return;
+        }
         await pb.collection('links').create(data);
         toast.success("Link created successfully");
       }
@@ -137,169 +202,249 @@ export default function CreateLink() {
           <button onClick={() => navigate(-1)} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">{id ? "Edit Link" : "Create Link"}</h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold text-foreground truncate">{id ? "Edit Link" : "Create Link"}</h1>
             <p className="text-muted-foreground text-sm mt-0.5">{id ? "Update your smart link settings" : "Set up your new smart link"}</p>
           </div>
         </div>
-
-        {/* Mode Selector */}
-        <div className="flex bg-surface p-1 rounded-xl border border-border">
-          {["redirect", "landing", "smart"].map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => update("mode", m)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${form.mode === m
-                ? "bg-accent text-white shadow-lg shadow-accent/20"
-                : "text-muted-foreground hover:text-foreground"
-                }`}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="glass-card p-6 space-y-5">
-        {/* Title, URL & Slug */}
-        {form.show_on_profile && (
-          <div className="animate-fade-in">
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Link Title (shown on profile)</label>
-            <input required type="text" value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="My Awesome Project" className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors" />
+      <form onSubmit={handleSubmit} className="glass-card p-6 space-y-6">
+        {/* Title, URL & Icon */}
+        <div className="space-y-4">
+          {form.show_on_profile && (
+            <div className="animate-fade-in">
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Link Title (shown on profile)</label>
+              <input required type="text" value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="My Awesome Project" className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors" />
+            </div>
+          )}
+
+          <div className="relative">
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Destination URL & Icon</label>
+            <div className="flex gap-2">
+              <div className="relative">
+                <button
+                  id="create-page-icon-btn"
+                  type="button"
+                  onClick={() => setShowIconPicker(!showIconPicker)}
+                  className="h-[42px] px-3 bg-surface border border-border rounded-xl flex items-center justify-center hover:bg-surface-hover hover:border-accent/50 transition-colors"
+                >
+                  <IconRenderer type={form.icon_type} value={form.icon_value} className="w-5 h-5 text-muted-foreground" />
+                </button>
+                {showIconPicker && (
+                  <IconPicker
+                    currentType={form.icon_type}
+                    currentValue={form.icon_value}
+                    anchorRef={{ current: document.getElementById("create-page-icon-btn") } as React.RefObject<HTMLElement>}
+                    onChange={(type, value) => {
+                      update("icon_type", type);
+                      update("icon_value", value);
+                    }}
+                    onClose={() => setShowIconPicker(false)}
+                  />
+                )}
+              </div>
+              <input required type="url" value={form.url} onChange={(e) => update("url", e.target.value)} placeholder="https://example.com/your-page" className="flex-1 px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors" />
+            </div>
           </div>
-        )}
-        <div>
-          <label className="text-sm font-medium text-foreground mb-1.5 block">Destination URL</label>
-          <input required type="url" value={form.url} onChange={(e) => update("url", e.target.value)} placeholder="https://example.com/your-page" className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors" />
-        </div>
-        <div>
-          <label className="text-sm font-medium text-foreground mb-1.5 block">Slug</label>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">{window.location.host}/</span>
-            <input required value={form.slug} onChange={(e) => update("slug", e.target.value)} placeholder="my-link" className="flex-1 px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors" />
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-sm font-medium text-foreground block">Custom Slug</label>
+              {!checkPlan(userPlan, "custom_slug") && (
+                <div
+                  onClick={() => setUpgradeModal({
+                    open: true,
+                    feature: "Custom Slugs",
+                    description: "Create memorable, branded links (e.g. /my-promo) with the Agency plan."
+                  })}
+                  className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[10px] font-bold text-accent uppercase tracking-wider cursor-pointer hover:bg-accent/20 transition-colors"
+                >
+                  <Lock className="w-2.5 h-2.5" />
+                  Agency Only
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground bg-surface px-3 py-2.5 rounded-xl border border-border border-r-0 rounded-r-none">{window.location.host}/</span>
+              <input
+                required
+                value={form.slug}
+                onChange={(e) => update("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                disabled={!checkPlan(userPlan, "custom_slug")}
+                placeholder="my-link"
+                className={`flex-1 px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent/50 transition-colors rounded-l-none ${!checkPlan(userPlan, "custom_slug") ? "opacity-60 cursor-not-allowed" : ""}`}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Toggles */}
-        <div className="space-y-3 pt-2">
-          <ToggleRow
-            icon={ExternalLink}
-            label="Show on Profile"
-            description="Display this link on your public Link-in-Bio page"
-            checked={form.show_on_profile}
-            onChange={(v) => update("show_on_profile", v)}
-            tooltip="If enabled, this link will appear on your public Link-in-Bio page. You MUST provide a Link Title if this is enabled."
-          />
-          <ToggleRow
-            icon={Shield}
-            label="Mobile Protection"
-            description="Interstitial screen to filter mobile bots"
-            checked={form.interstitial_enabled}
-            onChange={(v) => update("interstitial_enabled", v)}
-            tooltip="Filters bots by requiring a screen tap before redirection. Essential for Instagram and TikTok traffic to prevent automated scanning."
-          />
+        {/* Global Toggle */}
+        <ToggleRow
+          icon={ExternalLink}
+          label="Show on Profile"
+          description="Display this link on your public Link-in-Bio page"
+          checked={form.show_on_profile}
+          onChange={(v) => update("show_on_profile", v)}
+          tooltip="If enabled, this link will appear on your public Link-in-Bio page. You MUST provide a Link Title if this is enabled."
+        />
 
-          <ToggleRow
-            icon={Globe}
-            label="Link Cloaking"
-            description="Hide destination from bots"
-            checked={form.cloaking}
-            onChange={(v) => update("cloaking", v)}
-            tooltip="Shows a safe page to bots while real users go to the destination. Protects your link from bans by ad platform moderators."
-          />
-          {form.cloaking && (
-            <div className="pl-11 animate-fade-in text-sm">
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Safe Page URL (shown to bots)</label>
-              <input type="url" value={form.safe_page_url} onChange={(e) => update("safe_page_url", e.target.value)} placeholder="https://google.com" className="w-full px-4 py-2 rounded-xl bg-surface border border-border text-sm" />
-            </div>
-          )}
+        {/* Power Features Grouping */}
+        <div className="space-y-8 pt-4 border-t border-border">
 
-          <ToggleRow
-            icon={Globe}
-            label="Geo Targeting"
-            description="Route by country"
-            checked={form.geo_targeting}
-            onChange={(v) => update("geo_targeting", v)}
-            tooltip="Redirect users to different URLs based on their country. Useful for international campaigns and localized offers."
-          />
-          {form.geo_targeting && (
-            <div className="pl-11 space-y-3 animate-fade-in">
-              {geoData.map((d, i) => (
-                <div key={i} className="flex gap-2">
-                  <input placeholder="US" value={d.code} onChange={(e) => {
-                    const next = [...geoData];
-                    next[i].code = e.target.value.toUpperCase();
-                    setGeoData(next);
-                  }} className="w-16 px-3 py-2 rounded-lg bg-surface border border-border text-sm" />
-                  <input placeholder="Destination URL" value={d.url} onChange={(e) => {
-                    const next = [...geoData];
-                    next[i].url = e.target.value;
-                    setGeoData(next);
-                  }} className="flex-1 px-3 py-2 rounded-lg bg-surface border border-border text-sm" />
+          {/* Protection & Flow Group */}
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Protection & Flow</h3>
+
+            <ToggleRow
+              icon={Zap}
+              label="Escape In-App (Deep Link)"
+              description="Bypass Instagram/TikTok browsers"
+              checked={form.mode === "direct"}
+              onChange={() => {
+                if (checkPlan(userPlan, "deep_links")) {
+                  update("mode", form.mode === "direct" ? "redirect" : "direct");
+                } else {
+                  setUpgradeModal({
+                    open: true,
+                    feature: "Deep Links",
+                    description: "Create direct links that bypass all intermediate pages for maximum speed.",
+                  });
+                }
+              }}
+              tooltip="Attempts to force-open your link in the system browser (Chrome/Safari) instead of restricted app browsers."
+              disabled={!checkPlan(userPlan, "deep_links")}
+              lockedTooltip="Available on Creator Pro"
+            />
+
+            <ToggleRow
+              icon={Shield}
+              label="Security Check (Interstitial)"
+              description="Force click before redirect"
+              checked={form.interstitial_enabled}
+              onChange={() => update("interstitial_enabled", !form.interstitial_enabled)}
+              tooltip="Shows a 'Security Check' page where users must tap once to continue. Helps avoid bot detection."
+            />
+
+            <div className="space-y-3">
+              <ToggleRow
+                icon={Shield}
+                label="Bot Shield (Cloaking)"
+                description="Protect destination from bots"
+                checked={form.cloaking}
+                onChange={() => handleToggle("cloaking", "cloaking", "Link Optimization", "Hide your destination URL from bots and crawlers.")}
+                tooltip="Shows a 'Safe Page' to bots while allowing real users through. Crucial for link longevity."
+                disabled={!checkPlan(userPlan, "cloaking")}
+                lockedTooltip="Available on Creator Pro"
+              />
+              {form.cloaking && (
+                <div className="pl-11 animate-fade-in">
+                  <input type="url" value={form.safe_page_url} onChange={(e) => update("safe_page_url", e.target.value)} placeholder="Safe Page URL (e.g. https://google.com)" className="w-full px-4 py-2 rounded-xl bg-surface border border-border text-xs" />
                 </div>
-              ))}
-              <button type="button" onClick={() => setGeoData([...geoData, { code: "", url: "" }])} className="text-xs text-accent hover:underline">+ Add country rule</button>
+              )}
             </div>
-          )}
+          </div>
 
-          <ToggleRow
-            icon={Smartphone}
-            label="Device Targeting"
-            description="Route by device type"
-            checked={form.device_targeting}
-            onChange={(v) => update("device_targeting", v)}
-            tooltip="Set custom destination URLs for Mobile, Desktop, or Tablet visitors. Ensures users see the version of your site optimized for their screen."
-          />
-          {form.device_targeting && (
-            <div className="pl-11 space-y-3 animate-fade-in">
-              {deviceData.map((d, i) => (
-                <div key={i} className="flex gap-2">
-                  <select value={d.type} onChange={(e) => {
-                    const next = [...deviceData];
-                    next[i].type = e.target.value as any;
-                    setDeviceData(next);
-                  }} className="w-28 px-3 py-2 rounded-lg bg-surface border border-border text-sm">
-                    <option value="Mobile">Mobile</option>
-                    <option value="Desktop">Desktop</option>
-                    <option value="Tablet">Tablet</option>
-                  </select>
-                  <input placeholder="Destination URL" value={d.url} onChange={(e) => {
-                    const next = [...deviceData];
-                    next[i].url = e.target.value;
-                    setDeviceData(next);
-                  }} className="flex-1 px-3 py-2 rounded-lg bg-surface border border-border text-sm" />
+          {/* Advanced Routing Group */}
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Advanced Routing</h3>
+
+            <div className="space-y-3">
+              <ToggleRow
+                icon={Shuffle}
+                label="A/B Split Test"
+                description="Rotate multiple URLs"
+                checked={form.ab_split}
+                onChange={() => handleToggle("ab_split", "analytics", "A/B Split Test", "Randomly rotate traffic between several URLs to test performance.")}
+                tooltip="Randomly rotates traffic between several alternative URLs."
+              />
+              {form.ab_split && (
+                <div className="pl-11 space-y-3 animate-fade-in">
+                  {splitUrls.map((url, i) => (
+                    <input key={i} placeholder="Alternative URL" value={url} onChange={(e) => {
+                      const next = [...splitUrls];
+                      next[i] = e.target.value;
+                      setSplitUrls(next);
+                    }} className="w-full px-4 py-2 rounded-xl bg-surface border border-border text-xs" />
+                  ))}
+                  <button type="button" onClick={() => setSplitUrls([...splitUrls, ""])} className="text-[10px] text-accent hover:underline px-1">+ Add alternative URL</button>
                 </div>
-              ))}
-              <button type="button" onClick={() => setDeviceData([...deviceData, { type: "Mobile", url: "" }])} className="text-xs text-accent hover:underline">+ Add device rule</button>
+              )}
             </div>
-          )}
 
-          <ToggleRow
-            icon={Shuffle}
-            label="A/B Split Test"
-            description="Rotate multiple URLs"
-            checked={form.ab_split}
-            onChange={(v) => update("ab_split", v)}
-            tooltip="Randomly rotates traffic between several alternative URLs to test which landing page or offer performs best."
-          />
-          {form.ab_split && (
-            <div className="pl-11 space-y-3 animate-fade-in">
-              {splitUrls.map((url, i) => (
-                <input key={i} placeholder="Alternative URL" value={url} onChange={(e) => {
-                  const next = [...splitUrls];
-                  next[i] = e.target.value;
-                  setSplitUrls(next);
-                }} className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-sm" />
-              ))}
-              <button type="button" onClick={() => setSplitUrls([...splitUrls, ""])} className="text-xs text-accent hover:underline">+ Add alternative URL</button>
+            <div className="space-y-3">
+              <ToggleRow
+                icon={Globe}
+                label="Geo Targeting"
+                description="Route by visitor country"
+                checked={form.geo_targeting}
+                onChange={() => handleToggle("geo_targeting", "geo_targeting", "Geo Targeting", "Redirect users to different URLs based on their country.")}
+                tooltip="Redirect users based on their country. Example: US users go to one link, UK to another."
+                disabled={!checkPlan(userPlan, "geo_targeting")}
+                lockedTooltip="Available on all plans"
+              />
+              {form.geo_targeting && (
+                <div className="pl-11 space-y-3 animate-fade-in">
+                  {geoData.map((d, i) => (
+                    <div key={i} className="flex gap-2">
+                      <input placeholder="US" value={d.code} onChange={(e) => {
+                        const next = [...geoData];
+                        next[i].code = e.target.value.toUpperCase();
+                        setGeoData(next);
+                      }} className="w-16 px-3 py-2 rounded-lg bg-surface border border-border text-xs" />
+                      <input placeholder="Destination URL" value={d.url} onChange={(e) => {
+                        const next = [...geoData];
+                        next[i].url = e.target.value;
+                        setGeoData(next);
+                      }} className="flex-1 px-3 py-2 rounded-lg bg-surface border border-border text-xs" />
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setGeoData([...geoData, { code: "", url: "" }])} className="text-[10px] text-accent hover:underline px-1">+ Add country rule</button>
+                </div>
+              )}
             </div>
-          )}
+
+            <div className="space-y-3">
+              <ToggleRow
+                icon={Smartphone}
+                label="Device Targeting"
+                description="Route by device type"
+                checked={form.device_targeting}
+                onChange={() => handleToggle("device_targeting", "device_targeting", "Device Targeting", "Set custom destination URLs for different devices.")}
+                tooltip="Set custom destination URLs for Mobile, Desktop, or Tablet visitors."
+                disabled={!checkPlan(userPlan, "device_targeting")}
+                lockedTooltip="Available on Creator Pro"
+              />
+              {form.device_targeting && (
+                <div className="pl-11 space-y-3 animate-fade-in">
+                  {deviceData.map((d, i) => (
+                    <div key={i} className="flex gap-2">
+                      <select value={d.type} onChange={(e) => {
+                        const next = [...deviceData];
+                        next[i].type = e.target.value as any;
+                        setDeviceData(next);
+                      }} className="w-28 px-3 py-2 rounded-lg bg-surface border border-border text-xs">
+                        <option value="Mobile">Mobile</option>
+                        <option value="Desktop">Desktop</option>
+                        <option value="Tablet">Tablet</option>
+                      </select>
+                      <input placeholder="Destination URL" value={d.url} onChange={(e) => {
+                        const next = [...deviceData];
+                        next[i].url = e.target.value;
+                        setDeviceData(next);
+                      }} className="flex-1 px-3 py-2 rounded-lg bg-surface border border-border text-xs" />
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setDeviceData([...deviceData, { type: "Mobile", url: "" }])} className="text-[10px] text-accent hover:underline px-1">+ Add device rule</button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* UTM */}
-        <div className="pt-2">
-          <h3 className="text-sm font-medium text-foreground mb-3">UTM Parameters</h3>
+        {/* UTM Parameters */}
+        <div className="pt-6 border-t border-border">
+          <h3 className="text-sm font-medium text-foreground mb-4">UTM Parameters</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <input value={form.utm_source} onChange={(e) => update("utm_source", e.target.value)} placeholder="Source" className="px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground text-sm" />
             <input value={form.utm_medium} onChange={(e) => update("utm_medium", e.target.value)} placeholder="Medium" className="px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground text-sm" />
@@ -307,12 +452,29 @@ export default function CreateLink() {
           </div>
         </div>
 
-        {/* Timer */}
-        <div>
-          <label className="text-sm font-medium text-foreground mb-1.5 block flex items-center gap-2">
-            <Clock className="w-4 h-4 text-muted-foreground" /> Activity Timer (optional)
+        {/* Link Scheduling */}
+        <div className="pt-6 border-t border-border">
+          <label className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+            <CalendarRange className="w-4 h-4 text-accent" /> Link Scheduling (optional)
           </label>
-          <input type="datetime-local" value={form.expire_at} onChange={(e) => update("expire_at", e.target.value)} className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground text-sm" />
+          <p className="text-xs text-muted-foreground mb-4">Set when this link becomes active and when it expires. Leave empty for always-on.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground font-medium">Start Date</label>
+              <input type="datetime-local" value={form.start_at} onChange={(e) => update("start_at", e.target.value)} className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground font-medium">End Date</label>
+              <input type="datetime-local" value={form.expire_at} onChange={(e) => update("expire_at", e.target.value)} className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground text-sm" />
+            </div>
+          </div>
+          {(form.start_at || form.expire_at) && (
+            <div className="mt-3 p-3 rounded-xl bg-accent/5 border border-accent/10 text-xs text-muted-foreground">
+              <span className="text-accent font-medium">Schedule: </span>
+              {form.start_at ? `Active from ${new Date(form.start_at).toLocaleString()}` : 'Starts immediately'}
+              {form.expire_at ? ` until ${new Date(form.expire_at).toLocaleString()}` : ', no expiration'}
+            </div>
+          )}
         </div>
 
         <button type="submit" disabled={loading} className="btn-primary-glow w-full mt-4 flex items-center justify-center gap-2">
@@ -320,6 +482,13 @@ export default function CreateLink() {
           {id ? "Update Link" : "Create Link"}
         </button>
       </form>
+
+      <UpgradeModal
+        isOpen={upgradeModal.open}
+        onClose={() => setUpgradeModal(prev => ({ ...prev, open: false }))}
+        featureName={upgradeModal.feature}
+        description={upgradeModal.description}
+      />
     </div>
   );
 }
@@ -330,28 +499,32 @@ function ToggleRow({
   description,
   checked,
   onChange,
-  tooltip
+  tooltip,
+  disabled,
+  lockedTooltip
 }: {
   icon: any;
   label: string;
   description: string;
   checked: boolean;
   onChange: (v: boolean) => void;
-  tooltip?: string
+  tooltip?: string;
+  disabled?: boolean;
+  lockedTooltip?: string;
 }) {
   return (
-    <div className="flex items-center justify-between p-3 rounded-xl border border-border hover:border-accent/20 transition-colors">
+    <div className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${disabled ? 'opacity-60 border-border bg-background cursor-not-allowed' : 'border-border hover:border-accent/20 cursor-pointer'}`} onClick={() => !disabled && onChange(!checked)}>
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
-          <Icon className="w-4 h-4 text-accent" />
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${disabled ? 'bg-muted/50' : 'bg-accent/10'}`}>
+          <Icon className={`w-4 h-4 ${disabled ? 'text-muted-foreground' : 'text-accent'}`} />
         </div>
         <div>
           <div className="flex items-center gap-1.5">
             <div className="text-sm font-medium text-foreground">{label}</div>
-            {tooltip && (
+            {tooltip && !disabled && (
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
-                  <button type="button" className="text-muted-foreground hover:text-accent transition-colors">
+                  <button type="button" className="text-muted-foreground hover:text-accent transition-colors" onClick={(e) => e.stopPropagation()}>
                     <Info className="w-3.5 h-3.5" />
                   </button>
                 </TooltipTrigger>
@@ -360,11 +533,23 @@ function ToggleRow({
                 </TooltipContent>
               </Tooltip>
             )}
+            {disabled && lockedTooltip && (
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <div className="bg-muted px-1.5 py-0.5 rounded text-[10px] uppercase font-bold text-muted-foreground ml-1" onClick={(e) => e.stopPropagation()}>
+                    PRO
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-[10px] leading-relaxed p-2 bg-surface border-border text-foreground shadow-2xl">
+                  <p>{lockedTooltip}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
           <div className="text-xs text-muted-foreground">{description}</div>
         </div>
       </div>
-      <button type="button" onClick={() => onChange(!checked)} className={`w-11 h-6 rounded-full transition-colors duration-200 relative ${checked ? "bg-accent" : "bg-border"}`}>
+      <button type="button" disabled={disabled} className={`w-11 h-6 rounded-full transition-colors duration-200 relative ${checked ? "bg-accent" : "bg-border"} ${disabled ? "opacity-50 cursor-not-allowed cursor-pointer pointer-events-none" : ""}`}>
         <div className={`w-5 h-5 rounded-full bg-foreground absolute top-0.5 transition-transform duration-200 ${checked ? "translate-x-5.5 left-0.5" : "left-0.5"}`} style={{ transform: checked ? "translateX(22px)" : "translateX(0)" }} />
       </button>
     </div>
