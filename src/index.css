@@ -64,7 +64,8 @@
     font-family: 'Inter', system-ui, sans-serif;
   }
 
-  code, pre {
+  code,
+  pre {
     font-family: 'JetBrains Mono', monospace;
   }
 }
@@ -95,6 +96,10 @@
     box-shadow: 0 0 20px -5px hsl(153 68% 55% / 0.15);
   }
 
+  .shadow-indigo-glow {
+    box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.2);
+  }
+
   .input-glow {
     @apply transition-all duration-200;
   }
@@ -115,6 +120,44 @@
   .section-fade {
     @apply opacity-0 translate-y-4 animate-fade-in;
   }
+
+  .premium-border {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .premium-border::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: conic-gradient(from 0deg, transparent, hsl(var(--accent)), transparent, hsl(var(--accent)), transparent);
+    animation: spin 3s linear infinite;
+    opacity: 0.5;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .glass-badge {
+    @apply px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-glow-sm flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-white whitespace-nowrap z-50;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  }
+
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shimmer::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    animation: shimmer 2s infinite;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  }
 }
 
 @layer utilities {
@@ -123,7 +166,24 @@
   }
 
   @keyframes float {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
+
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  .animate-spin-slow {
+    animation: spin 3s linear infinite;
+  }
+
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
   }
 }

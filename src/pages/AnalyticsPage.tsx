@@ -51,7 +51,7 @@ export default function AnalyticsPage() {
             Unlock detailed click statistics, geographic data, and device insights with Creator Pro.
           </p>
         </div>
-        <Link to="/dashboard/billing" className="btn-primary-glow px-8 py-3 mt-4">
+        <Link to="/dashboard/pricing" className="btn-primary-glow px-8 py-3 mt-4">
           Upgrade to Creator Pro
         </Link>
       </div>

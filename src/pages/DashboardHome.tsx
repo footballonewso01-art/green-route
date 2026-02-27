@@ -132,19 +132,32 @@ export default function DashboardHome() {
   return (
     <div className="space-y-8">
       {/* Welcome Card */}
-      <div className="relative overflow-hidden glass-card p-8 group">
+      <div className="relative overflow-hidden glass-card px-8 py-5 group">
         {/* Background decorative elements */}
         <div className="absolute -right-12 -top-12 w-48 h-48 bg-accent/10 rounded-full blur-3xl group-hover:bg-accent/20 transition-colors duration-500" />
         <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl" />
 
-        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-3xl font-bold text-foreground">
-              Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-emerald-400">{displayName}</span>!
+              Welcome, <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-emerald-400">{displayName}</span>!
             </h1>
-            <p className="text-muted-foreground text-sm max-w-md">
-              Your links have gained <span className="text-foreground font-semibold">{stats.totalClicks.toLocaleString()}</span> clicks so far.
-            </p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-muted-foreground text-sm">Your ID:</span>
+              <code className="px-2 py-0.5 rounded bg-surface border border-border text-xs font-mono select-all">
+                {pb.authStore.model?.id}
+              </code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(pb.authStore.model?.id || "");
+                  toast.success("ID copied to clipboard!");
+                }}
+                className="p-1.5 hover:bg-surface rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                title="Copy ID"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

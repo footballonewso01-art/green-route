@@ -13,6 +13,8 @@ export interface PlanLimits {
     device_targeting: boolean;
     remove_branding: boolean;
     custom_slug: boolean;
+    pixels: boolean;
+    ab_testing: boolean;
     multi_accounts?: boolean; // Agency only
 }
 
@@ -35,7 +37,10 @@ export const FEATURES_ACCESS = {
     team_access: ["agency"],
     profile_customization: ["creator", "pro", "agency"],
     remove_branding: ["pro", "agency"],
-    geo_targeting: ["creator", "pro", "agency"],
+    geo_targeting: ["pro", "agency"],
+    device_targeting: ["creator", "pro", "agency"],
+    pixels: ["pro", "agency"],
+    ab_testing: ["pro", "agency"],
     custom_slug: ["agency"]
 };
 
@@ -47,13 +52,13 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         description: "Perfect for getting started",
         buttonText: "Current Plan",
         features: [
-            { text: "3 Smart Links", icon: "🔗", tooltip: "Now includes 3 Smart Links on Free plan!" },
+            { text: "4 Smart Links", icon: "🔗", tooltip: "Now includes 4 Smart Links on Free plan!" },
             { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
-            { text: "Geo Targeting", icon: "🌍", tooltip: "Redirect users by country for free." },
+            { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
             { text: "Standard Support", icon: "💬" }
         ],
         limits: {
-            links: 3,
+            links: 4,
             analytics: false,
             cloaking: false,
             custom_domain: false,
@@ -61,10 +66,12 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             team_access: false,
             profile_customization: true,
             deep_links: false,
-            geo_targeting: true,
-            device_targeting: false,
+            geo_targeting: false,
+            device_targeting: true,
             remove_branding: false,
-            custom_slug: false
+            custom_slug: false,
+            pixels: false,
+            ab_testing: false
         }
     },
     pro: {
@@ -75,18 +82,20 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         popular: true,
         buttonText: "Upgrade to Pro",
         features: [
-            { text: "10 Smart Links", icon: "🔗" },
-            { text: "Remove GreenRoute Branding", icon: "✨", tooltip: "Clean links without our badge." },
+            { text: "15 Smart Links", icon: "🔗" },
+            { text: "A/B Testing (2 variants)", icon: "🧪", tooltip: "Test two versions of a link to see which performs better." },
+            { text: "Remove GreenRoute Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
             { text: "Deep Links (Direct)", icon: "⚡", tooltip: "Create direct links for max speed." },
             { text: "Advanced Analytics", icon: "📊" },
             { text: "Link Optimization", icon: "🛡️" },
-            { text: "Device Targeting", icon: "📱" }
+            { text: "Geo Targeting", icon: "🌍" },
+            { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." }
         ],
         limits: {
-            links: 10,
+            links: 15,
             analytics: true,
             cloaking: true,
-            custom_domain: true,
+            custom_domain: false,
             priority_support: false,
             team_access: false,
             profile_customization: true,
@@ -94,7 +103,9 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             geo_targeting: true,
             device_targeting: true,
             remove_branding: true,
-            custom_slug: false
+            custom_slug: false,
+            pixels: true,
+            ab_testing: true
         }
     },
     agency: {
@@ -105,6 +116,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         buttonText: "Upgrade to Agency",
         features: [
             { text: "Unlimited Links", icon: "🚀" },
+            { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run GreenRoute on your own domains." },
             { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Create your own short link handles." },
             { text: "Everything in Pro", icon: "✅" },
             { text: "Priority Support", icon: "⚡" },
@@ -123,6 +135,8 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             device_targeting: true,
             remove_branding: true,
             custom_slug: true,
+            pixels: true,
+            ab_testing: true,
             multi_accounts: true
         }
     }

@@ -21,6 +21,10 @@ import InterstitialPage from "./pages/InterstitialPage";
 import NotFound from "./pages/NotFound";
 import BillingPage from "./pages/Billing";
 import DashboardPricing from "./pages/DashboardPricing";
+import { AdminRoute } from "./components/AdminRoute";
+import AdminOverview from "./pages/admin/AdminOverview";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminLinks from "./pages/admin/AdminLinks";
 
 import RedirectHandler from "./pages/RedirectHandler";
 
@@ -73,6 +77,14 @@ const AppRoutes = () => (
       <Route path="pricing" element={<DashboardPricing />} />
       <Route path="settings" element={<SettingsPage />} />
     </Route>
+
+    <Route path="/admin" element={<AdminRoute />}>
+      <Route index element={<Navigate to="/admin/overview" replace />} />
+      <Route path="overview" element={<AdminOverview />} />
+      <Route path="users" element={<AdminUsers />} />
+      <Route path="links" element={<AdminLinks />} />
+    </Route>
+
     {/* Short Link Redirector - Catch all other usernames/slugs */}
     <Route path="/:username" element={<RedirectHandler />} />
     <Route path="*" element={<NotFound />} />

@@ -54,6 +54,9 @@ export default function CreateLink() {
     safe_page_url: "",
     interstitial_enabled: false,
     mode: "redirect", // "redirect" | "landing" | "smart" | "direct"
+    fb_pixel: "",
+    google_pixel: "",
+    tiktok_pixel: "",
   });
 
   const [geoData, setGeoData] = useState<{ code: string; url: string }[]>([]);
@@ -85,6 +88,9 @@ export default function CreateLink() {
             interstitial_enabled: !!record.interstitial_enabled,
             mode: record.mode || "redirect",
             start_at: record.start_at ? new Date(record.start_at).toISOString().slice(0, 16) : "",
+            fb_pixel: record.fb_pixel || "",
+            google_pixel: record.google_pixel || "",
+            tiktok_pixel: record.tiktok_pixel || "",
           });
 
           if (record.geo_targeting) {
@@ -156,6 +162,9 @@ export default function CreateLink() {
       safe_page_url: form.safe_page_url,
       interstitial_enabled: form.interstitial_enabled,
       mode: form.mode,
+      fb_pixel: form.fb_pixel,
+      google_pixel: form.google_pixel,
+      tiktok_pixel: form.tiktok_pixel,
       user_id: user.id,
       active: true,
     };
@@ -298,8 +307,8 @@ export default function CreateLink() {
 
             <ToggleRow
               icon={Zap}
-              label="Escape In-App (Deep Link)"
-              description="Bypass Instagram/TikTok browsers"
+              label="Deep Link Escape (Beta)"
+              description="Bypass restricted Instagram/TikTok browsers"
               checked={form.mode === "direct"}
               onChange={() => {
                 if (checkPlan(userPlan, "deep_links")) {
@@ -307,12 +316,12 @@ export default function CreateLink() {
                 } else {
                   setUpgradeModal({
                     open: true,
-                    feature: "Deep Links",
-                    description: "Create direct links that bypass all intermediate pages for maximum speed.",
+                    feature: "Deep Link Escape",
+                    description: "FORCE open your links in the system browser (Chrome/Safari) for maximum conversion. Available on Pro.",
                   });
                 }
               }}
-              tooltip="Attempts to force-open your link in the system browser (Chrome/Safari) instead of restricted app browsers."
+              tooltip="KILLER FEATURE: Attempts to force-open your link in the system browser instead of restricted app browsers. Use with caution (Beta)."
               disabled={!checkPlan(userPlan, "deep_links")}
               lockedTooltip="Available on Creator Pro"
             />
@@ -329,11 +338,11 @@ export default function CreateLink() {
             <div className="space-y-3">
               <ToggleRow
                 icon={Shield}
-                label="Bot Shield (Cloaking)"
-                description="Protect destination from bots"
+                label="Link Optimization"
+                description="Secure and optimize destination traffic"
                 checked={form.cloaking}
-                onChange={() => handleToggle("cloaking", "cloaking", "Link Optimization", "Hide your destination URL from bots and crawlers.")}
-                tooltip="Shows a 'Safe Page' to bots while allowing real users through. Crucial for link longevity."
+                onChange={() => handleToggle("cloaking", "cloaking", "Link Optimization", "Protect your destination URL and filter traffic quality.")}
+                tooltip="Cleans and optimizes incoming traffic. Protects your destination link and increases quality of redirects."
                 disabled={!checkPlan(userPlan, "cloaking")}
                 lockedTooltip="Available on Creator Pro"
               />
@@ -355,8 +364,10 @@ export default function CreateLink() {
                 label="A/B Split Test"
                 description="Rotate multiple URLs"
                 checked={form.ab_split}
-                onChange={() => handleToggle("ab_split", "analytics", "A/B Split Test", "Randomly rotate traffic between several URLs to test performance.")}
+                onChange={() => handleToggle("ab_split", "ab_testing", "A/B Split Test", "Randomly rotate traffic between several alternative URLs to test performance.")}
                 tooltip="Randomly rotates traffic between several alternative URLs."
+                disabled={!checkPlan(userPlan, "ab_testing")}
+                lockedTooltip="Available on Creator Pro"
               />
               {form.ab_split && (
                 <div className="pl-11 space-y-3 animate-fade-in">
@@ -381,7 +392,7 @@ export default function CreateLink() {
                 onChange={() => handleToggle("geo_targeting", "geo_targeting", "Geo Targeting", "Redirect users to different URLs based on their country.")}
                 tooltip="Redirect users based on their country. Example: US users go to one link, UK to another."
                 disabled={!checkPlan(userPlan, "geo_targeting")}
-                lockedTooltip="Available on all plans"
+                lockedTooltip="Available on Creator Pro"
               />
               {form.geo_targeting && (
                 <div className="pl-11 space-y-3 animate-fade-in">
@@ -413,7 +424,7 @@ export default function CreateLink() {
                 onChange={() => handleToggle("device_targeting", "device_targeting", "Device Targeting", "Set custom destination URLs for different devices.")}
                 tooltip="Set custom destination URLs for Mobile, Desktop, or Tablet visitors."
                 disabled={!checkPlan(userPlan, "device_targeting")}
-                lockedTooltip="Available on Creator Pro"
+                lockedTooltip="Free on all plans"
               />
               {form.device_targeting && (
                 <div className="pl-11 space-y-3 animate-fade-in">
@@ -440,6 +451,36 @@ export default function CreateLink() {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Tracking Pixels */}
+        <div className="pt-6 border-t border-border">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-foreground italic flex items-center gap-2">
+              <Zap className="w-4 h-4 text-accent" /> Tracking Pixels
+            </h3>
+            {!checkPlan(userPlan, "pixels") && (
+              <div
+                onClick={() => setUpgradeModal({
+                  open: true,
+                  feature: "Tracking Pixels",
+                  description: "Retarget your audience by adding Meta, Google, and TikTok pixels to your links."
+                })}
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[10px] font-bold text-accent uppercase tracking-wider cursor-pointer"
+              >
+                <Lock className="w-2.5 h-2.5" />
+                Pro Only
+              </div>
+            )}
+          </div>
+          <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 ${!checkPlan(userPlan, "pixels") ? "opacity-50 pointer-events-none" : ""}`}>
+            <input value={form.fb_pixel} onChange={(e) => update("fb_pixel", e.target.value)} placeholder="Meta Pixel ID" className="px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground text-sm" />
+            <input value={form.google_pixel} onChange={(e) => update("google_pixel", e.target.value)} placeholder="Google tag (GT-)" className="px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground text-sm" />
+            <input value={form.tiktok_pixel} onChange={(e) => update("tiktok_pixel", e.target.value)} placeholder="TikTok Pixel ID" className="px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground text-sm" />
+          </div>
+          {!checkPlan(userPlan, "pixels") && (
+            <p className="text-[10px] text-muted-foreground mt-2 italic">Pixels are standard for professional marketers. Upgrade to start retargeting.</p>
+          )}
         </div>
 
         {/* UTM Parameters */}
@@ -471,8 +512,8 @@ export default function CreateLink() {
           {(form.start_at || form.expire_at) && (
             <div className="mt-3 p-3 rounded-xl bg-accent/5 border border-accent/10 text-xs text-muted-foreground">
               <span className="text-accent font-medium">Schedule: </span>
-              {form.start_at ? `Active from ${new Date(form.start_at).toLocaleString()}` : 'Starts immediately'}
-              {form.expire_at ? ` until ${new Date(form.expire_at).toLocaleString()}` : ', no expiration'}
+              {form.start_at ? `Active from ${new Date(form.start_at).toLocaleString()}` : "Starts immediately"}
+              {form.expire_at ? ` until ${new Date(form.expire_at).toLocaleString()}` : ", no expiration"}
             </div>
           )}
         </div>
@@ -485,7 +526,7 @@ export default function CreateLink() {
 
       <UpgradeModal
         isOpen={upgradeModal.open}
-        onClose={() => setUpgradeModal(prev => ({ ...prev, open: false }))}
+        onClose={() => setUpgradeModal((prev) => ({ ...prev, open: false }))}
         featureName={upgradeModal.feature}
         description={upgradeModal.description}
       />
@@ -513,7 +554,7 @@ function ToggleRow({
   lockedTooltip?: string;
 }) {
   return (
-    <div className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${disabled ? 'opacity-60 border-border bg-background cursor-not-allowed' : 'border-border hover:border-accent/20 cursor-pointer'}`} onClick={() => !disabled && onChange(!checked)}>
+    <div className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${disabled ? 'opacity-60 border-border bg-background cursor-pointer' : 'border-border hover:border-accent/20 cursor-pointer'}`} onClick={() => onChange(!checked)}>
       <div className="flex items-center gap-3">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${disabled ? 'bg-muted/50' : 'bg-accent/10'}`}>
           <Icon className={`w-4 h-4 ${disabled ? 'text-muted-foreground' : 'text-accent'}`} />

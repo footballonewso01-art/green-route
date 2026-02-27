@@ -30,12 +30,13 @@ const features = [
   },
   {
     icon: MousePointer,
-    title: "Anti In-App Browser",
-    description: "Detect Instagram/TikTok browsers and redirect users to their native browser.",
+    title: "Deep Link Optimization (Beta)",
+    description: "Open links in a faster, cleaner browser experience. Improves loading speed and user flow across devices.",
   },
   {
-    icon: ExternalLink,
-    description: "Create beautiful profile pages with all your links. Better than Linktree, with full control.",
+    icon: UserIcon,
+    title: "Link-in-Bio Profiles",
+    description: "Create beautiful profile pages with all your links. Complete visual control and customization.",
   },
 ];
 
@@ -46,9 +47,9 @@ const plans = [
     price: "0",
     description: "Perfect for getting started",
     features: [
-      { text: "3 Smart Links", icon: "🔗", tooltip: "Now includes 3 Smart Links on Free plan!" },
+      { text: "4 Smart Links", icon: "🔗", tooltip: "Now includes 4 Smart Links on Free plan!" },
       { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
-      { text: "Geo Targeting", icon: "🌍", tooltip: "Redirect users by country for free." },
+      { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
       { text: "Standard Support", icon: "💬" }
     ],
     buttonText: "Start for Free",
@@ -60,16 +61,18 @@ const plans = [
     price: "9",
     annualPrice: "7",
     description: "Advanced tools for growing creators",
+    popular: true,
     features: [
-      { text: "10 Smart Links", icon: "🔗" },
+      { text: "15 Smart Links", icon: "🔗" },
+      { text: "A/B Testing (2 variants)", icon: "🧪", tooltip: "Test two versions of a link to see which performs better." },
       { text: "Remove GreenRoute Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
-      { text: "Deep Links (Direct)", icon: "⚡", tooltip: "Create direct links without intermediate pages." },
+      { text: "Deep Link Escape (Beta)", icon: "⚡", tooltip: "Killer feature: Bypass Instagram/TikTok browsers. Use at own risk." },
       { text: "Advanced Analytics", icon: "📊" },
       { text: "Link Optimization", icon: "🛡️" },
-      { text: "Device Targeting", icon: "📱" }
+      { text: "Geo Targeting", icon: "🌍" },
+      { text: "Tracking Pixels", icon: "🎯" }
     ],
     buttonText: "Upgrade to Pro",
-    popular: true
   },
   {
     id: "agency",
@@ -79,6 +82,8 @@ const plans = [
     description: "For agencies and power users",
     features: [
       { text: "Unlimited Smart Links", icon: "🚀" },
+      { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
+      { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run GreenRoute on your own domains." },
       { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
       { text: "Everything in Creator Pro", icon: "✅" },
       { text: "Priority 24/7 Support", icon: "⚡" },
@@ -261,80 +266,81 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-3 gap-8">
             {plans.map((plan) => {
-              const isCurrent = userPlan === plan.id;
-              const isDowngrade = PLAN_RANKS[plan.id as PlanType] < PLAN_RANKS[userPlan as PlanType];
+              const effectivePlan = userPlan || "creator";
+              const isCurrent = !!user && effectivePlan === plan.id;
+              const isDowngrade = user && PLAN_RANKS[plan.id as PlanType] < PLAN_RANKS[effectivePlan as PlanType];
               const isDisabled = isCurrent || isDowngrade;
 
-              // Highlight logic:
-              // If user is Free, highlight "pro" (Most Popular).
-              // If user is Pro or Agency, highlight their "isCurrent" plan instead.
-              const shouldHighlight = (userPlan === "creator" && plan.id === "pro") || isCurrent;
-              const showPopularBadge = (userPlan === "creator" && plan.id === "pro");
+              const shouldHighlight = (effectivePlan === "creator" && plan.id === "pro") || isCurrent;
+              const showPopularBadge = plan.id === "pro";
+
+              const isPro = plan.id === "pro";
+              const isAgency = plan.id === "agency";
 
               return (
-                <div key={plan.name} className={`glass-card p-10 rounded-3xl relative flex flex-col h-full transition-all duration-300 hover:translate-y-[-8px] ${shouldHighlight ? "ring-2 ring-accent shadow-[0_0_40px_-10px_rgba(var(--accent-rgb),0.3)]" : ""}`}>
-                  {showPopularBadge && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-accent to-accent/80 text-accent-foreground text-xs font-bold rounded-full shadow-lg flex items-center gap-1.5">
-                      <Zap className="w-3 h-3 fill-current" /> Most Popular
+                <div key={plan.id} className={`relative group transition-all duration-500 hover:translate-y-[-8px] ${isPro ? "hover:scale-[1.05]" : ""}`}>
+                  <div className={`glass-card p-8 rounded-2xl relative flex flex-col h-full ${shouldHighlight ? (isAgency ? "shadow-indigo-glow" : "shadow-glow") : ""} ${isPro ? "premium-border" : ""} ${isAgency ? "border-indigo-500/30" : ""}`}>
+                    <div className="text-center mb-6">
+                      <h3 className={`text-xl font-bold mb-1 ${isPro ? "text-accent" : isAgency ? "text-indigo-400" : "text-foreground"}`}>{plan.name}</h3>
+                      <p className="text-sm text-muted-foreground mb-4">{plan.description}</p>
+                      <div className="text-4xl font-extrabold text-foreground">
+                        ${billingCycle === "annual" && plan.annualPrice ? plan.annualPrice : plan.price}
+                        <span className="text-base font-normal text-muted-foreground ml-1">/mo</span>
+                      </div>
                     </div>
-                  )}
-                  <div className="text-center mb-8">
-                    <h3 className="text-2xl font-bold text-foreground mb-2">{plan.name}</h3>
-                    <p className="text-sm text-muted-foreground mb-6 h-4">{plan.description}</p>
-                    <div className="text-5xl font-extrabold text-foreground mb-1">
-                      ${billingCycle === "annual" && plan.annualPrice ? plan.annualPrice : plan.price}
-                      <span className="text-base font-normal text-muted-foreground ml-1">/mo</span>
-                    </div>
-                  </div>
 
-                  <ul className="space-y-4 mb-10 flex-1">
-                    {plan.features.map((f, idx) => (
-                      <li key={idx} className="flex items-center gap-3 text-sm text-muted-foreground">
-                        <span className="text-lg">{f.icon}</span>
-                        <span className="flex-1">{f.text}</span>
-                        {f.tooltip && (
-                          <Tooltip delayDuration={0}>
-                            <TooltipTrigger asChild>
-                              <button type="button" className="w-4 h-4 rounded-full border border-muted-foreground/30 flex items-center justify-center text-[10px] cursor-help opacity-50 hover:opacity-100 hover:border-accent hover:text-accent transition-all">
-                                i
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-xs text-[10px] leading-relaxed p-2 bg-surface border-border text-foreground shadow-2xl">
-                              <p>{f.tooltip}</p>
-                            </TooltipContent>
-                          </Tooltip>
+                    <ul className="space-y-4 mb-8 flex-1">
+                      {plan.features.map((f, idx) => (
+                        <li key={idx} className="flex items-center gap-3 text-sm text-muted-foreground">
+                          <span className="text-lg">{f.icon}</span>
+                          <span className="flex-1">{f.text}</span>
+                          {f.tooltip && (
+                            <Tooltip delayDuration={0}>
+                              <TooltipTrigger asChild>
+                                <button type="button" className="w-4 h-4 rounded-full border border-muted-foreground/30 flex items-center justify-center text-[10px] cursor-help opacity-50 hover:opacity-100 hover:border-accent hover:text-accent transition-all">
+                                  i
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-[10px] leading-relaxed p-2 bg-surface border-border text-foreground shadow-2xl">
+                                <p>{f.tooltip}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+
+                    {user ? (
+                      <Link
+                        to={isCurrent ? "#" : "/dashboard/pricing"}
+                        className={`block text-center py-4 rounded-2xl font-bold transition-all duration-300 transform active:scale-95 ${isDisabled
+                          ? (isCurrent ? "bg-surface-hover border border-white/10 text-white cursor-default" : "bg-surface-hover text-muted-foreground pointer-events-none opacity-80")
+                          : (shouldHighlight
+                            ? "btn-primary-glow"
+                            : "bg-surface border border-border text-foreground hover:bg-surface-hover shadow-sm")
+                          }`}
+                      >
+                        {isCurrent ? (
+                          <span className="text-white">Your Current Plan</span>
+                        ) : isDowngrade ? (
+                          "Downgrade Unavailable"
+                        ) : (
+                          "Upgrade"
                         )}
-                      </li>
-                    ))}
-                  </ul>
-
-                  {user ? (
-                    <Link
-                      to="/dashboard/pricing"
-                      className={`block text-center py-4 rounded-2xl font-bold transition-all duration-300 transform active:scale-95 ${isDisabled
-                        ? (isCurrent ? "bg-accent/25 border-transparent ring-2 ring-accent shadow-[0_0_25px_-5px_rgba(var(--accent-rgb),0.6)] opacity-100 pointer-events-none" : "bg-surface-hover text-muted-foreground pointer-events-none opacity-80")
-                        : (shouldHighlight
-                          ? "btn-primary-glow"
-                          : "bg-surface border border-border text-foreground hover:bg-surface-hover shadow-sm")
-                        }`}
-                    >
-                      {isCurrent ? (
-                        <span className="text-white">
-                          Your Current Plan
-                        </span>
-                      ) : isDowngrade ? (
-                        "Downgrade Unavailable"
-                      ) : (
-                        "Upgrade"
-                      )}
-                    </Link>
-                  ) : (
-                    <Link
-                      to="/register"
-                      className={`block text-center py-4 rounded-2xl font-bold transition-all duration-300 transform active:scale-95 ${plan.id === "pro" ? "btn-primary-glow" : "bg-surface border border-border text-foreground hover:bg-surface-hover shadow-sm"}`}
-                    >
-                      {plan.buttonText}
-                    </Link>
+                      </Link>
+                    ) : (
+                      <Link
+                        to="/register"
+                        className={`block text-center py-4 rounded-2xl font-bold transition-all duration-300 transform active:scale-95 ${plan.id === "pro" ? "btn-primary-glow" : "bg-surface border border-border text-foreground hover:bg-surface-hover shadow-sm"}`}
+                      >
+                        {plan.buttonText}
+                      </Link>
+                    )}
+                  </div>
+                  {showPopularBadge && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 glass-badge shimmer z-50">
+                      <Zap className="w-3 h-3 fill-current text-accent" /> Most Popular
+                    </div>
                   )}
                 </div>
               );
@@ -344,15 +350,15 @@ export default function LandingPage() {
           {/* Benefits Footer */}
           <div className="mt-16 flex flex-col md:flex-row items-center justify-center gap-8 text-sm text-muted-foreground opacity-80">
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 italic font-bold">✓</div>
+              <div className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 font-bold">✓</div>
               30 day money back guarantee
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 italic font-bold">✓</div>
+              <div className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 font-bold">✓</div>
               Cancel anytime
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 italic font-bold">✓</div>
+              <div className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 font-bold">✓</div>
               24/7 support
             </div>
           </div>

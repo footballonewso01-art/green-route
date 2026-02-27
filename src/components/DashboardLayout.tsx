@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Link2, BarChart3, User, Settings, Zap, Menu, X, LogOut, CreditCard, Info, Search, Tag, ShieldCheck, HelpCircle, Bell, Share2 } from "lucide-react";
+import { LayoutDashboard, Link2, BarChart3, User, Settings, Zap, Menu, X, LogOut, CreditCard, Info, Search, Tag, ShieldCheck, HelpCircle, Bell, Share2, ShieldAlert, Users, Link as LinkIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { PLANS, PlanType } from "@/lib/plans";
 import { pb } from "@/lib/pocketbase";
@@ -35,13 +35,12 @@ const navGroups: NavGroup[] = [
     items: [
       { title: "Billing", path: "/dashboard/billing", icon: CreditCard },
       { title: "Pricing", path: "/dashboard/pricing", icon: Tag },
-      { title: "Settings", path: "/dashboard/settings", icon: Settings, pro: true },
+      { title: "Settings", path: "/dashboard/settings", icon: Settings },
     ]
   },
   {
     label: "Support",
     items: [
-      { title: "Get Verified", path: "#verified", icon: ShieldCheck, badge: { text: "Soon", color: "bg-orange-500/20 text-orange-400" } },
       { title: "Help Center", path: "#help", icon: HelpCircle, badge: { text: "Soon", color: "bg-orange-500/20 text-orange-400" } },
     ]
   }
@@ -50,7 +49,7 @@ const navGroups: NavGroup[] = [
 export default function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [linksCount, setLinksCount] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -82,6 +81,17 @@ export default function DashboardLayout() {
     localStorage.setItem('gr_dismissed_notifs', JSON.stringify(next));
   };
 
+  const adminNavGroup: NavGroup = {
+    label: "Admin Panel",
+    items: [
+      { title: "Overview", path: "/admin/overview", icon: BarChart3, badge: { text: "Admin", color: "bg-red-500/20 text-red-500" } },
+      { title: "Users", path: "/admin/users", icon: Users, badge: { text: "Admin", color: "bg-red-500/20 text-red-500" } },
+      { title: "Links Safety", path: "/admin/links", icon: LinkIcon, badge: { text: "Admin", color: "bg-red-500/20 text-red-500" } },
+    ]
+  };
+
+  const currentNavGroups = isAdmin ? [adminNavGroup, ...navGroups] : navGroups;
+
   useEffect(() => {
     const fetchUsage = async () => {
       if (!user) return;
@@ -110,7 +120,7 @@ export default function DashboardLayout() {
   const maxLinks = plan?.limits.links || 0;
   const usagePercentage = maxLinks === -1 ? 0 : Math.min(100, ((linksCount ?? 0) / maxLinks) * 100);
   const usageText = maxLinks === -1 ? "Unlimited Links" : `${linksCount ?? 0} / ${maxLinks} links used`;
-  const userInitial = user?.user_metadata?.full_name?.[0] || user?.email?.[0]?.toUpperCase() || "U";
+  const userInitial = (user?.name?.[0] || user?.email?.[0] || "U").toUpperCase();
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -148,7 +158,7 @@ export default function DashboardLayout() {
         </div>
 
         <nav className="flex-1 p-4 pt-2 space-y-4 overflow-y-auto no-scrollbar">
-          {navGroups.map((group) => {
+          {currentNavGroups.map((group) => {
             const filteredItems = group.items.filter(item =>
               item.title.toLowerCase().includes(searchQuery.toLowerCase())
             );
@@ -305,11 +315,7 @@ export default function DashboardLayout() {
             </div>
 
             <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent text-sm font-semibold overflow-hidden border border-accent/20">
-              {user?.avatar ? (
-                <img src={pb.files.getUrl(user, user.avatar, { thumb: '100x100' })} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                userInitial
-              )}
+              {userInitial}
             </div>
           </div>
         </header>

@@ -4,9 +4,9 @@ migrate((db) => {
 
     // 1. Update 'links' collection rules
     const linksCollection = dao.findCollectionByNameOrId("links");
-    // Allow listing/viewing if owner OR if it's an active public link
-    linksCollection.listRule = "user_id = @request.auth.id || (active = true && show_on_profile != false)";
-    linksCollection.viewRule = "user_id = @request.auth.id || (active = true && show_on_profile != false)";
+    // Allow listing/viewing active links by slug (even if not shown on profile)
+    linksCollection.listRule = "user_id = @request.auth.id || active = true";
+    linksCollection.viewRule = "user_id = @request.auth.id || active = true";
     dao.saveCollection(linksCollection);
 
     // 2. Update 'users' collection rules
@@ -23,6 +23,12 @@ migrate((db) => {
     usersCollection.listRule = "id = @request.auth.id";
 
     dao.saveCollection(usersCollection);
+
+    // 3. Update 'clicks' collection rules
+    const clicksCollection = dao.findCollectionByNameOrId("clicks");
+    // Allow anybody to log a click (public creation)
+    clicksCollection.createRule = "";
+    dao.saveCollection(clicksCollection);
 
     return null;
 }, (db) => {

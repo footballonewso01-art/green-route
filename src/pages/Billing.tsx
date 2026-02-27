@@ -1,12 +1,24 @@
 import { useState, useEffect } from "react";
-import { CreditCard, History, ChevronRight } from "lucide-react";
+import { CreditCard, History, ChevronRight, Loader2 } from "lucide-react";
 import { PLANS, PlanType } from "@/lib/plans";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
+import { pb } from "@/lib/pocketbase";
+
+type BillingRecord = {
+    id: string;
+    plan: string;
+    amount: number;
+    status: string;
+    payment_method: string;
+    created: string;
+};
 
 export default function BillingPage() {
     const { user } = useAuth();
     const [currentPlan, setCurrentPlan] = useState<PlanType>("creator");
+    const [logs, setLogs] = useState<BillingRecord[]>([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (user && (user as any).plan) {
@@ -14,10 +26,40 @@ export default function BillingPage() {
         }
     }, [user]);
 
+    useEffect(() => {
+        const fetchBilling = async () => {
+            if (!user) return;
+            try {
+                const result = await pb.collection("billing").getList(1, 50, {
+                    filter: `user_id="${user.id}"`,
+                    sort: "-created",
+                    requestKey: null
+                });
+                setLogs(result.items as any[]);
+            } catch (err) {
+                console.error("Failed to fetch billing records", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchBilling();
+    }, [user]);
+
     const activePlanDetails = PLANS[currentPlan] || PLANS.creator;
 
-    // Placeholder mock logs since there's no payment backend yet
-    const logs: any[] = [];
+    const formatDate = (dateStr: string) => {
+        return new Date(dateStr).toLocaleDateString("ru-RU", {
+            year: "numeric", month: "short", day: "numeric"
+        });
+    };
+
+    const getEndDate = (dateStr: string) => {
+        const d = new Date(dateStr);
+        d.setDate(d.getDate() + 30);
+        return d.toLocaleDateString("ru-RU", {
+            year: "numeric", month: "short", day: "numeric"
+        });
+    };
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 pb-12">
@@ -75,33 +117,44 @@ export default function BillingPage() {
                                 <th className="px-6 py-4 font-medium">Plan</th>
                                 <th className="px-6 py-4 font-medium">Status</th>
                                 <th className="px-6 py-4 font-medium">Price</th>
+                                <th className="px-6 py-4 font-medium">Method</th>
                                 <th className="px-6 py-4 font-medium">Start Date</th>
                                 <th className="px-6 py-4 font-medium">End Date</th>
-                                <th className="px-6 py-4 font-medium text-right">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border/50">
-                            {logs.length > 0 ? (
-                                logs.map((log, index) => (
-                                    <tr key={index} className="hover:bg-background/30 transition-colors">
-                                        <td className="px-6 py-4 text-foreground font-medium">{log.plan}</td>
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
+                                        <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+                                    </td>
+                                </tr>
+                            ) : logs.length > 0 ? (
+                                logs.map((log) => (
+                                    <tr key={log.id} className="hover:bg-background/30 transition-colors">
+                                        <td className="px-6 py-4 text-foreground font-medium capitalize">{log.plan}</td>
                                         <td className="px-6 py-4">
-                                            <span className="px-2 py-1 rounded-full bg-green-500/10 text-green-500 text-xs font-semibold">
-                                                {log.status}
+                                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${log.status === "active"
+                                                    ? "bg-green-500/10 text-green-500"
+                                                    : "bg-red-500/10 text-red-500"
+                                                }`}>
+                                                {log.status === "active" ? "Активная" : "Не активная"}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-muted-foreground">{log.price}</td>
-                                        <td className="px-6 py-4 text-muted-foreground">{log.startDate}</td>
-                                        <td className="px-6 py-4 text-muted-foreground">{log.endDate}</td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button className="text-accent hover:underline text-xs font-medium">Receipt</button>
+                                        <td className="px-6 py-4 text-muted-foreground">${log.amount}</td>
+                                        <td className="px-6 py-4">
+                                            <span className="text-xs font-bold px-2 py-0.5 rounded bg-foreground/5 text-muted-foreground border border-border/50">
+                                                {log.payment_method || "Given"}
+                                            </span>
                                         </td>
+                                        <td className="px-6 py-4 text-muted-foreground">{formatDate(log.created)}</td>
+                                        <td className="px-6 py-4 text-muted-foreground">{getEndDate(log.created)}</td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
-                                        No payment history found.
+                                    <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground italic">
+                                        Пока нет истории платежей.
                                     </td>
                                 </tr>
                             )}

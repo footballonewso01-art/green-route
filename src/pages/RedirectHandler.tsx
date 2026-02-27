@@ -62,9 +62,9 @@ export default function RedirectHandler() {
                 const isFacebook = /FBAN|FBAV/i.test(ua);
                 const isInApp = isInstagram || isTikTok || isFacebook;
 
-                // 2. Early Cloaking (Bot Check)
+                // 2. Link Optimization (Bot Check)
                 if (link.cloaking && isBot && link.safe_page_url) {
-                    console.log("Bot detected, cloaking to safe page");
+                    console.log("Bot detected, optimizing to safe page");
                     window.location.replace(link.safe_page_url);
                     return;
                 }
@@ -93,10 +93,15 @@ export default function RedirectHandler() {
                 let country = "Unknown";
                 let countryCode = "";
                 try {
-                    const res = await fetch("https://ipapi.co/json/").then(r => r.json());
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+
+                    const res = await fetch("https://ipapi.co/json/", { signal: controller.signal }).then(r => r.json());
+                    clearTimeout(timeoutId);
+
                     country = res.country_name || "Unknown";
                     countryCode = res.country || "";
-                } catch (e) { console.error("Geo failed", e); }
+                } catch (e) { console.error("Geo failed or timed out", e); }
 
                 // Referrer normalization
                 let referrer = "Direct";
@@ -135,19 +140,21 @@ export default function RedirectHandler() {
                 }
                 setDestination(finalDestination);
 
-                // Log click before redirect
-                await pb.collection('clicks').create({
-                    link_id: link.id,
-                    country,
-                    device,
-                    os,
-                    browser,
-                    referrer,
-                    is_unique: isUnique,
-                    ip: "masked",
-                    user_agent: ua.slice(0, 200)
-                });
-                await pb.collection('links').update(link.id, { 'clicks_count+': 1 });
+                // Log click before redirect (if not a bot)
+                if (!isBot) {
+                    await pb.collection('clicks').create({
+                        link_id: link.id,
+                        country,
+                        device,
+                        os,
+                        browser,
+                        referrer,
+                        is_unique: isUnique,
+                        ip: "masked",
+                        user_agent: ua.slice(0, 200)
+                    });
+                    await pb.collection('links').update(link.id, { 'clicks_count+': 1 });
+                }
 
                 // 5. Advanced Deep Link Escape (Special mode)
                 if (link.mode === 'direct' && isInApp) {

@@ -21,12 +21,21 @@ export default function SettingsPage() {
     if (!tab.limit || checkPlan(userPlan, tab.limit as any)) {
       setActive(tab.id);
     } else {
+      let featureName = tab.label;
+      let description = "";
+
+      if (tab.id === "domains") {
+        description = "Connect your own custom domains for fully branded short links. Available on Agency plan.";
+        featureName = "Custom Domains (Agency)";
+      } else if (tab.id === "api") {
+        description = "Access our REST API to automate link creation and management. Available on Agency plan.";
+        featureName = "API Access (Agency)";
+      }
+
       setUpgradeModal({
         open: true,
-        feature: tab.label,
-        description: tab.id === "domains"
-          ? "Connect your own custom domains for fully branded short links."
-          : "Access our REST API to automate link creation and management.",
+        feature: featureName,
+        description: description,
       });
     }
   };

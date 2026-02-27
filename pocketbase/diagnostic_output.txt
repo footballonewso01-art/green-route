@@ -1,0 +1,96 @@
+
+=== users (type=auth) ===
+  list:   '@request.auth.role = "admin" || id = @request.auth.id'
+  view:   '@request.auth.role = "admin" || id = @request.auth.id'
+  create: ''
+  update: '@request.auth.role = "admin" || id = @request.auth.id'
+  delete: '@request.auth.role = "admin" || id = @request.auth.id'
+    field: name type=text system=False
+    field: avatar type=file system=False
+    field: bio type=text system=False
+    field: theme type=text system=False
+    field: plan type=select system=False
+    field: plan_status type=select system=False
+    field: plan_expires_at type=date system=False
+    field: stripe_customer_id type=text system=False
+    field: stripe_subscription_id type=text system=False
+    field: custom_theme_bg type=file system=False
+    field: social_links type=json system=False
+    field: username_last_changed type=date system=False
+    field: role type=text system=False
+
+=== links (type=base) ===
+  list:   '@request.auth.role = "admin" || user_id = @request.auth.id'
+  view:   '@request.auth.role = "admin" || user_id = @request.auth.id'
+  create: '@request.auth.id != "" && @request.auth.id = user_id'
+  update: '@request.auth.role = "admin" || user_id = @request.auth.id'
+  delete: '@request.auth.role = "admin" || user_id = @request.auth.id'
+    field: slug type=text system=False
+    field: destination_url type=text system=False
+    field: user_id type=relation system=False
+    field: active type=bool system=False
+    field: clicks_count type=number system=False
+    field: interstitial_enabled type=bool system=False
+    field: title type=text system=False
+    field: order type=date system=False
+    field: show_on_profile type=bool system=False
+    field: mode type=text system=False
+    field: icon_type type=select system=False
+    field: icon_value type=text system=False
+    field: icon_color type=text system=False
+    field: icon_type type=select system=False
+    field: icon_value type=text system=False
+    field: icon_color type=text system=False
+
+=== clicks (type=base) ===
+  list:   '@request.auth.role = "admin" || link_id.user_id = @request.auth.id'
+  view:   '@request.auth.role = "admin" || link_id.user_id = @request.auth.id'
+  create: ''
+  update: '@request.auth.role = "admin" || link_id.user_id = @request.auth.id'
+  delete: '@request.auth.role = "admin" || link_id.user_id = @request.auth.id'
+    field: link_id type=relation system=False
+    field: country type=text system=False
+    field: device type=text system=False
+    field: os type=text system=False
+    field: browser type=text system=False
+    field: referrer type=text system=False
+    field: is_unique type=bool system=False
+
+=== USERS TABLE COLUMNS ===
+  avatar (TEXT)
+  created (TEXT)
+  email (TEXT)
+  emailVisibility (BOOLEAN)
+  id (TEXT)
+  lastLoginAlertSentAt (TEXT)
+  lastResetSentAt (TEXT)
+  lastVerificationSentAt (TEXT)
+  name (TEXT)
+  passwordHash (TEXT)
+  tokenKey (TEXT)
+  updated (TEXT)
+  username (TEXT)
+  verified (BOOLEAN)
+  bio (TEXT)
+  theme (TEXT)
+  plan (TEXT)
+  plan_status (TEXT)
+  plan_expires_at (TEXT)
+  stripe_customer_id (TEXT)
+  stripe_subscription_id (TEXT)
+  custom_theme_bg (TEXT)
+  social_links (JSON)
+  username_last_changed (TEXT)
+  role (TEXT)
+
+=== USERS DATA ===
+  ('o6x1jnqbe8km1e9', 'test@mail.com', 'admin', 'agency')
+  ('6mcohitvfylwwmw', 'faceitrelovut@gmail.com', 'user', 'creator')
+  ('bladbagbjinj74l', 'footyslam228@gmail.com', 'user', 'agency')
+  ('jubtprsif46rrks', 'admin@greenroute.dev', 'user', 'creator')
+  ('5oaasttnkbb6779', 'test@example.com', 'user', 'agency')
+  ('ukqlt3xys6kn20s', 'test2@example.com', 'user', 'agency')
+  ('xsbuke91xqt6ru9', 'tester_unique_99@example.com', 'user', 'creator')
+  ('ldwwxuwd9ko4yhg', 'test_agent@example.com', 'user', '')
+  ('fznntaejx44kb2g', 'tesatsatas@mail.com', 'user', '')
+  ('t3497ezubkabh0l', 'footballonewso01@gmail.com', 'user', '')
