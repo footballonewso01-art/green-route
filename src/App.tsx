@@ -24,6 +24,7 @@ import DashboardPricing from "./pages/DashboardPricing";
 import { AdminRoute } from "./components/AdminRoute";
 import AdminOverview from "./pages/admin/AdminOverview";
 import AdminUsers from "./pages/admin/AdminUsers";
+import AdminUserProfile from "./pages/admin/AdminUserProfile";
 import AdminLinks from "./pages/admin/AdminLinks";
 
 import RedirectHandler from "./pages/RedirectHandler";
@@ -82,6 +83,7 @@ const AppRoutes = () => (
       <Route index element={<Navigate to="/admin/overview" replace />} />
       <Route path="overview" element={<AdminOverview />} />
       <Route path="users" element={<AdminUsers />} />
+      <Route path="users/:id" element={<AdminUserProfile />} />
       <Route path="links" element={<AdminLinks />} />
     </Route>
 

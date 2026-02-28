@@ -30,9 +30,9 @@ const plans = [
         popular: true,
         features: [
             { text: "15 Smart Links", icon: "🔗" },
-            { text: "A/B Testing (2 variants)", icon: "🧪", tooltip: "Test two versions of a link to see which performs better." },
+
             { text: "Remove GreenRoute Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
-            { text: "Deep Link Escape (Beta)", icon: "⚡", tooltip: "Killer feature: Bypass Instagram/TikTok browsers. Use at own risk." },
+            { text: "Deeplinks (Beta)", icon: "⚡", tooltip: "Smart route: Seamless transition from social apps to system browser." },
             { text: "Advanced Analytics", icon: "📊" },
             { text: "Link Optimization", icon: "🛡️" },
             { text: "Geo Targeting", icon: "🌍" },

@@ -315,7 +315,11 @@ export default function DashboardLayout() {
             </div>
 
             <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent text-sm font-semibold overflow-hidden border border-accent/20">
-              {userInitial}
+              {user?.avatar && user?.collectionId ? (
+                <img src={pb.files.getUrl(user as any, user.avatar)} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                userInitial
+              )}
             </div>
           </div>
         </header>

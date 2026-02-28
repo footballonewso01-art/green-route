@@ -20,6 +20,7 @@ interface LinkItem {
   mode?: string;
   icon_type?: "preset" | "emoji" | "custom" | "none";
   icon_value?: string;
+  size?: "regular" | "large";
 }
 
 export default function LinksManager() {

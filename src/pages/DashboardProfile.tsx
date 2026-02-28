@@ -36,6 +36,7 @@ interface LinkItem {
   mode?: string;
   icon_type?: "preset" | "emoji" | "custom" | "none";
   icon_value?: string;
+  size?: "regular" | "large";
 }
 
 interface SocialLink {
@@ -84,6 +85,7 @@ export default function DashboardProfile() {
   const [createIconType, setCreateIconType] = useState<"preset" | "emoji" | "custom" | "none">("none");
   const [createIconValue, setCreateIconValue] = useState("");
   const [showIconPicker, setShowIconPicker] = useState(false);
+  const [createSize, setCreateSize] = useState<"regular" | "large">("regular");
   const [refreshing, setRefreshing] = useState(false); // Added from user's snippet
 
   // Inline Edit State
@@ -92,6 +94,7 @@ export default function DashboardProfile() {
   const [editUrl, setEditUrl] = useState("");
   const [editIconType, setEditIconType] = useState<"preset" | "emoji" | "custom" | "none">("none");
   const [editIconValue, setEditIconValue] = useState("");
+  const [editSize, setEditSize] = useState<"regular" | "large">("regular");
   const [showEditIconPicker, setShowEditIconPicker] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
 
@@ -102,11 +105,11 @@ export default function DashboardProfile() {
       setUsername(user.username || "");
       setBio(user.bio || "");
       // theme is initialized directly in useState to prevent flashing
-      if (user.avatar) {
-        setAvatarPreview(pb.files.getUrl(user, user.avatar));
+      if (user.avatar && user.collectionId) {
+        setAvatarPreview(pb.files.getUrl(user as any, user.avatar));
       }
-      if (user.custom_theme_bg) {
-        setCustomBgPreview(pb.files.getUrl(user, user.custom_theme_bg));
+      if (user.custom_theme_bg && user.collectionId) {
+        setCustomBgPreview(pb.files.getUrl(user as any, user.custom_theme_bg));
       }
       if (user.social_links) {
         setSocialLinks(Array.isArray(user.social_links) ? user.social_links : []);
@@ -237,6 +240,7 @@ export default function DashboardProfile() {
           icon_type: link.icon_type,
           icon_value: link.icon_value,
           mode: link.mode || "redirect",
+          size: link.size || "regular",
         };
 
         if (isNew) {
@@ -246,7 +250,7 @@ export default function DashboardProfile() {
           const original = dbLinks.find(dbl => dbl.id === link.id);
           if (original) {
             // Check if any visible field changed
-            const fieldsToCompare = ['title', 'destination_url', 'slug', 'order', 'active', 'show_on_profile', 'icon_type', 'icon_value', 'mode'];
+            const fieldsToCompare = ['title', 'destination_url', 'slug', 'order', 'active', 'show_on_profile', 'icon_type', 'icon_value', 'mode', 'size'];
             const hasChanged = fieldsToCompare.some(key => (payload as any)[key] !== (original as any)[key]);
             if (hasChanged) {
               await pb.collection('links').update(link.id, payload, { requestKey: null });
@@ -255,17 +259,21 @@ export default function DashboardProfile() {
         }
       }
 
-      // Final Refresh
-      await pb.collection("users").authRefresh({ requestKey: null });
-      await fetchLinks(); // Refresh local list with real IDs
-
       setAvatarFile(null);
       setCustomBgFile(null);
-      toast.success("All profile changes saved successfully");
+
+      // Step 4: Refresh Auth Store to guarantee local context perfectly matches DB
+      try {
+        await pb.collection("users").authRefresh();
+      } catch (e) {
+        console.warn("Failed to refresh auth store after update", e);
+      }
+
+      toast.success("Profile saved successfully");
     } catch (error: any) {
       console.error("[handleSaveProfile] Error:", error);
-      const msg = error?.response?.message || error?.message || "Failed to save profile changes";
-      toast.error(msg);
+      const detailedError = error?.response?.data ? JSON.stringify(error.response.data) : (error.message || "Unknown error");
+      toast.error(`Error saving profile: ${detailedError}`);
     } finally {
       setProfileLoading(false);
     }
@@ -303,6 +311,7 @@ export default function DashboardProfile() {
       created: new Date().toISOString(),
       icon_type: createIconType,
       icon_value: createIconValue,
+      size: createSize,
     };
 
     setLinks([...links, newLink]);
@@ -312,6 +321,7 @@ export default function DashboardProfile() {
     setCreateUrl("");
     setCreateIconType("none");
     setCreateIconValue("");
+    setCreateSize("regular");
     setShowCreate(false);
     toast.info("Link added to list (unsaved)");
   };
@@ -322,6 +332,7 @@ export default function DashboardProfile() {
     setEditUrl(link.destination_url || "");
     setEditIconType(link.icon_type || "none");
     setEditIconValue(link.icon_value || "");
+    setEditSize(link.size || "regular");
     setShowEditIconPicker(false);
   };
 
@@ -331,6 +342,7 @@ export default function DashboardProfile() {
     setEditUrl("");
     setEditIconType("none");
     setEditIconValue("");
+    setEditSize("regular");
     setShowEditIconPicker(false);
   };
 
@@ -342,7 +354,8 @@ export default function DashboardProfile() {
       title: editTitle,
       destination_url: editUrl,
       icon_type: editIconType,
-      icon_value: editIconValue
+      icon_value: editIconValue,
+      size: editSize,
     } : l));
 
     setEditingId(null);
@@ -376,7 +389,7 @@ export default function DashboardProfile() {
   const activeTheme = THEMES.find(t => t.id === theme) || THEMES[0];
   const profileLinks = links.filter(l => l.active && l.show_on_profile !== false);
 
-  const lastUsernameChange = (user as any)?.username_last_changed;
+  const lastUsernameChange = user?.username_last_changed;
   const isUsernameLocked = lastUsernameChange
     ? (new Date().getTime() - new Date(lastUsernameChange).getTime()) < 21 * 24 * 60 * 60 * 1000
     : false;
@@ -410,10 +423,10 @@ export default function DashboardProfile() {
 
             <div className="flex items-center gap-6">
               <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                <div className="absolute -inset-1 bg-gradient-to-tr from-accent to-accent/50 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-500"></div>
-                <div className="relative w-24 h-24 rounded-full bg-surface border-2 border-border overflow-hidden flex items-center justify-center">
+                <div className="absolute -inset-1 bg-gradient-to-tr from-accent to-accent/50 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-500"></div>
+                <div className="relative w-24 h-24 rounded-2xl bg-surface border-2 border-border overflow-hidden flex items-center justify-center">
                   {avatarPreview ? (
-                    <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                    <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover object-top" />
                   ) : (
                     <User className="w-10 h-10 text-muted-foreground" />
                   )}
@@ -645,13 +658,16 @@ export default function DashboardProfile() {
 
             {/* Inline Create Form */}
             {showCreate && (
-              <div className="bg-surface p-4 rounded-xl border border-accent/30 space-y-3 animate-fade-in">
+              <div className="bg-surface p-4 rounded-xl border border-accent/30 space-y-3 animate-fade-in text-white">
                 <div className="flex justify-between items-center mb-1">
                   <h3 className="text-sm font-medium text-white">New Link</h3>
-                  <button onClick={() => setShowCreate(false)} className="text-muted-foreground hover:text-white"><X className="w-4 h-4" /></button>
+                  <button onClick={() => {
+                    setShowCreate(false);
+                    setCreateSize("regular");
+                  }} className="text-muted-foreground hover:text-white"><X className="w-4 h-4" /></button>
                 </div>
                 <div>
-                  <input value={createTitle} onChange={(e) => setCreateTitle(e.target.value)} placeholder="Title (e.g. My Website)" className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm mb-2" />
+                  <input value={createTitle} onChange={(e) => setCreateTitle(e.target.value)} placeholder="Title (e.g. My Website)" className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm mb-2 text-white" />
                   <div className="flex gap-2 mb-2">
                     <div className="relative">
                       <button
@@ -670,13 +686,32 @@ export default function DashboardProfile() {
                           onChange={(type, value) => {
                             setCreateIconType(type);
                             setCreateIconValue(value);
-                            setShowIconPicker(false); // Close picker after selection
+                            setShowIconPicker(false);
                           }}
                           onClose={() => setShowIconPicker(false)}
                         />
                       )}
                     </div>
-                    <input value={createUrl} onChange={(e) => setCreateUrl(e.target.value)} placeholder="URL (https://...)" type="url" className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-sm" />
+                    <input value={createUrl} onChange={(e) => setCreateUrl(e.target.value)} placeholder="URL (https://...)" type="url" className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-sm text-white" />
+                  </div>
+
+                  {/* Size Selection */}
+                  <div className="space-y-2 mt-3">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Display Size</label>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setCreateSize("regular")}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-xs font-semibold transition-all ${createSize === "regular" ? "bg-accent/10 border-accent/50 text-accent" : "bg-background border-border text-muted-foreground hover:border-accent/30"}`}
+                      >
+                        Regular
+                      </button>
+                      <button
+                        onClick={() => setCreateSize("large")}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-xs font-semibold transition-all ${createSize === "large" ? "bg-accent/10 border-accent/50 text-accent" : "bg-background border-border text-muted-foreground hover:border-accent/30"}`}
+                      >
+                        Large
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-white/5">
@@ -686,7 +721,7 @@ export default function DashboardProfile() {
                   </div>
                   <button
                     onClick={handleCreateLink}
-                    disabled={createLoading || !createUrl || !createTitle} // Disable if title is empty
+                    disabled={createLoading || !createUrl || !createTitle}
                     className="btn-primary-glow !py-1.5 !px-4 text-sm flex items-center gap-2 disabled:opacity-50"
                   >
                     {createLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Link"}
@@ -751,10 +786,26 @@ export default function DashboardProfile() {
                                   )}
                                 </div>
                                 {editingId === link.id ? (
-                                  <div className="space-y-2 flex-1">
-                                    <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Title" className="w-full px-2 py-1 rounded bg-background border border-accent/50 text-sm focus:outline-none" />
-                                    <input value={editUrl} onChange={(e) => setEditUrl(e.target.value)} placeholder="URL" className="w-full px-2 py-1 rounded bg-background border border-accent/50 text-sm focus:outline-none" />
-                                    <div className="flex gap-2 justify-end">
+                                  <div className="space-y-3 flex-1">
+                                    <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Title" className="w-full px-2 py-1 rounded bg-background border border-accent/50 text-sm focus:outline-none text-white" />
+                                    <input value={editUrl} onChange={(e) => setEditUrl(e.target.value)} placeholder="URL" className="w-full px-2 py-1 rounded bg-background border border-accent/50 text-sm focus:outline-none text-white" />
+
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => setEditSize("regular")}
+                                        className={`flex-1 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all ${editSize === "regular" ? "bg-accent/10 border-accent/50 text-accent" : "bg-background border-border text-muted-foreground"}`}
+                                      >
+                                        Regular
+                                      </button>
+                                      <button
+                                        onClick={() => setEditSize("large")}
+                                        className={`flex-1 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all ${editSize === "large" ? "bg-accent/10 border-accent/50 text-accent" : "bg-background border-border text-muted-foreground"}`}
+                                      >
+                                        Large
+                                      </button>
+                                    </div>
+
+                                    <div className="flex gap-2 justify-end pt-1">
                                       <button onClick={cancelEditing} className="text-xs text-muted-foreground hover:text-white">Cancel</button>
                                       <button onClick={() => handleSaveEdit(link.id)} className="text-xs text-accent hover:text-accent/80 flex items-center gap-1">
                                         {editLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Save
@@ -815,60 +866,71 @@ export default function DashboardProfile() {
 
               {/* Profile Inner Content (Dynamic Mockup) */}
               <div
-                className={`w-full h-full ${activeTheme.colors} transition-colors duration-500 relative flex flex-col no-scrollbar rounded-[40px] overflow-hidden`}
-                style={theme === "custom" && customBgPreview ? {
-                  backgroundImage: `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.8)), url('${customBgPreview}')`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center"
-                } : {}}
+                className="w-full h-full bg-black relative flex flex-col no-scrollbar rounded-[40px] overflow-hidden"
               >
-                <div className="p-6 pt-16 flex flex-col items-center flex-1 overflow-y-auto no-scrollbar pb-10">
-                  {/* Dynamic Avatar */}
-                  <div className="w-20 h-20 rounded-full bg-surface border-2 border-white/10 flex items-center justify-center overflow-hidden mb-4 shadow-xl shrink-0">
+                <div className="flex flex-col flex-1 overflow-y-auto no-scrollbar relative z-10 pb-10">
+                  {/* Top Header with Avatar and Fade */}
+                  <div className="relative aspect-[10/9] w-full overflow-hidden shrink-0">
                     {avatarPreview ? (
-                      <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                      <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover object-top" />
                     ) : (
-                      <span className="text-2xl font-bold opacity-30 text-white">{name.charAt(0) || "?"}</span>
+                      <div className="w-full h-full bg-surface flex items-center justify-center">
+                        <span className="text-5xl font-bold bg-gradient-to-br from-white to-white/30 bg-clip-text text-transparent">{name.charAt(0) || "?"}</span>
+                      </div>
                     )}
+                    <div className="absolute bottom-0 w-full h-1/2 bg-gradient-to-t from-black via-black/40 to-transparent transition-all duration-700" />
                   </div>
-                  {/* Dynamic Metadata */}
-                  <h4 className="text-lg font-bold text-white mb-1">@{username || "username"}</h4>
 
-                  {/* Social Icons Preview */}
-                  {socialLinks.length > 0 && (
-                    <div className="flex flex-wrap justify-center gap-3 mb-2 mt-2">
-                      {socialLinks.map(link => (
-                        <div key={link.id} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/10">
-                          <IconRenderer type={link.icon_type} value={link.icon_value} className="w-4 h-4 text-white" />
-                        </div>
-                      ))}
+                  {/* Profile Content */}
+                  <div className="px-5 -mt-10 relative">
+                    <div className="text-center space-y-1">
+                      <h4 className="text-2xl font-black tracking-tight text-white drop-shadow-lg">{name || "Your Name"}</h4>
+                      <p className="text-muted-foreground text-xs font-medium tracking-wide">@{username || "username"}</p>
                     </div>
-                  )}
 
-                  <p className="text-sm text-white/70 text-center px-2 mt-1">{bio || "Your bio will appear here..."}</p>
-
-                  {/* Dynamic Links */}
-                  <div className="w-full mt-6 space-y-3">
-                    {profileLinks.length === 0 ? (
-                      <div className="text-center text-white/40 text-sm italic mt-10">No visible links yet.</div>
-                    ) : (
-                      profileLinks.map(link => (
-                        <div key={link.id} className="w-full py-3 px-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all group cursor-pointer shadow-lg shadow-black/5 flex items-center gap-3">
-                          <div className="shrink-0">
-                            <IconRenderer type={link.icon_type} value={link.icon_value} className="w-5 h-5 text-white/80" />
+                    {/* Social Icons Preview */}
+                    {socialLinks.length > 0 && (
+                      <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
+                        {socialLinks.map(link => (
+                          <div key={link.id} className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                            <IconRenderer type={link.icon_type} value={link.icon_value} className="w-4 h-4 text-white/80" />
                           </div>
-                          <span className="text-sm font-semibold text-white group-hover:scale-[1.02] transition-transform flex-1 text-left">{link.title || "Untitled Link"}</span>
-                        </div>
-                      ))
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Bio */}
+                    <div className="mt-2 text-center">
+                      <p className="text-white text-xs leading-relaxed max-w-[240px] mx-auto">{bio || "Your bio will appear here..."}</p>
+                    </div>
+
+                    {/* Dynamic Links */}
+                    <div className="w-full mt-5 space-y-3">
+                      {profileLinks.length === 0 ? (
+                        <div className="text-center text-white/40 text-sm italic mt-10">No visible links yet.</div>
+                      ) : (
+                        profileLinks.map(link => (
+                          <div key={link.id} className={`w-full rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all group cursor-pointer shadow-lg shadow-black/5 relative flex ${link.size === 'large' ? 'flex-col p-3 aspect-[10/5.4]' : 'h-[40px] items-center justify-center'}`}>
+                            <div className={`${link.size === 'large' ? 'shrink-0 self-start' : 'absolute left-0 shrink-0 ml-0'}`}>
+                              <div className={`${link.size === 'large' ? 'w-8 h-8 rounded-lg bg-white/5' : 'w-11 h-11'} flex items-center justify-center`}>
+                                <IconRenderer type={link.icon_type} value={link.icon_value} className={`${link.size === 'large' ? 'w-4 h-4' : 'w-5 h-5'} text-white/80`} />
+                              </div>
+                            </div>
+                            <div className={`${link.size === 'large' ? 'mt-auto text-center' : 'text-center px-10'}`}>
+                              <span className="text-xs font-semibold text-white group-hover:scale-[1.02] transition-transform block uppercase tracking-wider">{link.title || "Untitled Link"}</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {!checkPlan(userPlan, "remove_branding") && (
+                      <div className="mt-auto pt-10 pb-2 opacity-40 flex flex-col items-center gap-1 text-white shrink-0">
+                        <Globe className="w-4 h-4" />
+                        <span className="text-[10px] font-bold tracking-widest uppercase">GreenRoute</span>
+                      </div>
                     )}
                   </div>
-
-                  {!checkPlan(userPlan, "remove_branding") && (
-                    <div className="mt-auto pt-10 pb-2 opacity-40 flex flex-col items-center gap-1 text-white shrink-0">
-                      <Globe className="w-4 h-4" />
-                      <span className="text-[10px] font-bold tracking-widest uppercase">GreenRoute</span>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -876,56 +938,58 @@ export default function DashboardProfile() {
         </div>
       </div>
       {/* Cropping Modal */}
-      {imageToCrop && (
-        <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col items-center">
-            <h3 className="text-lg font-bold text-foreground mb-4">Crop Avatar</h3>
+      {
+        imageToCrop && (
+          <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col items-center">
+              <h3 className="text-lg font-bold text-foreground mb-4">Crop Avatar</h3>
 
-            <div className="relative w-full h-64 bg-black/20 rounded-xl overflow-hidden mb-6">
-              <Cropper
-                image={imageToCrop}
-                crop={crop}
-                zoom={zoom}
-                aspect={1}
-                cropShape="round"
-                showGrid={false}
-                onCropChange={setCrop}
-                onCropComplete={onCropComplete}
-                onZoomChange={setZoom}
-              />
-            </div>
+              <div className="relative w-full h-64 bg-black/20 rounded-xl overflow-hidden mb-6">
+                <Cropper
+                  image={imageToCrop}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={1}
+                  cropShape="rect"
+                  showGrid={false}
+                  onCropChange={setCrop}
+                  onCropComplete={onCropComplete}
+                  onZoomChange={setZoom}
+                />
+              </div>
 
-            <div className="w-full flex items-center gap-4 mb-6">
-              <span className="text-muted-foreground text-sm">Zoom</span>
-              <input
-                type="range"
-                value={zoom}
-                min={1}
-                max={3}
-                step={0.1}
-                onChange={(e) => setZoom(Number(e.target.value))}
-                className="flex-1 accent-accent"
-              />
-            </div>
+              <div className="w-full flex items-center gap-4 mb-6">
+                <span className="text-muted-foreground text-sm">Zoom</span>
+                <input
+                  type="range"
+                  value={zoom}
+                  min={1}
+                  max={3}
+                  step={0.1}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="flex-1 accent-accent"
+                />
+              </div>
 
-            <div className="flex gap-3 w-full">
-              <button
-                onClick={handleCancelCrop}
-                className="flex-1 py-2 rounded-xl text-muted-foreground font-medium hover:bg-surface-hover transition-colors"
-                disabled={profileLoading} // Reuse creating status optionally if busy
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleApplyCrop}
-                className="flex-1 py-2 btn-primary-glow font-medium"
-              >
-                Apply Crop
-              </button>
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={handleCancelCrop}
+                  className="flex-1 py-2 rounded-xl text-muted-foreground font-medium hover:bg-surface-hover transition-colors"
+                  disabled={profileLoading} // Reuse creating status optionally if busy
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleApplyCrop}
+                  className="flex-1 py-2 btn-primary-glow font-medium"
+                >
+                  Apply Crop
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }

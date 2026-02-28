@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
-import { Users, Link as LinkIcon, Activity, TrendingUp } from "lucide-react";
+import { Users, Link as LinkIcon, Activity, TrendingUp, ChevronLeft } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
+import { useNavigate } from "react-router-dom";
 
 export default function AdminOverview() {
+    const navigate = useNavigate();
     const [stats, setStats] = useState({
         totalUsers: 0,
         totalLinks: 0,
@@ -101,9 +103,17 @@ export default function AdminOverview() {
     return (
         <div className="space-y-6 pt-6 max-w-6xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Platform Overview</h1>
-                    <p className="text-sm text-muted-foreground mt-1">Real-time statistics for GreenRoute.</p>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/dashboard')}
+                        className="p-2 -ml-2 rounded-lg text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
+                    >
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-foreground">Platform Overview</h1>
+                        <p className="text-sm text-muted-foreground mt-1">Real-time statistics for GreenRoute.</p>
+                    </div>
                 </div>
             </div>
 

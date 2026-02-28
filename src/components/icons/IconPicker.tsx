@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, ImagePlus, Smile, LayoutGrid, X, Check } from 'lucide-react';
 import { PRESET_ICONS, PresetIconCategory } from './presets';
+import { ImageCropper } from '@/components/ImageCropper';
 
 interface IconPickerProps {
     currentType: string | undefined;
@@ -29,6 +30,7 @@ export function IconPicker({ currentType, currentValue, onChange, onClose, ancho
 
     const [search, setSearch] = useState("");
     const [activeCategory, setActiveCategory] = useState<PresetIconCategory | "All">("All");
+    const [rawImage, setRawImage] = useState<string | null>(null);
     const pickerRef = useRef<HTMLDivElement>(null);
     const [pos, setPos] = useState({ top: 0, left: 0 });
 
@@ -40,27 +42,76 @@ export function IconPicker({ currentType, currentValue, onChange, onClose, ancho
         });
     }, [search, activeCategory]);
 
-    // Calculate position from anchor
+    // Calculate position from anchor, with viewport boundary detection
     useEffect(() => {
         if (anchorRef?.current) {
             const rect = anchorRef.current.getBoundingClientRect();
-            setPos({ top: rect.bottom + 8, left: rect.left });
+            const pickerHeight = 420; // approximate max height of picker
+            const viewportHeight = window.innerHeight;
+            const spaceBelow = viewportHeight - rect.bottom;
+            const spaceAbove = rect.top;
+
+            let top: number;
+            if (spaceBelow >= pickerHeight || spaceBelow >= spaceAbove) {
+                // Position below the anchor
+                top = rect.bottom + 8;
+                // Clamp to not go below viewport
+                if (top + pickerHeight > viewportHeight - 8) {
+                    top = viewportHeight - pickerHeight - 8;
+                }
+            } else {
+                // Flip above the anchor
+                top = rect.top - pickerHeight - 8;
+                if (top < 8) top = 8;
+            }
+
+            let left = rect.left;
+            // Clamp horizontal to not overflow right edge
+            if (left + 320 > window.innerWidth) {
+                left = window.innerWidth - 328;
+            }
+
+            setPos({ top, left });
         }
     }, [anchorRef]);
+
+    const mouseOverRef = useRef(false);
 
     // Click outside or scroll to close
     useEffect(() => {
         const handler = (e: MouseEvent) => {
-            if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-                onClose();
+            // Absolute foolproof guard: if the mouse is over the picker, DO NOT CLOSE.
+            if (mouseOverRef.current) {
+                return;
             }
+
+            // Ignore if clicking on the anchor button
+            if (anchorRef?.current?.contains(e.target as Node)) {
+                return;
+            }
+            onClose();
         };
-        const scrollHandler = () => {
+
+        const scrollHandler = (e: Event) => {
+            // 1. Ignore if target is NOT document/window (meaning it's a local scroll)
+            if (e.target !== document && e.target !== window) {
+                return;
+            }
+
+            // 2. Ignore page scrolls IF the mouse is over the picker.
+            // This happens when the internal scroll hits the boundary and "leaks" to the body.
+            // We want it to be stable during interaction.
+            if (mouseOverRef.current) {
+                return;
+            }
+
             onClose();
         };
 
         document.addEventListener("mousedown", handler);
-        window.addEventListener("scroll", scrollHandler, true); // Use capture to detect scroll on elements
+        // Use capture phase for scroll to be safe, but we filter by target below
+        window.addEventListener("scroll", scrollHandler, true);
+
         return () => {
             document.removeEventListener("mousedown", handler);
             window.removeEventListener("scroll", scrollHandler, true);
@@ -70,6 +121,8 @@ export function IconPicker({ currentType, currentValue, onChange, onClose, ancho
     const content = (
         <div
             ref={pickerRef}
+            onMouseEnter={() => { mouseOverRef.current = true; }}
+            onMouseLeave={() => { mouseOverRef.current = false; }}
             className="w-80 bg-surface border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-fade-in ring-1 ring-white/5"
             style={anchorRef ? { position: 'fixed', top: pos.top, left: pos.left, zIndex: 99999 } : { position: 'absolute', top: '3.5rem', left: 0, zIndex: 99999 }}
         >
@@ -106,7 +159,7 @@ export function IconPicker({ currentType, currentValue, onChange, onClose, ancho
             </div >
 
             {/* Content Area */}
-            < div className="p-4 h-64 overflow-y-auto custom-scrollbar" >
+            <div className={`p-4 overflow-y-auto custom-scrollbar overscroll-contain transition-all duration-300 ${rawImage ? 'h-[340px]' : 'h-64'}`}>
                 {activeTab === "preset" && (
                     <div className="space-y-4">
                         <div className="relative">
@@ -177,17 +230,58 @@ export function IconPicker({ currentType, currentValue, onChange, onClose, ancho
                 {
                     activeTab === "custom" && (
                         <div className="flex flex-col items-center justify-center h-full space-y-4 text-center">
-                            <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center border border-accent/20">
-                                <ImagePlus className="w-6 h-6 text-accent" />
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium text-white">Upload Custom Icon</p>
-                                <p className="text-xs text-muted-foreground mt-1 px-4">Upload a custom PNG or SVG file to use as this link's icon.</p>
-                            </div>
-                            {/* Custom upload logic requires PocketBase file relation manipulation, keeping disabled for MVP placeholder */}
-                            <button disabled className="px-4 py-2 bg-background border border-border rounded-lg text-sm text-muted-foreground opacity-50 cursor-not-allowed">
-                                Coming Soon
-                            </button>
+                            {rawImage ? (
+                                <ImageCropper
+                                    imageSrc={rawImage}
+                                    onCrop={(croppedDataUrl) => {
+                                        onChange("custom", croppedDataUrl);
+                                        setRawImage(null);
+                                        onClose();
+                                    }}
+                                    onCancel={() => setRawImage(null)}
+                                />
+                            ) : (
+                                <>
+                                    {currentType === "custom" && currentValue ? (
+                                        <div className="space-y-3">
+                                            <div className="w-20 h-20 rounded-2xl bg-background border border-accent/30 flex items-center justify-center overflow-hidden mx-auto">
+                                                <img src={currentValue} alt="Custom icon" className="w-16 h-16 object-cover rounded-xl" />
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">Current custom icon</p>
+                                        </div>
+                                    ) : (
+                                        <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center border border-accent/20">
+                                            <ImagePlus className="w-6 h-6 text-accent" />
+                                        </div>
+                                    )}
+                                    <div>
+                                        <p className="text-sm font-medium text-white">Upload Custom Icon</p>
+                                        <p className="text-xs text-muted-foreground mt-1 px-4">PNG, JPG, SVG or WebP. Max 500KB.</p>
+                                    </div>
+                                    <label className="px-4 py-2 bg-accent/10 border border-accent/30 rounded-lg text-sm text-accent hover:bg-accent/20 transition-colors cursor-pointer">
+                                        Choose File
+                                        <input
+                                            type="file"
+                                            accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                if (file.size > 500 * 1024) {
+                                                    alert("File is too large. Maximum size is 500KB.");
+                                                    return;
+                                                }
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => {
+                                                    const dataUrl = ev.target?.result as string;
+                                                    if (dataUrl) setRawImage(dataUrl);
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }}
+                                        />
+                                    </label>
+                                </>
+                            )}
                         </div>
                     )
                 }

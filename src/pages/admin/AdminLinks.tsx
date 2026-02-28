@@ -3,6 +3,7 @@ import { pb } from "@/lib/pocketbase";
 import { Search, ChevronLeft, ChevronRight, Ban, Check, ExternalLink, BarChart3, SortDesc, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useNavigate } from "react-router-dom";
 
 type LinkRecord = {
     id: string;
@@ -20,6 +21,7 @@ type LinkRecord = {
 };
 
 export default function AdminLinks() {
+    const navigate = useNavigate();
     const [links, setLinks] = useState<LinkRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
@@ -71,9 +73,17 @@ export default function AdminLinks() {
     return (
         <div className="space-y-6 pt-6 max-w-6xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Links Oversight</h1>
-                    <p className="text-sm text-muted-foreground mt-1">Monitor and moderate all short links</p>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/dashboard')}
+                        className="p-2 -ml-2 rounded-lg text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
+                    >
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-foreground">Links Oversight</h1>
+                        <p className="text-sm text-muted-foreground mt-1">Monitor and moderate all short links</p>
+                    </div>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center gap-3">

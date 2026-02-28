@@ -27,6 +27,7 @@ interface LinkItem {
   show_on_profile?: boolean;
   icon_type?: "preset" | "emoji" | "custom" | "none";
   icon_value?: string;
+  size?: "regular" | "large";
 }
 
 const THEME_STYLES: Record<string, string> = {
@@ -128,27 +129,27 @@ export default function PublicProfile() {
   return (
     <div className={`min-h-screen ${currentThemeClass} relative overflow-hidden flex items-start justify-center px-4 pt-4 sm:pt-8 transition-colors duration-700`}
       style={profile.theme === "custom" && profile.custom_theme_bg ? {
-        backgroundImage: `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.9)), url('${profile.custom_theme_bg}')`,
+        backgroundImage: `url('${profile.custom_theme_bg}')`,
         backgroundSize: "cover",
         backgroundPosition: "center"
       } : {}}
     >
       {/* Background Blur Overlay */}
-      <div className="absolute inset-0 backdrop-blur-[10px] bg-black/10 z-0" />
+      <div className="absolute inset-0 backdrop-blur-[70px] z-0" />
 
       {/* Background Glow */}
       <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-accent/10 blur-[150px] rounded-full pointer-events-none opacity-30 z-0" />
 
       {/* Main Profile Card */}
-      <div className="w-full max-w-[528px] bg-black rounded-[1.5rem] min-h-[90vh] mt-[3vh] sm:mt-[0vh] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] animate-fade-in relative z-10 flex flex-col">
+      <div className="w-full max-w-[528px] bg-black rounded-[1.5rem] min-h-[95vh] mt-[2vh] sm:mt-[0vh] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8),0_0_40px_rgba(0,0,0,0.4)] animate-fade-in relative z-10 flex flex-col">
 
         {/* Top Header with Avatar and Fade */}
-        <div className="relative h-[30%] min-h-[300px] w-full overflow-hidden shrink-0">
+        <div className="relative aspect-[10/9] w-full overflow-hidden shrink-0">
           {profile.full_avatar_url ? (
             <img
               src={profile.full_avatar_url}
               alt={profile.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover object-top"
             />
           ) : (
             <div className="w-full h-full bg-surface flex items-center justify-center">
@@ -157,14 +158,14 @@ export default function PublicProfile() {
               </span>
             </div>
           )}
-          {/* Fade to Black Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-black transition-all duration-700" />
-        </div>
+          {/* Fade to Black Overlay - Lower and softer */}
+          <div className="absolute bottom-0 w-full h-1/2 bg-gradient-to-t from-black via-black/40 to-transparent transition-all duration-700" />
+        </div >
 
         {/* Profile Content */}
-        <div className="px-8 pb-10 -mt-16 relative">
+        <div className="px-5 pb-32 -mt-10 relative">
           <div className="text-center space-y-1">
-            <h1 className="text-3xl font-black tracking-tight text-white drop-shadow-lg uppercase">
+            <h1 className="text-3xl font-black tracking-tight text-white drop-shadow-lg">
               {profile.name}
             </h1>
             <p className="text-muted-foreground text-sm font-medium tracking-wide">
@@ -173,25 +174,27 @@ export default function PublicProfile() {
           </div>
 
           {/* Social Icons Quick Bar */}
-          {profile.social_links && profile.social_links.length > 0 && (
-            <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
-              {profile.social_links.map((social: any) => (
-                <a
-                  key={social.id}
-                  href={social.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-accent/20 hover:border-accent/40 hover:scale-105 transition-all duration-300 shadow-lg group"
-                >
-                  <IconRenderer type={social.icon_type} value={social.icon_value} className="w-5 h-5 text-white/80 group-hover:text-white transition-colors" />
-                </a>
-              ))}
-            </div>
-          )}
+          {
+            profile.social_links && profile.social_links.length > 0 && (
+              <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
+                {profile.social_links.map((social: any) => (
+                  <a
+                    key={social.id}
+                    href={social.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-accent/20 hover:border-accent/40 hover:scale-105 transition-all duration-300 shadow-lg group"
+                  >
+                    <IconRenderer type={social.icon_type} value={social.icon_value} className="w-5 h-5 text-white/80 group-hover:text-white transition-colors" />
+                  </a>
+                ))}
+              </div>
+            )
+          }
 
           {/* Bio */}
-          <div className="mt-3 text-center">
-            <p className="text-muted-foreground text-sm leading-relaxed max-w-[280px] mx-auto italic opacity-80">
+          <div className="mt-3 text-center px-3">
+            <p className="text-white text-sm leading-relaxed max-w-[280px] mx-auto">
               {profile.bio}
             </p>
           </div>
@@ -208,23 +211,23 @@ export default function PublicProfile() {
                 <a
                   key={link.id}
                   href={`/${link.slug}`}
-                  className="group relative block w-full bg-[#111] hover:bg-[#161616] border border-white/5 hover:border-accent/30 rounded-2xl p-4 transition-all duration-300 hover:-translate-y-0.5"
+                  className={`group relative block w-full bg-[#111] hover:bg-[#161616] border border-white/5 hover:border-accent/30 rounded-2xl transition-all duration-300 hover:-translate-y-0.5 ${link.size === 'large' ? 'py-5 px-5 aspect-[10/4.3]' : 'py-[14px] px-4'}`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="shrink-0 w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group-hover:bg-accent/10 transition-colors">
+                  <div className={`relative flex ${link.size === 'large' ? 'flex-col h-full' : 'items-center justify-center min-h-[40px]'}`}>
+                    <div className={`${link.size === 'large' ? 'shrink-0' : 'absolute left-0 shrink-0'} w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden group-hover:bg-accent/10 transition-colors`}>
                       <IconRenderer
                         type={link.icon_type}
                         value={link.icon_value}
                         url={link.destination_url}
-                        className="w-5 h-5 text-white/60 group-hover:text-accent transition-colors"
+                        className="w-full h-full text-white/60 group-hover:text-accent transition-colors object-cover"
                       />
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className={`${link.size === 'large' ? 'mt-auto text-center' : 'text-center px-12'}`}>
                       <span className="block text-sm font-bold text-white/90 group-hover:text-accent transition-colors uppercase tracking-wider">
                         {link.title || `/${link.slug}`}
                       </span>
                     </div>
-                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute right-0 top-0 w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <ExternalLink className="w-3.5 h-3.5 text-accent" />
                     </div>
                   </div>
@@ -234,21 +237,23 @@ export default function PublicProfile() {
           </div>
 
           {/* Footer Branding */}
-          {!checkPlan(profile.plan, "remove_branding") && (
-            <div className="mt-10 mb-2 text-center">
-              <a href="/" className="inline-flex items-center gap-2 text-[10px] text-muted-foreground/50 hover:text-white transition-colors group">
-                <span className="uppercase tracking-widest font-medium">Powered by</span>
-                <span className="font-black flex items-center gap-1.5 group-hover:opacity-100">
-                  <div className="w-4 h-4 rounded-lg bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
-                    <div className="w-1.5 h-1.5 rounded-sm bg-black"></div>
-                  </div>
-                  <span className="uppercase tracking-tighter text-[11px] text-white/80 group-hover:text-white">GreenRoute</span>
-                </span>
-              </a>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+          {
+            !checkPlan(profile.plan, "remove_branding") && (
+              <div className="mt-10 mb-2 text-center">
+                <a href="/" className="inline-flex items-center gap-2 text-[10px] text-muted-foreground/50 hover:text-white transition-colors group">
+                  <span className="uppercase tracking-widest font-medium">Powered by</span>
+                  <span className="font-black flex items-center gap-1.5 group-hover:opacity-100">
+                    <div className="w-4 h-4 rounded-lg bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
+                      <div className="w-1.5 h-1.5 rounded-sm bg-black"></div>
+                    </div>
+                    <span className="uppercase tracking-tighter text-[11px] text-white/80 group-hover:text-white">GreenRoute</span>
+                  </span>
+                </a>
+              </div>
+            )
+          }
+        </div >
+      </div >
+    </div >
   );
 }

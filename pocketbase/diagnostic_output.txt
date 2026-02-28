@@ -56,6 +56,18 @@
     field: referrer type=text system=False
     field: is_unique type=bool system=False
 
+=== billing (type=base) ===
+  list:   "@request.auth.role = 'admin' || user_id = @request.auth.id"
+  view:   "@request.auth.role = 'admin' || user_id = @request.auth.id"
+  create: '@request.auth.id != ""'
+  update: "@request.auth.role = 'admin'"
+  delete: "@request.auth.role = 'admin'"
+    field: user_id type=relation system=False
+    field: plan type=text system=False
+    field: amount type=number system=False
+    field: status type=text system=False
+    field: payment_method type=text system=False
+
 === USERS TABLE COLUMNS ===
   avatar (TEXT)
   created (TEXT)

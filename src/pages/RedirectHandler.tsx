@@ -55,6 +55,19 @@ export default function RedirectHandler() {
                     return;
                 }
 
+                // Check link scheduling
+                const now = new Date();
+                if (link.start_at && new Date(link.start_at) > now) {
+                    setStatus("error");
+                    setError("This link is not yet active");
+                    return;
+                }
+                if (link.expire_at && new Date(link.expire_at) < now) {
+                    setStatus("error");
+                    setError("This link has expired");
+                    return;
+                }
+
                 const ua = navigator.userAgent;
                 const isBot = /bot|crawler|spider|criteo|facebook|google|bing|twitter|linkedin|instagram|tiktok/i.test(ua);
                 const isInstagram = /Instagram/i.test(ua);
@@ -250,7 +263,7 @@ export default function RedirectHandler() {
                     </a>
 
                     <div className="bg-surface/50 border border-border rounded-2xl p-6 text-left space-y-4">
-                        <p className="text-xs font-semibold text-accent uppercase tracking-wider">How to escape manually:</p>
+                        <p className="text-xs font-semibold text-accent uppercase tracking-wider">How to open manually:</p>
 
                         <div className="flex items-start gap-3">
                             <div className="w-6 h-6 rounded-lg bg-background border border-border flex items-center justify-center text-xs font-bold text-foreground mt-0.5">1</div>
@@ -269,7 +282,7 @@ export default function RedirectHandler() {
                     className="mt-8 text-xs text-muted-foreground hover:text-accent transition-colors flex items-center gap-1.5"
                 >
                     <Share2 className="w-3 h-3" />
-                    Bypass escape attempt
+                    Skip optimization
                 </button>
             </div>
         );

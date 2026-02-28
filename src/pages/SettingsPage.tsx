@@ -3,6 +3,9 @@ import { Lock, Globe, Key, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { checkPlan } from "@/lib/plans";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { toast } from "sonner";
+import { pb } from "@/lib/pocketbase";
+import { Loader2 } from "lucide-react";
 
 const tabs = [
   { id: "password", label: "Password", icon: Lock, limit: null },
@@ -14,6 +17,11 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const [active, setActive] = useState("password");
   const [upgradeModal, setUpgradeModal] = useState({ open: false, feature: "", description: "" });
+
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loadingPassword, setLoadingPassword] = useState(false);
 
   const userPlan = (user as any)?.plan || "creator";
 
@@ -37,6 +45,58 @@ export default function SettingsPage() {
         feature: featureName,
         description: description,
       });
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("New passwords do not match");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+
+    setLoadingPassword(true);
+    try {
+      await pb.collection("users").update(user!.id, {
+        oldPassword,
+        password: newPassword,
+        passwordConfirm: confirmPassword,
+      });
+      toast.success("Password updated successfully");
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      console.error("Password update error:", error?.response || error);
+
+      // Parse PocketBase field-level validation errors
+      const data = error?.response?.data;
+      if (data) {
+        if (data.oldPassword) {
+          toast.error(data.oldPassword.message || "Current password is incorrect.");
+        } else if (data.password) {
+          toast.error(data.password.message || "New password does not meet requirements.");
+        } else if (data.passwordConfirm) {
+          toast.error(data.passwordConfirm.message || "Password confirmation does not match.");
+        } else {
+          // Generic field error
+          const firstKey = Object.keys(data)[0];
+          toast.error(data[firstKey]?.message || "Failed to update password.");
+        }
+      } else {
+        toast.error(error?.message || "Failed to update password. Please try again.");
+      }
+    } finally {
+      setLoadingPassword(false);
     }
   };
 
@@ -76,22 +136,42 @@ export default function SettingsPage() {
         <div className="absolute -right-20 -top-20 w-64 h-64 bg-accent/5 rounded-full blur-[100px] pointer-events-none"></div>
 
         {active === "password" && (
-          // ... (rest of the file is identical to before, just wrapping it)
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Change Password</h2>
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Current Password</label>
-              <input type="password" className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors" />
+              <input
+                type="password"
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
+              />
             </div>
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">New Password</label>
-              <input type="password" className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors" />
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
+              />
             </div>
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Confirm New Password</label>
-              <input type="password" className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors" />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
+              />
             </div>
-            <button className="btn-primary-glow text-sm !py-2">Update Password</button>
+            <button
+              onClick={handleUpdatePassword}
+              disabled={loadingPassword}
+              className="btn-primary-glow text-sm !py-2 flex items-center gap-2"
+            >
+              {loadingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : "Update Password"}
+            </button>
           </div>
         )}
 

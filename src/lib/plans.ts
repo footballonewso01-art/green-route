@@ -40,7 +40,7 @@ export const FEATURES_ACCESS = {
     geo_targeting: ["pro", "agency"],
     device_targeting: ["creator", "pro", "agency"],
     pixels: ["pro", "agency"],
-    ab_testing: ["pro", "agency"],
+    ab_testing: ["agency"],
     custom_slug: ["agency"]
 };
 
@@ -83,9 +83,9 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         buttonText: "Upgrade to Pro",
         features: [
             { text: "15 Smart Links", icon: "🔗" },
-            { text: "A/B Testing (2 variants)", icon: "🧪", tooltip: "Test two versions of a link to see which performs better." },
+
             { text: "Remove GreenRoute Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
-            { text: "Deep Links (Direct)", icon: "⚡", tooltip: "Create direct links for max speed." },
+            { text: "Deeplinks", icon: "⚡", tooltip: "Smart route optimization for social app traffic." },
             { text: "Advanced Analytics", icon: "📊" },
             { text: "Link Optimization", icon: "🛡️" },
             { text: "Geo Targeting", icon: "🌍" },
@@ -105,7 +105,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             remove_branding: true,
             custom_slug: false,
             pixels: true,
-            ab_testing: true
+            ab_testing: false
         }
     },
     agency: {

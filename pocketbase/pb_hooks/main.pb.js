@@ -28,20 +28,20 @@ onRecordBeforeCreateRequest((e) => {
     const userId = e.record.get("user_id");
 
     // A. Prevent Slug-Username collisions
+    let userWithSameName = null;
     try {
-        const userWithSameName = $app.dao().findFirstRecordByFilter("users", "username = {:slug}", { slug: slug });
-        if (userWithSameName) {
-            throw new BadRequestError("This slug is already taken by a user profile.");
-        }
+        userWithSameName = $app.dao().findFirstRecordByFilter("users", "username = {:slug}", { slug: slug });
     } catch (err) {
-        if (err.status !== 404) throw err;
+        // Safe to ignore sql: no rows in result set
+    }
+
+    if (userWithSameName) {
+        throw new BadRequestError("This slug is already taken by a user profile.");
     }
 
     // B. Enforce Plan Limits
     const user = $app.dao().findRecordById("users", userId);
     const plan = user.get("plan") || "creator";
-    const linksCount = $app.dao().countRecords("links", $expr.condition("user_id", "=", userId));
-
     const limits = {
         "creator": 4,
         "pro": 15,
@@ -49,8 +49,20 @@ onRecordBeforeCreateRequest((e) => {
     };
 
     const maxLinks = limits[plan];
-    if (maxLinks !== -1 && linksCount >= maxLinks) {
-        throw new BadRequestError("You have reached the link limit for your " + plan + " plan. Please upgrade to create more.");
+
+    // Only query count if there is a limit
+    if (maxLinks !== -1) {
+        let linksCount = 0;
+        try {
+            const records = $app.dao().findRecordsByFilter("links", "user_id = {:userId}", "-created", maxLinks + 1, 0, { userId: userId });
+            linksCount = records.length;
+        } catch (err) {
+            // Ignore if no records found
+        }
+
+        if (linksCount >= maxLinks) {
+            throw new BadRequestError("You have reached the link limit for your " + plan + " plan. Please upgrade to create more.");
+        }
     }
 }, "links");
 
@@ -62,13 +74,15 @@ onRecordBeforeUpdateRequest((e) => {
     const oldUsername = e.record.originalCopy().get("username");
 
     if (newUsername !== oldUsername) {
+        let linkWithSameSlug = null;
         try {
-            const linkWithSameSlug = $app.dao().findFirstRecordByFilter("links", "slug = {:username}", { username: newUsername });
-            if (linkWithSameSlug) {
-                throw new BadRequestError("This username matches an existing link slug.");
-            }
+            linkWithSameSlug = $app.dao().findFirstRecordByFilter("links", "slug = {:username}", { username: newUsername });
         } catch (err) {
-            if (err.status !== 404) throw err;
+            // Safe to ignore sql: no rows
+        }
+
+        if (linkWithSameSlug) {
+            throw new BadRequestError("This username matches an existing link slug.");
         }
     }
 }, "users");

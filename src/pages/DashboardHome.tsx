@@ -143,20 +143,10 @@ export default function DashboardHome() {
               Welcome, <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-emerald-400">{displayName}</span>!
             </h1>
             <div className="flex items-center gap-2 mt-2">
-              <span className="text-muted-foreground text-sm">Your ID:</span>
-              <code className="px-2 py-0.5 rounded bg-surface border border-border text-xs font-mono select-all">
+              <span className="text-muted-foreground text-sm">ID:</span>
+              <code className="px-2 py-0.5 rounded bg-surface border border-border text-xs font-mono">
                 {pb.authStore.model?.id}
               </code>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(pb.authStore.model?.id || "");
-                  toast.success("ID copied to clipboard!");
-                }}
-                className="p-1.5 hover:bg-surface rounded-md text-muted-foreground hover:text-foreground transition-colors"
-                title="Copy ID"
-              >
-                <Share2 className="w-3.5 h-3.5" />
-              </button>
             </div>
           </div>
 

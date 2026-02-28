@@ -4,9 +4,10 @@ import { Search, ChevronLeft, ChevronRight, UserX, ShieldAlert, Check } from "lu
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { PLANS, PlanType } from "@/lib/plans";
-import { BarChart3, Link as LinkIcon, Edit2, MapPin } from "lucide-react";
+import { BarChart3, Link as LinkIcon, Edit2, MapPin, ExternalLink } from "lucide-react";
 
 type UserRecord = {
     id: string;
@@ -26,7 +27,7 @@ export default function AdminUsers() {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [search, setSearch] = useState("");
-    const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
+    const navigate = useNavigate();
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -76,43 +77,14 @@ export default function AdminUsers() {
 
             toast.success("User plan updated successfully");
             setUsers(users.map(u => u.id === userId ? { ...u, plan: newPlan as PlanType } : u));
-            if (selectedUser?.id === userId) {
-                setSelectedUser({ ...selectedUser, plan: newPlan as PlanType });
-            }
         } catch (err) {
             console.error("Failed to update plan", err);
             toast.error("Could not update user plan");
         }
     };
 
-    const handleEditUser = async (user: UserRecord) => {
-        setLoading(true);
-        try {
-            // Fetch stats
-            const [linksResult, clicksResult] = await Promise.all([
-                pb.collection("links").getList(1, 1, { filter: `user_id="${user.id}"` }),
-                pb.collection("clicks").getList(1, 1, { filter: `link_id.user_id="${user.id}"`, sort: "-created" })
-            ]);
-
-            // Track country and device
-            let device = "Not logged";
-            let country = "Unknown";
-            if (clicksResult.items.length > 0) {
-                const click = clicksResult.items[0];
-                country = click.country || "Unknown";
-                device = [click.os, click.browser].filter(Boolean).join(" / ") || "Unknown device";
-            }
-
-            setSelectedUser({
-                ...user,
-                stats: { links: linksResult.totalItems, clicks: clicksResult.totalItems },
-                metrics: { device, country }
-            });
-        } catch (e) {
-            toast.error("Failed to load user details");
-        } finally {
-            setLoading(false);
-        }
+    const handleEditUser = (user: UserRecord) => {
+        navigate(`/admin/users/${user.id}`);
     };
 
     const handleAction = async (userId: string, action: 'ban' | 'delete') => {
@@ -137,9 +109,17 @@ export default function AdminUsers() {
     return (
         <div className="space-y-6 pt-6 max-w-6xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">User Management</h1>
-                    <p className="text-sm text-muted-foreground mt-1">Manage all accounts on the platform</p>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/dashboard')}
+                        className="p-2 -ml-2 rounded-lg text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
+                    >
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-foreground">User Management</h1>
+                        <p className="text-sm text-muted-foreground mt-1">Manage all accounts on the platform</p>
+                    </div>
                 </div>
 
                 <div className="relative w-full sm:w-72">
@@ -278,61 +258,6 @@ export default function AdminUsers() {
                 )}
             </div>
 
-            {/* Edit User Dialog */}
-            {selectedUser && (
-                <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
-                    <DialogContent className="bg-surface border-border sm:max-w-md">
-                        <DialogHeader>
-                            <DialogTitle className="text-foreground text-xl">Edit User</DialogTitle>
-                            <DialogDescription className="text-muted-foreground">
-                                View stats and modify subscription status for <strong className="text-foreground">{selectedUser.email}</strong>.
-                            </DialogDescription>
-                        </DialogHeader>
-
-                        <div className="space-y-6 pt-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="glass-card p-4 rounded-xl">
-                                    <div className="flex items-center gap-2 text-muted-foreground mb-2"><LinkIcon className="w-4 h-4" /> Links</div>
-                                    <div className="text-2xl font-bold text-foreground">{selectedUser.stats?.links || 0}</div>
-                                </div>
-                                <div className="glass-card p-4 rounded-xl">
-                                    <div className="flex items-center gap-2 text-muted-foreground mb-2"><BarChart3 className="w-4 h-4" /> Clicks</div>
-                                    <div className="text-2xl font-bold text-foreground">{selectedUser.stats?.clicks || 0}</div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Metrics & Access</h3>
-                                <div className="flex items-center justify-between py-2 border-b border-border">
-                                    <span className="text-sm text-muted-foreground">Last Country</span>
-                                    <span className="text-sm font-medium flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> {selectedUser.metrics?.country || "Unknown"}</span>
-                                </div>
-                                <div className="flex items-center justify-between py-2 border-b border-border">
-                                    <span className="text-sm text-muted-foreground">Known Device</span>
-                                    <span className="text-sm font-mono">{selectedUser.metrics?.device || "Not logged"}</span>
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Plan Management</h3>
-                                <div className="flex items-center justify-between gap-4">
-                                    <span className="text-sm text-muted-foreground">Current Plan</span>
-                                    <Select defaultValue={selectedUser.plan || 'creator'} onValueChange={(v) => handlePlanChange(selectedUser.id, v)}>
-                                        <SelectTrigger className="w-[180px] bg-background border-border">
-                                            <SelectValue placeholder="Select plan" />
-                                        </SelectTrigger>
-                                        <SelectContent className="bg-surface border-border">
-                                            <SelectItem value="creator">Free (Creator)</SelectItem>
-                                            <SelectItem value="pro">Creator Pro</SelectItem>
-                                            <SelectItem value="agency">Agency</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                        </div>
-                    </DialogContent>
-                </Dialog>
-            )}
         </div>
     );
 }

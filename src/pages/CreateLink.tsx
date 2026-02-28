@@ -10,6 +10,8 @@ import { IconRenderer } from '@/components/icons/IconRenderer';
 import { detectIconFromUrl } from '@/components/icons/detector';
 import { checkPlan, canUseResource, PlanLimits } from '@/lib/plans';
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { CountrySelect } from "@/components/CountrySelect";
+import { X } from "lucide-react";
 
 const generateRandomSlug = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -57,6 +59,7 @@ export default function CreateLink() {
     fb_pixel: "",
     google_pixel: "",
     tiktok_pixel: "",
+    size: "regular", // "regular" | "large"
   });
 
   const [geoData, setGeoData] = useState<{ code: string; url: string }[]>([]);
@@ -91,6 +94,7 @@ export default function CreateLink() {
             fb_pixel: record.fb_pixel || "",
             google_pixel: record.google_pixel || "",
             tiktok_pixel: record.tiktok_pixel || "",
+            size: record.size || "regular",
           });
 
           if (record.geo_targeting) {
@@ -165,6 +169,7 @@ export default function CreateLink() {
       fb_pixel: form.fb_pixel,
       google_pixel: form.google_pixel,
       tiktok_pixel: form.tiktok_pixel,
+      size: form.size,
       user_id: user.id,
       active: true,
     };
@@ -298,6 +303,36 @@ export default function CreateLink() {
           tooltip="If enabled, this link will appear on your public Link-in-Bio page. You MUST provide a Link Title if this is enabled."
         />
 
+        {form.show_on_profile && (
+          <div className="space-y-3 pt-2 animate-fade-in">
+            <label className="text-sm font-medium text-foreground block">Display Size</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => update("size", "regular")}
+                className={`py-[14px] px-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group ${form.size === "regular" ? "bg-accent/10 border-accent/50 text-accent" : "bg-surface border-border text-muted-foreground hover:border-accent/30"}`}
+              >
+                <div className="w-full h-8 bg-white/5 rounded-lg border border-white/10 flex items-center justify-center">
+                  <div className="w-8 h-1.5 rounded-full bg-white/20" />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider">Regular</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => update("size", "large")}
+                className={`py-[14px] px-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group ${form.size === "large" ? "bg-accent/10 border-accent/50 text-accent" : "bg-surface border-border text-muted-foreground hover:border-accent/30"}`}
+              >
+                <div className="w-full h-8 bg-white/5 rounded-lg border border-white/10 relative">
+                  <div className="absolute top-1.5 left-1.5 w-1.5 h-1.5 rounded-full bg-white/20" />
+                  <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-white/20" />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider">Large</span>
+              </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground italic px-1">Large boxes allow for a more prominent display and appear 3x taller.</p>
+          </div>
+        )}
+
         {/* Power Features Grouping */}
         <div className="space-y-8 pt-4 border-t border-border">
 
@@ -307,8 +342,8 @@ export default function CreateLink() {
 
             <ToggleRow
               icon={Zap}
-              label="Deep Link Escape (Beta)"
-              description="Bypass restricted Instagram/TikTok browsers"
+              label="Deeplinks (Beta)"
+              description="Smart route from social apps to system browser"
               checked={form.mode === "direct"}
               onChange={() => {
                 if (checkPlan(userPlan, "deep_links")) {
@@ -316,12 +351,12 @@ export default function CreateLink() {
                 } else {
                   setUpgradeModal({
                     open: true,
-                    feature: "Deep Link Escape",
-                    description: "FORCE open your links in the system browser (Chrome/Safari) for maximum conversion. Available on Pro.",
+                    feature: "Deeplinks",
+                    description: "Optimize link routing through social apps for maximum conversion. Available on Pro.",
                   });
                 }
               }}
-              tooltip="KILLER FEATURE: Attempts to force-open your link in the system browser instead of restricted app browsers. Use with caution (Beta)."
+              tooltip="Smart routing: Optimizes link delivery from social app browsers to system browser for best user experience (Beta)."
               disabled={!checkPlan(userPlan, "deep_links")}
               lockedTooltip="Available on Creator Pro"
             />
@@ -329,7 +364,7 @@ export default function CreateLink() {
             <ToggleRow
               icon={Shield}
               label="Security Check (Interstitial)"
-              description="Force click before redirect"
+              description="Verification step before redirect"
               checked={form.interstitial_enabled}
               onChange={() => update("interstitial_enabled", !form.interstitial_enabled)}
               tooltip="Shows a 'Security Check' page where users must tap once to continue. Helps avoid bot detection."
@@ -367,7 +402,7 @@ export default function CreateLink() {
                 onChange={() => handleToggle("ab_split", "ab_testing", "A/B Split Test", "Randomly rotate traffic between several alternative URLs to test performance.")}
                 tooltip="Randomly rotates traffic between several alternative URLs."
                 disabled={!checkPlan(userPlan, "ab_testing")}
-                lockedTooltip="Available on Creator Pro"
+                lockedTooltip="Available on Agency Plan"
               />
               {form.ab_split && (
                 <div className="pl-11 space-y-3 animate-fade-in">
@@ -397,17 +432,29 @@ export default function CreateLink() {
               {form.geo_targeting && (
                 <div className="pl-11 space-y-3 animate-fade-in">
                   {geoData.map((d, i) => (
-                    <div key={i} className="flex gap-2">
-                      <input placeholder="US" value={d.code} onChange={(e) => {
-                        const next = [...geoData];
-                        next[i].code = e.target.value.toUpperCase();
-                        setGeoData(next);
-                      }} className="w-16 px-3 py-2 rounded-lg bg-surface border border-border text-xs" />
+                    <div key={i} className="flex items-center gap-2">
+                      <CountrySelect
+                        value={d.code}
+                        onChange={(code) => {
+                          const next = [...geoData];
+                          next[i].code = code;
+                          setGeoData(next);
+                        }}
+                        excludeCodes={geoData.filter((_, j) => j !== i).map((g) => g.code).filter(Boolean)}
+                      />
                       <input placeholder="Destination URL" value={d.url} onChange={(e) => {
                         const next = [...geoData];
                         next[i].url = e.target.value;
                         setGeoData(next);
                       }} className="flex-1 px-3 py-2 rounded-lg bg-surface border border-border text-xs" />
+                      <button
+                        type="button"
+                        onClick={() => setGeoData(geoData.filter((_, j) => j !== i))}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                        title="Remove rule"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ))}
                   <button type="button" onClick={() => setGeoData([...geoData, { code: "", url: "" }])} className="text-[10px] text-accent hover:underline px-1">+ Add country rule</button>
