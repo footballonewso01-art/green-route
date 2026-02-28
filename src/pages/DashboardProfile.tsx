@@ -587,9 +587,9 @@ export default function DashboardProfile() {
                           onClick={() => {
                             setEditingId(editingId === `social-${link.id}` ? null : `social-${link.id}`);
                           }}
-                          className="h-[42px] w-[42px] bg-background border border-border rounded-xl flex items-center justify-center hover:bg-surface-hover transition-colors"
+                          className="h-[42px] w-[42px] bg-background border border-border rounded-xl flex items-center justify-center hover:bg-surface-hover transition-colors overflow-hidden"
                         >
-                          <IconRenderer type={link.icon_type} value={link.icon_value} className="w-5 h-5 text-accent" />
+                          <IconRenderer type={link.icon_type} value={link.icon_value} className="w-full h-full text-accent object-cover" />
                         </button>
 
                         {editingId === `social-${link.id}` && (
@@ -762,13 +762,13 @@ export default function DashboardProfile() {
                                     <button
                                       id={`edit-link-icon-btn-${link.id}`}
                                       onClick={() => setShowEditIconPicker(!showEditIconPicker)}
-                                      className="p-2 bg-background border border-accent/50 rounded-lg flex items-center justify-center shrink-0 hover:bg-surface-hover transition-colors group/edit-icon"
+                                      className="w-10 h-10 bg-background border border-accent/50 rounded-lg flex items-center justify-center shrink-0 overflow-hidden hover:bg-surface-hover transition-colors group/edit-icon"
                                     >
-                                      <IconRenderer type={editIconType} value={editIconValue} className="w-5 h-5 text-accent group-hover/edit-icon:scale-110 transition-transform" />
+                                      <IconRenderer type={editIconType} value={editIconValue} className="w-full h-full text-accent group-hover/edit-icon:scale-110 transition-transform object-cover" />
                                     </button>
                                   ) : (
-                                    <div className="p-2 bg-background border border-border rounded-lg flex items-center justify-center shrink-0">
-                                      <IconRenderer type={link.icon_type} value={link.icon_value} className="w-5 h-5 text-accent" />
+                                    <div className="w-10 h-10 bg-background border border-border rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+                                      <IconRenderer type={link.icon_type} value={link.icon_value} className="w-full h-full text-accent object-cover" />
                                     </div>
                                   )}
 
