@@ -263,6 +263,7 @@ export default function PublicProfile() {
                   <span className="uppercase tracking-widest font-medium">Powered by</span>
                   <span className="font-black flex items-center gap-1.5 group-hover:opacity-100">
                     <img src="/logo.png" alt="Linktery" className="h-8 w-auto grayscale mix-blend-screen opacity-80 group-hover:opacity-100 transition-opacity" />
+                    <span className="uppercase tracking-tighter text-[11px] text-white/80 group-hover:text-white translate-y-[0.5px]">Linktery</span>
                   </span>
                 </a>
               </div>

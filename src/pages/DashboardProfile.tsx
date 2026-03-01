@@ -955,8 +955,11 @@ export default function DashboardProfile() {
                     </div>
 
                     {!checkPlan(userPlan, "remove_branding") && (
-                      <div className="mt-auto pt-10 pb-2 flex flex-col items-center shrink-0">
-                        <img src="/logo.png" alt="Linktery" className="h-6 w-auto grayscale mix-blend-screen opacity-50" />
+                      <div className="mt-auto pt-10 pb-2 flex flex-col items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-1.5 grayscale mix-blend-screen opacity-50">
+                          <img src="/logo.png" alt="Linktery" className="h-6 w-auto" />
+                          <span className="text-[9px] font-bold tracking-widest uppercase text-white">Linktery</span>
+                        </div>
                       </div>
                     )}
                   </div>
