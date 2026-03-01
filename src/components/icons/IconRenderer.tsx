@@ -61,7 +61,7 @@ export function IconRenderer({ type, value, url, className = "w-5 h-5", fallback
             <img
                 src={value}
                 alt="Custom icon"
-                className={`object-cover rounded-md ${className}`}
+                className="w-full h-full object-cover"
             />
         );
     }
@@ -71,20 +71,6 @@ export function IconRenderer({ type, value, url, className = "w-5 h-5", fallback
 }
 
 function Fallback({ url, className, fallback }: { url?: string, className: string, fallback: boolean }) {
-    const domain = getDomain(url);
-    if (domain) {
-        return (
-            <img
-                src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
-                alt="Favicon"
-                className={`object-contain rounded-sm ${className}`}
-                onError={(e) => {
-                    // Fallback to Globe if favicon fails
-                    (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSIsIHdpZHRoLCAgaGVpZ2h0LCAgbWFyZ2luLCAgYm9yZGVyLCAgcGFkZGluZyIsICBzdHlsZT0iLCAiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEwIj48L2NpcmNsZT48bGluZSB4MT0iMiIgeTE9IjEyIiB4Mj0iMjIiIHkyPSIxMiI+PC9saW5lPjxwYXRoIGQ9Ik0xMiAyYWMtMi43NiAzLTEuNzYgOC0xLjc2IDEwcy0xIDcgMS43NiAxMGMyLjc2LTMgMS43Ni04IDEuNzYtMTBzMS03LTEuNzYtMTAiPjwvcGF0aD48L3N2Zz4=';
-                }}
-            />
-        );
-    }
     return fallback ? <Globe className={className} /> : null;
 }
 
