@@ -401,14 +401,24 @@ export default function DashboardProfile() {
           <h1 className="text-3xl font-bold text-foreground">Link-in-Bio Profile</h1>
           <p className="text-muted-foreground text-sm mt-1">Manage your identity and links in one place</p>
         </div>
-        <a
-          href={`/${username}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 text-sm text-accent hover:underline px-4 py-2 bg-accent/5 rounded-lg border border-accent/20 transition-all font-medium"
-        >
-          <Globe className="w-4 h-4" /> View Public Profile
-        </a>
+        {username ? (
+          <a
+            href={`/${username}`}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-2 text-sm text-accent hover:underline px-4 py-2 bg-accent/5 rounded-lg border border-accent/20 transition-all font-medium"
+          >
+            <Globe className="w-4 h-4" /> View Public Profile
+          </a>
+        ) : (
+          <button
+            disabled
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground px-4 py-2 bg-surface rounded-lg border border-border cursor-not-allowed font-medium"
+            title="Please set a username to view your public profile"
+          >
+            <Globe className="w-4 h-4 opacity-50" /> Set username first
+          </button>
+        )}
       </div>
 
 
@@ -589,7 +599,7 @@ export default function DashboardProfile() {
                           }}
                           className="h-[42px] w-[42px] bg-background border border-border rounded-xl flex items-center justify-center hover:bg-surface-hover transition-colors overflow-hidden"
                         >
-                          <IconRenderer type={link.icon_type} value={link.icon_value} className="w-full h-full text-accent object-cover" />
+                          <IconRenderer type={link.icon_type} value={link.icon_value} className="w-5 h-5 text-accent" />
                         </button>
 
                         {editingId === `social-${link.id}` && (
@@ -762,13 +772,13 @@ export default function DashboardProfile() {
                                     <button
                                       id={`edit-link-icon-btn-${link.id}`}
                                       onClick={() => setShowEditIconPicker(!showEditIconPicker)}
-                                      className="w-10 h-10 bg-background border border-accent/50 rounded-lg flex items-center justify-center shrink-0 overflow-hidden hover:bg-surface-hover transition-colors group/edit-icon"
+                                      className="w-10 h-10 bg-background border border-accent/50 rounded-xl flex items-center justify-center shrink-0 overflow-hidden hover:bg-surface-hover transition-colors group/edit-icon"
                                     >
-                                      <IconRenderer type={editIconType} value={editIconValue} className="w-full h-full text-accent group-hover/edit-icon:scale-110 transition-transform object-cover" />
+                                      <IconRenderer type={editIconType} value={editIconValue} className="w-7 h-7 text-accent group-hover/edit-icon:scale-110 transition-transform" />
                                     </button>
                                   ) : (
-                                    <div className="w-10 h-10 bg-background border border-border rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
-                                      <IconRenderer type={link.icon_type} value={link.icon_value} className="w-full h-full text-accent object-cover" />
+                                    <div className="w-10 h-10 bg-background border border-border rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
+                                      <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className="w-7 h-7 text-accent" />
                                     </div>
                                   )}
 
@@ -912,8 +922,8 @@ export default function DashboardProfile() {
                         profileLinks.map(link => (
                           <div key={link.id} className={`w-full rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all group cursor-pointer shadow-lg shadow-black/5 relative flex ${link.size === 'large' ? 'flex-col p-3 aspect-[10/5.4]' : 'h-[40px] items-center justify-center'}`}>
                             <div className={`${link.size === 'large' ? 'shrink-0 self-start' : 'absolute left-0 shrink-0 ml-0'}`}>
-                              <div className={`${link.size === 'large' ? 'w-8 h-8 rounded-lg bg-white/5' : 'w-11 h-11'} flex items-center justify-center`}>
-                                <IconRenderer type={link.icon_type} value={link.icon_value} className={`${link.size === 'large' ? 'w-4 h-4' : 'w-5 h-5'} text-white/80`} />
+                              <div className={`${link.size === 'large' ? 'w-8 h-8 rounded-xl bg-white/5 overflow-hidden' : 'w-11 h-11 rounded-xl overflow-hidden'} flex items-center justify-center`}>
+                                <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className={`${link.size === 'large' ? 'w-4 h-4' : 'w-5 h-5'} text-white/80`} />
                               </div>
                             </div>
                             <div className={`${link.size === 'large' ? 'mt-auto text-center' : 'text-center px-10'}`}>
