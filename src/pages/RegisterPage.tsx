@@ -106,8 +106,9 @@ export default function RegisterPage() {
 
       <div className="glass-card p-8 w-full max-w-md relative z-10 animate-scale-in">
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2 mb-6 hover:opacity-80 transition-opacity">
-            <img src="/logo.png" alt="GreenRoute" className="h-10 w-auto mix-blend-screen" />
+          <Link to="/" className="inline-flex items-center gap-3 mb-6 hover:opacity-80 transition-opacity">
+            <img src="/logo.png" alt="Linktery" className="h-20 w-auto mix-blend-screen" />
+            <span className="text-3xl font-bold text-foreground tracking-tighter">Linktery</span>
           </Link>
           <h1 className="text-2xl font-bold text-foreground">Create your account</h1>
           <p className="text-sm text-muted-foreground mt-1">Start managing your links today</p>

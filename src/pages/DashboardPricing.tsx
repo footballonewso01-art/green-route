@@ -31,7 +31,7 @@ const plans = [
         features: [
             { text: "15 Smart Links", icon: "🔗" },
 
-            { text: "Remove GreenRoute Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
+            { text: "Remove Linktery Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
             { text: "Deeplinks (Beta)", icon: "⚡", tooltip: "Smart route: Seamless transition from social apps to system browser." },
             { text: "Advanced Analytics", icon: "📊" },
             { text: "Link Optimization", icon: "🛡️" },
@@ -49,7 +49,7 @@ const plans = [
         features: [
             { text: "Unlimited Smart Links", icon: "🚀" },
             { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
-            { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run GreenRoute on your own domains." },
+            { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
             { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
             { text: "Everything in Creator Pro", icon: "✅" },
             { text: "Priority 24/7 Support", icon: "⚡" },

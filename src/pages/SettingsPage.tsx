@@ -194,7 +194,7 @@ export default function SettingsPage() {
         {active === "api" && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground">API Keys</h2>
-            <p className="text-sm text-muted-foreground">Use API keys to integrate GreenRoute with your apps.</p>
+            <p className="text-sm text-muted-foreground">Use API keys to integrate Linktery with your apps.</p>
             <div className="p-4 rounded-xl border border-border bg-surface">
               <div className="text-xs text-muted-foreground mb-1">Live Key</div>
               <div className="flex items-center gap-2">

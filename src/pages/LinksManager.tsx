@@ -135,7 +135,7 @@ export default function LinksManager() {
     const url = canvas.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = url;
-    a.download = `greenroute-${qrModal.slug}.png`;
+    a.download = `linktery-${qrModal.slug}.png`;
     a.click();
     toast.success('QR code downloaded!');
   };

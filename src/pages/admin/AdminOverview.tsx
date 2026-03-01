@@ -112,7 +112,7 @@ export default function AdminOverview() {
                     </button>
                     <div>
                         <h1 className="text-2xl font-bold text-foreground">Platform Overview</h1>
-                        <p className="text-sm text-muted-foreground mt-1">Real-time statistics for GreenRoute.</p>
+                        <p className="text-sm text-muted-foreground mt-1">Real-time statistics for Linktery.</p>
                     </div>
                 </div>
             </div>

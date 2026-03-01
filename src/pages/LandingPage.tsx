@@ -65,7 +65,7 @@ const plans = [
     features: [
       { text: "15 Smart Links", icon: "🔗" },
       { text: "A/B Testing (2 variants)", icon: "🧪", tooltip: "Test two versions of a link to see which performs better." },
-      { text: "Remove GreenRoute Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
+      { text: "Remove Linktery Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
       { text: "Deeplinks (Beta)", icon: "⚡", tooltip: "Smart route optimization: Seamless transition from social apps to system browser." },
       { text: "Advanced Analytics", icon: "📊" },
       { text: "Link Optimization", icon: "🛡️" },
@@ -83,7 +83,7 @@ const plans = [
     features: [
       { text: "Unlimited Smart Links", icon: "🚀" },
       { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
-      { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run GreenRoute on your own domains." },
+      { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." }, ,
       { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
       { text: "Everything in Creator Pro", icon: "✅" },
       { text: "Priority 24/7 Support", icon: "⚡" },
@@ -113,8 +113,9 @@ export default function LandingPage() {
       {/* Navbar */}
       <nav className="fixed top-0 w-full z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <img src="/logo.png" alt="GreenRoute" className="h-8 w-auto mix-blend-screen" />
+          <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <img src="/logo.png" alt="Linktery" className="h-16 w-auto mix-blend-screen" />
+            <span className="text-2xl font-bold text-foreground tracking-tight">Linktery</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
@@ -193,7 +194,7 @@ export default function LandingPage() {
           <div className="mt-16 relative">
             <div className="absolute inset-0 bg-accent/10 blur-3xl rounded-3xl" />
             <div className="relative glass-card p-2 rounded-2xl overflow-hidden shadow-glow">
-              <img src={heroDashboard} alt="GreenRoute Dashboard" className="w-full rounded-xl" />
+              <img src={heroDashboard} alt="Linktery Dashboard" className="w-full rounded-xl" />
             </div>
           </div>
         </div>
@@ -365,10 +366,11 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-border py-12 px-6 relative z-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <img src="/logo.png" alt="GreenRoute" className="h-6 w-auto mix-blend-screen grayscale" />
+          <div className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <img src="/logo.png" alt="Linktery" className="h-12 w-auto mix-blend-screen grayscale" />
+            <span className="text-xl font-bold text-foreground/80 tracking-tight">Linktery</span>
           </div>
-          <p className="text-sm text-muted-foreground">© 2026 GreenRoute. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">© 2026 Linktery. All rights reserved.</p>
         </div>
       </footer>
     </div>

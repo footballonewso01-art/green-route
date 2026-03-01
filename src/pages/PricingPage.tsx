@@ -28,7 +28,7 @@ const plans = [
     features: [
       { text: "15 Smart Links", icon: "🔗" },
       { text: "A/B Testing (2 variants)", icon: "🧪" },
-      { text: "Remove GreenRoute Branding", icon: "✨" },
+      { text: "Remove Linktery Branding", icon: "✨" },
       { text: "Deeplinks (Beta)", icon: "⚡" },
       { text: "Advanced Analytics", icon: "📊" },
       { text: "Link Optimization", icon: "🛡️" },

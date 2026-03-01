@@ -262,7 +262,7 @@ export default function PublicProfile() {
                 <a href="/" className="inline-flex items-center gap-2 text-[10px] text-muted-foreground/50 hover:text-white transition-colors group">
                   <span className="uppercase tracking-widest font-medium">Powered by</span>
                   <span className="font-black flex items-center gap-1.5 group-hover:opacity-100">
-                    <img src="/logo.png" alt="GreenRoute" className="h-4 w-auto grayscale mix-blend-screen opacity-80 group-hover:opacity-100 transition-opacity" />
+                    <img src="/logo.png" alt="Linktery" className="h-8 w-auto grayscale mix-blend-screen opacity-80 group-hover:opacity-100 transition-opacity" />
                   </span>
                 </a>
               </div>

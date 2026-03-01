@@ -84,7 +84,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         features: [
             { text: "15 Smart Links", icon: "🔗" },
 
-            { text: "Remove GreenRoute Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
+            { text: "Remove Linktery Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
             { text: "Deeplinks", icon: "⚡", tooltip: "Smart route optimization for social app traffic." },
             { text: "Advanced Analytics", icon: "📊" },
             { text: "Link Optimization", icon: "🛡️" },
@@ -116,7 +116,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         buttonText: "Upgrade to Agency",
         features: [
             { text: "Unlimited Links", icon: "🚀" },
-            { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run GreenRoute on your own domains." },
+            { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
             { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Create your own short link handles." },
             { text: "Everything in Pro", icon: "✅" },
             { text: "Priority Support", icon: "⚡" },
