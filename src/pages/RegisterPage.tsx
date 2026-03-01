@@ -16,11 +16,17 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true);
     try {
+      // Generate a default username based on email (e.g. john.doe@email.com -> johndoe412)
+      const baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      const randomSuffix = Math.floor(Math.random() * 10000);
+      const generatedUsername = `${baseUsername}${randomSuffix}`;
+
       await pb.collection('users').create({
         email,
         password,
         passwordConfirm: password,
         name,
+        username: generatedUsername,
       });
       // Optionally login immediately
       await pb.collection('users').authWithPassword(email, password);
@@ -42,11 +48,19 @@ export default function RegisterPage() {
         provider: 'google'
       });
 
-      // Update name if it's a new account from Google
+      // Update name and generate username if it's a new account from Google
+      const updateData: any = {};
       if (authData.meta?.name && !authData.record.name) {
-        await pb.collection('users').update(authData.record.id, {
-          name: authData.meta.name,
-        });
+        updateData.name = authData.meta.name;
+      }
+      if (!authData.record.username) {
+        const baseUsername = authData.record.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        const randomSuffix = Math.floor(Math.random() * 10000);
+        updateData.username = `${baseUsername}${randomSuffix}`;
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await pb.collection('users').update(authData.record.id, updateData);
       }
 
       toast.success("Successfully signed up with Google!");
