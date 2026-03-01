@@ -113,9 +113,9 @@ export default function LandingPage() {
       {/* Navbar */}
       <nav className="fixed top-0 w-full z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-[11px] hover:opacity-80 transition-opacity">
-            <img src="/logo.png" alt="Linktery" className="h-16 w-auto mix-blend-screen" />
-            <span className="text-2xl font-bold text-foreground tracking-tight translate-y-[1.5px]">Linktery</span>
+          <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+            <img src="/logo.png" alt="Linktery" className="h-11 w-auto mix-blend-screen" />
+            <span className="text-[22px] font-bold text-foreground tracking-tight">Linktery</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
