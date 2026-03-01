@@ -230,8 +230,8 @@ export default function LinksManager() {
                           </div>
 
                           <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="w-10 h-10 bg-background border border-border rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
-                              <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className="w-full h-full text-accent object-cover" />
+                            <div className="w-10 h-10 bg-background border border-border rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
+                              <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className="w-7 h-7 text-accent" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">

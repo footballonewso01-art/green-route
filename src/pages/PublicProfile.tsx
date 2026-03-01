@@ -207,32 +207,51 @@ export default function PublicProfile() {
                 <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No public links yet</p>
               </div>
             ) : (
-              links.map((link) => (
-                <a
-                  key={link.id}
-                  href={`/${link.slug}`}
-                  className={`group relative block w-full bg-[#111] hover:bg-[#161616] border border-white/5 hover:border-accent/30 rounded-2xl transition-all duration-300 hover:-translate-y-0.5 ${link.size === 'large' ? 'py-5 px-5 aspect-[10/4.3]' : 'py-[14px] px-4'}`}
-                >
-                  <div className={`relative flex ${link.size === 'large' ? 'flex-col h-full' : 'items-center justify-center min-h-[40px]'}`}>
-                    <div className={`${link.size === 'large' ? 'shrink-0' : 'absolute left-0 shrink-0'} w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden group-hover:bg-accent/10 transition-colors`}>
-                      <IconRenderer
-                        type={link.icon_type}
-                        value={link.icon_value}
-                        url={link.destination_url}
-                        className="w-full h-full text-white/60 group-hover:text-accent transition-colors object-cover"
-                      />
+              links.map((link) => {
+                const bgImageUrl = (link.size === 'large' && (link as any).bg_image)
+                  ? pb.files.getUrl(link, (link as any).bg_image)
+                  : null;
+
+                return (
+                  <a
+                    key={link.id}
+                    href={`/${link.slug}`}
+                    className={`group relative block w-full bg-[#111] hover:bg-[#161616] border border-white/5 hover:border-accent/30 rounded-2xl transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${link.size === 'large' ? 'aspect-[10/4.3]' : 'py-[14px] px-4'}`}
+                  >
+                    {/* Size Large Custom Background */}
+                    {bgImageUrl && (
+                      <>
+                        <div
+                          className="absolute inset-0 bg-cover bg-center z-0 transition-transform duration-700 group-hover:scale-105"
+                          style={{ backgroundImage: `url('${bgImageUrl}')` }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20 z-0" />
+                      </>
+                    )}
+
+                    <div className={`relative z-10 flex ${link.size === 'large' ? 'flex-col h-full p-5 justify-between' : 'items-center justify-center min-h-[40px]'}`}>
+                      <div className={`${link.size === 'large' ? 'shrink-0 self-start' : 'absolute left-0 shrink-0'} w-11 h-11 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center overflow-hidden group-hover:bg-accent/20 transition-colors shadow-lg`}>
+                        <IconRenderer
+                          type={link.icon_type}
+                          value={link.icon_value}
+                          url={link.destination_url}
+                          className="w-7 h-7 text-white/90 group-hover:text-accent transition-colors drop-shadow-md"
+                        />
+                      </div>
+
+                      <div className={`${link.size === 'large' ? 'mt-auto text-left w-full' : 'text-center px-12'}`}>
+                        <span className={`block font-bold text-white group-hover:text-accent transition-colors uppercase tracking-wider ${link.size === 'large' ? 'text-lg drop-shadow-lg' : 'text-sm'}`}>
+                          {link.title || `/${link.slug}`}
+                        </span>
+                      </div>
+
+                      <div className={`absolute ${link.size === 'large' ? 'right-4 top-4' : 'right-0 top-0'} w-8 h-8 rounded-lg bg-white/10 backdrop-blur-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg`}>
+                        <ExternalLink className="w-3.5 h-3.5 text-accent" />
+                      </div>
                     </div>
-                    <div className={`${link.size === 'large' ? 'mt-auto text-center' : 'text-center px-12'}`}>
-                      <span className="block text-sm font-bold text-white/90 group-hover:text-accent transition-colors uppercase tracking-wider">
-                        {link.title || `/${link.slug}`}
-                      </span>
-                    </div>
-                    <div className="absolute right-0 top-0 w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ExternalLink className="w-3.5 h-3.5 text-accent" />
-                    </div>
-                  </div>
-                </a>
-              ))
+                  </a>
+                );
+              })
             )}
           </div>
 

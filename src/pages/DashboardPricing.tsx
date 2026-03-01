@@ -88,7 +88,7 @@ export default function DashboardPricing() {
                 await pb.collection("billing").create({
                     user_id: user!.id,
                     plan: planId,
-                    amount: planId === "pro" ? 15 : 49,
+                    amount: planId === "pro" ? 15 : 29,
                     status: "active",
                     payment_method: "Bought"
                 });

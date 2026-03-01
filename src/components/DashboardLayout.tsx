@@ -59,11 +59,7 @@ export default function DashboardLayout() {
   });
 
   const allNotifications = [
-    { id: 'welcome', icon: '👋', title: 'Welcome to GreenRoute!', desc: 'Create your first smart link to get started.', time: 'Just now' },
-    { id: 'profile', icon: '🎨', title: 'Customize your profile', desc: 'Add an avatar and bio to stand out.', time: '1h ago' },
-    { id: 'analytics', icon: '📊', title: 'Track your clicks', desc: 'Upgrade to Pro for advanced analytics and insights.', time: '2h ago' },
-    { id: 'schedule', icon: '📅', title: 'Schedule your links', desc: 'Set start and end dates for time-limited campaigns.', time: '3h ago' },
-    { id: 'qr', icon: '📱', title: 'QR Codes are here!', desc: 'Generate QR codes for any link from the Links page.', time: '1d ago' },
+    { id: 'welcome', icon: '👋', title: 'Welcome to GreenRoute!', desc: 'Create your first smart link to get started.', time: 'Just now' }
   ];
 
   const notifications = allNotifications.filter(n => !dismissedNotifs.includes(n.id));

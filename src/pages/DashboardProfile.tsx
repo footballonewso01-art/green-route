@@ -919,18 +919,38 @@ export default function DashboardProfile() {
                       {profileLinks.length === 0 ? (
                         <div className="text-center text-white/40 text-sm italic mt-10">No visible links yet.</div>
                       ) : (
-                        profileLinks.map(link => (
-                          <div key={link.id} className={`w-full rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all group cursor-pointer shadow-lg shadow-black/5 relative flex ${link.size === 'large' ? 'flex-col p-3 aspect-[10/5.4]' : 'h-[40px] items-center justify-center'}`}>
-                            <div className={`${link.size === 'large' ? 'shrink-0 self-start' : 'absolute left-0 shrink-0 ml-0'}`}>
-                              <div className={`${link.size === 'large' ? 'w-8 h-8 rounded-xl bg-white/5 overflow-hidden' : 'w-11 h-11 rounded-xl overflow-hidden'} flex items-center justify-center`}>
-                                <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className={`${link.size === 'large' ? 'w-4 h-4' : 'w-5 h-5'} text-white/80`} />
+                        profileLinks.map((link) => {
+                          const bgImageUrl = (link.size === 'large' && (link as any).bg_image)
+                            ? pb.files.getUrl(link, (link as any).bg_image)
+                            : null;
+
+                          return (
+                            <div key={link.id} className={`w-full rounded-2xl bg-[#111] border border-white/5 hover:bg-[#161616] hover:border-white/20 transition-all group cursor-pointer shadow-lg shadow-black/5 relative overflow-hidden flex ${link.size === 'large' ? 'flex-col p-3 aspect-[10/5.4]' : 'h-[40px] items-center justify-center'}`}>
+
+                              {/* Large Size Background Map */}
+                              {bgImageUrl && (
+                                <>
+                                  <div
+                                    className="absolute inset-0 bg-cover bg-center z-0 transition-transform duration-700 group-hover:scale-105"
+                                    style={{ backgroundImage: `url('${bgImageUrl}')` }}
+                                  />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20 z-0" />
+                                </>
+                              )}
+
+                              <div className={`relative z-10 flex w-full ${link.size === 'large' ? 'h-full flex-col justify-between items-start' : 'items-center justify-center'}`}>
+                                <div className={`${link.size === 'large' ? 'shrink-0 self-start' : 'absolute left-0 shrink-0 ml-0'}`}>
+                                  <div className={`${link.size === 'large' ? 'w-8 h-8 rounded-xl bg-white/10 backdrop-blur-md overflow-hidden shadow-lg' : 'w-11 h-11 rounded-xl overflow-hidden'} flex items-center justify-center`}>
+                                    <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className={`${link.size === 'large' ? 'w-4 h-4' : 'w-5 h-5'} text-white/90 drop-shadow-md`} />
+                                  </div>
+                                </div>
+                                <div className={`${link.size === 'large' ? 'mt-auto text-left w-full' : 'text-center px-10'}`}>
+                                  <span className={`font-bold text-white group-hover:scale-[1.02] transition-transform block uppercase tracking-wider ${link.size === 'large' ? 'text-sm drop-shadow-lg' : 'text-xs'}`}>{link.title || "Untitled Link"}</span>
+                                </div>
                               </div>
                             </div>
-                            <div className={`${link.size === 'large' ? 'mt-auto text-center' : 'text-center px-10'}`}>
-                              <span className="text-xs font-semibold text-white group-hover:scale-[1.02] transition-transform block uppercase tracking-wider">{link.title || "Untitled Link"}</span>
-                            </div>
-                          </div>
-                        ))
+                          );
+                        })
                       )}
                     </div>
 

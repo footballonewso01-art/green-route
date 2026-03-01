@@ -122,7 +122,6 @@ export default function DashboardHome() {
     { title: "Total Clicks", value: stats.totalClicks.toLocaleString(), change: "+0%", up: true, icon: MousePointer },
     { title: "Active Links", value: stats.activeLinks.toString(), change: "+0", up: true, icon: Link2 },
     { title: "Avg Clicks/Link", value: stats.clickRate.toString(), change: "+0", up: true, icon: TrendingUp },
-    { title: "Revenue", value: "$0", change: "+0%", up: true, icon: BarChart3 },
   ];
 
   const hour = new Date().getHours();
@@ -170,7 +169,7 @@ export default function DashboardHome() {
 
 
       {/* Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {metrics.map((m) => (
           <div key={m.title} className="glass-card p-5">
             <div className="flex items-center justify-between mb-3">

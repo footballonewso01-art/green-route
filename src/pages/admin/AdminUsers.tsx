@@ -69,7 +69,7 @@ export default function AdminUsers() {
                 await pb.collection("billing").create({
                     user_id: userId,
                     plan: newPlan,
-                    amount: newPlan === "pro" ? 15 : 49,
+                    amount: newPlan === "pro" ? 15 : 29,
                     status: "active",
                     payment_method: "Given"
                 });
