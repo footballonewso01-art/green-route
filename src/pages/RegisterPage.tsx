@@ -12,14 +12,39 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Helper function to generate a guaranteed unique username
+  const generateUniqueUsername = async (emailOrName: string) => {
+    let baseUsername = emailOrName.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    if (!baseUsername) baseUsername = "user";
+
+    let isUnique = false;
+    let finalUsername = baseUsername;
+
+    while (!isUnique) {
+      try {
+        // Test if a user with this username exists
+        await pb.collection('users').getFirstListItem(`username="${finalUsername}"`);
+        // If it succeeds, username exists. We need a new suffix.
+        const randomSuffix = Math.floor(Math.random() * 10000);
+        finalUsername = `${baseUsername}${randomSuffix}`;
+      } catch (err: any) {
+        // getFirstListItem throws 404 if not found -> this means the username is unique!
+        if (err.status === 404) {
+          isUnique = true;
+        } else {
+          // Some other DB error, break to prevent infinite loop
+          throw err;
+        }
+      }
+    }
+    return finalUsername;
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      // Generate a default username based on email (e.g. john.doe@email.com -> johndoe412)
-      const baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-      const randomSuffix = Math.floor(Math.random() * 10000);
-      const generatedUsername = `${baseUsername}${randomSuffix}`;
+      const generatedUsername = await generateUniqueUsername(email);
 
       await pb.collection('users').create({
         email,
@@ -54,9 +79,7 @@ export default function RegisterPage() {
         updateData.name = authData.meta.name;
       }
       if (!authData.record.username) {
-        const baseUsername = authData.record.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-        const randomSuffix = Math.floor(Math.random() * 10000);
-        updateData.username = `${baseUsername}${randomSuffix}`;
+        updateData.username = await generateUniqueUsername(authData.record.email);
       }
 
       if (Object.keys(updateData).length > 0) {
