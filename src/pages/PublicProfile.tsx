@@ -260,7 +260,7 @@ export default function PublicProfile() {
             !checkPlan(profile.plan, "remove_branding") && (
               <div className="mt-10 mb-2 text-center">
                 <a href="/" className="inline-flex items-center gap-2 text-[10px] text-muted-foreground/50 hover:text-white transition-colors group">
-                  <span className="uppercase tracking-widest font-medium">Powered by</span>
+                  <span className="uppercase tracking-widest font-medium translate-y-[1px]">Powered by</span>
                   <span className="font-black flex items-center gap-1.5 group-hover:opacity-100">
                     <img src="/logo.png" alt="Linktery" className="h-8 w-auto grayscale mix-blend-screen opacity-80 group-hover:opacity-100 transition-opacity" />
                     <span className="uppercase tracking-tighter text-[11px] text-white/80 group-hover:text-white translate-y-[0.5px]">Linktery</span>
