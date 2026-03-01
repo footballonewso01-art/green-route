@@ -28,6 +28,7 @@ interface LinkItem {
   icon_type?: "preset" | "emoji" | "custom" | "none";
   icon_value?: string;
   size?: "regular" | "large";
+  bg_image?: string;
 }
 
 const THEME_STYLES: Record<string, string> = {
@@ -208,8 +209,8 @@ export default function PublicProfile() {
               </div>
             ) : (
               links.map((link) => {
-                const bgImageUrl = (link.size === 'large' && (link as any).bg_image)
-                  ? pb.files.getUrl(link, (link as any).bg_image)
+                const bgImageUrl = (link.size === 'large' && link.bg_image)
+                  ? pb.files.getUrl(link, link.bg_image)
                   : null;
 
                 return (
@@ -221,9 +222,10 @@ export default function PublicProfile() {
                     {/* Size Large Custom Background */}
                     {bgImageUrl && (
                       <>
-                        <div
-                          className="absolute inset-0 bg-cover bg-center z-0 transition-transform duration-700 group-hover:scale-105"
-                          style={{ backgroundImage: `url('${bgImageUrl}')` }}
+                        <img
+                          src={bgImageUrl}
+                          alt="Background"
+                          className="absolute inset-0 w-full h-full object-cover z-0 transition-transform duration-700 group-hover:scale-105"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20 z-0" />
                       </>

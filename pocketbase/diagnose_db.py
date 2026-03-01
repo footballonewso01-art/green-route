@@ -27,7 +27,7 @@ def main():
             try:
                 schema = json.loads(schema_json)
                 for f in schema:
-                    lines.append(f"    field: {f['name']} type={f['type']} system={f.get('system')}")
+                    lines.append(f"    field: {f['name']} (id={f.get('id')}) type={f['type']} system={f.get('system')}")
             except:
                 lines.append("    CORRUPTED SCHEMA!")
 

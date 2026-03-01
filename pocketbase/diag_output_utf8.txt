@@ -1,0 +1,43 @@
+﻿=== CREATE TABLE SQL ===
+CREATE TABLE `links` (`active` BOOLEAN DEFAULT FALSE NOT NULL, `clicks_count` NUMERIC DEFAULT 0 NOT NULL, `created` TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%fZ')) NOT NULL, `destination_url` TEXT DEFAULT '' NOT NULL, `id` TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(randomblob(7)))) NOT NULL, `slug` TEXT DEFAULT '' NOT NULL, `updated` TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%fZ')) NOT NULL, `user_id` TEXT DEFAULT '' NOT NULL, "interstitial_enabled" BOOLEAN DEFAULT FALSE NOT NULL, "title" TEXT DEFAULT '' NOT NULL, "order" TEXT DEFAULT '' NOT NULL, "show_on_profile" BOOLEAN DEFAULT FALSE NOT NULL, "mode" TEXT DEFAULT '' NOT NULL, "icon_type" TEXT DEFAULT '' NOT NULL, "icon_value" TEXT DEFAULT '' NOT NULL, "icon_color" TEXT DEFAULT '' NOT NULL, cloaking BOOLEAN DEFAULT FALSE, utm_source TEXT, utm_medium TEXT, utm_campaign TEXT, geo_targeting JSON, device_targeting JSON, ab_split BOOLEAN DEFAULT FALSE, split_urls JSON, start_at TEXT, expire_at TEXT, safe_page_url TEXT, fb_pixel TEXT, google_pixel TEXT, tiktok_pixel TEXT, size TEXT, bg_image TEXT DEFAULT '')
+
+=== SCHEMA METADATA FIELDS ===
+  slug                      type=text       id=l_slug
+  destination_url           type=text       id=l_dest
+  user_id                   type=relation   id=l_uid
+  active                    type=bool       id=l_actv
+  clicks_count              type=number     id=l_ccnt
+  interstitial_enabled      type=bool       id=l_intst
+  title                     type=text       id=l_title
+  order                     type=number     id=l_order
+  show_on_profile           type=bool       id=l_show
+  mode                      type=text       id=l_mode
+  icon_type                 type=select     id=l_itype
+  icon_value                type=text       id=l_ival
+  icon_color                type=text       id=l_icol
+  cloaking                  type=bool       id=l_cloak
+  utm_source                type=text       id=l_utms
+  utm_medium                type=text       id=l_utmm
+  utm_campaign              type=text       id=l_utmc
+  geo_targeting             type=json       id=l_geot
+  device_targeting          type=json       id=l_devt
+  ab_split                  type=bool       id=l_abspl
+  split_urls                type=json       id=l_splur
+  start_at                  type=date       id=l_start
+  expire_at                 type=date       id=l_expir
+  safe_page_url             type=text       id=l_safe
+  fb_pixel                  type=text       id=l_fbpx
+  google_pixel              type=text       id=l_gpx
+  tiktok_pixel              type=text       id=l_ttpx
+  size                      type=text       id=l_size
+  bg_image                  type=file       id=l_bgimg
+
+=== COLUMN COMPARISON ===
+SQLite columns:     ['ab_split', 'active', 'bg_image', 'clicks_count', 'cloaking', 'created', 'destination_url', 'device_targeting', 'expire_at', 'fb_pixel', 'geo_targeting', 'google_pixel', 'icon_color', 'icon_type', 'icon_value', 'id', 'interstitial_enabled', 'mode', 'order', 'safe_page_url', 'show_on_profile', 'size', 'slug', 'split_urls', 'start_at', 'tiktok_pixel', 'title', 'updated', 'user_id', 'utm_campaign', 'utm_medium', 'utm_source']
+Schema field names: ['ab_split', 'active', 'bg_image', 'clicks_count', 'cloaking', 'destination_url', 'device_targeting', 'expire_at', 'fb_pixel', 'geo_targeting', 'google_pixel', 'icon_color', 'icon_type', 'icon_value', 'interstitial_enabled', 'mode', 'order', 'safe_page_url', 'show_on_profile', 'size', 'slug', 'split_urls', 'start_at', 'tiktok_pixel', 'title', 'user_id', 'utm_campaign', 'utm_medium', 'utm_source']
+In SQLite but NOT in schema: set()
+In schema but NOT in SQLite: set()
+
+Create Rule: '@request.auth.id != "" && @request.auth.id = user_id'
+
+Collection Options: {}

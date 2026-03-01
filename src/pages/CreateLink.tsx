@@ -227,7 +227,16 @@ export default function CreateLink() {
       }
       navigate("/dashboard/links");
     } catch (error: any) {
-      toast.error(error.message || "Failed to save link");
+      console.error("Link save error:", error);
+      let errorMsg = error.message || "Failed to save link";
+      if (error.data && error.data.data) {
+        // PocketBase validation errors are deeply nested in error.data.data
+        const details = Object.entries(error.data.data)
+          .map(([field, err]: [string, any]) => `${field}: ${err.message}`)
+          .join(", ");
+        if (details) errorMsg += ` (${details})`;
+      }
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -255,13 +264,10 @@ export default function CreateLink() {
     try {
       if (!imageToCrop || !croppedAreaPixels) return;
       const croppedImage = await getCroppedImg(imageToCrop, croppedAreaPixels);
+      if (!croppedImage) return;
 
-      const response = await fetch(croppedImage);
-      const blob = await response.blob();
-      const file = new File([blob], 'link_bg.jpg', { type: 'image/jpeg' });
-
-      setBgImageFile(file);
-      setBgImagePreview(URL.createObjectURL(file));
+      setBgImageFile(croppedImage);
+      setBgImagePreview(URL.createObjectURL(croppedImage));
       setImageToCrop(null);
     } catch (e) {
       console.error(e);

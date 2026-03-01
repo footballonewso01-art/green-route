@@ -21,6 +21,7 @@ interface LinkItem {
   icon_type?: "preset" | "emoji" | "custom" | "none";
   icon_value?: string;
   size?: "regular" | "large";
+  bg_image?: string;
 }
 
 export default function LinksManager() {
@@ -230,8 +231,17 @@ export default function LinksManager() {
                           </div>
 
                           <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="w-10 h-10 bg-background border border-border rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
-                              <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className="w-7 h-7 text-accent" />
+                            <div className={`w-10 h-10 bg-background border border-border rounded-xl flex items-center justify-center shrink-0 overflow-hidden relative ${link.size === 'large' ? 'ring-2 ring-accent/30 shadow-lg shadow-accent/5' : ''}`}>
+                              {link.size === 'large' && link.bg_image && (
+                                <img
+                                  src={pb.files.getUrl(link, link.bg_image)}
+                                  alt="BG"
+                                  className="absolute inset-0 w-full h-full object-cover opacity-60"
+                                />
+                              )}
+                              <div className="relative z-10 w-full h-full flex items-center justify-center">
+                                <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className={`w-7 h-7 ${link.size === 'large' && link.bg_image ? 'text-white drop-shadow-md' : 'text-accent'}`} />
+                              </div>
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">

@@ -70,6 +70,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Token expiry check: if stored token is no longer valid, force logout
+    if (user && !pb.authStore.isValid) {
+      console.warn("[Auth] Token expired, forcing logout.");
+      pb.authStore.clear();
+      localStorage.removeItem("pocketbase_auth");
+      setUser(null);
+      window.location.href = "/login";
+    }
+
     const unsubscribe = pb.authStore.onChange((token, model) => {
       if (model) {
         const updatedUser = {
@@ -104,9 +113,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    // Periodic token expiry check (every 60 seconds)
+    const tokenCheckInterval = setInterval(() => {
+      if (pb.authStore.token && !pb.authStore.isValid) {
+        console.warn("[Auth] Token expired (periodic check), forcing logout.");
+        pb.authStore.clear();
+        localStorage.removeItem("pocketbase_auth");
+        setUser(null);
+        window.location.href = "/login";
+      }
+    }, 60_000);
+
     setLoading(false);
     return () => {
       unsubscribe();
+      clearInterval(tokenCheckInterval);
     };
   }, []);
 

@@ -5,19 +5,21 @@
   create: ''
   update: '@request.auth.role = "admin" || id = @request.auth.id'
   delete: '@request.auth.role = "admin" || id = @request.auth.id'
-    field: name type=text system=False
-    field: avatar type=file system=False
-    field: bio type=text system=False
-    field: theme type=text system=False
-    field: plan type=select system=False
-    field: plan_status type=select system=False
-    field: plan_expires_at type=date system=False
-    field: stripe_customer_id type=text system=False
-    field: stripe_subscription_id type=text system=False
-    field: custom_theme_bg type=file system=False
-    field: social_links type=json system=False
-    field: username_last_changed type=date system=False
-    field: role type=text system=False
+    field: name (id=users_name) type=text system=False
+    field: avatar (id=users_avatar) type=file system=False
+    field: bio (id=v3n6jccv) type=text system=False
+    field: theme (id=pf1dvsrw) type=text system=False
+    field: plan (id=plan_type_id) type=select system=False
+    field: plan_status (id=plan_status_id) type=select system=False
+    field: plan_expires_at (id=plan_expires_at_id) type=date system=False
+    field: stripe_customer_id (id=stripe_customer_id) type=text system=False
+    field: stripe_subscription_id (id=stripe_sub_id) type=text system=False
+    field: custom_theme_bg (id=custom_theme_bg_id) type=file system=False
+    field: social_links (id=social_links_json) type=json system=False
+    field: username_last_changed (id=username_last_changed) type=date system=False
+    field: role (id=role_text_fld) type=text system=False
+    field: banned (id=fld_banned) type=bool system=False
+    field: internal_notes (id=fld_inotes) type=text system=False
 
 === links (type=base) ===
   list:   '@request.auth.role = "admin" || user_id = @request.auth.id'
@@ -25,22 +27,35 @@
   create: '@request.auth.id != "" && @request.auth.id = user_id'
   update: '@request.auth.role = "admin" || user_id = @request.auth.id'
   delete: '@request.auth.role = "admin" || user_id = @request.auth.id'
-    field: slug type=text system=False
-    field: destination_url type=text system=False
-    field: user_id type=relation system=False
-    field: active type=bool system=False
-    field: clicks_count type=number system=False
-    field: interstitial_enabled type=bool system=False
-    field: title type=text system=False
-    field: order type=date system=False
-    field: show_on_profile type=bool system=False
-    field: mode type=text system=False
-    field: icon_type type=select system=False
-    field: icon_value type=text system=False
-    field: icon_color type=text system=False
-    field: icon_type type=select system=False
-    field: icon_value type=text system=False
-    field: icon_color type=text system=False
+    field: slug (id=l_slug) type=text system=False
+    field: destination_url (id=l_dest) type=text system=False
+    field: user_id (id=l_uid) type=relation system=False
+    field: active (id=l_actv) type=bool system=False
+    field: clicks_count (id=l_ccnt) type=number system=False
+    field: interstitial_enabled (id=l_intst) type=bool system=False
+    field: title (id=l_title) type=text system=False
+    field: order (id=l_order) type=date system=False
+    field: show_on_profile (id=l_show) type=bool system=False
+    field: mode (id=l_mode) type=text system=False
+    field: icon_type (id=l_itype) type=select system=False
+    field: icon_value (id=l_ival) type=text system=False
+    field: icon_color (id=l_icol) type=text system=False
+    field: cloaking (id=l_cloak) type=bool system=False
+    field: utm_source (id=l_utms) type=text system=False
+    field: utm_medium (id=l_utmm) type=text system=False
+    field: utm_campaign (id=l_utmc) type=text system=False
+    field: geo_targeting (id=l_geot) type=json system=False
+    field: device_targeting (id=l_devt) type=json system=False
+    field: ab_split (id=l_abspl) type=bool system=False
+    field: split_urls (id=l_splur) type=json system=False
+    field: start_at (id=l_start) type=date system=False
+    field: expire_at (id=l_expir) type=date system=False
+    field: safe_page_url (id=l_safe) type=text system=False
+    field: fb_pixel (id=l_fbpx) type=text system=False
+    field: google_pixel (id=l_gpx) type=text system=False
+    field: tiktok_pixel (id=l_ttpx) type=text system=False
+    field: size (id=l_size) type=text system=False
+    field: bg_image (id=l_bgimg) type=file system=False
 
 === clicks (type=base) ===
   list:   '@request.auth.role = "admin" || link_id.user_id = @request.auth.id'
@@ -48,13 +63,15 @@
   create: ''
   update: '@request.auth.role = "admin" || link_id.user_id = @request.auth.id'
   delete: '@request.auth.role = "admin" || link_id.user_id = @request.auth.id'
-    field: link_id type=relation system=False
-    field: country type=text system=False
-    field: device type=text system=False
-    field: os type=text system=False
-    field: browser type=text system=False
-    field: referrer type=text system=False
-    field: is_unique type=bool system=False
+    field: link_id (id=bsakear6) type=relation system=False
+    field: country (id=53r9szyu) type=text system=False
+    field: device (id=ff7fvkgt) type=text system=False
+    field: os (id=b5ziphrk) type=text system=False
+    field: browser (id=xb3x2eoi) type=text system=False
+    field: referrer (id=o5mbzxsd) type=text system=False
+    field: is_unique (id=btaa9hlq) type=bool system=False
+    field: ip (id=fld_ip) type=text system=False
+    field: user_agent (id=fld_user_a) type=text system=False
 
 === billing (type=base) ===
   list:   "@request.auth.role = 'admin' || user_id = @request.auth.id"
@@ -62,11 +79,11 @@
   create: '@request.auth.id != ""'
   update: "@request.auth.role = 'admin'"
   delete: "@request.auth.role = 'admin'"
-    field: user_id type=relation system=False
-    field: plan type=text system=False
-    field: amount type=number system=False
-    field: status type=text system=False
-    field: payment_method type=text system=False
+    field: user_id (id=v6xq9zla) type=relation system=False
+    field: plan (id=p2lw8ab1) type=text system=False
+    field: amount (id=m3x9b2q5) type=number system=False
+    field: status (id=k8v2n1m4) type=text system=False
+    field: payment_method (id=l7b6v5c4) type=text system=False
 
 === USERS TABLE COLUMNS ===
   avatar (TEXT)
@@ -94,9 +111,11 @@
   social_links (JSON)
   username_last_changed (TEXT)
   role (TEXT)
+  banned (BOOLEAN)
+  internal_notes (TEXT)
 
 === USERS DATA ===
-  ('o6x1jnqbe8km1e9', 'test@mail.com', 'admin', 'agency')
+  ('o6x1jnqbe8km1e9', 'test@mail.com', 'admin', 'creator')
   ('6mcohitvfylwwmw', 'faceitrelovut@gmail.com', 'user', 'creator')
   ('bladbagbjinj74l', 'footyslam228@gmail.com', 'user', 'agency')
   ('jubtprsif46rrks', 'admin@greenroute.dev', 'user', 'creator')

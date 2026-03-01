@@ -1,0 +1,33 @@
+=== links table info ===
+cid: 0, name: active, type: BOOLEAN, notnull: 1, dflt_value: FALSE, pk: 0
+cid: 1, name: clicks_count, type: NUMERIC, notnull: 1, dflt_value: 0, pk: 0
+cid: 2, name: created, type: TEXT, notnull: 1, dflt_value: strftime('%Y-%m-%d %H:%M:%fZ'), pk: 0
+cid: 3, name: destination_url, type: TEXT, notnull: 1, dflt_value: '', pk: 0
+cid: 4, name: id, type: TEXT, notnull: 1, dflt_value: 'r'||lower(hex(randomblob(7))), pk: 1
+cid: 5, name: slug, type: TEXT, notnull: 1, dflt_value: '', pk: 0
+cid: 6, name: updated, type: TEXT, notnull: 1, dflt_value: strftime('%Y-%m-%d %H:%M:%fZ'), pk: 0
+cid: 7, name: user_id, type: TEXT, notnull: 1, dflt_value: '', pk: 0
+cid: 8, name: interstitial_enabled, type: BOOLEAN, notnull: 1, dflt_value: FALSE, pk: 0
+cid: 9, name: title, type: TEXT, notnull: 1, dflt_value: '', pk: 0
+cid: 10, name: order, type: TEXT, notnull: 1, dflt_value: '', pk: 0
+cid: 11, name: show_on_profile, type: BOOLEAN, notnull: 1, dflt_value: FALSE, pk: 0
+cid: 12, name: mode, type: TEXT, notnull: 1, dflt_value: '', pk: 0
+cid: 13, name: icon_type, type: TEXT, notnull: 1, dflt_value: '', pk: 0
+cid: 14, name: icon_value, type: TEXT, notnull: 1, dflt_value: '', pk: 0
+cid: 15, name: icon_color, type: TEXT, notnull: 1, dflt_value: '', pk: 0
+cid: 16, name: cloaking, type: BOOLEAN, notnull: 0, dflt_value: FALSE, pk: 0
+cid: 17, name: utm_source, type: TEXT, notnull: 0, dflt_value: None, pk: 0
+cid: 18, name: utm_medium, type: TEXT, notnull: 0, dflt_value: None, pk: 0
+cid: 19, name: utm_campaign, type: TEXT, notnull: 0, dflt_value: None, pk: 0
+cid: 20, name: geo_targeting, type: JSON, notnull: 0, dflt_value: None, pk: 0
+cid: 21, name: device_targeting, type: JSON, notnull: 0, dflt_value: None, pk: 0
+cid: 22, name: ab_split, type: BOOLEAN, notnull: 0, dflt_value: FALSE, pk: 0
+cid: 23, name: split_urls, type: JSON, notnull: 0, dflt_value: None, pk: 0
+cid: 24, name: start_at, type: TEXT, notnull: 0, dflt_value: None, pk: 0
+cid: 25, name: expire_at, type: TEXT, notnull: 0, dflt_value: None, pk: 0
+cid: 26, name: safe_page_url, type: TEXT, notnull: 0, dflt_value: None, pk: 0
+cid: 27, name: fb_pixel, type: TEXT, notnull: 0, dflt_value: None, pk: 0
+cid: 28, name: google_pixel, type: TEXT, notnull: 0, dflt_value: None, pk: 0
+cid: 29, name: tiktok_pixel, type: TEXT, notnull: 0, dflt_value: None, pk: 0
+cid: 30, name: size, type: TEXT, notnull: 0, dflt_value: None, pk: 0
+cid: 31, name: bg_image, type: TEXT, notnull: 0, dflt_value: '', pk: 0
