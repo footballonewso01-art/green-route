@@ -113,11 +113,8 @@ export default function LandingPage() {
       {/* Navbar */}
       <nav className="fixed top-0 w-full z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-              <Zap className="w-4 h-4 text-accent-foreground" />
-            </div>
-            <span className="text-lg font-bold text-foreground">GreenRoute</span>
+          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <img src="/logo.png" alt="GreenRoute" className="h-8 w-auto mix-blend-screen" />
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
@@ -368,11 +365,8 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-border py-12 px-6 relative z-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center">
-              <Zap className="w-3.5 h-3.5 text-accent-foreground" />
-            </div>
-            <span className="font-bold text-foreground">GreenRoute</span>
+          <div className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <img src="/logo.png" alt="GreenRoute" className="h-6 w-auto mix-blend-screen grayscale" />
           </div>
           <p className="text-sm text-muted-foreground">© 2026 GreenRoute. All rights reserved.</p>
         </div>

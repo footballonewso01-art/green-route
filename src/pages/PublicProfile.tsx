@@ -262,10 +262,7 @@ export default function PublicProfile() {
                 <a href="/" className="inline-flex items-center gap-2 text-[10px] text-muted-foreground/50 hover:text-white transition-colors group">
                   <span className="uppercase tracking-widest font-medium">Powered by</span>
                   <span className="font-black flex items-center gap-1.5 group-hover:opacity-100">
-                    <div className="w-4 h-4 rounded-lg bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
-                      <div className="w-1.5 h-1.5 rounded-sm bg-black"></div>
-                    </div>
-                    <span className="uppercase tracking-tighter text-[11px] text-white/80 group-hover:text-white">GreenRoute</span>
+                    <img src="/logo.png" alt="GreenRoute" className="h-4 w-auto grayscale mix-blend-screen opacity-80 group-hover:opacity-100 transition-opacity" />
                   </span>
                 </a>
               </div>

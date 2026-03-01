@@ -128,11 +128,8 @@ export default function DashboardLayout() {
       {/* Sidebar */}
       <aside className={`fixed lg:sticky lg:top-0 lg:h-screen inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-sidebar-border">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center">
-              <Zap className="w-3.5 h-3.5 text-accent-foreground" />
-            </div>
-            <span className="font-bold text-foreground">GreenRoute</span>
+          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <img src="/logo.png" alt="GreenRoute" className="h-8 w-auto mix-blend-screen" />
           </Link>
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-muted-foreground">
             <X className="w-5 h-5" />

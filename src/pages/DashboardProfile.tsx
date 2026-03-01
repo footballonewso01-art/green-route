@@ -955,9 +955,8 @@ export default function DashboardProfile() {
                     </div>
 
                     {!checkPlan(userPlan, "remove_branding") && (
-                      <div className="mt-auto pt-10 pb-2 opacity-40 flex flex-col items-center gap-1 text-white shrink-0">
-                        <Globe className="w-4 h-4" />
-                        <span className="text-[10px] font-bold tracking-widest uppercase">GreenRoute</span>
+                      <div className="mt-auto pt-10 pb-2 flex flex-col items-center shrink-0">
+                        <img src="/logo.png" alt="GreenRoute" className="h-3 w-auto grayscale mix-blend-screen opacity-50" />
                       </div>
                     )}
                   </div>
