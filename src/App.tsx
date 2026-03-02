@@ -70,6 +70,7 @@ const AppRoutes = () => (
     <Route path="/pricing" element={<PricingPage />} />
     <Route path="/privacy" element={<PrivacyPolicy />} />
     <Route path="/terms" element={<TermsAndConditions />} />
+    <Route path="/auth" element={<Navigate to="/login" replace />} />
     <Route path="/open-in-browser" element={<InterstitialPage />} />
     <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
       <Route index element={<DashboardHome />} />

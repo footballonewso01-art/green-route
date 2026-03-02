@@ -308,6 +308,29 @@ export default function RedirectHandler() {
         );
     }
 
+    if (status === "error") {
+        return (
+            <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center animate-fade-in">
+                <div className="relative mb-8">
+                    <div className="absolute inset-0 bg-red-500/20 blur-3xl rounded-full" />
+                    <div className="relative w-24 h-24 rounded-3xl bg-surface border border-red-500/30 flex items-center justify-center">
+                        <AlertTriangle className="w-10 h-10 text-red-500" />
+                    </div>
+                </div>
+                <h1 className="text-2xl font-bold text-foreground mb-3">Link Not Found</h1>
+                <p className="text-muted-foreground mb-8 max-w-xs mx-auto">
+                    {error || "The link you're looking for doesn't exist or is no longer active."}
+                </p>
+                <a
+                    href="/"
+                    className="px-6 py-3 bg-accent text-black font-bold rounded-xl text-sm uppercase tracking-wider hover:scale-[1.02] active:scale-[0.98] transition-all"
+                >
+                    Go to Homepage
+                </a>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center">
             <div className="glass-card p-12 flex flex-col items-center gap-6 animate-pulse">
