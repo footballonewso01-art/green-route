@@ -12,10 +12,10 @@ const plans = [
     price: "0",
     description: "Perfect for getting started",
     features: [
-      { text: "4 Smart Links", icon: "🔗" },
+      { text: "3 Smart Links", icon: "🔗" },
       { text: "Full Profile Customization", icon: "👤" },
       { text: "Device Targeting", icon: "📱" },
-      { text: "Standard Support", icon: "💬" }
+      { text: "Security Check", icon: "🛡️" }
     ],
     popular: false
   },
@@ -27,7 +27,6 @@ const plans = [
     popular: true,
     features: [
       { text: "15 Smart Links", icon: "🔗" },
-      { text: "A/B Testing (2 variants)", icon: "🧪" },
       { text: "Remove Linktery Branding", icon: "✨" },
       { text: "Deeplinks (Beta)", icon: "⚡" },
       { text: "Advanced Analytics", icon: "📊" },
@@ -47,16 +46,14 @@ const plans = [
       { text: "A/B Testing (Unlimited)", icon: "🧪" },
       { text: "Custom Domains (Unlimited)", icon: "🌐" },
       { text: "Custom Slugs (e.g. /my-link)", icon: "✍️" },
-      { text: "Everything in Creator Pro", icon: "✅" },
-      { text: "Priority 24/7 Support", icon: "⚡" },
-      { text: "Team Access", icon: "👥" }
+      { text: "Everything in Creator Pro", icon: "✅" }
     ],
   },
 ];
 
 export default function PricingPage() {
   const { user } = useAuth();
-  const userPlan = (user as any)?.plan as PlanType | undefined;
+  const userPlan = (user as { plan?: PlanType })?.plan;
 
   return (
     <div className="min-h-screen bg-background py-20 px-6">
@@ -85,7 +82,7 @@ export default function PricingPage() {
                     <div className="text-4xl font-extrabold text-foreground mt-4">{plan.price}<span className="text-base font-normal text-muted-foreground ml-1">/mo</span></div>
 
                     <ul className="mt-8 space-y-3 flex-1">
-                      {plan.features.map((f: any) => (
+                      {plan.features.map((f: { text: string; icon?: string; tooltip?: string } | string) => (
                         <li key={typeof f === 'string' ? f : f.text} className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Check className="w-4 h-4 text-accent flex-shrink-0" />
                           {typeof f === 'string' ? f : (

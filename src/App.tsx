@@ -21,6 +21,8 @@ import InterstitialPage from "./pages/InterstitialPage";
 import NotFound from "./pages/NotFound";
 import BillingPage from "./pages/Billing";
 import DashboardPricing from "./pages/DashboardPricing";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsAndConditions from "./pages/TermsAndConditions";
 import { AdminRoute } from "./components/AdminRoute";
 import AdminOverview from "./pages/admin/AdminOverview";
 import AdminUsers from "./pages/admin/AdminUsers";
@@ -66,6 +68,8 @@ const AppRoutes = () => (
     <Route path="/login" element={<LoginPage />} />
     <Route path="/register" element={<RegisterPage />} />
     <Route path="/pricing" element={<PricingPage />} />
+    <Route path="/privacy" element={<PrivacyPolicy />} />
+    <Route path="/terms" element={<TermsAndConditions />} />
     <Route path="/open-in-browser" element={<InterstitialPage />} />
     <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
       <Route index element={<DashboardHome />} />

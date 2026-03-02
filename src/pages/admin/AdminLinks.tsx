@@ -45,7 +45,7 @@ export default function AdminLinks() {
                 expand: 'user_id',
                 requestKey: null
             });
-            setLinks(result.items as any[]);
+            setLinks(result.items as unknown as LinkRecord[]);
             setTotalPages(result.totalPages);
         } catch (err) {
             console.error("Failed to fetch links", err);
@@ -57,6 +57,7 @@ export default function AdminLinks() {
 
     useEffect(() => {
         fetchLinks();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [page, search, sortClicks]);
 
     const toggleLinkStatus = async (linkId: string, currentStatus: boolean) => {

@@ -11,7 +11,7 @@ interface User {
   bio: string;
   avatar: string;
   theme: string;
-  social_links: any;
+  social_links: Record<string, unknown>[];
   custom_theme_bg: string;
   username_last_changed: string;
   plan: string;
@@ -24,11 +24,12 @@ interface AuthContextType {
   isValid: boolean;
   isAdmin: boolean;
   signOut: () => void;
-  login: (token: string, userData: any) => void;
+  login: (token: string, userData: Record<string, unknown>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -106,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const parsed = JSON.parse(saved);
             parsed.model = { ...parsed.model, collectionId: model.collectionId, collectionName: model.collectionName };
             localStorage.setItem("pocketbase_auth", JSON.stringify(parsed));
-          } catch (e) { }
+          } catch (e) { /* ignore parse error */ }
         }
       } else {
         setUser(null);
@@ -129,25 +130,79 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unsubscribe();
       clearInterval(tokenCheckInterval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const login = (token: string, userData: any) => {
+  // 1. Session tracking pulse (top-level hook)
+  useEffect(() => {
+    if (user) {
+      const trackSession = async () => {
+        try {
+          await pb.collection("analytics_events").create({
+            event_name: "active_session",
+            user_id: user.id,
+            metadata: {
+              path: window.location.pathname,
+              timestamp: new Date().toISOString()
+            }
+          });
+        } catch (e) { /* silent fail */ }
+      };
+      trackSession();
+      const interval = setInterval(trackSession, 5 * 60 * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  // 2. Global Error & Performance logging (top-level hook)
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      pb.collection("system_logs").create({
+        level: "error",
+        message: event.message,
+        context: {
+          filename: event.filename,
+          lineno: event.lineno,
+          colno: event.colno,
+          stack: event.error?.stack
+        }
+      }).catch(() => { });
+    };
+
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      pb.collection("system_logs").create({
+        level: "error",
+        message: "Unhandled Rejection: " + event.reason,
+        context: { reason: event.reason }
+      }).catch(() => { });
+    };
+
+    window.addEventListener("error", handleError);
+    window.addEventListener("unhandledrejection", handleRejection);
+
+    return () => {
+      window.removeEventListener("error", handleError);
+      window.removeEventListener("unhandledrejection", handleRejection);
+    };
+  }, []);
+
+  const login = (token: string, userData: Record<string, unknown>) => {
     pb.authStore.save(token, userData);
     setUser({
-      id: userData.id,
-      collectionId: userData.collectionId,
-      collectionName: userData.collectionName,
-      email: userData.email,
-      name: userData.name,
-      username: userData.username || '',
-      bio: userData.bio || '',
-      avatar: userData.avatar || '',
-      theme: userData.theme || 'minimal-dark',
-      social_links: userData.social_links || [],
-      custom_theme_bg: userData.custom_theme_bg || '',
-      username_last_changed: userData.username_last_changed || '',
-      plan: userData.plan,
-      role: userData.role || 'user',
+      id: userData.id as string,
+      collectionId: userData.collectionId as string,
+      collectionName: userData.collectionName as string,
+      email: userData.email as string,
+      name: userData.name as string,
+      username: (userData.username as string) || '',
+      bio: (userData.bio as string) || '',
+      avatar: (userData.avatar as string) || '',
+      theme: (userData.theme as string) || 'minimal-dark',
+      social_links: (userData.social_links as Record<string, unknown>[]) || [],
+      custom_theme_bg: (userData.custom_theme_bg as string) || '',
+      username_last_changed: (userData.username_last_changed as string) || '',
+      plan: userData.plan as string,
+      role: (userData.role as string) || 'user',
     });
   };
 

@@ -12,6 +12,8 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 import Cropper, { Area, Point } from 'react-easy-crop';
 import { Link as RouterLink } from "react-router-dom";
 import { getCroppedImg } from '@/lib/cropImage';
+import { LinkItemCard } from "@/components/LinkItemCard";
+import { urlSchema } from "@/lib/validations";
 
 const THEMES = [
   { id: "minimal-dark", name: "Minimal Dark", colors: "bg-background border-border" },
@@ -23,7 +25,7 @@ const THEMES = [
 ];
 
 // LinkItem Interface
-interface LinkItem {
+export interface LinkItem {
   id: string;
   slug: string;
   destination_url: string;
@@ -56,7 +58,7 @@ export default function DashboardProfile() {
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [theme, setTheme] = useState(user?.theme || "minimal-dark");
-  const userPlan = (user as any)?.plan || "creator";
+  const userPlan = (user as { plan?: string })?.plan || "creator";
   const canCustomize = checkPlan(userPlan, "profile_customization");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null); // Actual file to upload
@@ -88,16 +90,11 @@ export default function DashboardProfile() {
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [createSize, setCreateSize] = useState<"regular" | "large">("regular");
   const [refreshing, setRefreshing] = useState(false); // Added from user's snippet
+  const [socialEditingId, setSocialEditingId] = useState<string | null>(null);
 
-  // Inline Edit State
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editUrl, setEditUrl] = useState("");
-  const [editIconType, setEditIconType] = useState<"preset" | "emoji" | "custom" | "none">("none");
-  const [editIconValue, setEditIconValue] = useState("");
-  const [editSize, setEditSize] = useState<"regular" | "large">("regular");
-  const [showEditIconPicker, setShowEditIconPicker] = useState(false);
-  const [editLoading, setEditLoading] = useState(false);
+  // Pending bg_image uploads/removals for when handleSaveProfile runs
+  const [pendingBgImages, setPendingBgImages] = useState<Record<string, { file: File | null; remove: boolean }>>({});
+
 
   useEffect(() => {
     if (user) {
@@ -107,17 +104,18 @@ export default function DashboardProfile() {
       setBio(user.bio || "");
       // theme is initialized directly in useState to prevent flashing
       if (user.avatar && user.collectionId) {
-        setAvatarPreview(pb.files.getUrl(user as any, user.avatar));
+        setAvatarPreview(pb.files.getUrl(user as unknown as Record<string, unknown>, user.avatar));
       }
       if (user.custom_theme_bg && user.collectionId) {
-        setCustomBgPreview(pb.files.getUrl(user as any, user.custom_theme_bg));
+        setCustomBgPreview(pb.files.getUrl(user as unknown as Record<string, unknown>, user.custom_theme_bg));
       }
       if (user.social_links) {
-        setSocialLinks(Array.isArray(user.social_links) ? user.social_links : []);
+        setSocialLinks(Array.isArray(user.social_links) ? (user.social_links as unknown as SocialLink[]) : []);
       }
       // Load links
       fetchLinks();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Auto-detect icon based on URL input
@@ -134,13 +132,13 @@ export default function DashboardProfile() {
   const fetchLinks = async () => {
     if (!user) return;
     try {
-      const records = await pb.collection('links').getFullList<LinkItem>({
+      const records = await pb.collection('links').getList<LinkItem>(1, 100, {
         filter: `user_id = "${user.id}" && show_on_profile=true`,
         sort: 'order,-created',
         requestKey: null,
       });
-      setLinks(records);
-    } catch (error: any) {
+      setLinks(records.items);
+    } catch (error: unknown) {
       toast.error("Failed to load links");
     } finally {
       setLinksLoading(false);
@@ -193,7 +191,7 @@ export default function DashboardProfile() {
       }
 
       // Step 1: Update text fields + social_links via JSON
-      const updateData: Record<string, any> = {
+      const updateData: Record<string, unknown> = {
         name,
         username,
         bio,
@@ -215,10 +213,11 @@ export default function DashboardProfile() {
       // Step 3: Synchronize Regular Links
       console.log("[handleSaveProfile] Syncing regular links...");
       // Fetch currently persisted links for this user to compare
-      const dbLinks = await pb.collection('links').getFullList<LinkItem>({
+      const dbLinksResult = await pb.collection('links').getList<LinkItem>(1, 100, {
         filter: `user_id = "${user.id}"`,
         requestKey: null,
       });
+      const dbLinks = dbLinksResult.items;
 
       // A. Identify links to DELETE (in DB but not in our current state 'links')
       const linksToDelete = dbLinks.filter(dbl => !links.find(l => l.id === dbl.id));
@@ -252,13 +251,26 @@ export default function DashboardProfile() {
           if (original) {
             // Check if any visible field changed
             const fieldsToCompare = ['title', 'destination_url', 'slug', 'order', 'active', 'show_on_profile', 'icon_type', 'icon_value', 'mode', 'size'];
-            const hasChanged = fieldsToCompare.some(key => (payload as any)[key] !== (original as any)[key]);
+            const hasChanged = fieldsToCompare.some(key => (payload as unknown as Record<string, unknown>)[key] !== (original as unknown as Record<string, unknown>)[key]);
             if (hasChanged) {
               await pb.collection('links').update(link.id, payload, { requestKey: null });
             }
           }
+
+          // Handle bg_image file upload/removal for this link
+          const pendingBg = pendingBgImages[link.id];
+          if (pendingBg) {
+            const bgFormData = new FormData();
+            if (pendingBg.remove) {
+              bgFormData.append('bg_image', '');
+            } else if (pendingBg.file) {
+              bgFormData.append('bg_image', pendingBg.file);
+            }
+            await pb.collection('links').update(link.id, bgFormData, { requestKey: null });
+          }
         }
       }
+      setPendingBgImages({});
 
       setAvatarFile(null);
       setCustomBgFile(null);
@@ -271,9 +283,10 @@ export default function DashboardProfile() {
       }
 
       toast.success("Profile saved successfully");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[handleSaveProfile] Error:", error);
-      const detailedError = error?.response?.data ? JSON.stringify(error.response.data) : (error.message || "Unknown error");
+      const err = error as { message?: string, response?: { data?: unknown } };
+      const detailedError = err?.response?.data ? JSON.stringify(err.response.data) : (err.message || "Unknown error");
       toast.error(`Error saving profile: ${detailedError}`);
     } finally {
       setProfileLoading(false);
@@ -284,12 +297,19 @@ export default function DashboardProfile() {
   // --- LINK MANAGEMENT ---
 
   const handleCreateLink = async () => {
-    if (!user || !createUrl.trim() || !createTitle.trim()) { // Added trim() and title check
-      toast.error("Title and URL are required");
+    if (!user || !createTitle.trim()) {
+      toast.error("Title is required");
       return;
     }
 
-    const userPlan = (user as any)?.plan || "creator";
+    const urlValidation = urlSchema.safeParse(createUrl);
+    if (!urlValidation.success) {
+      toast.error(urlValidation.error.errors[0].message);
+      return;
+    }
+    const validatedUrl = urlValidation.data;
+
+    const userPlan = (user as { plan?: string })?.plan || "creator";
     if (!canUseResource(userPlan, "links", links.length)) {
       toast.error("Link limit reached. Please upgrade your plan.");
       return;
@@ -303,7 +323,7 @@ export default function DashboardProfile() {
     const newLink: LinkItem = {
       id: tempId,
       slug: Math.random().toString(36).substring(2, 8),
-      destination_url: createUrl,
+      destination_url: validatedUrl,
       title: createTitle,
       show_on_profile: true,
       order: highestOrder + 1,
@@ -327,39 +347,11 @@ export default function DashboardProfile() {
     toast.info("Link added to list (unsaved)");
   };
 
-  const startEditing = (link: LinkItem) => {
-    setEditingId(link.id);
-    setEditTitle(link.title || "");
-    setEditUrl(link.destination_url || "");
-    setEditIconType(link.icon_type || "none");
-    setEditIconValue(link.icon_value || "");
-    setEditSize(link.size || "regular");
-    setShowEditIconPicker(false);
-  };
-
-  const cancelEditing = () => {
-    setEditingId(null);
-    setEditTitle("");
-    setEditUrl("");
-    setEditIconType("none");
-    setEditIconValue("");
-    setEditSize("regular");
-    setShowEditIconPicker(false);
-  };
-
-  const handleSaveEdit = (id: string) => {
-    if (!editUrl) return toast.error("URL is required");
-
-    setLinks(links.map(l => l.id === id ? {
-      ...l,
-      title: editTitle,
-      destination_url: editUrl,
-      icon_type: editIconType,
-      icon_value: editIconValue,
-      size: editSize,
-    } : l));
-
-    setEditingId(null);
+  const handleUpdateLink = (id: string, updatedLink: LinkItem, bgImageFile: File | null, bgImageRemoved: boolean) => {
+    setLinks(links.map(l => l.id === id ? updatedLink : l));
+    if (bgImageFile || bgImageRemoved) {
+      setPendingBgImages(prev => ({ ...prev, [id]: { file: bgImageFile, remove: bgImageRemoved } }));
+    }
     toast.info("Link updated in list (unsaved)");
   };
 
@@ -568,10 +560,18 @@ export default function DashboardProfile() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
                 <Globe className="w-5 h-5 text-accent" /> Social Links
+                <span className="text-xs font-normal text-muted-foreground ml-1">(max 3)</span>
               </h2>
               <button
-                onClick={() => setSocialLinks([...socialLinks, { id: Math.random().toString(36).substring(2, 9), url: "", icon_type: "none", icon_value: "" }])}
-                className="px-3 py-1.5 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent text-sm font-medium flex items-center gap-1.5 transition-colors"
+                onClick={() => {
+                  if (socialLinks.length >= 3) {
+                    toast.error("Maximum 3 social links allowed.");
+                    return;
+                  }
+                  setSocialLinks([...socialLinks, { id: Math.random().toString(36).substring(2, 9), url: "", icon_type: "none", icon_value: "" }]);
+                }}
+                disabled={socialLinks.length >= 3}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${socialLinks.length >= 3 ? "bg-white/5 border border-white/10 text-muted-foreground cursor-not-allowed" : "bg-accent/10 hover:bg-accent/20 text-accent"}`}
               >
                 <Plus className="w-4 h-4" /> Add Social
               </button>
@@ -596,14 +596,14 @@ export default function DashboardProfile() {
                           id={`social-icon-btn-${link.id}`}
                           type="button"
                           onClick={() => {
-                            setEditingId(editingId === `social-${link.id}` ? null : `social-${link.id}`);
+                            setSocialEditingId(socialEditingId === `social-${link.id}` ? null : `social-${link.id}`);
                           }}
                           className="h-[42px] w-[42px] bg-background border border-border rounded-xl flex items-center justify-center hover:bg-surface-hover transition-colors overflow-hidden"
                         >
                           <IconRenderer type={link.icon_type} value={link.icon_value} className="w-5 h-5 text-accent" />
                         </button>
 
-                        {editingId === `social-${link.id}` && (
+                        {socialEditingId === `social-${link.id}` && (
                           <IconPicker
                             currentType={link.icon_type}
                             currentValue={link.icon_value}
@@ -612,9 +612,9 @@ export default function DashboardProfile() {
                               const newLinks = [...socialLinks];
                               newLinks[idx] = { ...newLinks[idx], icon_type: type, icon_value: value };
                               setSocialLinks(newLinks);
-                              setEditingId(null);
+                              setSocialEditingId(null);
                             }}
-                            onClose={() => setEditingId(null)}
+                            onClose={() => setSocialEditingId(null)}
                           />
                         )}
                       </div>
@@ -754,96 +754,13 @@ export default function DashboardProfile() {
                       {links.map((link, index) => (
                         <Draggable key={link.id} draggableId={link.id} index={index} isDragDisabled={links.length <= 1}>
                           {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              style={{
-                                ...provided.draggableProps.style,
-                                // Prevent the item from snapping to 0,0 or disappearing when dragged outside
-                              }}
-                              className={`group bg-surface border border-border rounded-xl p-3 flex gap-3 transition-colors ${snapshot.isDragging ? 'shadow-xl border-accent/50 z-50 ring-2 ring-accent shadow-accent/20' : 'hover:border-accent/30'}`}
-                            >
-                              <div {...provided.dragHandleProps} className="text-muted-foreground hover:text-white cursor-grab active:cursor-grabbing self-center p-1">
-                                <GripVertical className="w-4 h-4" />
-                              </div>
-
-                              <div className="flex-1 min-w-0 flex items-center gap-3">
-                                <div className="relative">
-                                  {editingId === link.id ? (
-                                    <button
-                                      id={`edit-link-icon-btn-${link.id}`}
-                                      onClick={() => setShowEditIconPicker(!showEditIconPicker)}
-                                      className="w-10 h-10 bg-background border border-accent/50 rounded-xl flex items-center justify-center shrink-0 overflow-hidden hover:bg-surface-hover transition-colors group/edit-icon"
-                                    >
-                                      <IconRenderer type={editIconType} value={editIconValue} className="w-7 h-7 text-accent group-hover/edit-icon:scale-110 transition-transform" />
-                                    </button>
-                                  ) : (
-                                    <div className="w-10 h-10 bg-background border border-border rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
-                                      <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className="w-7 h-7 text-accent" />
-                                    </div>
-                                  )}
-
-                                  {editingId === link.id && showEditIconPicker && (
-                                    <IconPicker
-                                      currentType={editIconType}
-                                      currentValue={editIconValue}
-                                      anchorRef={{ current: document.getElementById(`edit-link-icon-btn-${link.id}`) } as React.RefObject<HTMLElement>}
-                                      onChange={(type, value) => {
-                                        setEditIconType(type);
-                                        setEditIconValue(value);
-                                      }}
-                                      onClose={() => setShowEditIconPicker(false)}
-                                    />
-                                  )}
-                                </div>
-                                {editingId === link.id ? (
-                                  <div className="space-y-3 flex-1">
-                                    <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Title" className="w-full px-2 py-1 rounded bg-background border border-accent/50 text-sm focus:outline-none text-white" />
-                                    <input value={editUrl} onChange={(e) => setEditUrl(e.target.value)} placeholder="URL" className="w-full px-2 py-1 rounded bg-background border border-accent/50 text-sm focus:outline-none text-white" />
-
-                                    <div className="flex gap-2">
-                                      <button
-                                        onClick={() => setEditSize("regular")}
-                                        className={`flex-1 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all ${editSize === "regular" ? "bg-accent/10 border-accent/50 text-accent" : "bg-background border-border text-muted-foreground"}`}
-                                      >
-                                        Regular
-                                      </button>
-                                      <button
-                                        onClick={() => setEditSize("large")}
-                                        className={`flex-1 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all ${editSize === "large" ? "bg-accent/10 border-accent/50 text-accent" : "bg-background border-border text-muted-foreground"}`}
-                                      >
-                                        Large
-                                      </button>
-                                    </div>
-
-                                    <div className="flex gap-2 justify-end pt-1">
-                                      <button onClick={cancelEditing} className="text-xs text-muted-foreground hover:text-white">Cancel</button>
-                                      <button onClick={() => handleSaveEdit(link.id)} className="text-xs text-accent hover:text-accent/80 flex items-center gap-1">
-                                        {editLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Save
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="flex-1 min-w-0"> {/* Wrapped content in a div to manage flex-1 */}
-                                    <div className="flex items-center justify-between gap-2">
-                                      <p className="text-sm font-medium text-white truncate">{link.title || "Untitled"}</p>
-                                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => startEditing(link)} className="p-1.5 rounded hover:bg-white/10 text-muted-foreground hover:text-white">
-                                          <Edit className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button onClick={() => handleDeleteLink(link.id)} className="p-1.5 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400">
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                    <div className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
-                                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                                      {link.destination_url}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                            <LinkItemCard
+                              link={link}
+                              provided={provided}
+                              snapshot={snapshot}
+                              onUpdate={handleUpdateLink}
+                              onDelete={handleDeleteLink}
+                            />
                           )}
                         </Draggable>
                       ))}

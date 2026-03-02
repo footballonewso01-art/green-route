@@ -14,7 +14,7 @@ interface ProfileData {
   theme: string;
   full_avatar_url?: string;
   custom_theme_bg?: string;
-  social_links?: any[];
+  social_links?: { id: string; url: string; icon_type: string; icon_value: string }[];
 }
 
 interface LinkItem {
@@ -80,12 +80,17 @@ export default function PublicProfile() {
         // ... (rest of the code update below)
 
         // Fetch active links for this user, sorted by 'order'
-        const linkRecords = await pb.collection('links').getFullList<LinkItem>({
+        const linkRecords = await pb.collection('links').getList<LinkItem>(1, 100, {
           filter: `user_id="${userRecord.id}" && active=true && show_on_profile!=false`,
           sort: 'order,-created',
         });
-        setLinks(linkRecords);
-      } catch (error: any) {
+        setLinks(linkRecords.items);
+
+        // Update document title
+        const displayName = userRecord.name || userRecord.username;
+        document.title = `Check out ${displayName} (@${userRecord.username})`;
+
+      } catch (error: unknown) {
         toast.error("Profile not found");
       } finally {
         setLoading(false);
@@ -93,6 +98,9 @@ export default function PublicProfile() {
     };
 
     fetchData();
+
+    // Reset title on unmount
+    return () => { document.title = "Linktery"; };
   }, [username]);
 
   if (loading) {
@@ -178,7 +186,7 @@ export default function PublicProfile() {
           {
             profile.social_links && profile.social_links.length > 0 && (
               <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
-                {profile.social_links.map((social: any) => (
+                {profile.social_links.map((social: { id: string; url: string; icon_type: string; icon_value: string }) => (
                   <a
                     key={social.id}
                     href={social.url}
@@ -260,11 +268,11 @@ export default function PublicProfile() {
           {/* Footer Branding */}
           {
             !checkPlan(profile.plan, "remove_branding") && (
-              <div className="mt-10 mb-2 text-center">
-                <a href="/" className="inline-flex items-center gap-2 text-[10px] text-muted-foreground/50 hover:text-white transition-colors group">
+              <div className="mt-8 mb-2 text-center">
+                <a href="/" className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground/50 hover:text-white transition-colors group">
                   <span className="uppercase tracking-widest font-medium translate-y-[1px]">Powered by</span>
-                  <span className="font-black flex items-center gap-1.5 group-hover:opacity-100">
-                    <img src="/logo.png" alt="Linktery" className="h-8 w-auto grayscale mix-blend-screen opacity-80 group-hover:opacity-100 transition-opacity" />
+                  <span className="font-black flex items-center gap-1 group-hover:opacity-100">
+                    <img src="/logo.png" alt="Linktery" className="h-6 w-auto grayscale mix-blend-screen opacity-80 group-hover:opacity-100 transition-opacity" />
                     <span className="uppercase tracking-tighter text-[11px] text-white/80 group-hover:text-white translate-y-[0.5px]">Linktery</span>
                   </span>
                 </a>

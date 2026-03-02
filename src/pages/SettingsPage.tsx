@@ -16,17 +16,17 @@ const tabs = [
 export default function SettingsPage() {
   const { user } = useAuth();
   const [active, setActive] = useState("password");
-  const [upgradeModal, setUpgradeModal] = useState({ open: false, feature: "", description: "" });
+  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; feature: string; description: string; planNeeded?: "pro" | "agency" }>({ open: false, feature: "", description: "" });
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loadingPassword, setLoadingPassword] = useState(false);
 
-  const userPlan = (user as any)?.plan || "creator";
+  const userPlan = (user as { plan?: string })?.plan || "creator";
 
   const handleTabClick = (tab: typeof tabs[0]) => {
-    if (!tab.limit || checkPlan(userPlan, tab.limit as any)) {
+    if (!tab.limit || checkPlan(userPlan, tab.limit as keyof import('@/lib/plans').PlanLimits)) {
       setActive(tab.id);
     } else {
       let featureName = tab.label;
@@ -44,6 +44,7 @@ export default function SettingsPage() {
         open: true,
         feature: featureName,
         description: description,
+        planNeeded: "agency"
       });
     }
   };
@@ -75,11 +76,12 @@ export default function SettingsPage() {
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch (error: any) {
-      console.error("Password update error:", error?.response || error);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: Record<string, { message?: string }> }, message?: string };
+      console.error("Password update error:", err?.response || err);
 
       // Parse PocketBase field-level validation errors
-      const data = error?.response?.data;
+      const data = err?.response?.data;
       if (data) {
         if (data.oldPassword) {
           toast.error(data.oldPassword.message || "Current password is incorrect.");
@@ -93,7 +95,7 @@ export default function SettingsPage() {
           toast.error(data[firstKey]?.message || "Failed to update password.");
         }
       } else {
-        toast.error(error?.message || "Failed to update password. Please try again.");
+        toast.error(err?.message || "Failed to update password. Please try again.");
       }
     } finally {
       setLoadingPassword(false);
@@ -110,7 +112,7 @@ export default function SettingsPage() {
       {/* Tabs */}
       <div className="flex gap-1 p-1 rounded-xl bg-surface border border-border w-fit">
         {tabs.map((tab) => {
-          const isLocked = tab.limit && !checkPlan(userPlan, tab.limit as any);
+          const isLocked = tab.limit && !checkPlan(userPlan, tab.limit as keyof import('@/lib/plans').PlanLimits);
           return (
             <button
               key={tab.id}
@@ -212,6 +214,7 @@ export default function SettingsPage() {
         onClose={() => setUpgradeModal({ ...upgradeModal, open: false })}
         featureName={upgradeModal.feature}
         description={upgradeModal.description}
+        planNeeded={upgradeModal.planNeeded}
       />
     </div>
   );

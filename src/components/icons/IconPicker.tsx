@@ -116,6 +116,7 @@ export function IconPicker({ currentType, currentValue, onChange, onClose, ancho
             document.removeEventListener("mousedown", handler);
             window.removeEventListener("scroll", scrollHandler, true);
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [onClose]);
 
     const content = (

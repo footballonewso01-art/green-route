@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Helper function to generate a guaranteed unique username
@@ -22,17 +23,13 @@ export default function RegisterPage() {
 
     while (!isUnique) {
       try {
-        // Test if a user with this username exists
         await pb.collection('users').getFirstListItem(`username="${finalUsername}"`);
-        // If it succeeds, username exists. We need a new suffix.
         const randomSuffix = Math.floor(Math.random() * 10000);
         finalUsername = `${baseUsername}${randomSuffix}`;
-      } catch (err: any) {
-        // getFirstListItem throws 404 if not found -> this means the username is unique!
-        if (err.status === 404) {
+      } catch (err: unknown) {
+        if ((err as { status?: number }).status === 404) {
           isUnique = true;
         } else {
-          // Some other DB error, break to prevent infinite loop
           throw err;
         }
       }
@@ -42,6 +39,10 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!agreed) {
+      toast.error("You must agree to the Privacy Policy and Terms & Conditions");
+      return;
+    }
     setLoading(true);
     try {
       const generatedUsername = await generateUniqueUsername(email);
@@ -53,12 +54,11 @@ export default function RegisterPage() {
         name,
         username: generatedUsername,
       });
-      // Optionally login immediately
       await pb.collection('users').authWithPassword(email, password);
       toast.success("Account created successfully!");
       navigate("/dashboard");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to register");
+    } catch (error: unknown) {
+      toast.error((error as Error).message || "Failed to register");
     } finally {
       setLoading(false);
     }
@@ -68,13 +68,11 @@ export default function RegisterPage() {
     if (loading) return;
     setLoading(true);
     try {
-      // Start flow directly. PocketBase handles the error if not enabled.
       const authData = await pb.collection('users').authWithOAuth2({
         provider: 'google'
       });
 
-      // Update name and generate username if it's a new account from Google
-      const updateData: any = {};
+      const updateData: Record<string, string> = {};
       if (authData.meta?.name && !authData.record.name) {
         updateData.name = authData.meta.name;
       }
@@ -88,10 +86,11 @@ export default function RegisterPage() {
 
       toast.success("Successfully signed up with Google!");
       navigate("/dashboard");
-    } catch (error: any) {
-      if (error.name !== "ClientResponseError" || error.originalError?.message !== "The user cancelled the request.") {
-        console.error("Google login error:", error);
-        toast.error(error.message || "Failed to login with Google");
+    } catch (error: unknown) {
+      const err = error as { name?: string; originalError?: { message?: string }; message?: string };
+      if (err.name !== "ClientResponseError" || err.originalError?.message !== "The user cancelled the request.") {
+        console.error("Google login error:", err);
+        toast.error(err.message || "Failed to login with Google");
       }
       setLoading(false);
     }
@@ -174,6 +173,31 @@ export default function RegisterPage() {
               </button>
             </div>
           </div>
+
+          <div className="flex items-center gap-3 py-1">
+            <div className="relative flex items-center justify-center">
+              <input
+                type="checkbox"
+                id="terms"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+                className="h-5 w-5 rounded-[6px] border-2 border-border bg-surface text-accent focus:ring-accent/30 cursor-pointer appearance-none checked:bg-accent checked:border-accent transition-all duration-200"
+                required
+              />
+              {agreed && (
+                <svg className="absolute w-3 h-3 text-white pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </div>
+            <label htmlFor="terms" className="text-sm text-muted-foreground leading-tight cursor-pointer select-none">
+              I agree with{" "}
+              <Link to="/privacy" className="text-accent hover:underline font-medium">Privacy Policy</Link>
+              <span className="mx-1 opacity-20">|</span>
+              <Link to="/terms" className="text-accent hover:underline font-medium">Terms & Conditions</Link>
+            </label>
+          </div>
+
           <button type="submit" disabled={loading} className="btn-primary-glow w-full mt-2 disabled:opacity-50">
             {loading ? "Creating account..." : "Create Account"}
           </button>

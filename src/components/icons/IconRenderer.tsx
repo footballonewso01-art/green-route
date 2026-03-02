@@ -71,6 +71,7 @@ export function IconRenderer({ type, value, url, className = "w-5 h-5", fallback
 }
 
 function Fallback({ url, className, fallback }: { url?: string, className: string, fallback: boolean }) {
-    return fallback ? <Globe className={className} /> : null;
+    if (!fallback) return null;
+    return <Globe className={className} />;
 }
 

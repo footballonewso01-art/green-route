@@ -1,0 +1,28 @@
+Top Rules:
+@typescript-eslint/no-explicit-any 11
+react-refresh/only-export-components 7
+react-hooks/exhaustive-deps 3
+@typescript-eslint/no-empty-object-type 2
+no-self-assign 1
+no-sparse-arrays 1
+
+Top Files:
+D:\route-smartly-now-main\src\components\LinkItemCard.tsx : 2
+D:\route-smartly-now-main\src\pages\LandingPage.tsx : 2
+D:\route-smartly-now-main\src\pages\LoginPage.tsx : 2
+D:\route-smartly-now-main\src\pages\PricingPage.tsx : 2
+D:\route-smartly-now-main\src\pages\RedirectHandler.tsx : 2
+D:\route-smartly-now-main\src\pages\admin\AdminLinks.tsx : 2
+D:\route-smartly-now-main\src\components\icons\IconPicker.tsx : 1
+D:\route-smartly-now-main\src\components\ui\badge.tsx : 1
+D:\route-smartly-now-main\src\components\ui\button.tsx : 1
+D:\route-smartly-now-main\src\components\ui\command.tsx : 1
+D:\route-smartly-now-main\src\components\ui\form.tsx : 1
+D:\route-smartly-now-main\src\components\ui\navigation-menu.tsx : 1
+D:\route-smartly-now-main\src\components\ui\sidebar.tsx : 1
+D:\route-smartly-now-main\src\components\ui\sonner.tsx : 1
+D:\route-smartly-now-main\src\components\ui\textarea.tsx : 1
+D:\route-smartly-now-main\src\components\ui\toggle.tsx : 1
+D:\route-smartly-now-main\src\pages\DashboardHome.tsx : 1
+D:\route-smartly-now-main\src\pages\Index.tsx : 1
+D:\route-smartly-now-main\src\pages\InterstitialPage.tsx : 1

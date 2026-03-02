@@ -1,16 +1,28 @@
 import urllib.request
-import urllib.parse
 import json
+import ssl
 
-PB_URL = "http://127.0.0.1:8090"
-ADMIN_EMAIL = "admin@greenroute.dev"
-ADMIN_PASS = "admin12345"
-
-def get_admin_token():
+def check_api():
+    # Login as one of the users
+    req = urllib.request.Request(
+        'http://127.0.0.1:8090/api/collections/users/records?perPage=1',
+        headers={'Content-Type': 'application/json'}
+    )
+    # this will fail 403 or 401 if unauthenticated, let's see what it returns
     try:
-        data = json.dumps({"identity": "test@mail.com", "password": "password"}).encode("utf-8") # From previous DB info o6x1jnqbe8km1e9 is test@mail.com, wait we don't know the password.
-        # Let's just create an admin. Wait, admin is different from auth user.
+        res = urllib.request.urlopen(req)
+        print("Response:", res.read().decode())
     except Exception as e:
-        print(e)
+        print("Error:", e)
 
-# Instead of auth, let's just observe the pb_data/logs.db or maybe we can just query the schema directly again to find what could be wrong.
+    # try to authenticate with the existing user (if we know the password)
+    # just print the first user's email from db
+    import sqlite3
+    conn = sqlite3.connect('pocketbase/pb_data/data.db')
+    c = conn.cursor()
+    c.execute("SELECT email, passwordHash FROM users LIMIT 1")
+    user = c.fetchone()
+    print("User in DB:", user)
+
+if __name__ == '__main__':
+    check_api()

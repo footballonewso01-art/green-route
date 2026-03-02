@@ -34,13 +34,13 @@ export default function LinksManager() {
   const fetchLinks = async () => {
     try {
       const userId = pb.authStore.model?.id;
-      const records = await pb.collection('links').getFullList<LinkItem>({
+      const records = await pb.collection('links').getList<LinkItem>(1, 100, {
         filter: `user_id="${userId}"`,
         sort: 'order,-created',
       });
-      setLinks(records);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to fetch links");
+      setLinks(records.items);
+    } catch (error: unknown) {
+      toast.error((error as Error).message || "Failed to fetch links");
     } finally {
       setLoading(false);
     }
@@ -57,8 +57,8 @@ export default function LinksManager() {
       await pb.collection('links').update(id, { active: !currentActive });
       setLinks(links.map((l) => (l.id === id ? { ...l, active: !currentActive } : l)));
       toast.success("Link status updated");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to update link");
+    } catch (error: unknown) {
+      toast.error((error as Error).message || "Failed to update link");
     }
   };
 
@@ -68,8 +68,8 @@ export default function LinksManager() {
       await pb.collection('links').delete(id);
       setLinks(links.filter((l) => l.id !== id));
       toast.success("Link deleted");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to delete link");
+    } catch (error: unknown) {
+      toast.error((error as Error).message || "Failed to delete link");
     }
   };
 
@@ -78,8 +78,8 @@ export default function LinksManager() {
       await pb.collection('links').update(id, { show_on_profile: !currentStatus });
       setLinks(links.map((l) => (l.id === id ? { ...l, show_on_profile: !currentStatus } : l)));
       toast.success(!currentStatus ? "Link will show on profile" : "Link hidden from profile");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to update visibility");
+    } catch (error: unknown) {
+      toast.error((error as { message?: string }).message || "Failed to update visibility");
     }
   };
 
@@ -231,17 +231,8 @@ export default function LinksManager() {
                           </div>
 
                           <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className={`w-10 h-10 bg-background border border-border rounded-xl flex items-center justify-center shrink-0 overflow-hidden relative ${link.size === 'large' ? 'ring-2 ring-accent/30 shadow-lg shadow-accent/5' : ''}`}>
-                              {link.size === 'large' && link.bg_image && (
-                                <img
-                                  src={pb.files.getUrl(link, link.bg_image)}
-                                  alt="BG"
-                                  className="absolute inset-0 w-full h-full object-cover opacity-60"
-                                />
-                              )}
-                              <div className="relative z-10 w-full h-full flex items-center justify-center">
-                                <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className={`w-7 h-7 ${link.size === 'large' && link.bg_image ? 'text-white drop-shadow-md' : 'text-accent'}`} />
-                              </div>
+                            <div className={`w-10 h-10 bg-background border border-border rounded-xl flex items-center justify-center shrink-0 overflow-hidden ${link.size === 'large' ? 'ring-2 ring-accent/30 shadow-lg shadow-accent/5' : ''}`}>
+                              <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className="w-7 h-7 text-accent" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
@@ -255,12 +246,6 @@ export default function LinksManager() {
                                 <span className="text-xs text-muted-foreground truncate max-w-[200px] flex items-center gap-1">
                                   <ExternalLink className="w-3 h-3 flex-shrink-0" />
                                   {link.destination_url}
-                                </span>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${link.mode === 'smart' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
-                                  link.mode === 'landing' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
-                                    'bg-accent/10 text-accent border border-accent/20'
-                                  }`}>
-                                  {link.mode || 'redirect'}
                                 </span>
                               </div>
                             </div>

@@ -1,0 +1,29 @@
+AuthContext.tsx:
+  14:17 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  27:36 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  32:14 react-refresh/only-export-components - Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+  109:23 no-empty - Empty block statement.
+  132:6 react-hooks/exhaustive-deps - React Hook useEffect has a missing dependency: 'user'. Either include it or remove the dependency array.
+  134:43 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+CreateLink.tsx:
+  40:29 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  46:38 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  117:105 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  125:25 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  136:39 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  158:6 react-hooks/exhaustive-deps - React Hook useEffect has a missing dependency: 'form.icon_type'. Either include it or remove the dependency array.
+  242:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  248:40 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  609:58 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  774:9 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+DashboardProfile.tsx:
+  61:29 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  107:50 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  110:52 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  118:6 react-hooks/exhaustive-deps - React Hook useEffect has a missing dependency: 'fetchLinks'. Either include it or remove the dependency array.
+  140:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  193:40 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  253:72 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  253:99 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  285:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  310:31 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.

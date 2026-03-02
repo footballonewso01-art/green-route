@@ -1,0 +1,30 @@
+Top Rules:
+@typescript-eslint/no-explicit-any 47
+react-refresh/only-export-components 7
+react-hooks/exhaustive-deps 6
+@typescript-eslint/no-empty-object-type 2
+react-hooks/rules-of-hooks 1
+no-self-assign 1
+no-sparse-arrays 1
+
+Top Files:
+D:\route-smartly-now-main\src\pages\admin\AdminUserProfile.tsx : 6
+D:\route-smartly-now-main\src\components\DashboardLayout.tsx : 4
+D:\route-smartly-now-main\src\pages\LinksManager.tsx : 4
+D:\route-smartly-now-main\src\pages\RegisterPage.tsx : 4
+D:\route-smartly-now-main\src\pages\SettingsPage.tsx : 4
+D:\route-smartly-now-main\src\pages\AnalyticsPage.tsx : 3
+D:\route-smartly-now-main\src\pages\Billing.tsx : 3
+D:\route-smartly-now-main\src\pages\DashboardPricing.tsx : 3
+D:\route-smartly-now-main\src\pages\PublicProfile.tsx : 3
+D:\route-smartly-now-main\src\pages\admin\AdminOverview.tsx : 3
+D:\route-smartly-now-main\src\pages\admin\AdminUsers.tsx : 3
+D:\route-smartly-now-main\src\components\LinkItemCard.tsx : 2
+D:\route-smartly-now-main\src\pages\LandingPage.tsx : 2
+D:\route-smartly-now-main\src\pages\LoginPage.tsx : 2
+D:\route-smartly-now-main\src\pages\PricingPage.tsx : 2
+D:\route-smartly-now-main\src\pages\RedirectHandler.tsx : 2
+D:\route-smartly-now-main\src\pages\admin\AdminLinks.tsx : 2
+D:\route-smartly-now-main\src\components\icons\IconPicker.tsx : 1
+D:\route-smartly-now-main\src\components\ui\badge.tsx : 1
+D:\route-smartly-now-main\src\components\ui\button.tsx : 1

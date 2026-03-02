@@ -116,3 +116,80 @@ cronAdd("check_expired_plans", "0 * * * *", () => {
         $app.logger().error("Error checking expired plans: " + err);
     }
 });
+
+// 5. Analytics: Track Signup
+onRecordAfterCreateRequest((e) => {
+    if (e.collection.name !== "users") return;
+
+    try {
+        const analyticsColl = $app.dao().findCollectionByNameOrId("analytics_events");
+        const event = new Record(analyticsColl, {
+            "event_name": "signup",
+            "user_id": e.record.id,
+            "metadata": JSON.stringify({
+                "email": e.record.get("email"),
+                "source": "backend_hook"
+            })
+        });
+        $app.dao().saveRecord(event);
+    } catch (err) {
+        $app.logger().error("Error tracking signup event: " + err);
+    }
+}, "users");
+
+// 6. Analytics: Track Login
+onRecordAfterAuthWithPasswordRequest((e) => {
+    if (e.collection.name !== "users") return;
+
+    try {
+        const analyticsColl = $app.dao().findCollectionByNameOrId("analytics_events");
+        const event = new Record(analyticsColl, {
+            "event_name": "login",
+            "user_id": e.record.id,
+            "metadata": JSON.stringify({
+                "time": new DateTime().format("Y-m-d H:i:s"),
+                "ua": e.httpContext.request().header.get("User-Agent")
+            })
+        });
+        $app.dao().saveRecord(event);
+    } catch (err) {
+        $app.logger().error("Error tracking login event: " + err);
+    }
+}, "users");
+
+// 7. Analytics: Track Link Creation
+onRecordAfterCreateRequest((e) => {
+    try {
+        const analyticsColl = $app.dao().findCollectionByNameOrId("analytics_events");
+        const event = new Record(analyticsColl, {
+            "event_name": "link_create",
+            "user_id": e.record.get("user_id"),
+            "metadata": JSON.stringify({
+                "slug": e.record.get("slug"),
+                "type": e.record.get("type")
+            })
+        });
+        $app.dao().saveRecord(event);
+    } catch (err) {
+        $app.logger().error("Error tracking link_create event: " + err);
+    }
+}, "links");
+
+// 8. Analytics: Track Billing/Revenue
+onRecordAfterCreateRequest((e) => {
+    try {
+        const analyticsColl = $app.dao().findCollectionByNameOrId("analytics_events");
+        const event = new Record(analyticsColl, {
+            "event_name": "billing_success",
+            "user_id": e.record.get("user_id"),
+            "metadata": JSON.stringify({
+                "plan": e.record.get("plan"),
+                "amount": e.record.get("amount")
+            })
+        });
+        $app.dao().saveRecord(event);
+    } catch (err) {
+        $app.logger().error("Error tracking billing event: " + err);
+    }
+}, "billing");
+

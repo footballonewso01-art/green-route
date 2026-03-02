@@ -6,7 +6,7 @@ export default function InterstitialPage() {
   };
 
   const openInSafari = () => {
-    window.location.href = window.location.href;
+    window.location.reload();
   };
 
   return (

@@ -1,0 +1,27 @@
+DashboardLayout.tsx:
+  13:9 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  100:23 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  114:27 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  313:51 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+LinksManager.tsx:
+  42:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  60:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  71:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  81:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+RegisterPage.tsx:
+  30:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  60:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  77:25 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  91:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+SettingsPage.tsx:
+  26:29 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  29:56 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  78:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  113:75 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+AdminUserProfile.tsx:
+  28:38 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  29:40 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  30:42 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  34:48 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  42:8 react-hooks/exhaustive-deps - React Hook useEffect has a missing dependency: 'fetchUserData'. Either include it or remove the dependency array.
+  107:31 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.

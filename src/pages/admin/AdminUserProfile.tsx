@@ -21,17 +21,48 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+interface AdminUser {
+    id: string;
+    email: string;
+    name: string;
+    banned: boolean;
+    plan: string;
+    plan_expires_at: string;
+    created: string;
+    internal_notes: string;
+    [key: string]: unknown;
+}
+
+interface AdminLink {
+    id: string;
+    user_id: string;
+    destination_url: string;
+    slug: string;
+    active: boolean;
+    created: string;
+    [key: string]: unknown;
+}
+
+interface AdminClick {
+    id: string;
+    os: string;
+    country: string;
+    created: string;
+    link_id?: { user_id: string };
+    [key: string]: unknown;
+}
+
 export default function AdminUserProfile() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
 
-    const [user, setUser] = useState<any>(null);
-    const [links, setLinks] = useState<any[]>([]);
-    const [clicks, setClicks] = useState<any[]>([]);
+    const [user, setUser] = useState<AdminUser | null>(null);
+    const [links, setLinks] = useState<AdminLink[]>([]);
+    const [clicks, setClicks] = useState<AdminClick[]>([]);
     const [loading, setLoading] = useState(true);
     const [internalNotes, setInternalNotes] = useState("");
     const [savingNotes, setSavingNotes] = useState(false);
-    const [chartData, setChartData] = useState<any[]>([]);
+    const [chartData, setChartData] = useState<Record<string, unknown>[]>([]);
     const [customDays, setCustomDays] = useState("30");
     const [selectedPlan, setSelectedPlan] = useState("creator");
     const [updatingPlan, setUpdatingPlan] = useState(false);
@@ -39,13 +70,14 @@ export default function AdminUserProfile() {
     useEffect(() => {
         if (!id) return;
         fetchUserData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
     const fetchUserData = async () => {
         setLoading(true);
         try {
             // Fetch User
-            const userData = await pb.collection("users").getOne(id as string, { requestKey: null });
+            const userData = await pb.collection("users").getOne<AdminUser>(id as string, { requestKey: null });
             setUser(userData);
             setInternalNotes(userData.internal_notes || "");
             setSelectedPlan(userData.plan || "creator");
@@ -56,7 +88,7 @@ export default function AdminUserProfile() {
                 sort: "-created",
                 requestKey: null
             });
-            setLinks(linksData.items);
+            setLinks(linksData.items as unknown as AdminLink[]);
 
             // Fetch Clicks
             const clicksData = await pb.collection("clicks").getList(1, 100, {
@@ -65,7 +97,7 @@ export default function AdminUserProfile() {
                 expand: "link_id",
                 requestKey: null
             });
-            setClicks(clicksData.items);
+            setClicks(clicksData.items as unknown as AdminClick[]);
 
             // Generate Chart Data (Last 7 days)
             const data = [];
@@ -104,7 +136,7 @@ export default function AdminUserProfile() {
     const handleUpdatePlan = async () => {
         setUpdatingPlan(true);
         try {
-            const updateData: any = { plan: selectedPlan };
+            const updateData: Record<string, string> = { plan: selectedPlan };
             if (selectedPlan !== "creator") {
                 const expires = new Date();
                 const days = Math.max(1, parseInt(customDays) || 30);

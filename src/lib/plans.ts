@@ -16,6 +16,7 @@ export interface PlanLimits {
     pixels: boolean;
     ab_testing: boolean;
     multi_accounts?: boolean; // Agency only
+    social_links: number;
 }
 
 export interface PlanDetails {
@@ -52,13 +53,13 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         description: "Perfect for getting started",
         buttonText: "Current Plan",
         features: [
-            { text: "4 Smart Links", icon: "🔗", tooltip: "Now includes 4 Smart Links on Free plan!" },
+            { text: "3 Smart Links", icon: "🔗", tooltip: "Includes 3 Smart Links on Free plan." },
             { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
             { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
-            { text: "Standard Support", icon: "💬" }
+            { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." }
         ],
         limits: {
-            links: 4,
+            links: 3,
             analytics: false,
             cloaking: false,
             custom_domain: false,
@@ -71,7 +72,8 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             remove_branding: false,
             custom_slug: false,
             pixels: false,
-            ab_testing: false
+            ab_testing: false,
+            social_links: 3
         }
     },
     pro: {
@@ -105,7 +107,8 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             remove_branding: true,
             custom_slug: false,
             pixels: true,
-            ab_testing: false
+            ab_testing: false,
+            social_links: 3
         }
     },
     agency: {
@@ -118,9 +121,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             { text: "Unlimited Links", icon: "🚀" },
             { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
             { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Create your own short link handles." },
-            { text: "Everything in Pro", icon: "✅" },
-            { text: "Priority Support", icon: "⚡" },
-            { text: "Team Access", icon: "👥" }
+            { text: "Everything in Pro", icon: "✅" }
         ],
         limits: {
             links: -1,
@@ -137,7 +138,8 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             custom_slug: true,
             pixels: true,
             ab_testing: true,
-            multi_accounts: true
+            multi_accounts: true,
+            social_links: 3
         }
     }
 };

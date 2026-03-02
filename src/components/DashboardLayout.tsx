@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 interface NavItem {
   title: string;
   path: string;
-  icon: any;
+  icon: React.ElementType;
   pro?: boolean;
   badge?: { text: string; color: string };
 }
@@ -97,8 +97,8 @@ export default function DashboardLayout() {
           requestKey: null
         });
         setLinksCount(result.totalItems);
-      } catch (error: any) {
-        if (!error.isAbort) {
+      } catch (error: unknown) {
+        if (!(error as { isAbort?: boolean }).isAbort) {
           console.error("Failed to fetch usage:", error);
         }
       }
@@ -111,7 +111,7 @@ export default function DashboardLayout() {
     navigate("/");
   };
 
-  const planId = (user as any)?.plan || "creator";
+  const planId = (user as { plan?: string })?.plan || "creator";
   const plan = PLANS[planId as PlanType];
   const maxLinks = plan?.limits.links || 0;
   const usagePercentage = maxLinks === -1 ? 0 : Math.min(100, ((linksCount ?? 0) / maxLinks) * 100);
@@ -129,8 +129,8 @@ export default function DashboardLayout() {
       <aside className={`fixed lg:sticky lg:top-0 lg:h-screen inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-sidebar-border">
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <img src="/logo.png" alt="Linktery" className="h-[50px] w-auto mix-blend-screen" />
-            <span className="font-extrabold text-foreground text-[22px] tracking-tight translate-y-[0.5px]">Linktery</span>
+            <img src="/logo.png" alt="Linktery" className="h-[60px] w-auto mix-blend-screen" />
+            <span className="font-extrabold text-foreground text-[20px] tracking-tight translate-y-[0.5px]">Linktery</span>
           </Link>
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-muted-foreground">
             <X className="w-5 h-5" />
@@ -259,9 +259,9 @@ export default function DashboardLayout() {
             <div className="relative">
               <button
                 onClick={() => setNotifOpen(!notifOpen)}
-                className="relative p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors"
+                className="relative p-2.5 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors"
               >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-6 h-6" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-accent text-[9px] font-bold text-accent-foreground flex items-center justify-center">
                     {unreadCount}
@@ -305,12 +305,12 @@ export default function DashboardLayout() {
 
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/20 mr-2">
               <Zap className="w-3.5 h-3.5 text-accent" />
-              <span className="text-xs font-bold text-accent uppercase tracking-wide">{plan?.name} Plan</span>
+              <span className="text-xs font-bold text-accent uppercase tracking-wide">{plan?.name}</span>
             </div>
 
-            <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent text-sm font-semibold overflow-hidden border border-accent/20">
+            <div className="w-10 h-10 rounded-2xl bg-accent/20 flex items-center justify-center text-accent text-sm font-semibold overflow-hidden border border-accent/20">
               {user?.avatar && user?.collectionId ? (
-                <img src={pb.files.getUrl(user as any, user.avatar)} alt="Avatar" className="w-full h-full object-cover" />
+                <img src={pb.files.getUrl(user as unknown as Record<string, unknown>, user.avatar)} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
                 userInitial
               )}

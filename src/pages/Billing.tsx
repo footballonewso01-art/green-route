@@ -21,8 +21,9 @@ export default function BillingPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (user && (user as any).plan) {
-            setCurrentPlan((user as any).plan as PlanType);
+        const u = user as { plan?: PlanType } | null;
+        if (u && u.plan) {
+            setCurrentPlan(u.plan);
         }
     }, [user]);
 
@@ -35,8 +36,8 @@ export default function BillingPage() {
                     sort: "-created",
                     requestKey: null
                 });
-                setLogs(result.items as any[]);
-            } catch (err) {
+                setLogs(result.items as unknown as BillingRecord[]);
+            } catch (err: unknown) {
                 console.error("Failed to fetch billing records", err);
             } finally {
                 setLoading(false);
@@ -135,8 +136,8 @@ export default function BillingPage() {
                                         <td className="px-6 py-4 text-foreground font-medium capitalize">{log.plan}</td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${log.status === "active"
-                                                    ? "bg-green-500/10 text-green-500"
-                                                    : "bg-red-500/10 text-red-500"
+                                                ? "bg-green-500/10 text-green-500"
+                                                : "bg-red-500/10 text-red-500"
                                                 }`}>
                                                 {log.status === "active" ? "Активная" : "Не активная"}
                                             </span>

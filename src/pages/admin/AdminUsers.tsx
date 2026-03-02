@@ -37,7 +37,7 @@ export default function AdminUsers() {
                 filter: search ? `email ~ "${search}" || id ~ "${search}"` : "",
                 requestKey: null
             });
-            setUsers(result.items as any[]);
+            setUsers(result.items as unknown as UserRecord[]);
             setTotalPages(result.totalPages);
         } catch (err) {
             console.error("Failed to fetch users", err);
@@ -49,11 +49,12 @@ export default function AdminUsers() {
 
     useEffect(() => {
         fetchUsers();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [page, search]);
 
     const handlePlanChange = async (userId: string, newPlan: string) => {
         try {
-            const updateData: any = { plan: newPlan };
+            const updateData: Record<string, string> = { plan: newPlan };
             if (newPlan !== "creator") {
                 const expires = new Date();
                 expires.setDate(expires.getDate() + 30);

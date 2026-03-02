@@ -17,8 +17,8 @@ export default function LoginPage() {
     try {
       await pb.collection('users').authWithPassword(email, password);
       navigate("/dashboard");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to login");
+    } catch (error: unknown) {
+      toast.error((error as Error).message || "Failed to login");
     } finally {
       setLoading(false);
     }
@@ -42,10 +42,10 @@ export default function LoginPage() {
 
       toast.success("Successfully logged in with Google!");
       navigate("/dashboard");
-    } catch (error: any) {
-      if (error.name !== "ClientResponseError" || error.originalError?.message !== "The user cancelled the request.") {
+    } catch (error: unknown) {
+      if ((error as Error).name !== "ClientResponseError" || (error as { originalError?: { message?: string } }).originalError?.message !== "The user cancelled the request.") {
         console.error("Google login error:", error);
-        toast.error(error.message || "Failed to login with Google");
+        toast.error((error as Error).message || "Failed to login with Google");
       }
       setLoading(false);
     }

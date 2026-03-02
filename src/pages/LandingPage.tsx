@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, Shield, Zap, Globe, MousePointer, ExternalLink, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,10 +47,10 @@ const plans = [
     price: "0",
     description: "Perfect for getting started",
     features: [
-      { text: "4 Smart Links", icon: "🔗", tooltip: "Now includes 4 Smart Links on Free plan!" },
+      { text: "3 Smart Links", icon: "🔗", tooltip: "Includes 3 Smart Links on Free plan." },
       { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
       { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
-      { text: "Standard Support", icon: "💬" }
+      { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." }
     ],
     buttonText: "Start for Free",
     popular: false
@@ -64,7 +64,6 @@ const plans = [
     popular: true,
     features: [
       { text: "15 Smart Links", icon: "🔗" },
-      { text: "A/B Testing (2 variants)", icon: "🧪", tooltip: "Test two versions of a link to see which performs better." },
       { text: "Remove Linktery Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
       { text: "Deeplinks (Beta)", icon: "⚡", tooltip: "Smart route optimization: Seamless transition from social apps to system browser." },
       { text: "Advanced Analytics", icon: "📊" },
@@ -83,11 +82,9 @@ const plans = [
     features: [
       { text: "Unlimited Smart Links", icon: "🚀" },
       { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
-      { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." }, ,
+      { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
       { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
-      { text: "Everything in Creator Pro", icon: "✅" },
-      { text: "Priority 24/7 Support", icon: "⚡" },
-      { text: "Team Access", icon: "👥" }
+      { text: "Everything in Creator Pro", icon: "✅" }
     ],
     buttonText: "Upgrade to Agency",
     popular: false
@@ -97,8 +94,29 @@ const plans = [
 export default function LandingPage() {
   const { user } = useAuth();
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
 
-  const userPlan = (user as any)?.plan as PlanType | undefined;
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          videoRef.current?.play().catch(console.error);
+        } else {
+          videoRef.current?.pause();
+        }
+      },
+      { threshold: 0.2 }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  const userPlan = (user as { plan?: PlanType })?.plan;
 
   // Helper to get avatar URL
   const getAvatarUrl = () => {
@@ -113,9 +131,9 @@ export default function LandingPage() {
       {/* Navbar */}
       <nav className="fixed top-0 w-full z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-            <img src="/logo.png" alt="Linktery" className="h-11 w-auto mix-blend-screen" />
-            <span className="text-[22px] font-bold text-foreground tracking-tight">Linktery</span>
+          <Link to="/" className="flex items-center gap-3.5 hover:opacity-80 transition-opacity">
+            <img src="/logo.png" alt="Linktery" className="h-[60px] w-auto mix-blend-screen" />
+            <span className="text-[22px] font-extrabold text-foreground tracking-tight">Linktery</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
@@ -173,7 +191,7 @@ export default function LandingPage() {
             <span className="gradient-text">Maximize Every Click.</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-            Advanced link management with cloaking, smart routing, and real-time analytics. Built for creators, affiliates, and marketers.
+            Advanced link management with smart routing, deep linking, and real-time analytics. Built for creators, affiliates, and marketers.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {user ? (
@@ -201,11 +219,31 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section id="features" className="py-24 px-6 relative z-10">
+      <section id="features" ref={sectionRef} className="py-24 px-6 relative overflow-hidden group">
+        {/* Features Video Background */}
+        <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.07] scale-110 group-hover:scale-100 transition-transform duration-[3000ms] ease-out">
+          <video
+            ref={videoRef}
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover"
+          >
+            <source src="/features.mp4" type="video/mp4" />
+          </video>
+          {/* Gradients to blend with background */}
+          <div className="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
+        </div>
+
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Everything You Need</h2>
-            <p className="text-muted-foreground text-lg max-w-xl mx-auto">Powerful tools for modern link management and traffic optimization.</p>
+          <div className="text-center mb-16 px-6 relative">
+            <h2 className="text-5xl md:text-6xl font-black tracking-tight mb-6 leading-[1.1]">
+              Everything You <span className="gradient-text">Need</span>
+            </h2>
+            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
+              Powerful tools for modern link management and traffic optimization.
+            </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((f, i) => (
@@ -370,7 +408,11 @@ export default function LandingPage() {
             <img src="/logo.png" alt="Linktery" className="h-12 w-auto mix-blend-screen grayscale" />
             <span className="text-xl font-bold text-foreground/80 tracking-tight translate-y-[1px]">Linktery</span>
           </div>
-          <p className="text-sm text-muted-foreground">© 2026 Linktery. All rights reserved.</p>
+          <div className="flex items-center gap-6">
+            <Link to="/privacy" className="text-sm text-muted-foreground hover:text-accent transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="text-sm text-muted-foreground hover:text-accent transition-colors">Terms & Conditions</Link>
+            <p className="text-sm text-muted-foreground">© 2026 Linktery. All rights reserved.</p>
+          </div>
         </div>
       </footer>
     </div>

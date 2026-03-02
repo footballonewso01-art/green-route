@@ -13,10 +13,10 @@ const plans = [
         price: "0",
         description: "Perfect for getting started",
         features: [
-            { text: "4 Smart Links", icon: "🔗", tooltip: "Now includes 4 Smart Links on Free plan!" },
+            { text: "3 Smart Links", icon: "🔗", tooltip: "Includes 3 Smart Links on Free plan." },
             { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
             { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
-            { text: "Standard Support", icon: "💬" }
+            { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." }
         ],
         buttonText: "Start for Free",
         popular: false
@@ -51,9 +51,7 @@ const plans = [
             { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
             { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
             { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
-            { text: "Everything in Creator Pro", icon: "✅" },
-            { text: "Priority 24/7 Support", icon: "⚡" },
-            { text: "Team Access", icon: "👥" }
+            { text: "Everything in Creator Pro", icon: "✅" }
         ],
         buttonText: "Upgrade to Agency",
         popular: false
@@ -65,14 +63,14 @@ export default function DashboardPricing() {
     const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
     const [loading, setLoading] = useState(false);
 
-    const userPlan = ((user as any)?.plan as PlanType) || "creator";
+    const userPlan = ((user as { plan?: PlanType })?.plan) || "creator";
 
     const handleUpgrade = async (planId: string) => {
         if (userPlan === planId) return;
         setLoading(true);
         try {
             // Calculate +30 days if upgrading
-            const updateData: any = { plan: planId };
+            const updateData: Record<string, string> = { plan: planId };
             if (planId !== "creator") {
                 const expires = new Date();
                 expires.setDate(expires.getDate() + 30);
@@ -96,8 +94,8 @@ export default function DashboardPricing() {
 
             toast.success(`Successfully upgraded to ${planId.toUpperCase()}!`);
             await pb.collection("users").authRefresh();
-        } catch (e: any) {
-            toast.error(e.message || "Failed to upgrade");
+        } catch (e: unknown) {
+            toast.error((e as Error).message || "Failed to upgrade");
         } finally {
             setLoading(false);
         }

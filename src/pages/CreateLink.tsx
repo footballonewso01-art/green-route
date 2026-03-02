@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Globe, Smartphone, Clock, Shuffle, Loader2, Shield, Info, ExternalLink, Lock, Zap, CalendarRange } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { pb } from "@/lib/pocketbase";
+import { urlSchema } from "@/lib/validations";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { IconPicker } from '@/components/icons/IconPicker';
@@ -30,19 +31,19 @@ export default function CreateLink() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(!!id);
-  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; feature: string; description: string }>({
+  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; feature: string; description: string; planNeeded?: "pro" | "agency" }>({
     open: false,
     feature: "",
     description: "",
   });
 
-  const userPlan = (user as any)?.plan || "creator";
+  const userPlan = (user as { plan?: string })?.plan || "creator";
   const canDeepLink = checkPlan(userPlan, "deep_links");
 
   const [form, setForm] = useState({
     title: "",
     url: "",
-    slug: !id && !checkPlan((user as any)?.plan || "creator", "custom_slug") ? generateRandomSlug() : "",
+    slug: !id && !checkPlan((user as { plan?: string })?.plan || "creator", "custom_slug") ? generateRandomSlug() : "",
     show_on_profile: false,
     cloaking: false,
     icon_type: "none" as "preset" | "emoji" | "custom" | "none",
@@ -113,7 +114,7 @@ export default function CreateLink() {
             setGeoData(Object.entries(record.geo_targeting).map(([code, url]) => ({ code, url: url as string })));
           }
           if (record.device_targeting) {
-            setDeviceData(Object.entries(record.device_targeting).map(([type, url]) => ({ type: type as any, url: url as string })));
+            setDeviceData(Object.entries(record.device_targeting).map(([type, url]) => ({ type: type as "Mobile" | "Desktop" | "Tablet", url: url as string })));
           }
           if (record.split_urls) {
             setSplitUrls(record.split_urls);
@@ -121,7 +122,7 @@ export default function CreateLink() {
           if (record.bg_image) {
             setBgImagePreview(pb.files.getUrl(record, record.bg_image));
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           toast.error("Failed to fetch link details");
           navigate("/dashboard/links");
         } finally {
@@ -132,7 +133,7 @@ export default function CreateLink() {
     }
   }, [id, navigate]);
 
-  const update = (key: string, value: any) => setForm(prev => ({ ...prev, [key]: value }));
+  const update = (key: string, value: unknown) => setForm(prev => ({ ...prev, [key]: value }));
 
   const handleToggle = (key: keyof typeof form, featureKey: keyof PlanLimits, label: string, desc: string) => {
     if (checkPlan(userPlan, featureKey)) {
@@ -142,6 +143,7 @@ export default function CreateLink() {
         open: true,
         feature: label,
         description: desc,
+        planNeeded: featureKey === "ab_testing" ? "agency" : "pro"
       });
     }
   };
@@ -154,17 +156,30 @@ export default function CreateLink() {
         setForm(prev => ({ ...prev, icon_type: "preset", icon_value: detected }));
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.url, id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
+    if (!form.title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+
+    const urlValidation = urlSchema.safeParse(form.url);
+    if (!urlValidation.success) {
+      toast.error(urlValidation.error.errors[0].message);
+      return;
+    }
+    const validatedUrl = urlValidation.data;
+
     setLoading(true);
     try {
       const data = {
         title: form.title,
-        destination_url: form.url,
+        destination_url: validatedUrl,
         slug: form.slug,
         show_on_profile: form.show_on_profile,
         cloaking: form.cloaking,
@@ -226,13 +241,14 @@ export default function CreateLink() {
         toast.success("Link created successfully");
       }
       navigate("/dashboard/links");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Link save error:", error);
-      let errorMsg = error.message || "Failed to save link";
-      if (error.data && error.data.data) {
+      const err = error as { message?: string, data?: { data?: Record<string, { message: string }> } };
+      let errorMsg = err.message || "Failed to save link";
+      if (err.data && err.data.data) {
         // PocketBase validation errors are deeply nested in error.data.data
-        const details = Object.entries(error.data.data)
-          .map(([field, err]: [string, any]) => `${field}: ${err.message}`)
+        const details = Object.entries(err.data.data)
+          .map(([field, fieldErr]) => `${field}: ${fieldErr.message}`)
           .join(", ");
         if (details) errorMsg += ` (${details})`;
       }
@@ -344,7 +360,8 @@ export default function CreateLink() {
                   onClick={() => setUpgradeModal({
                     open: true,
                     feature: "Custom Slugs",
-                    description: "Create memorable, branded links (e.g. /my-promo) with the Agency plan."
+                    description: "Create memorable, branded links (e.g. /my-promo) with the Agency plan.",
+                    planNeeded: "agency"
                   })}
                   className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[10px] font-bold text-accent uppercase tracking-wider cursor-pointer hover:bg-accent/20 transition-colors"
                 >
@@ -467,6 +484,7 @@ export default function CreateLink() {
                     open: true,
                     feature: "Deeplinks",
                     description: "Optimize link routing through social apps for maximum conversion. Available on Pro.",
+                    planNeeded: "pro"
                   });
                 }
               }}
@@ -593,7 +611,7 @@ export default function CreateLink() {
                     <div key={i} className="flex gap-2">
                       <select value={d.type} onChange={(e) => {
                         const next = [...deviceData];
-                        next[i].type = e.target.value as any;
+                        next[i].type = e.target.value as "Mobile" | "Desktop" | "Tablet";
                         setDeviceData(next);
                       }} className="w-28 px-3 py-2 rounded-lg bg-surface border border-border text-xs">
                         <option value="Mobile">Mobile</option>
@@ -690,6 +708,7 @@ export default function CreateLink() {
         onClose={() => setUpgradeModal((prev) => ({ ...prev, open: false }))}
         featureName={upgradeModal.feature}
         description={upgradeModal.description}
+        planNeeded={upgradeModal.planNeeded}
       />
 
       {/* Image Cropper Modal */}
@@ -758,7 +777,7 @@ function ToggleRow({
   disabled,
   lockedTooltip
 }: {
-  icon: any;
+  icon: React.ElementType;
   label: string;
   description: string;
   checked: boolean;

@@ -9,7 +9,7 @@ export default function RedirectHandler() {
     const navigate = useNavigate();
     const [status, setStatus] = useState<"loading" | "verifying" | "error" | "deeplink" | "profile">("loading");
     const [error, setError] = useState<string | null>(null);
-    const [linkData, setLinkData] = useState<any>(null);
+    const [linkData, setLinkData] = useState<Record<string, unknown> | null>(null);
     const [destination, setDestination] = useState<string>("");
 
     useEffect(() => {
@@ -211,7 +211,7 @@ export default function RedirectHandler() {
                     window.location.replace(finalDestination);
                 }
 
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error("Redirection error:", err);
                 setStatus("error");
                 setError("An error occurred during redirection");

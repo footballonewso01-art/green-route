@@ -1,0 +1,44 @@
+LinkItemCard.tsx:
+  32:49 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  46:59 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+IconPicker.tsx:
+  119:8 react-hooks/exhaustive-deps - React Hook useEffect has a missing dependency: 'anchorRef'. Either include it or remove the dependency array.
+badge.tsx:
+  29:17 react-refresh/only-export-components - Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+button.tsx:
+  47:18 react-refresh/only-export-components - Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+command.tsx:
+  24:11 @typescript-eslint/no-empty-object-type - An interface declaring no members is equivalent to its supertype.
+form.tsx:
+  129:10 react-refresh/only-export-components - Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+navigation-menu.tsx:
+  111:3 react-refresh/only-export-components - Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+sidebar.tsx:
+  636:3 react-refresh/only-export-components - Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+sonner.tsx:
+  27:19 react-refresh/only-export-components - Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+textarea.tsx:
+  5:18 @typescript-eslint/no-empty-object-type - An interface declaring no members is equivalent to its supertype.
+toggle.tsx:
+  37:18 react-refresh/only-export-components - Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+DashboardHome.tsx:
+  68:23 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+Index.tsx:
+  6:58 react-hooks/exhaustive-deps - React Hook useEffect has a missing dependency: 'navigate'. Either include it or remove the dependency array.
+InterstitialPage.tsx:
+  9:28 no-self-assign - 'window.location.href' is assigned to itself.
+LandingPage.tsx:
+  86:105 no-sparse-arrays - Unexpected comma in middle of array.
+  101:29 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+LoginPage.tsx:
+  20:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  45:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+PricingPage.tsx:
+  59:29 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  88:46 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+RedirectHandler.tsx:
+  12:46 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  214:27 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+AdminLinks.tsx:
+  48:38 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  60:8 react-hooks/exhaustive-deps - React Hook useEffect has a missing dependency: 'fetchLinks'. Either include it or remove the dependency array.

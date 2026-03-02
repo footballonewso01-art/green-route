@@ -1,0 +1,24 @@
+AnalyticsPage.tsx:
+  38:29 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  61:3 react-hooks/rules-of-hooks - React Hook "useEffect" is called conditionally. React Hooks must be called in the exact same order in every component render.
+  178:23 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+Billing.tsx:
+  24:30 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  25:37 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  38:41 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+DashboardPricing.tsx:
+  68:32 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  75:31 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  99:21 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+PublicProfile.tsx:
+  17:18 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  88:23 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  181:52 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+AdminOverview.tsx:
+  15:48 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  21:8 react-hooks/exhaustive-deps - React Hook useEffect has a missing dependency: 'fetchStats'. Either include it or remove the dependency array.
+  90:107 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+AdminUsers.tsx:
+  40:38 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.
+  52:8 react-hooks/exhaustive-deps - React Hook useEffect has a missing dependency: 'fetchUsers'. Either include it or remove the dependency array.
+  56:31 @typescript-eslint/no-explicit-any - Unexpected any. Specify a different type.

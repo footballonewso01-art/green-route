@@ -65,8 +65,8 @@ export default function DashboardHome() {
 
         setTrendData(last7Days.map(({ name, clicks }) => ({ name, clicks })));
 
-      } catch (error: any) {
-        if (!error.isAbort) {
+      } catch (error: unknown) {
+        if (!(error as { isAbort?: boolean }).isAbort) {
           toast.error("Failed to load dashboard data");
         }
       } finally {

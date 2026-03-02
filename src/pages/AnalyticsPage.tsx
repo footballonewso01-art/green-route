@@ -35,30 +35,11 @@ export default function AnalyticsPage() {
   const [recentActivities, setRecentActivities] = useState<ClickRecord[]>([]);
   const [heatmapData, setHeatmapData] = useState<number[][]>(Array.from({ length: 7 }, () => Array(24).fill(0)));
 
-  const userPlan = (user as any)?.plan || "creator";
+  const userPlan = (user as { plan?: string })?.plan || "creator";
   const canUseAnalytics = checkPlan(userPlan, "analytics");
 
-  if (!canUseAnalytics) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
-        <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center border border-accent/20 relative">
-          <BarChart3 className="w-10 h-10 text-accent opacity-50" />
-          <Lock className="w-6 h-6 text-foreground absolute -bottom-1 -right-1" />
-        </div>
-        <div className="text-center space-y-2">
-          <h2 className="text-3xl font-bold text-foreground">Advanced Analytics</h2>
-          <p className="text-muted-foreground max-w-sm mx-auto">
-            Unlock detailed click statistics, geographic data, and device insights with Creator Pro.
-          </p>
-        </div>
-        <Link to="/dashboard/pricing" className="btn-primary-glow px-8 py-3 mt-4">
-          Upgrade to Creator Pro
-        </Link>
-      </div>
-    );
-  }
-
   useEffect(() => {
+    if (!canUseAnalytics) return;
     const fetchAnalytics = async () => {
       setLoading(true);
       try {
@@ -155,7 +136,7 @@ export default function AnalyticsPage() {
 
         // Process Trends
         const days: Record<string, number> = {};
-        let daysToLookBack = period === "24h" ? 1 : period === "7d" ? 7 : period === "30d" ? 30 : 90;
+        const daysToLookBack = period === "24h" ? 1 : period === "7d" ? 7 : period === "30d" ? 30 : 90;
         for (let i = 0; i < daysToLookBack; i++) {
           const d = new Date();
           d.setDate(d.getDate() - i);
@@ -175,14 +156,34 @@ export default function AnalyticsPage() {
         });
         setHeatmapData(heatmap);
 
-      } catch (error: any) {
+      } catch (error: unknown) {
         toast.error("Failed to fetch analytics");
       } finally {
         setLoading(false);
       }
     };
     fetchAnalytics();
-  }, [linkId, period]);
+  }, [linkId, period, canUseAnalytics]);
+
+  if (!canUseAnalytics) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+        <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center border border-accent/20 relative">
+          <BarChart3 className="w-10 h-10 text-accent opacity-50" />
+          <Lock className="w-6 h-6 text-foreground absolute -bottom-1 -right-1" />
+        </div>
+        <div className="text-center space-y-2">
+          <h2 className="text-3xl font-bold text-foreground">Advanced Analytics</h2>
+          <p className="text-muted-foreground max-w-sm mx-auto">
+            Unlock detailed click statistics, geographic data, and device insights with Creator Pro.
+          </p>
+        </div>
+        <Link to="/dashboard/pricing" className="btn-primary-glow px-8 py-3 mt-4">
+          Upgrade to Creator Pro
+        </Link>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
