@@ -5,29 +5,21 @@ import { getPresetIcon } from './presets';
 interface IconRendererProps {
     type: string | string[] | undefined | null;
     value: string | undefined;
-    url?: string; // New: destination URL for favicon fetch
+    url?: string;
     className?: string;
-    fallback?: boolean; // If true, renders a Globe (or favicon) when no icon is set
+    fallback?: boolean;
 }
 
-/**
- * Normalizes PocketBase select field values.
- * PocketBase `select` fields can return values as arrays (e.g., ["preset"]).
- */
 function normalizeType(type: string | string[] | undefined | null): string {
     if (!type) return "none";
     if (Array.isArray(type)) return type[0] || "none";
     return type;
 }
 
-/**
- * Extracts domain for favicon API.
- */
 function getDomain(url?: string): string | null {
     if (!url) return null;
     try {
-        const domain = new URL(url).hostname;
-        return domain;
+        return new URL(url).hostname;
     } catch {
         return null;
     }
@@ -40,10 +32,17 @@ export function IconRenderer({ type, value, url, className = "w-5 h-5", fallback
         const preset = getPresetIcon(value);
         if (!preset) return <Fallback url={url} className={className} fallback={fallback} />;
 
+        // Inject width/height into SVG for mobile compatibility
+        const svgWithDimensions = preset.svg.replace(
+            '<svg ',
+            '<svg width="100%" height="100%" '
+        );
+
         return (
             <div
-                className={`flex items-center justify-center ${className} fill-current text-current`}
-                dangerouslySetInnerHTML={{ __html: preset.svg }}
+                className={`flex items-center justify-center ${className}`}
+                style={{ minWidth: 0, minHeight: 0 }}
+                dangerouslySetInnerHTML={{ __html: svgWithDimensions }}
             />
         );
     }
@@ -61,17 +60,43 @@ export function IconRenderer({ type, value, url, className = "w-5 h-5", fallback
             <img
                 src={value}
                 alt="Custom icon"
-                className="w-full h-full object-cover"
+                className={`${className} object-cover`}
             />
         );
     }
 
-    // No icon set → render fallback favicon or Globe
     return <Fallback url={url} className={className} fallback={fallback} />;
 }
 
 function Fallback({ url, className, fallback }: { url?: string, className: string, fallback: boolean }) {
     if (!fallback) return null;
+
+    // Try favicon from destination URL
+    const domain = getDomain(url);
+    if (domain) {
+        return (
+            <img
+                src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
+                alt=""
+                className={`${className} object-contain`}
+                onError={(e) => {
+                    // If favicon fails, replace with Globe
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent) {
+                        parent.innerHTML = '';
+                        // Fallback to text icon
+                        const span = document.createElement('span');
+                        span.className = className;
+                        span.textContent = '🔗';
+                        parent.appendChild(span);
+                    }
+                }}
+            />
+        );
+    }
+
     return <Globe className={className} />;
 }
 
