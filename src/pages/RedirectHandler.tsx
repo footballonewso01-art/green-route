@@ -24,11 +24,11 @@ export default function RedirectHandler() {
     // ── bfcache handler: if the page is restored from cache, re-resolve ──
     useEffect(() => {
         const handlePageShow = (e: PageTransitionEvent) => {
-            if (e.persisted && !redirected.current) {
+            if (e.persisted) {
                 // Page was restored from bfcache after user hit Back
-                // Re-trigger the resolution
-                setStatus("loading");
+                // Reset everything and re-resolve
                 redirected.current = false;
+                setStatus("loading");
             }
         };
         window.addEventListener("pageshow", handlePageShow);
@@ -110,23 +110,25 @@ export default function RedirectHandler() {
             }
 
             try {
-                // Step 1: Resolve slug → link or username → profile
-                let link: Record<string, unknown> | null = null;
-                try {
-                    link = await pb.collection('links').getFirstListItem(`slug="${username}"`);
-                } catch {
-                    // Not a link — check user profile
-                    try {
-                        const userProfile = await pb.collection('users').getFirstListItem(`username="${username}"`);
-                        if (userProfile) {
-                            setStatus("profile");
-                            return;
-                        }
-                    } catch {
-                        setStatus("error");
-                        setError("Link not found or inactive");
-                        return;
-                    }
+                // Step 1: PARALLEL resolution — link AND user at once (halves latency)
+                const [linkResult, userResult] = await Promise.allSettled([
+                    pb.collection('links').getFirstListItem(`slug="${username}"`),
+                    pb.collection('users').getFirstListItem(`username="${username}"`)
+                ]);
+
+                const link = linkResult.status === 'fulfilled' ? linkResult.value : null;
+                const userProfile = userResult.status === 'fulfilled' ? userResult.value : null;
+
+                // Profile takes priority if no active link found
+                if (!link && userProfile) {
+                    setStatus("profile");
+                    return;
+                }
+
+                if (!link && !userProfile) {
+                    setStatus("error");
+                    setError("Link not found or inactive");
+                    return;
                 }
 
                 if (!link || !link.active) {
