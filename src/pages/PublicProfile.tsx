@@ -136,7 +136,7 @@ export default function PublicProfile() {
   const currentThemeClass = THEME_STYLES[profile.theme] || THEME_STYLES["minimal-dark"];
 
   return (
-    <div className={`min-h-screen ${currentThemeClass} relative overflow-hidden flex items-start justify-center px-4 pt-4 sm:pt-8 transition-colors duration-700`}
+    <div className={`min-h-screen ${currentThemeClass} relative overflow-hidden flex items-start justify-center sm:px-4 pt-0 transition-colors duration-700`}
       style={profile.theme === "custom" && profile.custom_theme_bg ? {
         backgroundImage: `url('${profile.custom_theme_bg}')`,
         backgroundSize: "cover",
@@ -150,7 +150,7 @@ export default function PublicProfile() {
       <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-accent/10 blur-[150px] rounded-full pointer-events-none opacity-30 z-0" />
 
       {/* Main Profile Card */}
-      <div className="w-full max-w-[528px] bg-black sm:rounded-[1.5rem] min-h-[100dvh] sm:min-h-[95vh] sm:mt-[2vh] sm:mb-[2vh] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8),0_0_40px_rgba(0,0,0,0.4)] animate-fade-in relative z-10 flex flex-col">
+      <div className="w-full max-w-[528px] bg-black sm:rounded-[1.5rem] min-h-[100dvh] sm:min-h-[98vh] sm:mt-[1vh] sm:mb-[1vh] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8),0_0_40px_rgba(0,0,0,0.4)] animate-fade-in relative z-10 flex flex-col">
 
         {/* Top Header with Avatar and Fade */}
         <div className="relative aspect-[10/8] w-full overflow-hidden shrink-0">
