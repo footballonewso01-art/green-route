@@ -153,7 +153,7 @@ export default function PublicProfile() {
       <div className="w-full max-w-[528px] bg-black rounded-[1.5rem] min-h-[95vh] mt-[2vh] sm:mt-[0vh] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8),0_0_40px_rgba(0,0,0,0.4)] animate-fade-in relative z-10 flex flex-col">
 
         {/* Top Header with Avatar and Fade */}
-        <div className="relative aspect-[10/9] w-full overflow-hidden shrink-0">
+        <div className="relative aspect-[10/8] w-full overflow-hidden shrink-0">
           {profile.full_avatar_url ? (
             <img
               src={profile.full_avatar_url}

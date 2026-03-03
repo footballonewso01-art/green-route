@@ -798,7 +798,7 @@ export default function DashboardProfile() {
               >
                 <div className="flex flex-col flex-1 overflow-y-auto no-scrollbar relative z-10 pb-10">
                   {/* Top Header with Avatar and Fade */}
-                  <div className="relative aspect-[10/9] w-full overflow-hidden shrink-0">
+                  <div className="relative aspect-[10/8] w-full overflow-hidden shrink-0">
                     {avatarPreview ? (
                       <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover object-top" />
                     ) : (
