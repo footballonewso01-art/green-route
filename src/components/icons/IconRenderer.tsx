@@ -60,7 +60,7 @@ export function IconRenderer({ type, value, url, className = "w-5 h-5", fallback
             <img
                 src={value}
                 alt="Custom icon"
-                className={`${className} object-cover`}
+                className="w-full h-full object-cover"
             />
         );
     }
