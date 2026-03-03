@@ -150,7 +150,7 @@ export default function PublicProfile() {
       <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-accent/10 blur-[150px] rounded-full pointer-events-none opacity-30 z-0" />
 
       {/* Main Profile Card */}
-      <div className="w-full max-w-[528px] bg-black rounded-[1.5rem] min-h-[95vh] mt-[2vh] sm:mt-[0vh] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8),0_0_40px_rgba(0,0,0,0.4)] animate-fade-in relative z-10 flex flex-col">
+      <div className="w-full max-w-[528px] bg-black sm:rounded-[1.5rem] min-h-[100dvh] sm:min-h-[95vh] sm:mt-[2vh] sm:mb-[2vh] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8),0_0_40px_rgba(0,0,0,0.4)] animate-fade-in relative z-10 flex flex-col">
 
         {/* Top Header with Avatar and Fade */}
         <div className="relative aspect-[10/8] w-full overflow-hidden shrink-0">
@@ -172,7 +172,7 @@ export default function PublicProfile() {
         </div >
 
         {/* Profile Content */}
-        <div className="px-5 pb-32 -mt-10 relative">
+        <div className="px-5 pb-10 -mt-10 relative flex-1 flex flex-col">
           <div className="text-center space-y-1">
             <h1 className="text-3xl font-black tracking-tight text-white drop-shadow-lg">
               {profile.name}
@@ -254,7 +254,7 @@ export default function PublicProfile() {
                         />
                       </div>
 
-                      <div className={`${link.size === 'large' ? 'mt-auto text-left w-full' : 'text-center px-12'}`}>
+                      <div className={`${link.size === 'large' ? 'mt-auto text-center w-full px-12' : 'text-center px-12'}`}>
                         <span className={`block font-bold text-white group-hover:text-accent transition-colors uppercase tracking-wider ${link.size === 'large' ? 'text-lg drop-shadow-lg' : 'text-sm'}`}>
                           {link.title || `/${link.slug}`}
                         </span>
@@ -270,10 +270,10 @@ export default function PublicProfile() {
             )}
           </div>
 
-          {/* Footer Branding */}
-          {
-            !checkPlan(profile.plan, "remove_branding") && (
-              <div className="mt-8 mb-2 text-center">
+          {/* Footer Branding & Legal */}
+          <div className="mt-auto pt-16 flex flex-col items-center gap-6 pb-2">
+            {!checkPlan(profile.plan, "remove_branding") && (
+              <div className="text-center">
                 <a href="/" className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground/50 hover:text-white transition-colors group">
                   <span className="uppercase tracking-widest font-medium translate-y-[1px]">Powered by</span>
                   <span className="font-black flex items-center gap-1 group-hover:opacity-100">
@@ -282,8 +282,15 @@ export default function PublicProfile() {
                   </span>
                 </a>
               </div>
-            )
-          }
+            )}
+
+            {/* Legal Links */}
+            <div className="flex items-center gap-3 text-[10px] uppercase font-bold tracking-widest text-white/20 relative z-50">
+              <a href="/privacy" className="hover:text-white/60 transition-colors pointer-events-auto">Privacy Policy</a>
+              <span>|</span>
+              <a href="/terms" className="hover:text-white/60 transition-colors pointer-events-auto">Terms & Conditions</a>
+            </div>
+          </div>
         </div >
       </div >
     </div >

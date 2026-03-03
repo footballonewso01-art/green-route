@@ -863,7 +863,7 @@ export default function DashboardProfile() {
                                     <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className={`${link.size === 'large' ? 'w-4 h-4' : 'w-5 h-5'} text-white/90 drop-shadow-md`} />
                                   </div>
                                 </div>
-                                <div className={`${link.size === 'large' ? 'mt-auto text-left w-full' : 'text-center px-10'}`}>
+                                <div className={`${link.size === 'large' ? 'mt-auto text-center w-full px-10' : 'text-center px-10'}`}>
                                   <span className={`font-bold text-white group-hover:scale-[1.02] transition-transform block uppercase tracking-wider ${link.size === 'large' ? 'text-sm drop-shadow-lg' : 'text-xs'}`}>{link.title || "Untitled Link"}</span>
                                 </div>
                               </div>
