@@ -168,7 +168,7 @@ export default function PublicProfile() {
             </div>
           )}
           {/* Fade to Black Overlay - Lower and softer */}
-          <div className="absolute -bottom-1 left-0 w-full h-[75%] bg-gradient-to-t from-black from-15% via-black/60 to-transparent transition-all duration-700 pointer-events-none" />
+          <div className="absolute -bottom-1 left-0 w-full h-[68%] bg-gradient-to-t from-black from-15% via-black/60 to-transparent transition-all duration-700 pointer-events-none" />
         </div >
 
         {/* Profile Content */}
