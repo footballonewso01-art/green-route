@@ -68,35 +68,11 @@ export function IconRenderer({ type, value, url, className = "w-5 h-5", fallback
     return <Fallback url={url} className={className} fallback={fallback} />;
 }
 
-function Fallback({ url, className, fallback }: { url?: string, className: string, fallback: boolean }) {
+function Fallback({ className, fallback }: { url?: string, className: string, fallback: boolean }) {
     if (!fallback) return null;
 
-    // Try favicon from destination URL
-    const domain = getDomain(url);
-    if (domain) {
-        return (
-            <img
-                src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
-                alt=""
-                className={`${className} object-contain`}
-                onError={(e) => {
-                    // If favicon fails, replace with Globe
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                    const parent = target.parentElement;
-                    if (parent) {
-                        parent.innerHTML = '';
-                        // Fallback to text icon
-                        const span = document.createElement('span');
-                        span.className = className;
-                        span.textContent = '🔗';
-                        parent.appendChild(span);
-                    }
-                }}
-            />
-        );
-    }
-
+    // Always use the consistent Lucide vector globe as requested.
+    // (Removed Google Favicon API to avoid random low-poly planets)
     return <Globe className={className} />;
 }
 
