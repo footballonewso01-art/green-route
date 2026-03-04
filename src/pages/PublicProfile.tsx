@@ -230,7 +230,7 @@ export default function PublicProfile() {
                       // Use replace so /${slug} never enters history → Back returns to profile
                       window.location.replace(`/${link.slug}`);
                     }}
-                    className={`group relative block w-full bg-[#111] hover:bg-[#161616] border border-white/5 hover:border-accent/30 rounded-2xl transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${link.size === 'large' ? 'aspect-[10/4.3]' : 'py-[14px] px-4'}`}
+                    className={`group relative block w-full bg-[#111] hover:bg-[#161616] border border-white/5 hover:border-accent/30 rounded-2xl transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${link.size === 'large' ? 'aspect-[10/6] sm:aspect-[10/4.3]' : 'py-[14px] px-4'}`}
                   >
                     {/* Size Large Custom Background */}
                     {bgImageUrl && (

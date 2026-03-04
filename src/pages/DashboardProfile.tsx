@@ -843,7 +843,7 @@ export default function DashboardProfile() {
                             : null;
 
                           return (
-                            <div key={link.id} className={`w-full rounded-2xl bg-[#111] border border-white/5 hover:bg-[#161616] hover:border-white/20 transition-all group cursor-pointer shadow-lg shadow-black/5 relative overflow-hidden flex ${link.size === 'large' ? 'flex-col p-3 aspect-[10/5.4]' : 'h-[40px] items-center justify-center'}`}>
+                            <div key={link.id} className={`w-full rounded-2xl bg-[#111] border border-white/5 hover:bg-[#161616] hover:border-white/20 transition-all group cursor-pointer shadow-lg shadow-black/5 relative overflow-hidden flex ${link.size === 'large' ? 'flex-col p-3 aspect-[10/6] sm:aspect-[10/5.4]' : 'h-[40px] items-center justify-center'}`}>
 
                               {/* Large Size Background Map */}
                               {bgImageUrl && (

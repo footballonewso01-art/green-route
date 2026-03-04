@@ -5,7 +5,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
 import { PlanType, PLAN_RANKS } from "@/lib/plans";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
-import heroDashboard from "@/assets/hero-dashboard.jpg";
 
 const features = [
   {
@@ -209,10 +208,10 @@ export default function LandingPage() {
           </div>
 
           {/* Dashboard Preview */}
-          <div className="mt-16 relative">
+          <div className="mt-16 mx-auto max-w-5xl relative">
             <div className="absolute inset-0 bg-accent/10 blur-3xl rounded-3xl" />
             <div className="relative glass-card p-2 rounded-2xl overflow-hidden shadow-glow">
-              <img src={heroDashboard} alt="Linktery Dashboard" className="w-full rounded-xl" />
+              <img src="/mainstat.png" alt="Linktery Dashboard" className="w-full rounded-xl shadow-2xl" />
             </div>
           </div>
         </div>
