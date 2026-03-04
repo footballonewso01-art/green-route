@@ -218,22 +218,78 @@ routerAdd("GET", "/{slug}", (c) => {
             link.get("interstitial_enabled");
 
         if (!hasComplexLogic) {
-            // LOG ANALYTICS (Background-ish)
+            // HIGH-PERFORMANCE ANALYTICS TRACKING
             try {
-                const analyticsColl = $app.dao().findCollectionByNameOrId("analytics_events");
-                const event = new Record(analyticsColl, {
-                    "event_name": "link_click",
-                    "user_id": link.id, // Using link ID as reference
-                    "metadata": JSON.stringify({
-                        "slug": slug,
-                        "type": "server_fast",
-                        "ua": c.request().header.get("User-Agent"),
-                        "ip": c.realIp()
-                    })
-                });
-                $app.dao().saveRecord(event);
+                const request = c.request();
+                const uaStr = request.header.get("User-Agent") || "";
+
+                // Bot detection
+                const isBot = /bot|crawler|spider|criteo|facebookexternalhit|google|bing|twitter|linkedin|instagram|tiktok/i.test(uaStr);
+
+                if (!isBot) {
+                    let os = "Other";
+                    if (/Windows/i.test(uaStr)) os = "Windows";
+                    else if (/iPhone|iPad|iPod/i.test(uaStr)) os = "iOS";
+                    else if (/Android/i.test(uaStr)) os = "Android";
+                    else if (/Macintosh/i.test(uaStr)) os = "macOS";
+                    else if (/Linux/i.test(uaStr)) os = "Linux";
+
+                    let browser = "Other";
+                    if (/Instagram/i.test(uaStr)) browser = "Instagram";
+                    else if (/TikTok/i.test(uaStr)) browser = "TikTok";
+                    else if (/FBAN|FBAV/i.test(uaStr)) browser = "Facebook";
+                    else if (/Chrome/i.test(uaStr)) browser = "Chrome";
+                    else if (/Safari/i.test(uaStr)) browser = "Safari";
+                    else if (/Firefox/i.test(uaStr)) browser = "Firefox";
+                    else if (/Edg/i.test(uaStr)) browser = "Edge";
+
+                    let device = "Desktop";
+                    if (/Mobi|Android/i.test(uaStr)) device = "Mobile";
+                    else if (/Tablet|iPad/i.test(uaStr)) device = "Tablet";
+
+                    let referrer = "Direct";
+                    const ref = request.header.get("Referer") || "";
+                    if (ref) {
+                        try {
+                            if (ref.includes("instagram.com")) referrer = "Instagram";
+                            else if (ref.includes("t.co") || ref.includes("twitter.com")) referrer = "Twitter";
+                            else if (ref.includes("facebook.com")) referrer = "Facebook";
+                            else if (ref.includes("tiktok.com")) referrer = "TikTok";
+                            else if (ref.includes("google.com")) referrer = "Google";
+                            else referrer = ref.split("/")[2] || "Other";
+                        } catch (e) { }
+                    }
+
+                    let country = request.header.get("CF-IPCountry") || "Unknown";
+
+                    const cookieHeader = request.header.get("Cookie") || "";
+                    const cookieName = "gr_visit_" + link.id;
+                    const isUnique = !cookieHeader.includes(cookieName);
+
+                    if (isUnique) {
+                        c.response().header().add("Set-Cookie", cookieName + "=1; Path=/; Max-Age=86400; HttpOnly");
+                    }
+
+                    const clicksColl = $app.dao().findCollectionByNameOrId("clicks");
+                    const clickRecord = new Record(clicksColl, {
+                        "link_id": link.id,
+                        "country": country,
+                        "device": device,
+                        "os": os,
+                        "browser": browser,
+                        "referrer": referrer,
+                        "is_unique": isUnique,
+                        "user_agent": uaStr.length > 200 ? uaStr.substring(0, 200) : uaStr,
+                        "ip": "masked" // Masked IP for privacy
+                    });
+                    $app.dao().saveRecord(clickRecord);
+
+                    // Increment clicks_count manually to match what frontend used to do
+                    link.set("clicks_count", link.get("clicks_count") + 1);
+                    $app.dao().saveRecord(link);
+                }
             } catch (err) {
-                // Silently fail analytics to ensure redirect speed
+                $app.logger().error("Fast tracking error: " + err);
             }
 
             // Perform instant 302 redirect
