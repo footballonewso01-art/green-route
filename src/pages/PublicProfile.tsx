@@ -270,10 +270,10 @@ export default function PublicProfile() {
             )}
           </div>
 
-          {/* Footer Branding & Legal */}
-          <div className="mt-auto pt-16 flex flex-col items-center gap-6 pb-8">
+          {/* Footer Branding & Legal - Pushed to absolute bottom */}
+          <div className="mt-auto pt-16 flex flex-col items-center gap-6 pb-8 justify-end flex-grow">
             {!checkPlan(profile.plan, "remove_branding") && (
-              <div className="text-center">
+              <div className="text-center mt-auto">
                 <a href="/" className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground/50 hover:text-white transition-colors group">
                   <span className="uppercase tracking-widest font-medium translate-y-[1px]">Powered by</span>
                   <span className="font-black flex items-center gap-1 group-hover:opacity-100">
