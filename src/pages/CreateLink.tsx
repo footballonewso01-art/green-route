@@ -163,8 +163,8 @@ export default function CreateLink() {
     e.preventDefault();
     if (!user) return;
 
-    if (!form.title.trim()) {
-      toast.error("Title is required");
+    if (form.show_on_profile && !form.title.trim()) {
+      toast.error("Title is required for profile links");
       return;
     }
 

@@ -193,3 +193,55 @@ onRecordAfterCreateRequest((e) => {
     }
 }, "billing");
 
+// 9. Extreme Optimization: High-Performance Server-Side Redirects
+// This handles simple redirects directly at the server level, bypassing the React frontend for maximum speed.
+routerAdd("GET", "/{slug}", (c) => {
+    const slug = c.pathParam("slug");
+
+    // Skip known static files and frontend routes
+    const reserved = ["dashboard", "login", "register", "privacy", "terms", "api", "_", "logo.png", "favicon.ico", "assets"];
+    if (reserved.some(r => slug.startsWith(r)) || slug.includes(".")) {
+        return c.next();
+    }
+
+    try {
+        // Try to find an active link with this slug
+        const link = $app.dao().findFirstRecordByFilter("links", "slug = {:slug} && active = true", { slug: slug });
+
+        // Check if there is complex logic involved
+        // If geo-targeting, device-targeting, split testing, or interstitial is enabled,
+        // we let the React frontend handle it for full feature support (browser detection, etc.)
+        const hasComplexLogic =
+            link.get("geo_targeting") ||
+            link.get("device_targeting") ||
+            link.get("ab_split") ||
+            link.get("interstitial_enabled");
+
+        if (!hasComplexLogic) {
+            // LOG ANALYTICS (Background-ish)
+            try {
+                const analyticsColl = $app.dao().findCollectionByNameOrId("analytics_events");
+                const event = new Record(analyticsColl, {
+                    "event_name": "link_click",
+                    "user_id": link.id, // Using link ID as reference
+                    "metadata": JSON.stringify({
+                        "slug": slug,
+                        "type": "server_fast",
+                        "ua": c.request().header.get("User-Agent"),
+                        "ip": c.realIp()
+                    })
+                });
+                $app.dao().saveRecord(event);
+            } catch (err) {
+                // Silently fail analytics to ensure redirect speed
+            }
+
+            // Perform instant 302 redirect
+            return c.redirect(302, link.get("destination_url"));
+        }
+    } catch (e) {
+        // Slug not found in links, fall through to SPA (might be a user profile)
+    }
+
+    return c.next();
+});

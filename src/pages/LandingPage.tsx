@@ -211,7 +211,7 @@ export default function LandingPage() {
           <div className="mt-16 mx-auto max-w-5xl relative">
             <div className="absolute inset-0 bg-accent/10 blur-3xl rounded-3xl" />
             <div className="relative glass-card p-2 rounded-2xl overflow-hidden shadow-glow">
-              <img src="/mainstat.png" alt="Linktery Dashboard" className="w-full rounded-xl shadow-2xl" />
+              <img src="/mainstat.png" alt="Linktery Dashboard" className="w-full rounded-xl shadow-2xl" fetchPriority="high" loading="eager" />
             </div>
           </div>
         </div>
@@ -346,30 +346,19 @@ export default function LandingPage() {
                     </ul>
 
                     {user ? (
-                      <Link
-                        to={isCurrent ? "#" : "/dashboard/pricing"}
-                        className={`block text-center py-4 rounded-2xl font-bold transition-all duration-300 transform active:scale-95 ${isDisabled
-                          ? (isCurrent ? "bg-surface-hover border border-white/10 text-white cursor-default" : "bg-surface-hover text-muted-foreground pointer-events-none opacity-80")
-                          : (shouldHighlight
-                            ? "btn-primary-glow"
-                            : "bg-surface border border-border text-foreground hover:bg-surface-hover shadow-sm")
-                          }`}
+                      <button
+                        disabled
+                        className={`w-full text-center py-4 rounded-2xl font-bold transition-all duration-300 bg-surface-hover border border-white/10 text-muted-foreground cursor-not-allowed opacity-80`}
                       >
-                        {isCurrent ? (
-                          <span className="text-white">Your Current Plan</span>
-                        ) : isDowngrade ? (
-                          "Downgrade Unavailable"
-                        ) : (
-                          "Upgrade"
-                        )}
-                      </Link>
+                        {isCurrent ? "Your Current Plan" : "Upgrade (Beta)"}
+                      </button>
                     ) : (
-                      <Link
-                        to="/register"
-                        className={`block text-center py-4 rounded-2xl font-bold transition-all duration-300 transform active:scale-95 ${plan.id === "pro" ? "btn-primary-glow" : "bg-surface border border-border text-foreground hover:bg-surface-hover shadow-sm"}`}
+                      <button
+                        disabled
+                        className={`w-full text-center py-4 rounded-2xl font-bold transition-all duration-300 bg-surface-hover border border-border text-muted-foreground cursor-not-allowed opacity-80`}
                       >
-                        {plan.buttonText}
-                      </Link>
+                        {plan.id === "creator" ? "Get Started" : "Upgrade (Beta)"}
+                      </button>
                     )}
                   </div>
                   {showPopularBadge && (
