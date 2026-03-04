@@ -153,7 +153,7 @@ export default function PublicProfile() {
       <div className="w-full max-w-[528px] bg-black sm:rounded-[1.5rem] min-h-[100dvh] sm:min-h-[98vh] sm:mt-[1vh] sm:mb-[1vh] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8),0_0_40px_rgba(0,0,0,0.4)] animate-fade-in relative z-10 flex flex-col">
 
         {/* Top Header with Avatar and Fade */}
-        <div className="relative aspect-[10/8] w-full overflow-hidden shrink-0">
+        <div className="relative aspect-[10/7] w-full overflow-hidden shrink-0">
           {profile.full_avatar_url ? (
             <img
               src={profile.full_avatar_url}
@@ -172,7 +172,7 @@ export default function PublicProfile() {
         </div >
 
         {/* Profile Content */}
-        <div className="px-5 pb-10 -mt-10 relative flex-1 flex flex-col">
+        <div className="px-5 pb-16 -mt-10 relative flex-1 flex flex-col">
           <div className="text-center space-y-1">
             <h1 className="text-3xl font-black tracking-tight text-white drop-shadow-lg">
               {profile.name}
@@ -271,7 +271,7 @@ export default function PublicProfile() {
           </div>
 
           {/* Footer Branding & Legal */}
-          <div className="mt-auto pt-16 flex flex-col items-center gap-6 pb-2">
+          <div className="mt-auto pt-16 flex flex-col items-center gap-6 pb-8">
             {!checkPlan(profile.plan, "remove_branding") && (
               <div className="text-center">
                 <a href="/" className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground/50 hover:text-white transition-colors group">
