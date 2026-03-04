@@ -370,15 +370,17 @@ export default function CreateLink() {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground bg-surface px-3 py-2.5 rounded-xl border border-border border-r-0 rounded-r-none">{window.location.host}/</span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-0 sm:gap-2">
+              <span className="text-[12px] sm:text-sm text-muted-foreground bg-surface px-3 py-2 sm:py-2.5 rounded-t-xl sm:rounded-xl border border-border sm:border-r-0 sm:rounded-r-none whitespace-nowrap overflow-hidden text-ellipsis">
+                {window.location.host}/
+              </span>
               <input
                 required
                 value={form.slug}
                 onChange={(e) => update("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
                 disabled={!checkPlan(userPlan, "custom_slug")}
                 placeholder="my-link"
-                className={`flex-1 px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent/50 transition-colors rounded-l-none ${!checkPlan(userPlan, "custom_slug") ? "opacity-60 cursor-not-allowed" : ""}`}
+                className={`flex-1 px-4 py-2 sm:py-2.5 rounded-b-xl sm:rounded-xl bg-surface border border-border sm:border-l-0 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent/50 transition-colors sm:rounded-l-none ${!checkPlan(userPlan, "custom_slug") ? "opacity-60 cursor-not-allowed" : ""}`}
               />
             </div>
           </div>

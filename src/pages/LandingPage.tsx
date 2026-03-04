@@ -208,7 +208,7 @@ export default function LandingPage() {
           </div>
 
           {/* Dashboard Preview */}
-          <div className="mt-16 mx-auto max-w-5xl relative">
+          <div className="mt-16 mx-auto max-w-6xl relative animate-fade-in" style={{ animationDelay: '0.4s' }}>
             <div className="absolute inset-0 bg-accent/10 blur-3xl rounded-3xl" />
             <div className="relative glass-card p-2 rounded-2xl overflow-hidden shadow-glow">
               <img src="/mainstat.png" alt="Linktery Dashboard" className="w-full rounded-xl shadow-2xl" fetchPriority="high" loading="eager" />
