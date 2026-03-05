@@ -136,18 +136,26 @@ export default function AdminUserProfile() {
     const handleUpdatePlan = async () => {
         setUpdatingPlan(true);
         try {
-            const updateData: Record<string, string | null> = { plan: selectedPlan };
+            const daysToSet = selectedPlan !== "creator" ? Math.max(1, parseInt(customDays) || 30) : 0;
+
+            await pb.send("/api/admin/update-plan", {
+                method: "POST",
+                body: {
+                    userId: id,
+                    plan: selectedPlan,
+                    days: daysToSet
+                }
+            });
+
+            // Calculate optimistic UI state for plan expiry to reflect what the backend did
+            let newExpiry = "";
             if (selectedPlan !== "creator") {
                 const expires = new Date();
-                const days = Math.max(1, parseInt(customDays) || 30);
-                expires.setDate(expires.getDate() + days);
-                updateData.plan_expires_at = expires.toISOString();
-            } else {
-                updateData.plan_expires_at = null;
+                expires.setDate(expires.getDate() + daysToSet);
+                newExpiry = expires.toISOString();
             }
 
-            await pb.collection("users").update(id as string, updateData);
-            setUser({ ...user, plan: selectedPlan, plan_expires_at: updateData.plan_expires_at });
+            setUser({ ...user, plan: selectedPlan, plan_expires_at: newExpiry });
             toast.success(`Plan updated to ${selectedPlan}`);
         } catch (err: any) {
             console.error("Failed to update plan", err);

@@ -54,27 +54,14 @@ export default function AdminUsers() {
 
     const handlePlanChange = async (userId: string, newPlan: string) => {
         try {
-            const updateData: Record<string, string | null> = { plan: newPlan };
-            if (newPlan !== "creator") {
-                const expires = new Date();
-                expires.setDate(expires.getDate() + 30);
-                updateData.plan_expires_at = expires.toISOString();
-            } else {
-                updateData.plan_expires_at = null;
-            }
-
-            await pb.collection("users").update(userId, updateData);
-
-            // Create a billing record
-            if (newPlan !== "creator") {
-                await pb.collection("billing").create({
-                    user_id: userId,
+            await pb.send("/api/admin/update-plan", {
+                method: "POST",
+                body: {
+                    userId: userId,
                     plan: newPlan,
-                    amount: newPlan === "pro" ? 15 : 29,
-                    status: "active",
-                    payment_method: "Given"
-                });
-            }
+                    days: 30
+                }
+            });
 
             toast.success("User plan updated successfully");
             setUsers(users.map(u => u.id === userId ? { ...u, plan: newPlan as PlanType } : u));

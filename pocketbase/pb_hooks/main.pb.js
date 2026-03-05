@@ -301,3 +301,52 @@ routerAdd("GET", "/{slug}", (c) => {
 
     return c.next();
 });
+
+routerAdd("POST", "/api/admin/update-plan", (c) => {
+    try {
+        const adminUser = c.get("authRecord");
+        if (!adminUser || adminUser.get("role") !== "admin") {
+            throw new ForbiddenError("Only admins can update plans.");
+        }
+
+        const data = new DynamicModel({
+            "userId": "",
+            "plan": "",
+            "days": 0
+        });
+        c.bind(data);
+
+        const userId = data.userId;
+        const newPlan = data.plan;
+
+        const targetUser = $app.dao().findRecordById("users", userId);
+        targetUser.set("plan", newPlan);
+
+        if (newPlan !== "creator") {
+            const expires = new Date();
+            const days = Math.max(1, data.days || 30);
+            expires.setDate(expires.getDate() + days);
+            targetUser.set("plan_expires_at", new DateTime(expires));
+
+            // create billing record
+            const billingColl = $app.dao().findCollectionByNameOrId("billing");
+            const billingRecord = new Record(billingColl, {
+                "user_id": userId,
+                "plan": newPlan,
+                "amount": newPlan === "pro" ? 15 : 29,
+                "status": "active",
+                "payment_method": "Given"
+            });
+            $app.dao().saveRecord(billingRecord);
+        } else {
+            targetUser.set("plan_expires_at", "");
+        }
+
+        $app.dao().saveRecord(targetUser);
+
+        return c.json(200, { "success": true });
+    } catch (err) {
+        $app.logger().error("Admin plan update error: " + err);
+        throw new BadRequestError(err.message);
+    }
+}, $apis.requireRecordAuth("users"));
