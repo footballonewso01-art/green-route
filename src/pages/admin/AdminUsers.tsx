@@ -54,13 +54,13 @@ export default function AdminUsers() {
 
     const handlePlanChange = async (userId: string, newPlan: string) => {
         try {
-            const updateData: Record<string, string> = { plan: newPlan };
+            const updateData: Record<string, string | null> = { plan: newPlan };
             if (newPlan !== "creator") {
                 const expires = new Date();
                 expires.setDate(expires.getDate() + 30);
                 updateData.plan_expires_at = expires.toISOString();
             } else {
-                updateData.plan_expires_at = "";
+                updateData.plan_expires_at = null;
             }
 
             await pb.collection("users").update(userId, updateData);

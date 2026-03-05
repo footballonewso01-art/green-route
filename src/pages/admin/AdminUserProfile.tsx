@@ -136,14 +136,14 @@ export default function AdminUserProfile() {
     const handleUpdatePlan = async () => {
         setUpdatingPlan(true);
         try {
-            const updateData: Record<string, string> = { plan: selectedPlan };
+            const updateData: Record<string, string | null> = { plan: selectedPlan };
             if (selectedPlan !== "creator") {
                 const expires = new Date();
                 const days = Math.max(1, parseInt(customDays) || 30);
                 expires.setDate(expires.getDate() + days);
                 updateData.plan_expires_at = expires.toISOString();
             } else {
-                updateData.plan_expires_at = "";
+                updateData.plan_expires_at = null;
             }
 
             await pb.collection("users").update(id as string, updateData);
