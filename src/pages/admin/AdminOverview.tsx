@@ -157,7 +157,7 @@ export default function AdminOverview() {
             const p95Latency = latencies.length > 0 ? latencies.sort((a, b) => a - b)[Math.floor(latencies.length * 0.95)] : 0;
 
             const alerts = [];
-            if (errorRate > 5) alerts.push("High error rate detected ( > 5%). Check logs for API instability.");
+            if (errorRate > 10 && totalLogs24h >= 20) alerts.push("High error rate detected ( > 10%). Check logs for API instability.");
             if (dauUsers.size < (wauUsers.size * 0.1)) alerts.push("Low stickiness (DAU/WAU < 10%). Onboarding friction suspected.");
             if (churnRate > 10) alerts.push("Critical churn rate alert. Subscription cancellations have spiked.");
 
