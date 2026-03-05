@@ -150,7 +150,7 @@ export default function AdminOverview() {
             // System Health calculation from logs
             const totalLogs24h = logs.filter(l => isAfter(new Date(l.created), last24h)).length;
             const errorLogs24h = logs.filter(l => l.level === 'error' && isAfter(new Date(l.created), last24h)).length;
-            const errorRate = totalLogs24h > 0 ? (errorLogs24h / totalLogs24h) * 100 : 0;
+            const errorRate = totalLogs24h >= 10 ? (errorLogs24h / totalLogs24h) * 100 : 0;
 
             // Extract p95 latency if available in metadata/context
             const latencies = logs.filter(l => l.metadata?.latency).map(l => l.metadata.latency);
