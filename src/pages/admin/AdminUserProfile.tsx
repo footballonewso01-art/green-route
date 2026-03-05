@@ -149,7 +149,9 @@ export default function AdminUserProfile() {
             await pb.collection("users").update(id as string, updateData);
             setUser({ ...user, plan: selectedPlan, plan_expires_at: updateData.plan_expires_at });
             toast.success(`Plan updated to ${selectedPlan}`);
-        } catch (err) {
+        } catch (err: any) {
+            console.error("Failed to update plan", err);
+            console.error("Detailed error data:", err?.data);
             toast.error("Failed to update plan");
         } finally {
             setUpdatingPlan(false);
