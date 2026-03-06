@@ -179,11 +179,41 @@ export default function RedirectHandler() {
                     setStatus("deeplink");
                     trackClick(link, finalDestination);
 
-                    if (/Android/i.test(ua)) {
+                    const isIOS = /iPhone|iPad|iPod/i.test(ua);
+                    const isAndroid = /Android/i.test(ua);
+                    const isInstagram = /Instagram/i.test(ua);
+                    const isTikTok = /TikTok/i.test(ua);
+
+                    if (isAndroid) {
+                        // Android: Use intent:// to open in default browser (not just Chrome)
                         const scheme = finalDestination.replace(/^https?:\/\//, "");
-                        window.location.href = `intent://${scheme}#Intent;scheme=https;package=com.android.chrome;end`;
+                        window.location.href = `intent://${scheme}#Intent;scheme=https;action=android.intent.action.VIEW;end`;
+                        // Fallback after 1s if intent didn't work
+                        setTimeout(() => {
+                            window.location.href = finalDestination;
+                        }, 1000);
+                    } else if (isIOS) {
+                        if (isInstagram || isTikTok) {
+                            // iOS Instagram/TikTok: Use x-safari-https:// scheme to force Safari
+                            const safariUrl = finalDestination.replace(/^https:\/\//, "x-safari-https://").replace(/^http:\/\//, "x-safari-http://");
+                            window.location.href = safariUrl;
+                            // Fallback 1: Try Google Chrome on iOS
+                            setTimeout(() => {
+                                const chromeUrl = finalDestination.replace(/^https:\/\//, "googlechromes://").replace(/^http:\/\//, "googlechrome://");
+                                window.location.href = chromeUrl;
+                            }, 600);
+                            // Fallback 2: Direct navigation if nothing else worked
+                            setTimeout(() => {
+                                window.location.href = finalDestination;
+                            }, 1200);
+                        } else {
+                            // Other iOS in-app browsers: just navigate directly
+                            window.location.href = finalDestination;
+                        }
+                    } else {
+                        // Desktop or unknown: just redirect
+                        window.location.href = finalDestination;
                     }
-                    setTimeout(() => { window.location.href = finalDestination; }, 500);
                     return;
                 }
 

@@ -209,13 +209,14 @@ routerAdd("GET", "/{slug}", (c) => {
         const link = $app.dao().findFirstRecordByFilter("links", "slug = {:slug} && active = true", { slug: slug });
 
         // Check if there is complex logic involved
-        // If geo-targeting, device-targeting, split testing, or interstitial is enabled,
+        // If geo-targeting, device-targeting, split testing, interstitial, or deeplinks is enabled,
         // we let the React frontend handle it for full feature support (browser detection, etc.)
         const hasComplexLogic =
             link.get("geo_targeting") ||
             link.get("device_targeting") ||
             link.get("ab_split") ||
-            link.get("interstitial_enabled");
+            link.get("interstitial_enabled") ||
+            link.get("mode") === "direct";
 
         if (!hasComplexLogic) {
             // HIGH-PERFORMANCE ANALYTICS TRACKING
