@@ -41,7 +41,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Support",
     items: [
-      { title: "Help Center", path: "#help", icon: HelpCircle, badge: { text: "Soon", color: "bg-orange-500/20 text-orange-400" } },
+      { title: "Help Center", path: "/dashboard/help", icon: HelpCircle },
     ]
   }
 ];

@@ -15,6 +15,7 @@ import CreateLink from "./pages/CreateLink";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import DashboardProfile from "./pages/DashboardProfile";
 import SettingsPage from "./pages/SettingsPage";
+import HelpCenter from "./pages/HelpCenter";
 import PublicProfile from "./pages/PublicProfile";
 import PricingPage from "./pages/PricingPage";
 import InterstitialPage from "./pages/InterstitialPage";
@@ -82,6 +83,7 @@ const AppRoutes = () => (
       <Route path="billing" element={<BillingPage />} />
       <Route path="pricing" element={<DashboardPricing />} />
       <Route path="settings" element={<SettingsPage />} />
+      <Route path="help" element={<HelpCenter />} />
     </Route>
 
     <Route path="/admin" element={<AdminRoute />}>
