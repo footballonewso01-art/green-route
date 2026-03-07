@@ -475,7 +475,7 @@ export default function CreateLink() {
 
             <ToggleRow
               icon={Zap}
-              label="Deeplinks (Beta)"
+              label="Deeplink"
               description="Smart route from social apps to system browser"
               checked={form.mode === "direct"}
               onChange={() => {

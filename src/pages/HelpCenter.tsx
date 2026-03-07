@@ -286,14 +286,14 @@ const helpCategories: Category[] = [
                         <p className="text-muted-foreground">When someone clicks your link in Instagram or TikTok, it opens their built-in browser which has limited functionality (no saved passwords, no extensions, poor cookie support). Deeplinks bypass this.</p>
                         <h4 className="font-semibold text-foreground mt-6 mb-3">How it works:</h4>
                         <ol className="list-decimal list-inside space-y-3 text-muted-foreground">
-                            <li>Enable <strong className="text-foreground">Deeplinks (Beta)</strong> when creating a link</li>
+                            <li>Enable <strong className="text-foreground">Deeplink</strong> when creating a link</li>
                             <li>When someone opens your link from Instagram/TikTok, Linktery detects the in-app browser</li>
                             <li><strong className="text-foreground">On iOS:</strong> We use Safari URL schemes to force the link to open in Safari</li>
                             <li><strong className="text-foreground">On Android:</strong> We use Intent URLs to open the link in the default browser (Chrome, Samsung Browser, etc.)</li>
                             <li>If automatic redirect fails, a beautiful fallback page with manual instructions is shown</li>
                         </ol>
                         <div className="p-4 rounded-xl bg-accent/5 border border-accent/20 mt-4">
-                            <p className="text-sm text-accent flex items-start gap-2"><Sparkles className="w-4 h-4 mt-0.5 shrink-0" /> <span>Deeplinks are in <strong>Beta</strong> and available on <strong>Creator Pro</strong> and <strong>Agency</strong> plans.</span></p>
+                            <p className="text-sm text-accent flex items-start gap-2"><Sparkles className="w-4 h-4 mt-0.5 shrink-0" /> <span>Deeplink is available on <strong>Creator Pro</strong> and <strong>Agency</strong> plans.</span></p>
                         </div>
                     </div>
                 ),

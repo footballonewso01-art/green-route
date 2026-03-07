@@ -29,7 +29,7 @@ const features = [
   },
   {
     icon: MousePointer,
-    title: "Deeplinks (Beta)",
+    title: "Deeplink",
     description: "Optimized link routing from social apps to the system browser. Smooth transitions for better user experience across devices.",
   },
   {
@@ -64,7 +64,7 @@ const plans = [
     features: [
       { text: "15 Smart Links", icon: "🔗" },
       { text: "Remove Linktery Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
-      { text: "Deeplinks (Beta)", icon: "⚡", tooltip: "Smart route optimization: Seamless transition from social apps to system browser." },
+      { text: "Deeplink", icon: "⚡", tooltip: "Smart route optimization: Seamless transition from social apps to system browser." },
       { text: "Advanced Analytics", icon: "📊" },
       { text: "Link Optimization", icon: "🛡️" },
       { text: "Geo Targeting", icon: "🌍" },

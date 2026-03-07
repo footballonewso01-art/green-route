@@ -87,7 +87,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             { text: "15 Smart Links", icon: "🔗" },
 
             { text: "Remove Linktery Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
-            { text: "Deeplinks", icon: "⚡", tooltip: "Smart route optimization for social app traffic." },
+            { text: "Deeplink", icon: "⚡", tooltip: "Smart route optimization for social app traffic." },
             { text: "Advanced Analytics", icon: "📊" },
             { text: "Link Optimization", icon: "🛡️" },
             { text: "Geo Targeting", icon: "🌍" },
