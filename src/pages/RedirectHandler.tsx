@@ -80,9 +80,23 @@ export default function RedirectHandler() {
         const isUnique = !localStorage.getItem(storageKey);
         if (isUnique) localStorage.setItem(storageKey, "1");
 
+        let country = "Unknown";
+        try {
+            const geoRes = await fetch("https://cloudflare.com/cdn-cgi/trace", { signal: AbortSignal.timeout(1000) });
+            const geoText = await geoRes.text();
+            const locMatch = geoText.match(/loc=([A-Z]{2})/);
+            if (locMatch && locMatch[1]) {
+                try {
+                    country = new Intl.DisplayNames(['en'], { type: 'region' }).of(locMatch[1]) || locMatch[1];
+                } catch {
+                    country = locMatch[1];
+                }
+            }
+        } catch { /* Suppress geo fetch errors */ }
+
         const clickData = {
             link_id: link.id,
-            country: "Unknown",
+            country,
             device, os, browser, referrer,
             is_unique: isUnique,
             ip: "masked",
