@@ -650,7 +650,7 @@ export default function CreateLink() {
                 className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[10px] font-bold text-accent uppercase tracking-wider cursor-pointer"
               >
                 <Lock className="w-2.5 h-2.5" />
-                Pro Only
+                Agency Only
               </div>
             )}
           </div>

@@ -79,7 +79,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
     pro: {
         id: "pro",
         name: "Creator Pro",
-        price: 9,
+        price: 11,
         description: "Advanced tools for growing creators.",
         popular: true,
         buttonText: "Upgrade to Pro",
@@ -90,8 +90,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             { text: "Deeplink", icon: "⚡", tooltip: "Smart route optimization for social app traffic." },
             { text: "Advanced Analytics", icon: "📊" },
             { text: "Link Optimization", icon: "🛡️" },
-            { text: "Geo Targeting", icon: "🌍" },
-            { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." }
+            { text: "Geo Targeting", icon: "🌍" }
         ],
         limits: {
             links: 15,
@@ -106,7 +105,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             device_targeting: true,
             remove_branding: true,
             custom_slug: false,
-            pixels: true,
+            pixels: false,
             ab_testing: false,
             social_links: 3
         }
@@ -119,6 +118,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         buttonText: "Upgrade to Agency",
         features: [
             { text: "Unlimited Links", icon: "🚀" },
+            { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
             { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
             { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Create your own short link handles." },
             { text: "Everything in Pro", icon: "✅" }

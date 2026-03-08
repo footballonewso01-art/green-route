@@ -22,7 +22,7 @@ const plans = [
   {
     id: "pro",
     name: "Creator Pro",
-    price: "9",
+    price: "11",
     description: "Advanced tools for growing creators",
     popular: true,
     features: [
@@ -31,8 +31,7 @@ const plans = [
       { text: "Deeplink", icon: "⚡" },
       { text: "Advanced Analytics", icon: "📊" },
       { text: "Link Optimization", icon: "🛡️" },
-      { text: "Geo Targeting", icon: "🌍" },
-      { text: "Tracking Pixels", icon: "🎯" }
+      { text: "Geo Targeting", icon: "🌍" }
     ],
   },
   {
@@ -43,6 +42,7 @@ const plans = [
     popular: false,
     features: [
       { text: "Unlimited Smart Links", icon: "🚀" },
+      { text: "Tracking Pixels", icon: "🎯" },
       { text: "A/B Testing (Unlimited)", icon: "🧪" },
       { text: "Custom Domains (Unlimited)", icon: "🌐" },
       { text: "Custom Slugs (e.g. /my-link)", icon: "✍️" },

@@ -261,7 +261,7 @@ const helpCategories: Category[] = [
                             </div>
                         </div>
                         <div className="p-4 rounded-xl bg-accent/5 border border-accent/20 mt-4">
-                            <p className="text-sm text-accent flex items-start gap-2"><Sparkles className="w-4 h-4 mt-0.5 shrink-0" /> <span>Tracking pixels are available on <strong>Creator Pro</strong> and <strong>Agency</strong> plans.</span></p>
+                            <p className="text-sm text-accent flex items-start gap-2"><Sparkles className="w-4 h-4 mt-0.5 shrink-0" /> <span>Tracking pixels are available on the <strong>Agency</strong> plan.</span></p>
                         </div>
                     </div>
                 ),
@@ -437,7 +437,7 @@ const helpCategories: Category[] = [
                                     <tr className="border-b border-border">
                                         <th className="text-left py-3 px-4 text-muted-foreground font-medium">Feature</th>
                                         <th className="text-center py-3 px-4 text-foreground font-bold">Creator <span className="text-muted-foreground font-normal">(Free)</span></th>
-                                        <th className="text-center py-3 px-4 text-accent font-bold">Pro <span className="text-muted-foreground font-normal">($9/mo)</span></th>
+                                        <th className="text-center py-3 px-4 text-accent font-bold">Pro <span className="text-muted-foreground font-normal">($11/mo)</span></th>
                                         <th className="text-center py-3 px-4 text-blue-400 font-bold">Agency <span className="text-muted-foreground font-normal">($29/mo)</span></th>
                                     </tr>
                                 </thead>
@@ -446,7 +446,7 @@ const helpCategories: Category[] = [
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Analytics</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Deeplinks</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Geo Targeting</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
-                                    <tr className="border-b border-border/50"><td className="py-2.5 px-4">Tracking Pixels</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
+                                    <tr className="border-b border-border/50"><td className="py-2.5 px-4">Tracking Pixels</td><td className="text-center">—</td><td className="text-center">—</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Link Cloaking</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Remove Branding</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Custom Slugs</td><td className="text-center">—</td><td className="text-center">—</td><td className="text-center text-accent">✓</td></tr>

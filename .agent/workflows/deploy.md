@@ -1,176 +1,90 @@
 ---
-description: Deployment command for production releases. Pre-flight checks and deployment execution.
+description: Deploy to Vercel Preview or Production. Use preview to test before going live.
 ---
 
-# /deploy - Production Deployment
+# /deploy - Linktery Deployment
 
 $ARGUMENTS
-
----
-
-## Purpose
-
-This command handles production deployment with pre-flight checks, deployment execution, and verification.
 
 ---
 
 ## Sub-commands
 
 ```
-/deploy            - Interactive deployment wizard
-/deploy check      - Run pre-deployment checks only
-/deploy preview    - Deploy to preview/staging
-/deploy production - Deploy to production
-/deploy rollback   - Rollback to previous version
+/deploy            → Preview deploy (safe, creates temp URL)
+/deploy preview    → Same as above
+/deploy prod       → Production deploy to linktery.com
 ```
+
+// turbo-all
 
 ---
 
-## Pre-Deployment Checklist
+## Preview Deployment (Default — Safe)
 
-Before any deployment:
+**Always deploy to preview first.** This creates a temporary URL for testing without touching linktery.com.
 
-```markdown
-## 🚀 Pre-Deploy Checklist
+### Steps:
 
-### Code Quality
-- [ ] No TypeScript errors (`npx tsc --noEmit`)
-- [ ] ESLint passing (`npx eslint .`)
-- [ ] All tests passing (`npm test`)
-
-### Security
-- [ ] No hardcoded secrets
-- [ ] Environment variables documented
-- [ ] Dependencies audited (`npm audit`)
-
-### Performance
-- [ ] Bundle size acceptable
-- [ ] No console.log statements
-- [ ] Images optimized
-
-### Documentation
-- [ ] README updated
-- [ ] CHANGELOG updated
-- [ ] API docs current
-
-### Ready to deploy? (y/n)
+1. Commit changes:
+```bash
+git add -A
+git commit -m "feat: description"
 ```
+
+2. Deploy preview:
+```bash
+npx vercel
+```
+
+3. Test on the generated preview URL (e.g. `green-route-abc123.vercel.app`)
+
+4. When satisfied → run `/deploy prod`
 
 ---
 
-## Deployment Flow
+## Production Deployment
 
+**Only after testing on preview!**
+
+### Steps:
+
+1. Push to main:
+```bash
+git push origin main
 ```
-┌─────────────────┐
-│  /deploy        │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Pre-flight     │
-│  checks         │
-└────────┬────────┘
-         │
-    Pass? ──No──► Fix issues
-         │
-        Yes
-         │
-         ▼
-┌─────────────────┐
-│  Build          │
-│  application    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Deploy to      │
-│  platform       │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Health check   │
-│  & verify       │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  ✅ Complete    │
-└─────────────────┘
+
+2. Deploy to production:
+```bash
+npx vercel --prod
 ```
+
+3. Verify at https://linktery.com
 
 ---
 
-## Output Format
+## Backend (PocketBase on Fly.io)
 
-### Successful Deploy
+If `main.pb.js` hooks were changed, also update the backend:
 
-```markdown
-## 🚀 Deployment Complete
-
-### Summary
-- **Version:** v1.2.3
-- **Environment:** production
-- **Duration:** 47 seconds
-- **Platform:** Vercel
-
-### URLs
-- 🌐 Production: https://app.example.com
-- 📊 Dashboard: https://vercel.com/project
-
-### What Changed
-- Added user profile feature
-- Fixed login bug
-- Updated dependencies
-
-### Health Check
-✅ API responding (200 OK)
-✅ Database connected
-✅ All services healthy
+```bash
+flyctl ssh console -a greenroute-pb -C "mkdir -p /pb/pb_hooks && wget -O /pb/pb_hooks/main.pb.js https://raw.githubusercontent.com/footballonewso01-art/green-route/main/pocketbase/pb_hooks/main.pb.js"
+flyctl ssh console -a greenroute-pb -C "kill 1"
 ```
 
-### Failed Deploy
-
-```markdown
-## ❌ Deployment Failed
-
-### Error
-Build failed at step: TypeScript compilation
-
-### Details
-```
-error TS2345: Argument of type 'string' is not assignable...
-```
-
-### Resolution
-1. Fix TypeScript error in `src/services/user.ts:45`
-2. Run `npm run build` locally to verify
-3. Try `/deploy` again
-
-### Rollback Available
-Previous version (v1.2.2) is still active.
-Run `/deploy rollback` if needed.
-```
+> ⚠️ Hook files don't persist across full container restarts. Re-run the above if Fly recreates the machine.
 
 ---
 
-## Platform Support
+## Quick Reference
 
-| Platform | Command | Notes |
-|----------|---------|-------|
-| Vercel | `vercel --prod` | Auto-detected for Next.js |
-| Railway | `railway up` | Needs Railway CLI |
-| Fly.io | `fly deploy` | Needs flyctl |
-| Docker | `docker compose up -d` | For self-hosted |
+| Command | Target | Safe? |
+|---------|--------|-------|
+| `npx vercel` | Preview (temp URL) | ✅ Yes |
+| `npx vercel --prod` | linktery.com | ⚠️ After preview test |
 
----
+## ⚠️ Rules
 
-## Examples
-
-```
-/deploy
-/deploy check
-/deploy preview
-/deploy production --skip-tests
-/deploy rollback
-```
+1. **NEVER** run `npx vercel --prod` without testing on preview first
+2. Preview URLs are temporary and don't affect linktery.com
+3. Both preview and prod share the same PocketBase backend

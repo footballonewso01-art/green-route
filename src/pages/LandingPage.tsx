@@ -57,8 +57,8 @@ const plans = [
   {
     id: "pro",
     name: "Creator Pro",
-    price: "9",
-    annualPrice: "7",
+    price: "11",
+    annualPrice: "9",
     description: "Advanced tools for growing creators",
     popular: true,
     features: [
@@ -67,8 +67,7 @@ const plans = [
       { text: "Deeplink", icon: "⚡", tooltip: "Smart route optimization: Seamless transition from social apps to system browser." },
       { text: "Advanced Analytics", icon: "📊" },
       { text: "Link Optimization", icon: "🛡️" },
-      { text: "Geo Targeting", icon: "🌍" },
-      { text: "Tracking Pixels", icon: "🎯" }
+      { text: "Geo Targeting", icon: "🌍" }
     ],
     buttonText: "Upgrade to Pro",
   },
@@ -80,6 +79,7 @@ const plans = [
     description: "For agencies and power users",
     features: [
       { text: "Unlimited Smart Links", icon: "🚀" },
+      { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
       { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
       { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
       { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
