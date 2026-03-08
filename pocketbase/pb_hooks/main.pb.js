@@ -225,7 +225,7 @@ routerAdd("GET", "/{slug}", (c) => {
                 const uaStr = request.header.get("User-Agent") || "";
 
                 // Bot detection
-                const isBot = /bot|crawler|spider|criteo|facebookexternalhit|google|bing|twitter|linkedin|instagram|tiktok/i.test(uaStr);
+                const isBot = /bot|crawler|spider|criteo|facebookexternalhit/i.test(uaStr);
 
                 if (!isBot) {
                     let os = "Other";
