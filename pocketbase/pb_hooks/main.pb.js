@@ -334,7 +334,7 @@ routerAdd("POST", "/api/admin/update-plan", (c) => {
             const billingRecord = new Record(billingColl, {
                 "user_id": userId,
                 "plan": newPlan,
-                "amount": newPlan === "pro" ? 15 : 29,
+                "amount": newPlan === "pro" ? 11 : 29,
                 "status": "active",
                 "payment_method": "Given"
             });

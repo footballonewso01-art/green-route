@@ -35,13 +35,12 @@ export default function RedirectHandler() {
         return () => window.removeEventListener("pageshow", handlePageShow);
     }, []);
 
-    // ── Fire-and-forget analytics (non-blocking) ──
-    const trackClick = useCallback((link: Record<string, unknown>, finalDest: string) => {
+    // ── Fire-and-forget analytics (survives page navigation) ──
+    const trackClick = useCallback((link: Record<string, unknown>, _finalDest: string) => {
         const ua = navigator.userAgent;
         const isBot = /bot|crawler|spider|criteo|facebook|google|bing|twitter|linkedin|instagram|tiktok/i.test(ua);
         if (isBot) return;
 
-        // Parse UA synchronously (instant)
         let os = "Other";
         if (/Windows/i.test(ua)) os = "Windows";
         else if (/iPhone|iPad|iPod/i.test(ua)) os = "iOS";
@@ -81,19 +80,28 @@ export default function RedirectHandler() {
         const isUnique = !localStorage.getItem(storageKey);
         if (isUnique) localStorage.setItem(storageKey, "1");
 
-        // Fire-and-forget: geo lookup + click create run in background
-        const geoPromise = fetch("https://ipapi.co/json/", {
-            signal: AbortSignal.timeout(2000)
-        }).then(r => r.json()).catch(() => ({ country_name: "Unknown", country: "" }));
+        const clickData = {
+            link_id: link.id,
+            country: "Unknown",
+            device, os, browser, referrer,
+            is_unique: isUnique,
+            ip: "masked",
+            user_agent: ua.slice(0, 200)
+        };
 
-        geoPromise.then(geo => {
-            const country = geo.country_name || "Unknown";
-            pb.collection('clicks').create({
-                link_id: link.id, country, device, os, browser, referrer,
-                is_unique: isUnique, ip: "masked", user_agent: ua.slice(0, 200)
-            }).catch(() => { });
-            pb.collection('links').update(link.id as string, { 'clicks_count+': 1 }).catch(() => { });
-        });
+        // Primary: Use sendBeacon (survives page navigation/redirect)
+        const pbUrl = pb.baseUrl;
+        const beaconUrl = `${pbUrl}/api/collections/clicks/records`;
+        const blob = new Blob([JSON.stringify(clickData)], { type: 'application/json' });
+        const sent = navigator.sendBeacon(beaconUrl, blob);
+
+        // Fallback: Also try SDK create (may or may not complete before redirect)
+        if (!sent) {
+            pb.collection('clicks').create(clickData).catch(() => { });
+        }
+
+        // Increment click count (fire-and-forget)
+        pb.collection('links').update(link.id as string, { 'clicks_count+': 1 }).catch(() => { });
     }, []);
 
     // ── Main redirect logic ──
