@@ -35,8 +35,8 @@ export default function RedirectHandler() {
         return () => window.removeEventListener("pageshow", handlePageShow);
     }, []);
 
-    // ── Fire-and-forget analytics (survives page navigation) ──
-    const trackClick = useCallback((link: Record<string, unknown>, _finalDest: string) => {
+    // ── Track click — returns a promise that resolves when the click is saved ──
+    const trackClick = useCallback(async (link: Record<string, unknown>) => {
         const ua = navigator.userAgent;
         const isBot = /bot|crawler|spider|criteo|facebook|google|bing|twitter|linkedin|instagram|tiktok/i.test(ua);
         if (isBot) return;
@@ -89,16 +89,10 @@ export default function RedirectHandler() {
             user_agent: ua.slice(0, 200)
         };
 
-        // Primary: Use sendBeacon (survives page navigation/redirect)
-        const pbUrl = pb.baseUrl;
-        const beaconUrl = `${pbUrl}/api/collections/clicks/records`;
-        const blob = new Blob([JSON.stringify(clickData)], { type: 'application/json' });
-        const sent = navigator.sendBeacon(beaconUrl, blob);
-
-        // Fallback: Also try SDK create (may or may not complete before redirect)
-        if (!sent) {
-            pb.collection('clicks').create(clickData).catch(() => { });
-        }
+        // Save click BEFORE redirecting — await with 1.5s timeout
+        const clickPromise = pb.collection('clicks').create(clickData).catch(() => { });
+        const timeout = new Promise(resolve => setTimeout(resolve, 1500));
+        await Promise.race([clickPromise, timeout]);
 
         // Increment click count (fire-and-forget)
         pb.collection('links').update(link.id as string, { 'clicks_count+': 1 }).catch(() => { });
@@ -182,10 +176,10 @@ export default function RedirectHandler() {
 
                 setDestination(finalDestination);
 
-                // Step 3: REDIRECT FIRST, then track (fire-and-forget)
+                // Step 3: Track click, then redirect
                 if (link.mode === 'direct' && isInApp) {
                     setStatus("deeplink");
-                    trackClick(link, finalDestination);
+                    await trackClick(link);
 
                     const isIOS = /iPhone|iPad|iPod/i.test(ua);
                     const isAndroid = /Android/i.test(ua);
@@ -229,7 +223,7 @@ export default function RedirectHandler() {
 
                 if (needsInterstitial) {
                     setStatus("verifying");
-                    trackClick(link, finalDestination);
+                    await trackClick(link);
 
                     const performFinalAction = () => {
                         redirected.current = true;
@@ -243,9 +237,9 @@ export default function RedirectHandler() {
                     window.addEventListener('touchstart', interactionHandler);
                     window.addEventListener('click', interactionHandler);
                 } else {
-                    // ⚡ INSTANT REDIRECT — analytics fires in background
+                    // Track click FIRST, then redirect
                     redirected.current = true;
-                    trackClick(link, finalDestination);
+                    await trackClick(link);
                     window.location.replace(finalDestination);
                 }
 
