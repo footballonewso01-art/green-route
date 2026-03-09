@@ -62,17 +62,23 @@ export default function RedirectHandler() {
         else if (/Tablet|iPad/i.test(ua)) device = "Tablet";
 
         let referrer = "Direct";
-        const ref = document.referrer;
-        if (ref) {
-            try {
-                const url = new URL(ref);
-                referrer = url.hostname;
-                if (referrer.includes("instagram.com")) referrer = "Instagram";
-                else if (referrer.includes("t.co")) referrer = "Twitter";
-                else if (referrer.includes("facebook.com")) referrer = "Facebook";
-                else if (referrer.includes("tiktok.com")) referrer = "TikTok";
-                else if (referrer.includes("google.com")) referrer = "Google";
-            } catch { referrer = "Other"; }
+        const urlParams = new URLSearchParams(window.location.search);
+        const refParam = urlParams.get("ref");
+        if (refParam === "profile") {
+            referrer = "Profile";
+        } else {
+            const ref = document.referrer;
+            if (ref) {
+                try {
+                    const url = new URL(ref);
+                    referrer = url.hostname;
+                    if (referrer.includes("instagram.com")) referrer = "Instagram";
+                    else if (referrer.includes("t.co")) referrer = "Twitter";
+                    else if (referrer.includes("facebook.com")) referrer = "Facebook";
+                    else if (referrer.includes("tiktok.com")) referrer = "TikTok";
+                    else if (referrer.includes("google.com")) referrer = "Google";
+                } catch { referrer = "Other"; }
+            }
         }
 
         const today = new Date().toISOString().split('T')[0];
