@@ -16,6 +16,7 @@ interface ClickRecord {
   referrer: string;
   is_unique: boolean;
   created: string;
+  expand?: { link_id?: { title?: string; slug?: string } };
 }
 
 export default function AnalyticsPage() {
@@ -60,6 +61,7 @@ export default function AnalyticsPage() {
         const records = await pb.collection('clicks').getFullList<ClickRecord>({
           filter,
           sort: '-created',
+          expand: 'link_id',
         });
 
         setClicksCount(records.length);
@@ -441,6 +443,7 @@ export default function AnalyticsPage() {
             <thead className="bg-surface/50 text-muted-foreground uppercase font-bold tracking-wider">
               <tr>
                 <th className="px-6 py-3">Time</th>
+                <th className="px-6 py-3">Link</th>
                 <th className="px-6 py-3">Location</th>
                 <th className="px-6 py-3">Device / OS</th>
                 <th className="px-6 py-3">Source</th>
@@ -452,6 +455,9 @@ export default function AnalyticsPage() {
                 <tr key={r.id} className="hover:bg-surface-hover transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap text-muted-foreground">
                     {new Date(r.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </td>
+                  <td className="px-6 py-4 font-medium text-accent truncate max-w-[150px]" title={r.expand?.link_id?.title || r.expand?.link_id?.slug || '—'}>
+                    {r.expand?.link_id?.title || r.expand?.link_id?.slug || '—'}
                   </td>
                   <td className="px-6 py-4 font-medium text-foreground">{r.country}</td>
                   <td className="px-6 py-4">
@@ -472,7 +478,7 @@ export default function AnalyticsPage() {
               ))}
               {recentActivities.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">No recent activity detected</td>
+                  <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">No recent activity detected</td>
                 </tr>
               )}
             </tbody>
