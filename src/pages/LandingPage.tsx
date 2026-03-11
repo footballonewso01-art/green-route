@@ -346,19 +346,35 @@ export default function LandingPage() {
                     </ul>
 
                     {user ? (
-                      <button
-                        disabled
-                        className={`w-full text-center py-4 rounded-2xl font-bold transition-all duration-300 bg-surface-hover border border-white/10 text-muted-foreground cursor-not-allowed opacity-80`}
-                      >
-                        {isCurrent ? "Your Current Plan" : "Upgrade (Beta)"}
-                      </button>
+                      isCurrent ? (
+                        <button
+                          disabled
+                          className="w-full text-center py-4 rounded-2xl font-bold bg-surface-hover border border-white/10 text-muted-foreground cursor-not-allowed opacity-80"
+                        >
+                          Your Current Plan
+                        </button>
+                      ) : isDowngrade ? (
+                        <button
+                          disabled
+                          className="w-full text-center py-4 rounded-2xl font-bold bg-surface-hover border border-border text-muted-foreground cursor-not-allowed opacity-60"
+                        >
+                          Included in Your Plan
+                        </button>
+                      ) : (
+                        <Link
+                          to="/dashboard/pricing"
+                          className={`w-full text-center py-4 rounded-2xl font-bold transition-all duration-300 block ${isPro ? "btn-primary-glow" : isAgency ? "bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20" : "border border-border hover:bg-surface-hover text-foreground"}`}
+                        >
+                          {plan.buttonText}
+                        </Link>
+                      )
                     ) : (
-                      <button
-                        disabled
-                        className={`w-full text-center py-4 rounded-2xl font-bold transition-all duration-300 bg-surface-hover border border-border text-muted-foreground cursor-not-allowed opacity-80`}
+                      <Link
+                        to="/register"
+                        className={`w-full text-center py-4 rounded-2xl font-bold transition-all duration-300 block ${isPro ? "btn-primary-glow" : isAgency ? "bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20" : "border border-border hover:bg-surface-hover text-foreground"}`}
                       >
-                        {plan.id === "creator" ? "Get Started" : "Upgrade (Beta)"}
-                      </button>
+                        {plan.id === "creator" ? "Get Started" : plan.buttonText}
+                      </Link>
                     )}
                   </div>
                   {showPopularBadge && (

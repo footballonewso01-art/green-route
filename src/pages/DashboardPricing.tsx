@@ -210,10 +210,19 @@ export default function DashboardPricing() {
                                     </ul>
 
                                     <button
-                                        disabled
-                                        className={`block w-full text-center py-4 rounded-2xl font-bold transition-all duration-300 bg-surface-hover border border-white/10 text-muted-foreground cursor-not-allowed opacity-80`}
+                                        onClick={() => handleUpgrade(plan.id)}
+                                        disabled={isDisabled || loading}
+                                        className={`block w-full text-center py-4 rounded-2xl font-bold transition-all duration-300 ${
+                                            isCurrent
+                                                ? "bg-surface-hover border border-white/10 text-muted-foreground cursor-not-allowed opacity-80"
+                                                : isDowngrade
+                                                    ? "bg-surface-hover border border-border text-muted-foreground cursor-not-allowed opacity-60"
+                                                    : plan.popular
+                                                        ? "btn-primary-glow"
+                                                        : "border border-border hover:bg-surface-hover text-foreground hover:border-accent"
+                                        }`}
                                     >
-                                        {isCurrent ? "Your Current Plan" : "Upgrade (Beta)"}
+                                        {isCurrent ? "Your Current Plan" : isDowngrade ? "Included in Your Plan" : loading ? "Processing..." : plan.buttonText}
                                     </button>
                                 </div>
                                 {showPopularBadge && (
