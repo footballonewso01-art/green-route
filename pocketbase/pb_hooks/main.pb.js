@@ -157,6 +157,281 @@ onRecordAfterAuthWithPasswordRequest((e) => {
     }
 }, "users");
 
+// ==========================================
+// STRIPE INTEGRATION
+// ==========================================
+
+const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
+const HOST_URL = $os.getenv("HOST_URL") || "https://linktery.com";
+
+// Helper for Stripe REST API calls
+function stripeRequest(method, endpoint, data) {
+    let url = "https://api.stripe.com/v1" + endpoint;
+    let body = null;
+    let headers = {
+        "Authorization": "Bearer " + STRIPE_SECRET_KEY,
+        "Content-Type": "application/x-www-form-urlencoded"
+    };
+
+    if (data) {
+        // Convert JS object to URL encoded string
+        const params = new URLSearchParams();
+        for (const key in data) {
+            if (typeof data[key] === 'object' && data[key] !== null) {
+                for (const subKey in data[key]) {
+                    params.append(`${key}[${subKey}]`, data[key][subKey]);
+                }
+            } else {
+                params.append(key, data[key]);
+            }
+        }
+        body = params.toString();
+
+        if (method === "GET") {
+            url += "?" + body;
+            body = null;
+        }
+    }
+
+    const res = $http.send({
+        url: url,
+        method: method,
+        body: body,
+        headers: headers,
+        timeout: 10 // seconds
+    });
+
+    if (res.statusCode >= 400) {
+        throw new Error("Stripe Error " + res.statusCode + ": " + res.raw);
+    }
+
+    return res.json;
+}
+
+// Stripe: Create Checkout Session
+routerAdd("POST", "/api/stripe/create-checkout", (c) => {
+    const user = c.get("authRecord");
+    if (!user || user.collection().name !== "users") {
+        return c.json(401, { error: "Unauthorized" });
+    }
+
+    const body = $apis.requestInfo(c).data;
+    const priceId = body.priceId;
+
+    if (!priceId) {
+        return c.json(400, { error: "priceId is required" });
+    }
+
+    if (!STRIPE_SECRET_KEY) {
+        return c.json(500, { error: "Stripe is not configured on the server" });
+    }
+
+    try {
+        const sessionData = {
+            "payment_method_types[0]": "card",
+            "line_items[0][price]": priceId,
+            "line_items[0][quantity]": "1",
+            "mode": "subscription",
+            "success_url": `${HOST_URL}/dashboard/billing?session_id={CHECKOUT_SESSION_ID}`,
+            "cancel_url": `${HOST_URL}/dashboard/pricing`,
+            "client_reference_id": user.id,
+            "customer_email": user.get("email"),
+            "metadata[userId]": user.id
+        };
+
+        const session = stripeRequest("POST", "/checkout/sessions", sessionData);
+
+        return c.json(200, { url: session.url });
+    } catch (err) {
+        $app.logger().error("Create checkout error: " + err);
+        return c.json(500, { error: err.message });
+    }
+}, $apis.requireRecordAuth("users"));
+
+// Stripe: Create Customer Portal Session
+routerAdd("POST", "/api/stripe/create-portal", (c) => {
+    const user = c.get("authRecord");
+    if (!user || user.collection().name !== "users") {
+        return c.json(401, { error: "Unauthorized" });
+    }
+
+    if (!STRIPE_SECRET_KEY) {
+        return c.json(500, { error: "Stripe is not configured" });
+    }
+
+    try {
+        // Find billing record to get stripe_customer_id
+        const records = $app.dao().findRecordsByFilter(
+            "billing",
+            "user_id = {:userId} && stripe_customer_id != ''",
+            "-created",
+            1,
+            0,
+            { userId: user.id }
+        );
+
+        if (records.length === 0) {
+            return c.json(400, { error: "No active Stripe customer found for this user." });
+        }
+
+        const customerId = records[0].get("stripe_customer_id");
+
+        const portalData = {
+            "customer": customerId,
+            "return_url": `${HOST_URL}/dashboard/billing`
+        };
+
+        const portal = stripeRequest("POST", "/billing_portal/sessions", portalData);
+
+        return c.json(200, { url: portal.url });
+    } catch (err) {
+        $app.logger().error("Create portal error: " + err);
+        return c.json(500, { error: err.message });
+    }
+}, $apis.requireRecordAuth("users"));
+
+// Stripe: Webhook Handler
+routerAdd("POST", "/api/stripe/webhook", (c) => {
+    // NOTE: This endpoint receives unauthenticated POSTs from Stripe.
+
+    let eventId;
+    try {
+        const payload = $apis.requestInfo(c).data;
+        eventId = payload.id;
+
+        if (!eventId || !eventId.startsWith('evt_')) {
+            return c.json(400, { error: "Invalid event id" });
+        }
+    } catch (e) {
+        return c.json(400, { error: "Failed to parse webhook JSON" });
+    }
+
+    try {
+        // Refetch the event directly from Stripe to verify it's authentic and not spoofed
+        const verifiedEvent = stripeRequest("GET", `/events/${eventId}`);
+
+        if (verifiedEvent.type === "checkout.session.completed") {
+            const session = verifiedEvent.data.object;
+            const userId = session.client_reference_id || (session.metadata ? session.metadata.userId : null);
+            const customerId = session.customer;
+            const subscriptionId = session.subscription || "";
+
+            if (!userId) {
+                $app.logger().warn("Stripe webhook: Checkout completed but missing userId");
+                return c.json(200, { received: true, note: "missing userid" });
+            }
+
+            // We need to fetch the line items to know which plan they bought
+            const lineItems = stripeRequest("GET", `/checkout/sessions/${session.id}/line_items`);
+            let planName = "pro"; // default fallback
+            let amount = 0;
+
+            if (lineItems.data && lineItems.data.length > 0) {
+                const price = lineItems.data[0].price;
+                amount = price.unit_amount / 100;
+
+                if (amount >= 29) {
+                    planName = "agency";
+                } else if (amount >= 11) {
+                    planName = "pro";
+                }
+            }
+
+            $app.dao().runInTransaction((txDao) => {
+                // Update user's plan
+                const user = txDao.findRecordById("users", userId);
+                user.set("plan", planName);
+
+                // Set expiry 32 days from now to give padding
+                const now = new DateTime();
+                const expiry = now.addDate(0, 1, 2);
+                user.set("plan_expires_at", expiry.format("Y-m-d H:i:sP"));
+                txDao.saveRecord(user);
+
+                // Check for existing billing record
+                const existingBilling = txDao.findRecordsByFilter(
+                    "billing",
+                    "user_id = {:userId}",
+                    "-created",
+                    1,
+                    0,
+                    { userId: userId }
+                );
+
+                if (existingBilling.length > 0) {
+                    const bRecord = existingBilling[0];
+                    bRecord.set("plan", planName);
+                    bRecord.set("amount", amount);
+                    bRecord.set("status", "active");
+                    bRecord.set("payment_method", "Stripe");
+                    bRecord.set("stripe_customer_id", customerId);
+                    bRecord.set("stripe_subscription_id", subscriptionId);
+                    txDao.saveRecord(bRecord);
+                } else {
+                    const billingColl = txDao.findCollectionByNameOrId("billing");
+                    const billingRecord = new Record(billingColl, {
+                        "user_id": userId,
+                        "plan": planName,
+                        "amount": amount,
+                        "status": "active",
+                        "payment_method": "Stripe",
+                        "stripe_customer_id": customerId,
+                        "stripe_subscription_id": subscriptionId
+                    });
+                    txDao.saveRecord(billingRecord);
+                }
+
+                // Analytics
+                const analyticsColl = txDao.findCollectionByNameOrId("analytics_events");
+                const event = new Record(analyticsColl, {
+                    "event_name": "billing_upgrade",
+                    "user_id": userId,
+                    "metadata": JSON.stringify({
+                        "plan": planName,
+                        "amount": amount,
+                        "method": "Stripe Checkout"
+                    })
+                });
+                txDao.saveRecord(event);
+            });
+
+            $app.logger().info(`Stripe webhook processed: upgraded user ${userId} to ${planName}`);
+        } else if (verifiedEvent.type === "customer.subscription.deleted") {
+            const subscription = verifiedEvent.data.object;
+            const customerId = subscription.customer;
+
+            const records = $app.dao().findRecordsByFilter(
+                "billing",
+                "stripe_customer_id = {:custId}",
+                "-created",
+                1,
+                0,
+                { custId: customerId }
+            );
+
+            if (records.length > 0) {
+                const bRecord = records[0];
+                bRecord.set("status", "canceled");
+                $app.dao().saveRecord(bRecord);
+
+                // Downgrade user
+                const userId = bRecord.get("user_id");
+                const user = $app.dao().findRecordById("users", userId);
+                user.set("plan", "creator");
+                user.set("plan_expires_at", "");
+                $app.dao().saveRecord(user);
+
+                $app.logger().info(`Stripe webhook processed: downgraded user ${userId} due to cancelation`);
+            }
+        }
+
+        return c.json(200, { received: true });
+    } catch (err) {
+        $app.logger().error("Webhook processing error: " + err);
+        return c.json(500, { error: err.message });
+    }
+});
+
 // 7. Analytics: Track Link Creation
 onRecordAfterCreateRequest((e) => {
     try {

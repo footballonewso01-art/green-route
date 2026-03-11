@@ -6,7 +6,7 @@
     "listRule": "@request.auth.role = \"admin\" || id = @request.auth.id",
     "viewRule": "@request.auth.role = \"admin\" || id = @request.auth.id",
     "createRule": "",
-    "updateRule": "@request.auth.role = \"admin\" || id = @request.auth.id",
+    "updateRule": "@request.auth.role = 'admin' || id = @request.auth.id",
     "deleteRule": "@request.auth.role = \"admin\" || id = @request.auth.id",
     "schema": [
       {
@@ -39,7 +39,7 @@
             "image/gif",
             "image/webp"
           ],
-          "thumbs": null,
+          "thumbs": [],
           "maxSelect": 1,
           "maxSize": 5242880,
           "protected": false
@@ -344,14 +344,13 @@
         "system": false,
         "id": "l_order",
         "name": "order",
-        "type": "number",
+        "type": "date",
         "required": false,
         "presentable": false,
         "unique": false,
         "options": {
-          "min": null,
-          "max": null,
-          "onlyInt": false
+          "min": "",
+          "max": ""
         }
       },
       {
@@ -485,7 +484,7 @@
         "presentable": false,
         "unique": false,
         "options": {
-          "maxSize": 0
+          "maxSize": 2000000
         }
       },
       {
@@ -497,7 +496,7 @@
         "presentable": false,
         "unique": false,
         "options": {
-          "maxSize": 0
+          "maxSize": 2000000
         }
       },
       {
@@ -519,7 +518,7 @@
         "presentable": false,
         "unique": false,
         "options": {
-          "maxSize": 0
+          "maxSize": 2000000
         }
       },
       {
@@ -636,7 +635,7 @@
             "image/gif",
             "image/webp"
           ],
-          "thumbs": null,
+          "thumbs": [],
           "protected": false
         }
       }
@@ -784,7 +783,7 @@
     "type": "base",
     "listRule": "@request.auth.role = 'admin' || user_id = @request.auth.id",
     "viewRule": "@request.auth.role = 'admin' || user_id = @request.auth.id",
-    "createRule": "@request.auth.id != \"\"",
+    "createRule": "@request.auth.role = 'admin'",
     "updateRule": "@request.auth.role = 'admin'",
     "deleteRule": "@request.auth.role = 'admin'",
     "schema": [
@@ -858,6 +857,140 @@
           "min": null,
           "max": null,
           "pattern": ""
+        }
+      }
+    ]
+  },
+  {
+    "id": "c7lq39r4rmy00zl",
+    "name": "analytics_events",
+    "type": "base",
+    "listRule": "@request.auth.role = 'admin'",
+    "viewRule": "@request.auth.role = 'admin'",
+    "createRule": "",
+    "updateRule": "@request.auth.role = 'admin'",
+    "deleteRule": "@request.auth.role = 'admin'",
+    "schema": [
+      {
+        "system": false,
+        "id": "0j2bvsen",
+        "name": "event_name",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "isle9gft",
+        "name": "user_id",
+        "type": "relation",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": true,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": null
+        }
+      },
+      {
+        "system": false,
+        "id": "qlf6gpcy",
+        "name": "metadata",
+        "type": "json",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "xrq5jxs2mx9ofx8",
+    "name": "system_logs",
+    "type": "base",
+    "listRule": "@request.auth.role = 'admin'",
+    "viewRule": "@request.auth.role = 'admin'",
+    "createRule": "",
+    "updateRule": "@request.auth.role = 'admin'",
+    "deleteRule": "@request.auth.role = 'admin'",
+    "schema": [
+      {
+        "system": false,
+        "id": "ckrcuzoy",
+        "name": "level",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "ehtoldww",
+        "name": "message",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "jf1ns0yu",
+        "name": "latency",
+        "type": "number",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "noDecimal": false
+        }
+      },
+      {
+        "system": false,
+        "id": "g7bxio0j",
+        "name": "endpoint",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "uoxmbibj",
+        "name": "context",
+        "type": "json",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 0
         }
       }
     ]

@@ -4,6 +4,7 @@ import { PLANS, PlanType } from "@/lib/plans";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { pb } from "@/lib/pocketbase";
+import { toast } from "sonner";
 
 type BillingRecord = {
     id: string;
@@ -19,6 +20,7 @@ export default function BillingPage() {
     const [currentPlan, setCurrentPlan] = useState<PlanType>("creator");
     const [logs, setLogs] = useState<BillingRecord[]>([]);
     const [loading, setLoading] = useState(true);
+    const [portalLoading, setPortalLoading] = useState(false);
 
     useEffect(() => {
         const u = user as { plan?: PlanType } | null;
@@ -62,6 +64,39 @@ export default function BillingPage() {
         });
     };
 
+    const hasStripeCustomer = logs.some(log => log.payment_method === "Stripe" && log.status === "active");
+
+    const handleManageSubscription = async () => {
+        setPortalLoading(true);
+        try {
+            if (!pb.authStore.isValid || !pb.authStore.token) {
+                throw new Error("You must be logged in to manage subscription");
+            }
+
+            const response = await fetch(`${pb.baseUrl}/api/stripe/create-portal`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": pb.authStore.token
+                }
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to access billing portal");
+            }
+
+            // Redirect to Stripe Customer Portal
+            window.location.assign(data.url);
+        } catch (e: unknown) {
+            console.error("Portal error:", e);
+            toast.error((e as Error).message || "Failed to open billing portal");
+        } finally {
+            setPortalLoading(false);
+        }
+    };
+
     return (
         <div className="max-w-5xl mx-auto space-y-8 pb-12">
             <div className="space-y-2">
@@ -88,7 +123,16 @@ export default function BillingPage() {
                     </div>
                 </div>
 
-                <div className="relative z-10 w-full md:w-auto">
+                <div className="relative z-10 w-full md:w-auto flex flex-col sm:flex-row gap-3">
+                    {hasStripeCustomer && (
+                        <button
+                            onClick={handleManageSubscription}
+                            disabled={portalLoading}
+                            className="w-full md:w-auto px-6 py-3 rounded-xl bg-accent text-accent-foreground font-medium hover:bg-accent/90 flex items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-50"
+                        >
+                            {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Manage Subscription"}
+                        </button>
+                    )}
                     <Link
                         to="/dashboard/pricing"
                         className="w-full md:w-auto px-6 py-3 rounded-xl bg-background border border-border text-foreground font-medium hover:border-accent hover:text-accent flex items-center justify-center gap-2 transition-all shadow-sm group"

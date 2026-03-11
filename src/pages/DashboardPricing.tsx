@@ -4,6 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAuth } from "@/contexts/AuthContext";
 import { PlanType, PLAN_RANKS } from "@/lib/plans";
 import { pb } from "@/lib/pocketbase";
+import { STRIPE_PRICES } from "@/lib/stripe";
 import { toast } from "sonner";
 
 const plans = [
@@ -69,33 +70,45 @@ export default function DashboardPricing() {
         if (userPlan === planId) return;
         setLoading(true);
         try {
-            // Calculate +30 days if upgrading
-            const updateData: Record<string, string> = { plan: planId };
-            if (planId !== "creator") {
-                const expires = new Date();
-                expires.setDate(expires.getDate() + 30);
-                updateData.plan_expires_at = expires.toISOString();
-            } else {
-                updateData.plan_expires_at = ""; // Clear expiration if free
+            if (planId === "creator") {
+                // Free plan downgrade logic (could trigger portal to cancel in the future)
+                toast.info("Please manage downgrades from your Billing settings.");
+                setLoading(false);
+                return;
             }
 
-            await pb.collection("users").update(user!.id, updateData);
+            let priceId = "";
+            if (planId === "pro") priceId = STRIPE_PRICES.pro.monthly;
+            if (planId === "agency") priceId = STRIPE_PRICES.agency.monthly;
 
-            // Create billing record
-            if (planId !== "creator") {
-                await pb.collection("billing").create({
-                    user_id: user!.id,
-                    plan: planId,
-                    amount: planId === "pro" ? 11 : 29,
-                    status: "active",
-                    payment_method: "Bought"
-                });
+            if (!priceId) throw new Error("Invalid plan selection");
+
+            // Ensure Auth is fully propagated
+            if (!pb.authStore.isValid || !pb.authStore.token) {
+                throw new Error("You must be logged in to upgrade");
             }
 
-            toast.success(`Successfully upgraded to ${planId.toUpperCase()}!`);
-            await pb.collection("users").authRefresh();
+            // Call our new custom PocketBase backend route
+            const response = await fetch(`${pb.baseUrl}/api/stripe/create-checkout`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": pb.authStore.token
+                },
+                body: JSON.stringify({ priceId })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to create checkout session");
+            }
+
+            // Redirect to Stripe Checkout
+            window.location.assign(data.url);
         } catch (e: unknown) {
-            toast.error((e as Error).message || "Failed to upgrade");
+            console.error("Upgrade error:", e);
+            toast.error((e as Error).message || "Failed to initiate upgrade");
         } finally {
             setLoading(false);
         }
