@@ -65,8 +65,8 @@ export default function PublicProfile() {
       try {
         // Track Profile View (Fire and forget)
         try {
-          // Use GET for maximum cross-domain compatibility
-          pb.send(`/api/track/profile/${username}`, {
+          // Use flat route /api/pv/:username (PB 0.24 has issues with deeply nested custom routes)
+          pb.send(`/api/pv/${username}`, {
             method: 'GET'
           }).catch(() => {});
         } catch (e) {}

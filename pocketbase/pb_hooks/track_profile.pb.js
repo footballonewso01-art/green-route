@@ -1,10 +1,6 @@
-// Simple test route — no path params
-routerAdd("GET", "/api/track-test", (c) => {
-    return c.json(200, { test: true });
-});
-
 // Track Profile Views (Public, unauthenticated)
-routerAdd("GET", "/api/track/profile/:username", (c) => {
+// Using flat route /api/pv/:username because PB 0.24 has issues with deeply nested custom routes
+routerAdd("GET", "/api/pv/:username", (c) => {
     const username = c.pathParam("username");
     
     try {
