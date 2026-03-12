@@ -403,7 +403,7 @@ export default function DashboardProfile() {
   const profileLinks = links.filter(l => l.active && l.show_on_profile !== false);
 
   const lastUsernameChange = user?.username_last_changed;
-  const isUsernameLocked = lastUsernameChange
+  const isUsernameLocked = (lastUsernameChange && lastUsernameChange.trim() !== "")
     ? (new Date().getTime() - new Date(lastUsernameChange).getTime()) < 21 * 24 * 60 * 60 * 1000
     : false;
 

@@ -4,26 +4,84 @@
 
 // Helper for Stripe REST API calls
 
-// (Diagnostic code removed)
+routerAdd("GET", "/api/debug", (c) => {
+    return c.json(200, {
+        "fetch_type": typeof fetch,
+        "Request_type": typeof Request,
+        "$http_type": typeof $http
+    });
+});
 
+routerAdd("GET", "/api/debug2", (c) => {
+    try {
+        const res = $http.send({ url: "https://google.com", method: "GET" });
+        return c.json(200, { success: true, status: res.statusCode });
+    } catch (e) {
+        return c.json(500, { debug2_error: String(e), trace: e.stack });
+    }
+});
 
-// (Inlined stripeRequest due to PocketBase Engine Scope restrictions)
+function stripeRequest(method, endpoint, data) {
+    const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
+    let url = "https://api.stripe.com/v1" + endpoint;
+    let body = null;
+    let headers = {
+        "Authorization": "Bearer " + STRIPE_SECRET_KEY,
+        "Content-Type": "application/x-www-form-urlencoded"
+    };
+
+    if (data) {
+        const parts = [];
+        for (const key in data) {
+            if (typeof data[key] === 'object' && data[key] !== null) {
+                for (const subKey in data[key]) {
+                    parts.push(encodeURIComponent(key + "[" + subKey + "]") + "=" + encodeURIComponent(data[key][subKey]));
+                }
+            } else {
+                parts.push(encodeURIComponent(key) + "=" + encodeURIComponent(data[key]));
+            }
+        }
+        body = parts.join("&");
+
+        if (method === "GET") {
+            url += "?" + body;
+            body = null;
+        }
+    }
+
+    let fetchOptions = {
+        method: method,
+        headers: headers,
+    };
+    if (body) {
+        fetchOptions.body = body;
+    }
+
+    try {
+        const res = fetch(url, fetchOptions);
+        if (!res.ok) {
+            throw new Error("Stripe Error " + res.status);
+        }
+        return res.json();
+    } catch (err) {
+        throw err;
+    }
+}
 
 // Stripe: Create Checkout Session
 routerAdd("POST", "/api/stripe/create-checkout", (c) => {
     try {
         const user = c.auth;
         if (!user || user.collection().name !== "users") {
-            return c.json(401, { message: "Unauthorized" });
+            return c.json(401, { error: "Unauthorized" });
         }
 
-        const data = new DynamicModel({ "priceId": "", "billingCycle": "" });
+        const data = new DynamicModel({ "priceId": "" });
         c.bindBody(data);
         const priceId = data.priceId;
-        const billingCycle = data.billingCycle || "monthly";
 
         if (!priceId) {
-            return c.json(400, { message: "priceId is required" });
+            return c.json(400, { error: "priceId is required" });
         }
 
         const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
@@ -38,37 +96,16 @@ routerAdd("POST", "/api/stripe/create-checkout", (c) => {
             "cancel_url": HOST_URL + "/dashboard/pricing",
             "client_reference_id": user.id,
             "customer_email": user.get("email"),
-            "metadata[userId]": user.id,
-            "metadata[billingCycle]": billingCycle
+            "metadata[userId]": user.id
         };
 
-        const parts = [];
-        for (const key in sessionData) {
-            parts.push(encodeURIComponent(key) + "=" + encodeURIComponent(sessionData[key]));
-        }
-        const body = parts.join("&");
-
-        const res = $http.send({
-            url: "https://api.stripe.com/v1/checkout/sessions",
-            method: "POST",
-            body: body,
-            headers: {
-                "Authorization": "Bearer " + STRIPE_SECRET_KEY,
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            timeout: 10
-        });
-
-        if (res.statusCode >= 400) {
-            throw new Error("Stripe Error " + res.statusCode + ": " + res.raw);
-        }
-        const session = res.json;
+        const session = stripeRequest("POST", "/checkout/sessions", sessionData);
 
         return c.json(200, { url: session.url });
     } catch (err) {
         let errStr = String(err);
         $app.logger().error("Create checkout error: " + errStr);
-        return c.json(500, { message: "Stripe Checkout failed: " + errStr });
+        return c.json(500, { error: errStr, details: "Failed to create checkout session on Stripe API." });
     }
 }, $apis.requireAuth());
 
@@ -76,14 +113,14 @@ routerAdd("POST", "/api/stripe/create-checkout", (c) => {
 routerAdd("POST", "/api/stripe/create-portal", (c) => {
     const user = c.auth;
     if (!user || user.collection().name !== "users") {
-        return c.json(401, { message: "Unauthorized" });
+        return c.json(401, { error: "Unauthorized" });
     }
 
     const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
     const HOST_URL = $os.getenv("HOST_URL") || "https://linktery.com";
 
     if (!STRIPE_SECRET_KEY) {
-        return c.json(500, { message: "Stripe is not configured" });
+        return c.json(500, { error: "Stripe is not configured" });
     }
 
     try {
@@ -97,7 +134,7 @@ routerAdd("POST", "/api/stripe/create-portal", (c) => {
         );
 
         if (records.length === 0) {
-            return c.json(400, { message: "No active Stripe customer found for this user." });
+            return c.json(400, { error: "No active Stripe customer found for this user." });
         }
 
         const customerId = records[0].get("stripe_customer_id");
@@ -106,32 +143,13 @@ routerAdd("POST", "/api/stripe/create-portal", (c) => {
             "customer": customerId,
             "return_url": HOST_URL + "/dashboard/billing"
         };
-        
-        const parts = [];
-        for (const key in portalData) {
-            parts.push(encodeURIComponent(key) + "=" + encodeURIComponent(portalData[key]));
-        }
-        const body = parts.join("&");
 
-        const res = $http.send({
-            url: "https://api.stripe.com/v1/billing_portal/sessions",
-            method: "POST",
-            body: body,
-            headers: {
-                "Authorization": "Bearer " + STRIPE_SECRET_KEY,
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            timeout: 10
-        });
-        if (res.statusCode >= 400) {
-            throw new Error("Stripe Error " + res.statusCode + ": " + res.raw);
-        }
-        const portal = res.json;
+        const portal = stripeRequest("POST", "/billing_portal/sessions", portalData);
 
         return c.json(200, { url: portal.url });
     } catch (err) {
         $app.logger().error("Create portal error: " + err);
-        return c.json(500, { message: err.message });
+        return c.json(500, { error: err.message });
     }
 }, $apis.requireAuth());
 
@@ -157,24 +175,11 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
     }
 
     try {
-        const res = $http.send({
-            url: "https://api.stripe.com/v1/events/" + eventId,
-            method: "GET",
-            headers: {
-                "Authorization": "Bearer " + STRIPE_SECRET_KEY,
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            timeout: 10
-        });
-        if (res.statusCode >= 400) {
-            throw new Error("Stripe Error " + res.statusCode + ": " + res.raw);
-        }
-        const verifiedEvent = res.json;
+        const verifiedEvent = stripeRequest("GET", "/events/" + eventId);
 
         if (verifiedEvent.type === "checkout.session.completed") {
             const session = verifiedEvent.data.object;
             const userId = session.client_reference_id || (session.metadata ? session.metadata.userId : null);
-            const billingCycle = (session.metadata ? session.metadata.billingCycle : "monthly");
             const customerId = session.customer;
             const subscriptionId = session.subscription || "";
 
@@ -182,17 +187,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 return c.json(200, { received: true, note: "missing userid" });
             }
 
-            const lineItemsRes = $http.send({
-                url: "https://api.stripe.com/v1/checkout/sessions/" + session.id + "/line_items",
-                method: "GET",
-                headers: {
-                    "Authorization": "Bearer " + STRIPE_SECRET_KEY,
-                    "Content-Type": "application/x-www-form-urlencoded"
-                },
-                timeout: 10
-            });
-            if (lineItemsRes.statusCode >= 400) throw new Error("Stripe Items Error " + lineItemsRes.statusCode);
-            const lineItems = lineItemsRes.json;
+            const lineItems = stripeRequest("GET", "/checkout/sessions/" + session.id + "/line_items");
             let planName = "pro";
             let amount = 0;
 
@@ -210,12 +205,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 const user = txDao.findRecordById("users", userId);
                 user.set("plan", planName);
                 const now = new DateTime();
-                
-                // Add 1 year or 1 month based on metadata
-                const expiry = billingCycle === "annual" 
-                    ? now.addDate(1, 0, 2) 
-                    : now.addDate(0, 1, 2);
-                    
+                const expiry = now.addDate(0, 1, 2);
                 user.set("plan_expires_at", expiry.format("Y-m-d H:i:sP"));
                 txDao.save(user);
 
