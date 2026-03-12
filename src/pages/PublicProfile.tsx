@@ -63,16 +63,18 @@ export default function PublicProfile() {
     const fetchData = async () => {
       if (!username) return;
       try {
-        // Track Profile View (Fire and forget)
+        // Track Profile View (Fire and forget - bypasses pb SDK caching)
         try {
-          // Send as POST and add a random cache-buster to completely bypass browser and PB SDK caching
-          pb.send(`/api/pv?u=${encodeURIComponent(username)}&_=${Date.now()}`, {
-            method: 'POST'
+          const pbUrl = pb.baseUrl || "https://greenroute-pb.fly.dev";
+          fetch(`${pbUrl}/api/pv?u=${encodeURIComponent(username)}&_=${Date.now()}`, {
+            method: 'GET',
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
           }).catch((err) => {
-            console.error("Profile view tracking failed:", err);
+            console.error("Profile view fetch failed:", err);
           });
         } catch (e) {
-          console.error("Profile view tracking sync error:", e);
+          console.error("Profile view sync error:", e);
         }
 
         // Fetch user by username

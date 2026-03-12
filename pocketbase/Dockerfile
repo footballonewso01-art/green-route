@@ -16,5 +16,5 @@ COPY ./pb_hooks /pb/pb_hooks
 
 EXPOSE 8080
 
-# CRITICAL: Wipe ALL stale hooks from volume first, then copy ONLY fresh hooks from image
-CMD ["sh", "-c", "rm -rf /pb/pb_data/pb_hooks && cp -r /pb/pb_hooks /pb/pb_data/pb_hooks && exec /pb/pocketbase serve --http=0.0.0.0:8080 --dev"]
+# CRITICAL: Wipe ALL stale hooks and restored backups from volume first, then copy ONLY fresh hooks from image
+CMD ["sh", "-c", "rm -rf /pb/pb_data/pb_hooks && rm -rf /pb/pb_data/pb_data_restored && cp -r /pb/pb_hooks /pb/pb_data/pb_hooks && exec /pb/pocketbase serve --http=0.0.0.0:8080 --dev"]
