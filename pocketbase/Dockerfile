@@ -16,6 +16,5 @@ COPY ./pb_hooks /pb/pb_hooks
 
 EXPOSE 8080
 
-# Clean up any old hooks from persistent volume, then start
-# --hooksDir is REQUIRED because pb_data is on a mounted volume and PB won't auto-discover hooks
-CMD ["sh", "-c", "rm -rf /pb/pb_data/pb_hooks 2>/dev/null; exec /pb/pocketbase serve --http=0.0.0.0:8080 --hooksDir=/pb/pb_hooks"]
+# Copy hooks into pb_data at startup (where PB expects them), then start with debug info
+CMD ["sh", "-c", "cp -rf /pb/pb_hooks /pb/pb_data/pb_hooks && exec /pb/pocketbase serve --http=0.0.0.0:8080 --dev"]
