@@ -1,7 +1,10 @@
 // Track Profile Views (Public, unauthenticated)
-// Using /pv/:username without /api prefix to avoid PB internal router conflicts
-routerAdd("GET", "/pv/:username", (c) => {
-    const username = c.pathParam("username");
+// Using query param ?u=username to avoid PB path routing conflicts with /{slug} catch-all
+routerAdd("GET", "/api/pv", (c) => {
+    const username = c.queryParam("u");
+    if (!username) {
+        return c.json(400, { error: "missing u param" });
+    }
     
     try {
         const user = $app.findFirstRecordByFilter("users", "LOWER(username) = {:username}", { username: username.toLowerCase() });

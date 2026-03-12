@@ -65,8 +65,8 @@ export default function PublicProfile() {
       try {
         // Track Profile View (Fire and forget)
         try {
-          // Use /pv/:username route (without /api prefix to avoid PB router issues)
-          pb.send(`/pv/${username}`, {
+          // Use fixed path + query param to avoid PB /{slug} routing conflicts
+          pb.send(`/api/pv?u=${encodeURIComponent(username)}`, {
             method: 'GET'
           }).catch(() => {});
         } catch (e) {}
