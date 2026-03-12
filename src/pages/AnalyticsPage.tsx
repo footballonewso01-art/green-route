@@ -248,7 +248,7 @@ export default function AnalyticsPage() {
       {/* Stats Overview */}
       <div className={`grid grid-cols-2 md:grid-cols-3 ${hasProfileLinks ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4`}>
         <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Total Links Clicks</p>
+          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Total Clicks</p>
           <div className="text-2xl font-bold">{clicksCount.toLocaleString()}</div>
         </div>
         <div className="glass-card p-4 border-l-accent/30 border-l-2">
@@ -262,7 +262,7 @@ export default function AnalyticsPage() {
         {hasProfileLinks ? (
           <>
             <div className="glass-card p-4 border-l-blue-500/30 border-l-2">
-              <p className="text-xs text-blue-500 uppercase font-bold tracking-wider mb-1">Profile Views</p>
+              <p className="text-xs text-blue-500 uppercase font-bold tracking-wider mb-1">Total Visits</p>
               <div className="text-2xl font-bold">{profileViewsCount.toLocaleString()}</div>
             </div>
             <div className="glass-card p-4">
