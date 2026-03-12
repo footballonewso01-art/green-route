@@ -153,6 +153,7 @@ export default function RedirectHandler() {
                     const trackUrl = `${pbUrl}/api/pv?u=${encodeURIComponent(username)}&_=${Date.now()}`;
                     
                     // Use a simple fetch with GET which is verified to work on current backend
+                    // Now with 'cors' mode supported by the new backend hook
                     fetch(trackUrl, {
                         method: 'GET',
                         cache: 'no-cache',
