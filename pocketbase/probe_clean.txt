@@ -1,0 +1,18 @@
+﻿$apis: object
+$apis_keys: ['static', 'requireGuestOnly', 'requireAuth', 'requireSuperuserAuth', 'requireSuperuserOrOwnerAuth', 'skipSuccessActivityLog', 'gzip', 'bodyLimit', 'recordAuthResponse', 'enrichRecord', 'enrichRecords']
+$app: object
+$http: object
+$os: object
+cronAdd: undefined (error: cronAdd is not defined)
+onRecordAfterCreateRequest: undefined (error: onRecordAfterCreateRequest is not defined)
+onRecordAfterUpdateRequest: undefined (error: onRecordAfterUpdateRequest is not defined)
+onRecordAuth: undefined (error: onRecordAuth is not defined)
+onRecordAuthRequest: undefined (error: onRecordAuthRequest is not defined)
+onRecordBeforeCreateRequest: undefined (error: onRecordBeforeCreateRequest is not defined)
+onRecordBeforeUpdateRequest: undefined (error: onRecordBeforeUpdateRequest is not defined)
+onRecordCreate: undefined (error: onRecordCreate is not defined)
+onRecordCreateRequest: undefined (error: onRecordCreateRequest is not defined)
+onRecordDelete: undefined (error: onRecordDelete is not defined)
+onRecordUpdate: undefined (error: onRecordUpdate is not defined)
+onRecordUpdateRequest: undefined (error: onRecordUpdateRequest is not defined)
+routerAdd: undefined (error: routerAdd is not defined)

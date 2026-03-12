@@ -1,0 +1,6 @@
+﻿Creating test user 8855
+Testing creating a link...
+Create: 200 {"ab_split":false,"active":false,"bg_image":"","clicks_count":0,"cloaking":false,"collectionId":"7ht
+Testing updating a link...
+Update: 200 {"ab_split":false,"active":false,"bg_image":"","clicks_count":0,"cloaking":false,"collectionId":"7ht
+SUCCESS: Database creates and updates are working normally!

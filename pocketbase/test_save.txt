@@ -1,0 +1,3 @@
+﻿Authenticating...
+Auth failed: 400 {"data":{},"message":"Failed to authenticate.","status":400}
+

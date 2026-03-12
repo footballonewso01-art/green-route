@@ -416,7 +416,7 @@ export default function DashboardProfile() {
         </div>
         {username ? (
           <a
-            href={`/${username}`}
+            href={`/u/${username}`}
             target="_blank"
             rel="noopener"
             className="inline-flex items-center gap-2 text-sm text-accent hover:underline px-4 py-2 bg-accent/5 rounded-lg border border-accent/20 transition-all font-medium"

@@ -1,0 +1,100 @@
+﻿[2m2026-03-11T19:44:40Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][   98.095814] reboot: Restarting system
+[2m2026-03-11T19:44:41Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026-03-11T19:44:41.704399250 [01KKF6W29QEGJMAKHC1Q8278JT:main] Running Firecracker v1.14.2
+[2m2026-03-11T19:44:41Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026-03-11T19:44:41.704554082 [01KKF6W29QEGJMAKHC1Q8278JT:main] Listening on API socket ("/fc.sock").
+[2m2026-03-11T19:44:42Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Starting init (commit: 350f2667)...
+[2m2026-03-11T19:44:42Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Checking filesystem on /pb/pb_data
+[2m2026-03-11T19:44:42Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]/dev/vdc: clean, 76/65280 files, 17629/261120 blocks
+[2m2026-03-11T19:44:42Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Mounting /dev/vdc at /pb/pb_data w/ uid: 0, gid: 0 and chmod 0755
+[2m2026-03-11T19:44:42Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Resized /pb/pb_data to 1069547520 bytes
+[2m2026-03-11T19:44:42Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Preparing to run: `sh -c rm -rf /pb/pb_data/pb_hooks 2>/dev/null; exec /pb/pocketbase serve --http=0.0.0.0:8080` as root
+[2m2026-03-11T19:44:42Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m [fly api proxy] listening at /.fly/api
+[2m2026-03-11T19:44:42Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Machine created and started in 3.38s
+[2m2026-03-11T19:44:42Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]Failed to execute main.pb.js:
+[2m2026-03-11T19:44:42Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m] - ReferenceError: onRecordBeforeUpdateRequest is not defined at <eval>:1:28(5)
+[2m2026-03-11T19:44:43Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026/03/11 19:44:43 INFO SSH listening listen_address=[fdaa:4b:b03a:a7b:13b:453:b622:2]:22
+[2m2026-03-11T19:44:43Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026/03/11 19:44:43 Server started at http://0.0.0.0:8080
+[2m2026-03-11T19:44:43Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]тФЬтФА REST API:  http://0.0.0.0:8080/api/
+[2m2026-03-11T19:44:43Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]тФФтФА Dashboard: http://0.0.0.0:8080/_/
+[2m2026-03-11T19:47:09Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026/03/11 19:47:09 INFO New SSH session email=footballonewso01@gmail.com verified=true
+[2m2026-03-11T19:49:52Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Pulling container image registry.fly.io/greenroute-pb@sha256:c39b6b7580b2db3a817d846aa35959a7d545545d273b630ffad99e4a46e2ed0c
+[2m2026-03-11T19:49:53Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Successfully prepared image registry.fly.io/greenroute-pb@sha256:c39b6b7580b2db3a817d846aa35959a7d545545d273b630ffad99e4a46e2ed0c (567.087645ms)
+[2m2026-03-11T19:49:53Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Setting up volume 'pb_data'
+[2m2026-03-11T19:49:53Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Opening encrypted volume
+[2m2026-03-11T19:49:55Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Configuring firecracker
+[2m2026-03-11T19:49:55Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Sending signal SIGINT to main child process w/ PID 658
+[2m2026-03-11T19:49:56Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Main child exited normally with code: 0
+[2m2026-03-11T19:49:56Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Starting clean up.
+[2m2026-03-11T19:49:56Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Umounting /dev/vdc from /pb/pb_data
+[2m2026-03-11T19:49:56Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][  314.362502] reboot: Restarting system
+[2m2026-03-11T19:49:56Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026-03-11T19:49:56.843636306 [01KKF75MA4M8BCHF60J5MPPAZ8:main] Running Firecracker v1.14.2
+[2m2026-03-11T19:49:56Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026-03-11T19:49:56.843880409 [01KKF75MA4M8BCHF60J5MPPAZ8:main] Listening on API socket ("/fc.sock").
+[2m2026-03-11T19:49:57Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Starting init (commit: 350f2667)...
+[2m2026-03-11T19:49:57Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Checking filesystem on /pb/pb_data
+[2m2026-03-11T19:49:57Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]/dev/vdc: clean, 76/65280 files, 17657/261120 blocks
+[2m2026-03-11T19:49:57Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Mounting /dev/vdc at /pb/pb_data w/ uid: 0, gid: 0 and chmod 0755
+[2m2026-03-11T19:49:57Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Resized /pb/pb_data to 1069547520 bytes
+[2m2026-03-11T19:49:57Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Preparing to run: `sh -c rm -rf /pb/pb_data/pb_hooks 2>/dev/null; exec /pb/pocketbase serve --http=0.0.0.0:8080` as root
+[2m2026-03-11T19:49:57Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m [fly api proxy] listening at /.fly/api
+[2m2026-03-11T19:49:57Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Machine created and started in 5.162s
+[2m2026-03-11T19:49:58Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]Failed to execute main.pb.js:
+[2m2026-03-11T19:49:58Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m] - TypeError: Object has no member 'requireRecordAuth' at <eval>:275:27(40)
+[2m2026-03-11T19:49:58Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026/03/11 19:49:58 INFO SSH listening listen_address=[fdaa:4b:b03a:a7b:13b:453:b622:2]:22
+[2m2026-03-11T19:49:58Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026/03/11 19:49:58 Server started at http://0.0.0.0:8080
+[2m2026-03-11T19:49:58Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]тФЬтФА REST API:  http://0.0.0.0:8080/api/
+[2m2026-03-11T19:49:58Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]тФФтФА Dashboard: http://0.0.0.0:8080/_/
+[2m2026-03-11T19:52:15Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Pulling container image registry.fly.io/greenroute-pb@sha256:320d3601c4822f2d7031defb015be1921a57a2900d4625371401046925156e88
+[2m2026-03-11T19:52:15Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Successfully prepared image registry.fly.io/greenroute-pb@sha256:320d3601c4822f2d7031defb015be1921a57a2900d4625371401046925156e88 (518.89024ms)
+[2m2026-03-11T19:52:15Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Setting up volume 'pb_data'
+[2m2026-03-11T19:52:15Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Opening encrypted volume
+[2m2026-03-11T19:52:16Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Configuring firecracker
+[2m2026-03-11T19:52:16Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Sending signal SIGINT to main child process w/ PID 657
+[2m2026-03-11T19:52:17Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Main child exited normally with code: 0
+[2m2026-03-11T19:52:17Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Starting clean up.
+[2m2026-03-11T19:52:17Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Umounting /dev/vdc from /pb/pb_data
+[2m2026-03-11T19:52:17Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][  140.129725] reboot: Restarting system
+[2m2026-03-11T19:52:17Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026-03-11T19:52:17.682653090 [01KKF79ZK768TZ9V0BC2FBNBJT:main] Running Firecracker v1.14.2
+[2m2026-03-11T19:52:17Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026-03-11T19:52:17.682792231 [01KKF79ZK768TZ9V0BC2FBNBJT:main] Listening on API socket ("/fc.sock").
+[2m2026-03-11T19:52:18Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Starting init (commit: 350f2667)...
+[2m2026-03-11T19:52:18Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Checking filesystem on /pb/pb_data
+[2m2026-03-11T19:52:18Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]/dev/vdc: clean, 76/65280 files, 17657/261120 blocks
+[2m2026-03-11T19:52:18Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Mounting /dev/vdc at /pb/pb_data w/ uid: 0, gid: 0 and chmod 0755
+[2m2026-03-11T19:52:18Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Resized /pb/pb_data to 1069547520 bytes
+[2m2026-03-11T19:52:18Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Preparing to run: `sh -c rm -rf /pb/pb_data/pb_hooks 2>/dev/null; exec /pb/pocketbase serve --http=0.0.0.0:8080` as root
+[2m2026-03-11T19:52:18Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m [fly api proxy] listening at /.fly/api
+[2m2026-03-11T19:52:18Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]Failed to execute main.pb.js:
+[2m2026-03-11T19:52:18Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m] - ReferenceError: onRecordAfterCreateRequest is not defined at <eval>:472:27(54)
+[2m2026-03-11T19:52:18Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Machine created and started in 3.489s
+[2m2026-03-11T19:52:19Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026/03/11 19:52:19 INFO SSH listening listen_address=[fdaa:4b:b03a:a7b:13b:453:b622:2]:22
+[2m2026-03-11T19:52:19Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026/03/11 19:52:19 Server started at http://0.0.0.0:8080
+[2m2026-03-11T19:52:19Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]тФЬтФА REST API:  http://0.0.0.0:8080/api/
+[2m2026-03-11T19:52:19Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]тФФтФА Dashboard: http://0.0.0.0:8080/_/
+[2m2026-03-11T19:53:04Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026/03/11 19:53:04 -> /api/stripe/create-checkout called
+[2m2026-03-11T19:53:04Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026/03/11 19:53:04 >> user obtained: null
+[2m2026-03-11T19:53:44Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026/03/11 19:53:44 -> /api/stripe/create-checkout called
+[2m2026-03-11T19:53:44Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026/03/11 19:53:44 >> user obtained: null
+[2m2026-03-11T19:54:51Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Pulling container image registry.fly.io/greenroute-pb@sha256:1ca0b550578389be69fdf1dc1db7c774ef2683c563dfc2199377c6e9a777a7f5
+[2m2026-03-11T19:54:52Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Successfully prepared image registry.fly.io/greenroute-pb@sha256:1ca0b550578389be69fdf1dc1db7c774ef2683c563dfc2199377c6e9a777a7f5 (498.667729ms)
+[2m2026-03-11T19:54:52Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Setting up volume 'pb_data'
+[2m2026-03-11T19:54:52Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Opening encrypted volume
+[2m2026-03-11T19:54:53Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Configuring firecracker
+[2m2026-03-11T19:54:53Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Sending signal SIGINT to main child process w/ PID 658
+[2m2026-03-11T19:54:53Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Main child exited normally with code: 0
+[2m2026-03-11T19:54:53Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Starting clean up.
+[2m2026-03-11T19:54:53Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Umounting /dev/vdc from /pb/pb_data
+[2m2026-03-11T19:54:53Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][  156.163192] reboot: Restarting system
+[2m2026-03-11T19:54:54Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026-03-11T19:54:54.778891749 [01KKF7ERGMF2FTKFAXY80XASCG:main] Running Firecracker v1.14.2
+[2m2026-03-11T19:54:54Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026-03-11T19:54:54.779035161 [01KKF7ERGMF2FTKFAXY80XASCG:main] Listening on API socket ("/fc.sock").
+[2m2026-03-11T19:54:55Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Starting init (commit: 350f2667)...
+[2m2026-03-11T19:54:55Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Checking filesystem on /pb/pb_data
+[2m2026-03-11T19:54:55Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]/dev/vdc: clean, 76/65280 files, 17663/261120 blocks
+[2m2026-03-11T19:54:55Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Mounting /dev/vdc at /pb/pb_data w/ uid: 0, gid: 0 and chmod 0755
+[2m2026-03-11T19:54:55Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Resized /pb/pb_data to 1069547520 bytes
+[2m2026-03-11T19:54:55Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m Preparing to run: `sh -c rm -rf /pb/pb_data/pb_hooks 2>/dev/null; exec /pb/pocketbase serve --http=0.0.0.0:8080` as root
+[2m2026-03-11T19:54:55Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m][32m INFO[0m [fly api proxy] listening at /.fly/api
+[2m2026-03-11T19:54:55Z[0m runner[e82d921f614628] [32mams[0m [[34minfo[0m]Machine created and started in 3.968s
+[2m2026-03-11T19:54:56Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]Failed to execute main.pb.js:
+[2m2026-03-11T19:54:56Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m] - ReferenceError: onRecordAfterCreateRequest is not defined at <eval>:472:27(54)
+[2m2026-03-11T19:54:56Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026/03/11 19:54:56 INFO SSH listening listen_address=[fdaa:4b:b03a:a7b:13b:453:b622:2]:22
+[2m2026-03-11T19:54:56Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]2026/03/11 19:54:56 Server started at http://0.0.0.0:8080
+[2m2026-03-11T19:54:56Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]тФЬтФА REST API:  http://0.0.0.0:8080/api/
+[2m2026-03-11T19:54:56Z[0m app[e82d921f614628] [32mams[0m [[34minfo[0m]тФФтФА Dashboard: http://0.0.0.0:8080/_/

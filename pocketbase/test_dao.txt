@@ -1,0 +1,21 @@
+﻿python :   File "<strin
+g>", line 10
+строка:1 знак:1
++ python -c "
++ ~~~~~~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (  File "<stri   
+ ng>", line 10:Stri    
+ng) [], RemoteExce    p
+tion
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+    js = '''
+         ^
+SyntaxError: unterminat
+ed triple-quoted string
+ literal (detected at l
+ine 11)

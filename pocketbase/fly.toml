@@ -7,7 +7,7 @@ app = 'greenroute-pb'
 primary_region = 'ams'
 
 [[mounts]]
-  source = 'pb_data'
+  source = 'pb_data_restored'
   destination = '/pb/pb_data'
 
 [http_service]

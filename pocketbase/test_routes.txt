@@ -1,0 +1,7 @@
+﻿Stripe status: 404
+Stripe body: {"data":{},"message":"The requested resource wasn't found.","status":404}
+
+
+Admin status: 404
+Admin body: {"data":{},"message":"The requested resource wasn't found.","status":404}
+
