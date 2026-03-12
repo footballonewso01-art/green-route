@@ -36,6 +36,7 @@ export default function AnalyticsPage() {
   const [recentActivities, setRecentActivities] = useState<ClickRecord[]>([]);
   const [heatmapData, setHeatmapData] = useState<number[][]>(Array.from({ length: 7 }, () => Array(24).fill(0)));
   const [profileViewsCount, setProfileViewsCount] = useState(0);
+  const [hasProfileLinks, setHasProfileLinks] = useState(false);
 
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const canUseAnalytics = checkPlan(userPlan, "analytics");
@@ -65,10 +66,15 @@ export default function AnalyticsPage() {
           expand: 'link_id',
         });
 
-        // Also fetch user's profile views if they have profile links
+        // Also fetch user's profile views and check if they have profile links
         try {
             const userRec = await pb.collection('users').getOne(userId);
             setProfileViewsCount(userRec.profile_views || 0);
+            
+            const publicLinks = await pb.collection('links').getList(1, 1, {
+              filter: `user_id="${userId}" && show_on_profile=true`,
+            });
+            setHasProfileLinks(publicLinks.totalItems > 0);
         } catch(e) {}
 
         setClicksCount(records.length);
@@ -249,7 +255,7 @@ export default function AnalyticsPage() {
           <p className="text-xs text-accent uppercase font-bold tracking-wider mb-1">Unique Visitors</p>
           <div className="text-2xl font-bold">{uniqueCount.toLocaleString()}</div>
         </div>
-        {profileViewsCount > 0 && (
+        {hasProfileLinks && (
           <div className="glass-card p-4 border-l-blue-500/30 border-l-2">
             <p className="text-xs text-blue-500 uppercase font-bold tracking-wider mb-1">Profile Views</p>
             <div className="text-2xl font-bold">{profileViewsCount.toLocaleString()}</div>
