@@ -78,8 +78,11 @@ export default function DashboardPricing() {
             }
 
             let priceId = "";
-            if (planId === "pro") priceId = STRIPE_PRICES.pro.monthly;
-            if (planId === "agency") priceId = STRIPE_PRICES.agency.monthly;
+            if (planId === "pro") {
+                priceId = billingCycle === "annual" ? STRIPE_PRICES.pro.annual : STRIPE_PRICES.pro.monthly;
+            } else if (planId === "agency") {
+                priceId = billingCycle === "annual" ? STRIPE_PRICES.agency.annual : STRIPE_PRICES.agency.monthly;
+            }
 
             if (!priceId) throw new Error("Invalid plan selection");
 
@@ -91,7 +94,7 @@ export default function DashboardPricing() {
             // Call our new custom PocketBase backend route
             const data = await pb.send("/api/stripe/create-checkout", {
                 method: "POST",
-                body: { priceId }
+                body: { priceId, billingCycle }
             });
 
             // Redirect to Stripe Checkout
