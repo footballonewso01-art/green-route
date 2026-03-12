@@ -1,18 +1,31 @@
 // Track Profile Views (Public, unauthenticated)
-// Using query param ?u=username to avoid PB path routing conflicts
 routerAdd("GET", "/api/pv", (c) => {
+    let step = 1;
+    let dbgUser = "";
     try {
         const username = c.request.url.query().get("u");
+        step = 2;
         if (!username) {
             return c.json(400, { error: "missing u param" });
         }
+        dbgUser = username.toLowerCase();
         
-        const user = $app.findFirstRecordByFilter("users", "LOWER(username) = {:username}", { username: username.toLowerCase() });
+        step = 3;
+        const user = $app.findFirstRecordByFilter("users", "LOWER(username) = {:username}", { username: dbgUser });
+        
+        step = 4;
         let currentViews = user.get("profile_views") || 0;
+        
+        step = 5;
         user.set("profile_views", currentViews + 1);
-        $app.save(user);
-        return c.json(200, { success: true, views: currentViews + 1, user: username });
+        
+        step = 6;
+        // Try without save first to see if save is panicking
+        // $app.save(user); // commented out for debug run
+        
+        step = 7;
+        return c.json(200, { success: true, step: step, views: currentViews + 1, user: dbgUser });
     } catch (err) {
-        return c.json(500, { success: false, error: String(err) });
+        return c.json(500, { success: false, step: step, user: dbgUser, error: String(err) });
     }
 });
