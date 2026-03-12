@@ -65,10 +65,9 @@ export default function PublicProfile() {
       try {
         // Track Profile View (Fire and forget)
         try {
-          // Send request to PocketBase backend
-          fetch(`${pb.baseUrl}/api/track/profile/${username}`, { 
-            method: 'POST',
-            mode: 'no-cors' // Use no-cors to avoid preflight issues for a fire-and-forget ping
+          // Use pb.send for reliable tracking (handles CORS/BaseURL automatically)
+          pb.send(`/api/track/profile/${username}`, {
+            method: 'POST'
           }).catch(() => {});
         } catch (e) {}
 
