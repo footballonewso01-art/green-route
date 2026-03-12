@@ -206,8 +206,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 }
             }
 
-            $app.runInTransaction((txDao) => {
-                const user = txDao.findRecordById("users", userId);
+            $app.runInTransaction((txApp) => {
+                const user = txApp.findRecordById("users", userId);
                 user.set("plan", planName);
                 const now = new DateTime();
                 
@@ -217,9 +217,9 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                     : now.addDate(0, 1, 2);
                     
                 user.set("plan_expires_at", expiry.format("Y-m-d H:i:sP"));
-                txDao.save(user);
+                txApp.save(user);
 
-                const existingBilling = txDao.findRecordsByFilter(
+                const existingBilling = txApp.findRecordsByFilter(
                     "billing", "user_id = {:userId}", "-created", 1, 0, { userId: userId }
                 );
 
@@ -231,9 +231,9 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                     bRecord.set("payment_method", "Stripe");
                     bRecord.set("stripe_customer_id", customerId);
                     bRecord.set("stripe_subscription_id", subscriptionId);
-                    txDao.save(bRecord);
+                    txApp.save(bRecord);
                 } else {
-                    const billingColl = txDao.findCollectionByNameOrId("billing");
+                    const billingColl = txApp.findCollectionByNameOrId("billing");
                     const billingRecord = new Record(billingColl, {
                         "user_id": userId,
                         "plan": planName,
@@ -243,7 +243,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                         "stripe_customer_id": customerId,
                         "stripe_subscription_id": subscriptionId
                     });
-                    txDao.save(billingRecord);
+                    txApp.save(billingRecord);
                 }
             });
         } else if (verifiedEvent.type === "customer.subscription.deleted") {
@@ -422,22 +422,8 @@ routerAdd("POST", "/api/admin/update-plan", (c) => {
     }
 }, $apis.requireSuperuserAuth());
 
-// Track Profile Views (Public, unauthenticated)
-routerAdd("GET", "/api/track/profile/:username", (c) => {
-    const username = c.pathParam("username");
-    
-    try {
-        $app.logger().info("TRACK_PROFILE (GET): " + username);
-        const user = $app.findFirstRecordByFilter("users", "LOWER(username) = {:username}", { username: username.toLowerCase() });
-        let currentViews = user.get("profile_views") || 0;
-        user.set("profile_views", currentViews + 1);
-        $app.save(user);
-        return c.json(200, { success: true });
-    } catch (err) {
-        // User not found or DB error, ignore silently
-        return c.json(200, { success: true });
-    }
-});
+// Track Profile Views - MOVED to track_profile.pb.js for reliability
+
 
 // ==========================================
 // RECORD HOOKS (non-critical, safe to fail)
