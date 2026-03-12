@@ -94,10 +94,7 @@ const AppRoutes = () => (
       <Route path="links" element={<AdminLinks />} />
     </Route>
 
-    {/* User Profile Route - specific namespace /u/ */}
-    <Route path="/u/:username" element={<PublicProfile />} />
-
-    {/* Short Link Redirector - Catch all other slugs */}
+    {/* Short Link Redirector - Catch all other usernames/slugs */}
     <Route path="/:username" element={<RedirectHandler />} />
     <Route path="*" element={<NotFound />} />
   </Routes>

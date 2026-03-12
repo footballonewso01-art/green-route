@@ -155,7 +155,7 @@ export default function DashboardHome() {
             </Link>
             <button
               onClick={() => {
-                const url = `${window.location.origin}/u/${pb.authStore.model?.username}`;
+                const url = `${window.location.origin}/${pb.authStore.model?.username}`;
                 navigator.clipboard.writeText(url);
                 toast.success("Profile URL copied to clipboard!");
               }}

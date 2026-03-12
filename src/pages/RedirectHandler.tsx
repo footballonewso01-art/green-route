@@ -131,14 +131,28 @@ export default function RedirectHandler() {
             if (!username) return;
             if (redirected.current) return;
 
-            try {
-                // Step 1: Fetch link directly since profile logic has moved to App.tsx
-                let link = null;
-                try {
-                    link = await pb.collection('links').getFirstListItem(`slug="${username}"`);
-                } catch(e) { /* link not found */ }
+            if (username.startsWith("u/")) {
+                navigate(`/${username.replace("u/", "")}`, { replace: true });
+                return;
+            }
 
-                if (!link) {
+            try {
+                // Step 1: PARALLEL resolution — link AND user at once (halves latency)
+                const [linkResult, userResult] = await Promise.allSettled([
+                    pb.collection('links').getFirstListItem(`slug="${username}"`),
+                    pb.collection('users').getFirstListItem(`username="${username}"`)
+                ]);
+
+                const link = linkResult.status === 'fulfilled' ? linkResult.value : null;
+                const userProfile = userResult.status === 'fulfilled' ? userResult.value : null;
+
+                // Profile takes priority if no active link found
+                if (!link && userProfile) {
+                    setStatus("profile");
+                    return;
+                }
+
+                if (!link && !userProfile) {
                     setStatus("error");
                     setError("Link not found or inactive");
                     return;

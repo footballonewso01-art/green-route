@@ -1,7 +1,0 @@
-﻿=== FINAL PRODUCTION TEST ===
-1. Health: 200
-2. Auth methods: 200
-3. Links: 200
-4. Stripe checkout: 401 (401=GOOD, 404=BAD)
-5. Admin route: 401 (401=GOOD, 404=BAD)
-** HOOKS LOADED SUCCESSFULLY! **
