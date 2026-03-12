@@ -73,19 +73,9 @@ export default function BillingPage() {
                 throw new Error("You must be logged in to manage subscription");
             }
 
-            const response = await fetch(`${pb.baseUrl}/api/stripe/create-portal`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${pb.authStore.token}`
-                }
+            const data = await pb.send("/api/stripe/create-portal", {
+                method: "POST"
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || "Failed to access billing portal");
-            }
 
             // Redirect to Stripe Customer Portal
             window.location.assign(data.url);

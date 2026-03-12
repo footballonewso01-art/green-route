@@ -89,20 +89,10 @@ export default function DashboardPricing() {
             }
 
             // Call our new custom PocketBase backend route
-            const response = await fetch(`${pb.baseUrl}/api/stripe/create-checkout`, {
+            const data = await pb.send("/api/stripe/create-checkout", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${pb.authStore.token}`
-                },
-                body: JSON.stringify({ priceId })
+                body: { priceId }
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || "Failed to create checkout session");
-            }
 
             // Redirect to Stripe Checkout
             window.location.assign(data.url);
