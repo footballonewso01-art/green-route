@@ -422,6 +422,22 @@ routerAdd("POST", "/api/admin/update-plan", (c) => {
     }
 }, $apis.requireSuperuserAuth());
 
+// Track Profile Views (Public, unauthenticated)
+routerAdd("POST", "/api/track/profile/:username", (c) => {
+    const username = c.pathParam("username");
+    
+    try {
+        const user = $app.findFirstRecordByFilter("users", "username = {:username}", { username: username });
+        let currentViews = user.get("profile_views") || 0;
+        user.set("profile_views", currentViews + 1);
+        $app.save(user);
+        return c.json(200, { success: true });
+    } catch (err) {
+        // User not found or DB error, ignore silently
+        return c.json(200, { success: true });
+    }
+});
+
 // ==========================================
 // RECORD HOOKS (non-critical, safe to fail)
 // ==========================================
@@ -464,7 +480,7 @@ onRecordCreateRequest((e) => {
     // Enforce Plan Limits
     const user = $app.findRecordById("users", userId);
     const plan = user.get("plan") || "creator";
-    const limits = { "creator": 4, "pro": 15, "agency": -1 };
+    const limits = { "creator": 4, "pro": 15, "agency": 110 };
     const maxLinks = limits[plan];
 
     if (maxLinks !== -1) {

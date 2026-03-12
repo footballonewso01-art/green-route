@@ -36,7 +36,12 @@ export default function RedirectHandler() {
     }, []);
 
     // ── Track click — returns a promise that resolves when the click is saved ──
+    const hasTracked = useRef(false);
+
     const trackClick = useCallback(async (link: Record<string, unknown>) => {
+        if (hasTracked.current) return;
+        hasTracked.current = true;
+
         const ua = navigator.userAgent;
         const isBot = /bot|crawler|spider|criteo|facebookexternalhit/i.test(ua);
         if (isBot) return;

@@ -163,8 +163,8 @@ export default function CreateLink() {
     e.preventDefault();
     if (!user) return;
 
-    if (form.show_on_profile && !form.title.trim()) {
-      toast.error("Title is required for profile links");
+    if (!form.title.trim()) {
+      toast.error("Link Title is required");
       return;
     }
 
@@ -316,12 +316,10 @@ export default function CreateLink() {
       <form onSubmit={handleSubmit} className="glass-card p-6 space-y-6">
         {/* Title, URL & Icon */}
         <div className="space-y-4">
-          {form.show_on_profile && (
-            <div className="animate-fade-in">
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Link Title (shown on profile)</label>
-              <input required type="text" value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="My Awesome Project" className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors" />
-            </div>
-          )}
+          <div className="animate-fade-in">
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Link Title</label>
+            <input required type="text" value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="My Awesome Project" className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors" />
+          </div>
 
           <div className="relative">
             <label className="text-sm font-medium text-foreground mb-1.5 block">Destination URL & Icon</label>

@@ -35,6 +35,7 @@ export default function AnalyticsPage() {
   const [trendData, setTrendData] = useState<{ date: string; clicks: number }[]>([]);
   const [recentActivities, setRecentActivities] = useState<ClickRecord[]>([]);
   const [heatmapData, setHeatmapData] = useState<number[][]>(Array.from({ length: 7 }, () => Array(24).fill(0)));
+  const [profileViewsCount, setProfileViewsCount] = useState(0);
 
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const canUseAnalytics = checkPlan(userPlan, "analytics");
@@ -64,6 +65,12 @@ export default function AnalyticsPage() {
           expand: 'link_id',
         });
 
+        // Also fetch user's profile views if they have profile links
+        try {
+            const userRec = await pb.collection('users').getOne(userId);
+            setProfileViewsCount(userRec.profile_views || 0);
+        } catch(e) {}
+
         setClicksCount(records.length);
         setUniqueCount(records.filter(r => r.is_unique).length);
         setRecentActivities(records.slice(0, 5));
@@ -76,8 +83,7 @@ export default function AnalyticsPage() {
         });
         const countryList = Object.entries(countryMap)
           .map(([name, clicks]) => ({ name, clicks, pct: Math.round((clicks / records.length) * 100) }))
-          .sort((a, b) => b.clicks - a.clicks)
-          .slice(0, 5);
+          .sort((a, b) => b.clicks - a.clicks);
         setCountries(countryList);
 
         // Process Referrers
@@ -243,10 +249,12 @@ export default function AnalyticsPage() {
           <p className="text-xs text-accent uppercase font-bold tracking-wider mb-1">Unique Visitors</p>
           <div className="text-2xl font-bold">{uniqueCount.toLocaleString()}</div>
         </div>
-        <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Avg. Daily</p>
-          <div className="text-2xl font-bold">{Math.round(clicksCount / (period === "24h" ? 1 : parseInt(period))).toLocaleString()}</div>
-        </div>
+        {profileViewsCount > 0 && (
+          <div className="glass-card p-4 border-l-blue-500/30 border-l-2">
+            <p className="text-xs text-blue-500 uppercase font-bold tracking-wider mb-1">Profile Views</p>
+            <div className="text-2xl font-bold">{profileViewsCount.toLocaleString()}</div>
+          </div>
+        )}
         <div className="glass-card p-4">
           <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Conversion</p>
           <div className="text-2xl font-bold">100%</div>
@@ -276,8 +284,27 @@ export default function AnalyticsPage() {
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Countries */}
         <div className="glass-card p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2 text-sm"><Globe className="w-4 h-4 text-accent" /> Top Locations</h2>
-          <div className="space-y-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 text-sm"><Globe className="w-4 h-4 text-accent" /> Top Locations</h2>
+            {countries.length > 5 && (
+               <button 
+                 onClick={(e) => {
+                   const btn = e.currentTarget;
+                   const container = btn.parentElement?.nextElementSibling as HTMLElement;
+                   if (container) {
+                     const isExpanded = container.style.maxHeight !== '300px';
+                     container.style.maxHeight = isExpanded ? '300px' : 'none';
+                     container.style.overflowY = isExpanded ? 'hidden' : 'auto';
+                     btn.innerText = isExpanded ? 'Show All' : 'Show Less';
+                   }
+                 }}
+                 className="text-xs text-accent hover:underline font-medium"
+               >
+                 Show All
+               </button>
+            )}
+          </div>
+          <div className="space-y-4 transition-all duration-300" style={{ maxHeight: '300px', overflow: 'hidden' }}>
             {countries.length === 0 ? <p className="text-sm text-muted-foreground">No data yet</p> : countries.map((c) => (
               <div key={c.name}>
                 <div className="flex justify-between text-xs mb-1.5">
@@ -384,7 +411,7 @@ export default function AnalyticsPage() {
         <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
           <Clock className="w-5 h-5 text-accent" /> Activity Heatmap
         </h2>
-        <p className="text-xs text-muted-foreground mb-4">Best times for engagement — darker = more clicks</p>
+        <p className="text-xs text-muted-foreground mb-4">Best times for engagement — brighter = more clicks</p>
         <div className="overflow-x-auto">
           <div className="min-w-[600px]">
             {/* Hour labels */}
