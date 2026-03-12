@@ -1,5 +1,5 @@
 // Track Profile Views (Public, unauthenticated)
-routerAdd("GET", "/api/pv", (c) => {
+routerAdd("POST", "/api/pv", (c) => {
     try {
         const username = c.request.url.query().get("u");
         if (!username) {

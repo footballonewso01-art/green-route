@@ -65,11 +65,15 @@ export default function PublicProfile() {
       try {
         // Track Profile View (Fire and forget)
         try {
-          // Use fixed path + query param to avoid PB /{slug} routing conflicts
-          pb.send(`/api/pv?u=${encodeURIComponent(username)}`, {
-            method: 'GET'
-          }).catch(() => {});
-        } catch (e) {}
+          // Send as POST and add a random cache-buster to completely bypass browser and PB SDK caching
+          pb.send(`/api/pv?u=${encodeURIComponent(username)}&_=${Date.now()}`, {
+            method: 'POST'
+          }).catch((err) => {
+            console.error("Profile view tracking failed:", err);
+          });
+        } catch (e) {
+          console.error("Profile view tracking sync error:", e);
+        }
 
         // Fetch user by username
         const userRecord = await pb.collection('users').getFirstListItem(`username="${username}"`);
