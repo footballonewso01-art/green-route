@@ -1,31 +1,34 @@
 // Track Profile Views (Public, unauthenticated)
 routerAdd("GET", "/api/pv", (c) => {
-    let step = 1;
-    let dbgUser = "";
     try {
         const username = c.request.url.query().get("u");
-        step = 2;
         if (!username) {
             return c.json(400, { error: "missing u param" });
         }
-        dbgUser = username.toLowerCase();
         
-        step = 3;
-        const user = $app.findFirstRecordByFilter("users", "LOWER(username) = {:username}", { username: dbgUser });
+        // PocketBase filters don't support LOWER() function directly in findFirstRecordByFilter
+        // We will query by the exact username passed, or if case-insensitivity is strictly required,
+        // we use ~ (LIKE) and find the exact match in JS.
+        const records = $app.findRecordsByFilter("users", "username ~ {:username}", "-created", 10, 0, { username: username });
+        let user = null;
+        for (let i = 0; i < records.length; i++) {
+            if (records[i].get("username").toLowerCase() === username.toLowerCase()) {
+                user = records[i];
+                break;
+            }
+        }
         
-        step = 4;
+        if (!user) {
+            return c.json(404, { success: false, error: "User not found" });
+        }
+        
         let currentViews = user.get("profile_views") || 0;
-        
-        step = 5;
         user.set("profile_views", currentViews + 1);
+        $app.save(user);
         
-        step = 6;
-        // Try without save first to see if save is panicking
-        // $app.save(user); // commented out for debug run
-        
-        step = 7;
-        return c.json(200, { success: true, step: step, views: currentViews + 1, user: dbgUser });
+        return c.json(200, { success: true, views: currentViews + 1 });
     } catch (err) {
-        return c.json(500, { success: false, step: step, user: dbgUser, error: String(err) });
+        $app.logger().error("TRACK_PROFILE ERROR: " + String(err));
+        return c.json(500, { success: false, error: String(err) });
     }
 });
