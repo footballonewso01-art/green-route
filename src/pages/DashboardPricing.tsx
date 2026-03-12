@@ -93,7 +93,7 @@ export default function DashboardPricing() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "Authorization": pb.authStore.token
+                    "Authorization": `Bearer ${pb.authStore.token}`
                 },
                 body: JSON.stringify({ priceId })
             });
