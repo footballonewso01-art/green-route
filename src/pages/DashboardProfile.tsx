@@ -148,6 +148,11 @@ export default function DashboardProfile() {
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Avatar image must be less than 5MB");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => setImageToCrop(reader.result as string);
       reader.readAsDataURL(file);
@@ -283,11 +288,26 @@ export default function DashboardProfile() {
       }
 
       toast.success("Profile saved successfully");
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error("[handleSaveProfile] Error:", error);
-      const err = error as { message?: string, response?: { data?: unknown } };
-      const detailedError = err?.response?.data ? JSON.stringify(err.response.data) : (err.message || "Unknown error");
-      toast.error(`Error saving profile: ${detailedError}`);
+      
+      let detailedError = error?.message || "Unknown error";
+      const responseData = error?.response?.data;
+      
+      if (typeof responseData === 'object' && responseData !== null) {
+          if (responseData.data && typeof responseData.data === 'object' && Object.keys(responseData.data).length > 0) {
+              const firstKey = Object.keys(responseData.data)[0];
+              if (firstKey && responseData.data[firstKey].message) {
+                  detailedError = responseData.data[firstKey].message;
+              } else {
+                  detailedError = responseData.message || JSON.stringify(responseData.data);
+              }
+          } else {
+              detailedError = responseData.message || JSON.stringify(responseData);
+          }
+      }
+
+      toast.error(detailedError);
     } finally {
       setProfileLoading(false);
     }
@@ -503,6 +523,10 @@ export default function DashboardProfile() {
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
+                        if (file.size > 5 * 1024 * 1024) {
+                            toast.error("Background image must be less than 5MB");
+                            return;
+                        }
                         setCustomBgFile(file);
                         const reader = new FileReader();
                         reader.onloadend = () => setCustomBgPreview(reader.result as string);

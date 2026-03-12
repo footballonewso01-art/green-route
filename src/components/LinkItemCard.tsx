@@ -171,6 +171,10 @@ export const LinkItemCard = React.memo(({ link, provided, snapshot, onUpdate, on
                                             onChange={(e) => {
                                                 const file = e.target.files?.[0];
                                                 if (file) {
+                                                    if (file.size > 5 * 1024 * 1024) {
+                                                        toast.error("Background image must be less than 5MB");
+                                                        return;
+                                                    }
                                                     setEditBgImageFile(file);
                                                     setEditBgImageRemoved(false);
                                                     const reader = new FileReader();
