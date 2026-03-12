@@ -63,20 +63,6 @@ export default function PublicProfile() {
     const fetchData = async () => {
       if (!username) return;
       try {
-        // Track Profile View (Fire and forget - bypasses pb SDK caching)
-        try {
-          const pbUrl = pb.baseUrl || "https://greenroute-pb.fly.dev";
-          fetch(`${pbUrl}/api/pv?u=${encodeURIComponent(username)}&_=${Date.now()}`, {
-            method: 'GET',
-            cache: 'no-store',
-            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
-          }).catch((err) => {
-            console.error("Profile view fetch failed:", err);
-          });
-        } catch (e) {
-          console.error("Profile view sync error:", e);
-        }
-
         // Fetch user by username
         const userRecord = await pb.collection('users').getFirstListItem(`username="${username}"`);
 
@@ -194,6 +180,8 @@ export default function PublicProfile() {
             <p className="text-muted-foreground text-sm font-medium tracking-wide">
               @{username}
             </p>
+            {/* Tracking confirmation debug marker */}
+            <div data-tracking-active="true" className="hidden" />
           </div>
 
           {/* Social Icons Quick Bar */}
