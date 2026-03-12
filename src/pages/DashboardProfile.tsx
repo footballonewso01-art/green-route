@@ -709,7 +709,7 @@ export default function DashboardProfile() {
                         id="create-link-icon-btn"
                         type="button"
                         onClick={() => setShowIconPicker(!showIconPicker)}
-                        className="h-[38px] px-3 bg-background border border-border rounded-lg flex items-center justify-center hover:bg-surface-hover transition-colors"
+                        className="w-[38px] h-[38px] bg-background border border-border rounded-lg flex items-center justify-center shrink-0 overflow-hidden hover:bg-surface-hover transition-colors"
                       >
                         <IconRenderer type={createIconType} value={createIconValue} className="w-4 h-4 text-muted-foreground" />
                       </button>

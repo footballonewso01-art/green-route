@@ -331,7 +331,7 @@ export default function CreateLink() {
                   id="create-page-icon-btn"
                   type="button"
                   onClick={() => setShowIconPicker(!showIconPicker)}
-                  className="h-[42px] px-3 bg-surface border border-border rounded-xl flex items-center justify-center hover:bg-surface-hover hover:border-accent/50 transition-colors"
+                  className="w-[42px] h-[42px] shrink-0 overflow-hidden bg-surface border border-border rounded-xl flex items-center justify-center hover:bg-surface-hover hover:border-accent/50 transition-colors"
                 >
                   <IconRenderer type={form.icon_type} value={form.icon_value} className="w-5 h-5 text-muted-foreground" />
                 </button>
