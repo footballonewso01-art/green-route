@@ -259,7 +259,7 @@ export default function AnalyticsPage() {
           <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Avg. Daily</p>
           <div className="text-2xl font-bold">{Math.round(clicksCount / (period === "24h" ? 1 : parseInt(period))).toLocaleString()}</div>
         </div>
-        {hasProfileLinks && (
+        {hasProfileLinks ? (
           <>
             <div className="glass-card p-4 border-l-blue-500/30 border-l-2">
               <p className="text-xs text-blue-500 uppercase font-bold tracking-wider mb-1">Profile Views</p>
@@ -270,6 +270,11 @@ export default function AnalyticsPage() {
               <div className="text-2xl font-bold">{profileViewsCount > 0 ? ((clicksCount / profileViewsCount) * 100).toFixed(1) : "0.0"}%</div>
             </div>
           </>
+        ) : (
+          <div className="glass-card p-4 border-l-muted-foreground/30 border-l-2">
+            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Top Location</p>
+            <div className="text-2xl font-bold truncate" title={countries[0]?.name || "N/A"}>{countries[0]?.name || "N/A"}</div>
+          </div>
         )}
       </div>
 
