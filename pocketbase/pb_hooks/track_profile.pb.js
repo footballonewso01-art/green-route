@@ -1,5 +1,9 @@
+// Simple test route — no path params
+routerAdd("GET", "/api/track-test", (c) => {
+    return c.json(200, { test: true });
+});
+
 // Track Profile Views (Public, unauthenticated)
-// Isolated into its own file to guarantee loading even if main.pb.js has issues
 routerAdd("GET", "/api/track/profile/:username", (c) => {
     const username = c.pathParam("username");
     
@@ -10,7 +14,6 @@ routerAdd("GET", "/api/track/profile/:username", (c) => {
         $app.save(user);
         return c.json(200, { success: true, views: currentViews + 1 });
     } catch (err) {
-        // User not found or DB error
         return c.json(200, { success: false, error: String(err) });
     }
 });
