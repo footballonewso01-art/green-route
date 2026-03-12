@@ -65,9 +65,9 @@ export default function PublicProfile() {
       try {
         // Track Profile View (Fire and forget)
         try {
-          // Use pb.send for reliable tracking (handles CORS/BaseURL automatically)
+          // Use GET for maximum cross-domain compatibility
           pb.send(`/api/track/profile/${username}`, {
-            method: 'POST'
+            method: 'GET'
           }).catch(() => {});
         } catch (e) {}
 

@@ -423,12 +423,12 @@ routerAdd("POST", "/api/admin/update-plan", (c) => {
 }, $apis.requireSuperuserAuth());
 
 // Track Profile Views (Public, unauthenticated)
-routerAdd("POST", "/api/track/profile/:username", (c) => {
+routerAdd("GET", "/api/track/profile/:username", (c) => {
     const username = c.pathParam("username");
     
     try {
-        $app.logger().info("TRACK_PROFILE: " + username);
-        const user = $app.findFirstRecordByFilter("users", "username = {:username}", { username: username });
+        $app.logger().info("TRACK_PROFILE (GET): " + username);
+        const user = $app.findFirstRecordByFilter("users", "LOWER(username) = {:username}", { username: username.toLowerCase() });
         let currentViews = user.get("profile_views") || 0;
         user.set("profile_views", currentViews + 1);
         $app.save(user);
