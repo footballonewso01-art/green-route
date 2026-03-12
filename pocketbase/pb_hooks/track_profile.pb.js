@@ -1,6 +1,6 @@
 // Track Profile Views (Public, unauthenticated)
-// Using flat route /api/pv/:username because PB 0.24 has issues with deeply nested custom routes
-routerAdd("GET", "/api/pv/:username", (c) => {
+// Using /pv/:username without /api prefix to avoid PB internal router conflicts
+routerAdd("GET", "/pv/:username", (c) => {
     const username = c.pathParam("username");
     
     try {
