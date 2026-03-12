@@ -63,14 +63,13 @@ export default function PublicProfile() {
     const fetchData = async () => {
       if (!username) return;
       try {
-        // Track Profile View (Fire and forget, debounced by 24h)
+        // Track Profile View (Fire and forget)
         try {
-          const today = new Date().toISOString().split('T')[0];
-          const storageKey = `pv_${username}_${today}`;
-          if (!localStorage.getItem(storageKey)) {
-            localStorage.setItem(storageKey, "1");
-            fetch(`/api/track/profile/${username}`, { method: 'POST' }).catch(() => {});
-          }
+          // Send request to PocketBase backend
+          fetch(`${pb.baseUrl}/api/track/profile/${username}`, { 
+            method: 'POST',
+            mode: 'no-cors' // Use no-cors to avoid preflight issues for a fire-and-forget ping
+          }).catch(() => {});
         } catch (e) {}
 
         // Fetch user by username
