@@ -295,7 +295,7 @@ routerAdd("GET", "/{slug}", (c) => {
 
         if (!hasComplexLogic) {
             try {
-                const request = c.request;
+                const request = c.request();
                 const uaStr = request.header.get("User-Agent") || "";
                 const isBot = /bot|crawler|spider|criteo|facebookexternalhit/i.test(uaStr);
 
@@ -340,7 +340,7 @@ routerAdd("GET", "/{slug}", (c) => {
                     const isUnique = !cookieHeader.includes(cookieName);
 
                     if (isUnique) {
-                        c.response.header().add("Set-Cookie", cookieName + "=1; Path=/; Max-Age=86400; HttpOnly");
+                        c.response().header().add("Set-Cookie", cookieName + "=1; Path=/; Max-Age=86400; HttpOnly");
                     }
 
                     const clicksColl = $app.findCollectionByNameOrId("clicks");
@@ -422,7 +422,7 @@ routerAdd("POST", "/api/admin/update-plan", (c) => {
     }
 }, $apis.requireSuperuserAuth());
 
-
+// Track Profile Views - MOVED to track_profile.pb.js for reliability
 
 
 // ==========================================

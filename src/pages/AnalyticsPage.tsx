@@ -35,8 +35,6 @@ export default function AnalyticsPage() {
   const [trendData, setTrendData] = useState<{ date: string; clicks: number }[]>([]);
   const [recentActivities, setRecentActivities] = useState<ClickRecord[]>([]);
   const [heatmapData, setHeatmapData] = useState<number[][]>(Array.from({ length: 7 }, () => Array(24).fill(0)));
-  const [profileViewsCount, setProfileViewsCount] = useState(0);
-  const [hasProfileLinks, setHasProfileLinks] = useState(false);
 
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const canUseAnalytics = checkPlan(userPlan, "analytics");
@@ -65,17 +63,6 @@ export default function AnalyticsPage() {
           sort: '-created',
           expand: 'link_id',
         });
-
-        // Also fetch user's profile views and check if they have profile links
-        try {
-            const userRec = await pb.collection('users').getOne(userId);
-            setProfileViewsCount(userRec.profile_views || 0);
-            
-            const publicLinks = await pb.collection('links').getList(1, 1, {
-              filter: `user_id="${userId}" && show_on_profile=true`,
-            });
-            setHasProfileLinks(publicLinks.totalItems > 0);
-        } catch(e) {}
 
         setClicksCount(records.length);
         setUniqueCount(records.filter(r => r.is_unique).length);
@@ -246,13 +233,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Stats Overview */}
-      <div className={`grid grid-cols-2 md:grid-cols-3 ${hasProfileLinks ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4`}>
-        {hasProfileLinks && (
-          <div className="glass-card p-4 border-l-blue-500/30 border-l-2">
-            <p className="text-xs text-blue-500 uppercase font-bold tracking-wider mb-1">Total Visits</p>
-            <div className="text-2xl font-bold">{profileViewsCount.toLocaleString()}</div>
-          </div>
-        )}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <div className="glass-card p-4">
           <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Total Clicks</p>
           <div className="text-2xl font-bold">{clicksCount.toLocaleString()}</div>
@@ -265,17 +246,10 @@ export default function AnalyticsPage() {
           <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Avg. Daily</p>
           <div className="text-2xl font-bold">{Math.round(clicksCount / (period === "24h" ? 1 : parseInt(period))).toLocaleString()}</div>
         </div>
-        {hasProfileLinks ? (
-          <div className="glass-card p-4">
-            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">CTR</p>
-            <div className="text-2xl font-bold">{profileViewsCount > 0 ? ((clicksCount / profileViewsCount) * 100).toFixed(1) : "0.0"}%</div>
-          </div>
-        ) : (
-          <div className="glass-card p-4 border-l-muted-foreground/30 border-l-2">
-            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Top Location</p>
-            <div className="text-2xl font-bold truncate" title={countries[0]?.name || "N/A"}>{countries[0]?.name || "N/A"}</div>
-          </div>
-        )}
+        <div className="glass-card p-4 border-l-muted-foreground/30 border-l-2">
+          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Top Location</p>
+          <div className="text-2xl font-bold truncate" title={countries[0]?.name || "N/A"}>{countries[0]?.name || "N/A"}</div>
+        </div>
       </div>
 
       {/* Clicks chart */}
