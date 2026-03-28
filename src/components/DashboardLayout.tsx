@@ -129,7 +129,7 @@ export default function DashboardLayout() {
       <aside className={`fixed lg:sticky lg:top-0 lg:h-screen inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-sidebar-border">
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <img src="/logo.png" alt="Linktery" className="h-[60px] w-auto mix-blend-screen" />
+            <img src="/logo.webp" alt="Linktery" className="h-[60px] w-auto mix-blend-screen" />
             <span className="font-extrabold text-foreground text-[20px] tracking-tight translate-y-[0.5px]">Linktery</span>
           </Link>
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-muted-foreground">

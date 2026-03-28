@@ -131,7 +131,7 @@ export default function LandingPage() {
       <nav className="fixed top-0 w-full z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3.5 hover:opacity-80 transition-opacity">
-            <img src="/logo.png" alt="Linktery" className="h-[60px] w-auto mix-blend-screen" />
+            <img src="/logo.webp" alt="Linktery" className="h-[60px] w-auto mix-blend-screen" />
             <span className="text-[22px] font-extrabold text-foreground tracking-tight">Linktery</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
@@ -172,7 +172,7 @@ export default function LandingPage() {
             playsInline
             className="w-full h-full object-cover"
           >
-            <source src="/mainvid.mp4" type="video/mp4" />
+            <source src="/mainvid.min.mp4" type="video/mp4" />
           </video>
           {/* Dark gradient overlay for smooth transition to next section */}
           <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/40 to-background" />
@@ -211,7 +211,7 @@ export default function LandingPage() {
           <div className="mt-16 mx-auto max-w-6xl relative animate-fade-in" style={{ animationDelay: '0.4s' }}>
             <div className="absolute inset-0 bg-accent/10 blur-3xl rounded-3xl" />
             <div className="relative glass-card p-2 rounded-2xl overflow-hidden shadow-glow">
-              <img src="/mainstat.png" alt="Linktery Dashboard" className="w-full rounded-xl shadow-2xl" fetchPriority="high" loading="eager" />
+              <img src="/mainstat.webp" alt="Linktery Dashboard" className="w-full rounded-xl shadow-2xl" fetchPriority="high" loading="eager" />
             </div>
           </div>
         </div>
@@ -228,7 +228,7 @@ export default function LandingPage() {
             playsInline
             className="w-full h-full object-cover"
           >
-            <source src="/features.mp4" type="video/mp4" />
+            <source src="/features.min.mp4" type="video/mp4" />
           </video>
           {/* Gradients to blend with background */}
           <div className="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background" />
@@ -409,7 +409,7 @@ export default function LandingPage() {
       <footer className="border-t border-border py-12 px-6 relative z-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-[11px] hover:opacity-80 transition-opacity">
-            <img src="/logo.png" alt="Linktery" className="h-12 w-auto mix-blend-screen grayscale" />
+            <img src="/logo.webp" alt="Linktery" className="h-12 w-auto mix-blend-screen grayscale" />
             <span className="text-xl font-bold text-foreground/80 tracking-tight translate-y-[1px]">Linktery</span>
           </div>
           <div className="flex items-center gap-6">

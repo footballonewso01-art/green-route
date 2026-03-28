@@ -8,7 +8,7 @@ export default function TermsAndConditions() {
             <header className="fixed top-0 w-full z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
                 <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
                     <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                        <img src="/logo.png" alt="Linktery" className="h-8 w-auto mix-blend-screen" />
+                        <img src="/logo.webp" alt="Linktery" className="h-8 w-auto mix-blend-screen" />
                         <span className="text-lg font-bold tracking-tight">Linktery</span>
                     </Link>
                     <Link

@@ -61,7 +61,7 @@ export default function LoginPage() {
       <div className="glass-card p-8 w-full max-w-md relative z-10 animate-scale-in">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2.5 mb-6 hover:opacity-80 transition-opacity">
-            <img src="/logo.png" alt="Linktery" className="h-14 w-auto mix-blend-screen" />
+            <img src="/logo.webp" alt="Linktery" className="h-14 w-auto mix-blend-screen" />
             <span className="text-3xl font-bold text-foreground tracking-tighter">Linktery</span>
           </Link>
           <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
