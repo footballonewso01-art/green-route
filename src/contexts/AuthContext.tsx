@@ -25,6 +25,7 @@ interface AuthContextType {
   isAdmin: boolean;
   signOut: () => void;
   login: (token: string, userData: Record<string, unknown>) => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -211,11 +212,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    try {
+      const record = await pb.collection('users').authRefresh();
+      // authStore.onChange will handle updating the user state
+      if (record?.record) {
+        localStorage.setItem('pocketbase_auth', JSON.stringify({
+          token: pb.authStore.token,
+          model: record.record
+        }));
+      }
+    } catch (e) {
+      console.error('[Auth] Failed to refresh user:', e);
+    }
+  };
+
   const isValid = Boolean(user && pb.authStore.isValid);
   const isAdmin = Boolean(user && user.role === 'admin');
 
   return (
-    <AuthContext.Provider value={{ user, loading, isValid, isAdmin, login, signOut }}>
+    <AuthContext.Provider value={{ user, loading, isValid, isAdmin, login, signOut, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

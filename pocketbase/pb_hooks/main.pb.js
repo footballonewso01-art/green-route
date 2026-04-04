@@ -141,18 +141,22 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
 
     let eventId;
     try {
-        const payload = new DynamicModel({ "id": "" });
-        c.bindBody(payload);
-        eventId = payload.id;
+        // Read raw body and parse — DynamicModel and $apis.requestInfo fail on complex Stripe payloads
+        const rawBody = readerToString(c.request.body);
+        const body = JSON.parse(rawBody);
+        eventId = body.id;
 
-        if (!eventId || !eventId.startsWith('evt_')) {
+        if (!eventId || !String(eventId).startsWith('evt_')) {
+            $app.logger().error("Webhook: invalid event id: " + JSON.stringify(eventId));
             return c.json(400, { error: "Invalid event id" });
         }
     } catch (e) {
-        return c.json(400, { error: "Failed to parse webhook JSON" });
+        $app.logger().error("Webhook: body parse error: " + String(e));
+        return c.json(400, { error: "Failed to parse webhook JSON: " + String(e) });
     }
 
     if (!STRIPE_SECRET_KEY) {
+        $app.logger().error("Webhook: STRIPE_SECRET_KEY not set");
         return c.json(500, { error: "Stripe secret key missing" });
     }
 
@@ -171,6 +175,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
         }
         const verifiedEvent = res.json;
 
+        $app.logger().info("Webhook: processing event " + verifiedEvent.type + " id=" + eventId);
+
         if (verifiedEvent.type === "checkout.session.completed") {
             const session = verifiedEvent.data.object;
             const userId = session.client_reference_id || (session.metadata ? session.metadata.userId : null);
@@ -179,8 +185,11 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             const subscriptionId = session.subscription || "";
 
             if (!userId) {
+                $app.logger().error("Webhook: checkout.session.completed but no userId found in session");
                 return c.json(200, { received: true, note: "missing userid" });
             }
+
+            $app.logger().info("Webhook: activating plan for user " + userId);
 
             const lineItemsRes = $http.send({
                 url: "https://api.stripe.com/v1/checkout/sessions/" + session.id + "/line_items",
@@ -246,6 +255,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                     txApp.save(billingRecord);
                 }
             });
+
+            $app.logger().info("Webhook: plan '" + planName + "' activated for user " + userId);
         } else if (verifiedEvent.type === "customer.subscription.deleted") {
             const subscription = verifiedEvent.data.object;
             const customerId = subscription.customer;
@@ -270,9 +281,126 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
         return c.json(200, { received: true });
     } catch (err) {
         $app.logger().error("Webhook processing error: " + err);
-        return c.json(500, { error: err.message });
+        return c.json(500, { error: String(err) });
     }
 });
+
+// Stripe: Verify Session & Activate Plan (Fallback for when webhook doesn't fire)
+// Called from frontend success page with ?session_id=cs_xxx
+routerAdd("POST", "/api/stripe/verify-session", (c) => {
+    const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
+    if (!STRIPE_SECRET_KEY) {
+        return c.json(500, { error: "Stripe not configured" });
+    }
+
+    const user = c.auth;
+    if (!user || user.collection().name !== "users") {
+        return c.json(401, { error: "Unauthorized" });
+    }
+
+    try {
+        const rawBody = readerToString(c.request.body);
+        const body = JSON.parse(rawBody);
+        const sessionId = body.sessionId;
+        if (!sessionId) {
+            return c.json(400, { error: "sessionId required" });
+        }
+
+        // Fetch the checkout session from Stripe
+        const res = $http.send({
+            url: "https://api.stripe.com/v1/checkout/sessions/" + sessionId,
+            method: "GET",
+            headers: {
+                "Authorization": "Bearer " + STRIPE_SECRET_KEY,
+            },
+            timeout: 10
+        });
+        if (res.statusCode >= 400) {
+            throw new Error("Stripe session fetch error: " + res.statusCode);
+        }
+        const session = res.json;
+
+        // Safety: ensure this session belongs to this user
+        if (session.client_reference_id !== user.id) {
+            return c.json(403, { error: "Session does not belong to this user" });
+        }
+
+        // Only process completed payments
+        if (session.payment_status !== "paid") {
+            return c.json(200, { activated: false, reason: "Payment not completed yet" });
+        }
+
+        // Check if plan is already active (idempotent)
+        const currentPlan = user.get("plan");
+        if (currentPlan !== "creator") {
+            return c.json(200, { activated: true, plan: currentPlan, note: "Already active" });
+        }
+
+        // Determine plan from line items
+        const lineItemsRes = $http.send({
+            url: "https://api.stripe.com/v1/checkout/sessions/" + sessionId + "/line_items",
+            method: "GET",
+            headers: {
+                "Authorization": "Bearer " + STRIPE_SECRET_KEY,
+            },
+            timeout: 10
+        });
+        if (lineItemsRes.statusCode >= 400) throw new Error("Line items error");
+        const lineItems = lineItemsRes.json;
+
+        let planName = "pro";
+        let amount = 0;
+        if (lineItems.data && lineItems.data.length > 0) {
+            amount = lineItems.data[0].price.unit_amount / 100;
+            if (amount >= 29) planName = "agency";
+            else if (amount >= 11) planName = "pro";
+        }
+
+        const billingCycle = session.metadata ? (session.metadata.billingCycle || "monthly") : "monthly";
+        const customerId = session.customer || "";
+        const subscriptionId = session.subscription || "";
+
+        $app.runInTransaction((txApp) => {
+            const u = txApp.findRecordById("users", user.id);
+            u.set("plan", planName);
+            const now = new DateTime();
+            const expiry = billingCycle === "annual"
+                ? now.addDate(1, 0, 2)
+                : now.addDate(0, 1, 2);
+            u.set("plan_expires_at", expiry.format("Y-m-d H:i:sP"));
+            txApp.save(u);
+
+            // Upsert billing record
+            const existing = txApp.findRecordsByFilter(
+                "billing", "user_id = {:uid}", "-created", 1, 0, { uid: user.id }
+            );
+            if (existing.length > 0) {
+                const b = existing[0];
+                b.set("plan", planName);
+                b.set("amount", amount);
+                b.set("status", "active");
+                b.set("payment_method", "Stripe");
+                b.set("stripe_customer_id", customerId);
+                b.set("stripe_subscription_id", subscriptionId);
+                txApp.save(b);
+            } else {
+                const billingColl = txApp.findCollectionByNameOrId("billing");
+                const b = new Record(billingColl, {
+                    "user_id": user.id, "plan": planName, "amount": amount,
+                    "status": "active", "payment_method": "Stripe",
+                    "stripe_customer_id": customerId, "stripe_subscription_id": subscriptionId
+                });
+                txApp.save(b);
+            }
+        });
+
+        $app.logger().info("verify-session: plan '" + planName + "' activated for user " + user.id);
+        return c.json(200, { activated: true, plan: planName });
+    } catch (err) {
+        $app.logger().error("verify-session error: " + err);
+        return c.json(500, { error: String(err) });
+    }
+}, $apis.requireAuth());
 
 // Server-Side Redirects
 routerAdd("GET", "/{slug}", (c) => {

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { CreditCard, History, ChevronRight, Loader2 } from "lucide-react";
 import { PLANS, PlanType } from "@/lib/plans";
 import { useAuth } from "@/contexts/AuthContext";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 
@@ -16,11 +16,41 @@ type BillingRecord = {
 };
 
 export default function BillingPage() {
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [currentPlan, setCurrentPlan] = useState<PlanType>("creator");
     const [logs, setLogs] = useState<BillingRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [portalLoading, setPortalLoading] = useState(false);
+    const [verifying, setVerifying] = useState(false);
+
+    // Fallback: verify session when returning from Stripe checkout
+    useEffect(() => {
+        const sessionId = searchParams.get("session_id");
+        if (!sessionId || !user) return;
+
+        const verifySession = async () => {
+            setVerifying(true);
+            try {
+                const result = await pb.send("/api/stripe/verify-session", {
+                    method: "POST",
+                    body: { sessionId }
+                });
+                if (result.activated) {
+                    toast.success(`🎉 ${result.plan.charAt(0).toUpperCase() + result.plan.slice(1)} plan activated!`);
+                    // Refresh user data to update UI
+                    if (refreshUser) await refreshUser();
+                }
+            } catch (err) {
+                console.error("Session verify error:", err);
+            } finally {
+                setVerifying(false);
+                // Clean session_id from URL
+                setSearchParams({}, { replace: true });
+            }
+        };
+        verifySession();
+    }, [searchParams, user]);
 
     useEffect(() => {
         const u = user as { plan?: PlanType } | null;
@@ -46,7 +76,7 @@ export default function BillingPage() {
             }
         };
         fetchBilling();
-    }, [user]);
+    }, [user, verifying]);
 
     const activePlanDetails = PLANS[currentPlan] || PLANS.creator;
 
