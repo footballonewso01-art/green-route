@@ -31,7 +31,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
     --muted: 155 15% 15%;
     --muted-foreground: 150 8% 55%;
 
-    --accent: 153 68% 55%;
+    --accent: 145 85% 55%;
     --accent-foreground: 155 70% 5%;
 
     --destructive: 0 72% 51%;
@@ -39,23 +39,23 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 
     --border: 155 15% 16%;
     --input: 155 15% 16%;
-    --ring: 153 68% 55%;
+    --ring: 145 85% 55%;
 
     --radius: 1rem;
 
     --sidebar-background: 155 35% 6%;
     --sidebar-foreground: 150 10% 85%;
-    --sidebar-primary: 153 68% 55%;
+    --sidebar-primary: 145 85% 55%;
     --sidebar-primary-foreground: 155 70% 5%;
     --sidebar-accent: 155 25% 12%;
     --sidebar-accent-foreground: 150 10% 92%;
     --sidebar-border: 155 15% 14%;
-    --sidebar-ring: 153 68% 55%;
+    --sidebar-ring: 145 85% 55%;
 
     /* Custom tokens */
     --glass: 155 35% 9%;
     --glass-border: 155 15% 20%;
-    --glow: 153 68% 55%;
+    --glow: 145 85% 55%;
     --surface: 155 35% 9%;
     --surface-hover: 155 30% 12%;
   }
@@ -88,7 +88,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 
   .glow-text {
     @apply text-accent;
-    text-shadow: 0 0 30px hsl(153 68% 55% / 0.3);
+    text-shadow: 0 0 30px hsl(var(--accent) / 0.5);
   }
 
   .gradient-text {
@@ -96,11 +96,11 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   }
 
   .shadow-glow {
-    box-shadow: 0 0 40px -10px hsl(153 68% 55% / 0.2);
+    box-shadow: 0 0 40px -10px hsl(var(--accent) / 0.35);
   }
 
   .shadow-glow-sm {
-    box-shadow: 0 0 20px -5px hsl(153 68% 55% / 0.15);
+    box-shadow: 0 0 20px -5px hsl(var(--accent) / 0.25);
   }
 
   .shadow-indigo-glow {
@@ -112,7 +112,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   }
 
   .input-glow:focus {
-    box-shadow: 0 0 0 2px hsl(153 68% 55% / 0.2);
+    box-shadow: 0 0 0 2px hsl(var(--accent) / 0.3);
   }
 
   .btn-primary-glow {
@@ -121,7 +121,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 
   .btn-primary-glow:hover {
     @apply scale-[1.02];
-    box-shadow: 0 0 30px -5px hsl(153 68% 55% / 0.4);
+    box-shadow: 0 0 30px -5px hsl(var(--accent) / 0.5);
   }
 
   .section-fade {
