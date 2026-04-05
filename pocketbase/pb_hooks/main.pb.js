@@ -2,6 +2,14 @@
 // MINIMAL HOOKS - Routes Only (for testing)
 // ==========================================
 
+onAfterBootstrap((e) => {
+    try {
+        $app.db().newQuery("CREATE TABLE IF NOT EXISTS _processed_stripe_events (id TEXT PRIMARY KEY, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)").execute();
+    } catch (err) {
+        $app.logger().error("Failed to init _processed_stripe_events table: " + err);
+    }
+});
+
 // Helper for Stripe REST API calls
 
 // (Diagnostic code removed)
@@ -106,7 +114,7 @@ routerAdd("POST", "/api/stripe/create-portal", (c) => {
             "customer": customerId,
             "return_url": HOST_URL + "/dashboard/billing"
         };
-        
+
         const parts = [];
         for (const key in portalData) {
             parts.push(encodeURIComponent(key) + "=" + encodeURIComponent(portalData[key]));
@@ -177,6 +185,14 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
 
         $app.logger().info("Webhook: processing event " + verifiedEvent.type + " id=" + eventId);
 
+        try {
+            // Attempt to track the event ID. SQLite throws UNIQUE constraint error on duplicate.
+            $app.db().newQuery("INSERT INTO _processed_stripe_events (id) VALUES ({:id})").bind({"id": eventId}).execute();
+        } catch (dbErr) {
+            $app.logger().error("Webhook: Event already processed (Replay Attack blocked) id=" + eventId);
+            return c.json(200, { received: true, note: "Already processed" }); // 200 so Stripe doesn't infinitely retry
+        }
+
         if (verifiedEvent.type === "checkout.session.completed") {
             const session = verifiedEvent.data.object;
             const userId = session.client_reference_id || (session.metadata ? session.metadata.userId : null);
@@ -219,12 +235,12 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 const user = txApp.findRecordById("users", userId);
                 user.set("plan", planName);
                 const now = new DateTime();
-                
+
                 // Add 1 year or 1 month based on metadata
-                const expiry = billingCycle === "annual" 
-                    ? now.addDate(1, 0, 2) 
+                const expiry = billingCycle === "annual"
+                    ? now.addDate(1, 0, 2)
                     : now.addDate(0, 1, 2);
-                    
+
                 user.set("plan_expires_at", expiry.format("Y-m-d H:i:sP"));
                 txApp.save(user);
 
@@ -485,7 +501,7 @@ routerAdd("GET", "/{slug}", (c) => {
                     });
                     $app.save(clickRecord);
 
-                    $app.db().newQuery("UPDATE links SET clicks_count = clicks_count + 1 WHERE id = {:id}").bind({"id": link.id}).execute();
+                    $app.db().newQuery("UPDATE links SET clicks_count = clicks_count + 1 WHERE id = {:id}").bind({ "id": link.id }).execute();
                 }
             } catch (err) {
                 $app.logger().error("Fast tracking error: " + err);
