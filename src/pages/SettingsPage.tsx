@@ -9,8 +9,8 @@ import { Loader2 } from "lucide-react";
 
 const tabs = [
   { id: "password", label: "Password", icon: Lock, limit: null },
-  { id: "domains", label: "Domains", icon: Globe, limit: "custom_domain" },
-  { id: "api", label: "API Keys", icon: Key, limit: "team_access" },
+  { id: "domains", label: "Domains", icon: Globe, limit: "custom_domain", comingSoon: true },
+  { id: "api", label: "API Keys", icon: Key, limit: "team_access", comingSoon: true },
 ];
 
 export default function SettingsPage() {
@@ -26,6 +26,11 @@ export default function SettingsPage() {
   const userPlan = (user as { plan?: string })?.plan || "creator";
 
   const handleTabClick = (tab: typeof tabs[0]) => {
+    if (tab.comingSoon) {
+      toast.info(`${tab.label} feature is coming soon!`);
+      return;
+    }
+
     if (!tab.limit || checkPlan(userPlan, tab.limit as keyof import('@/lib/plans').PlanLimits)) {
       setActive(tab.id);
     } else {
@@ -113,6 +118,8 @@ export default function SettingsPage() {
       <div className="flex gap-1 p-1 rounded-xl bg-surface border border-border w-fit">
         {tabs.map((tab) => {
           const isLocked = tab.limit && !checkPlan(userPlan, tab.limit as keyof import('@/lib/plans').PlanLimits);
+          const isComingSoon = tab.comingSoon;
+
           return (
             <button
               key={tab.id}
@@ -120,12 +127,15 @@ export default function SettingsPage() {
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${active === tab.id
                 ? "bg-accent text-accent-foreground shadow-lg shadow-accent/20"
                 : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                } ${isLocked ? "opacity-60" : ""}`}
+                } ${isLocked || isComingSoon ? "opacity-50" : ""} ${isComingSoon ? "grayscale cursor-default" : ""}`}
             >
               <tab.icon className="w-4 h-4" />
               <span className="hidden sm:inline">{tab.label}</span>
-              {isLocked && (
+              {isLocked && !isComingSoon && (
                 <Lock className="w-3 h-3 ml-1 text-accent" />
+              )}
+              {isComingSoon && (
+                <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded ml-1 text-white/40 font-bold uppercase tracking-tighter">Soon</span>
               )}
             </button>
           );
