@@ -581,17 +581,10 @@ export default function DashboardProfile() {
                 </div>
               </div>
               
-              <div className="w-full h-16 rounded-xl border border-border mt-3 relative overflow-hidden bg-[url('https://transparenttextures.com/patterns/cubes.png')] bg-surface/50">
-                {/* Preview block simulating the card */}
-                <div className="absolute inset-0 max-w-[124px] mx-auto rounded-t-2xl shadow-xl mt-4 border border-white/10 overflow-hidden flex flex-col" style={{ backgroundColor: cardColor }}>
-                  <div className="w-full h-full relative">
-                    <div className="absolute bottom-0 left-0 w-full h-[60%]" style={{ background: `linear-gradient(to top, ${cardColor} 15%, transparent)` }} />
-                    <div className="absolute inset-x-0 bottom-3 flex items-center justify-center pointer-events-none">
-                       <div className="w-6 h-6 rounded-full bg-white/20"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <div 
+                className="w-full h-12 rounded-xl mt-3 shadow-inner transition-colors" 
+                style={{ backgroundColor: cardColor }} 
+              />
             </div>
           </div>
 
@@ -872,7 +865,8 @@ export default function DashboardProfile() {
 
               {/* Profile Inner Content (Dynamic Mockup) */}
               <div
-                className="w-full h-full bg-black relative flex flex-col no-scrollbar rounded-[40px] overflow-hidden"
+                className="w-full h-full relative flex flex-col no-scrollbar rounded-[40px] overflow-hidden"
+                style={{ backgroundColor: cardColor }}
               >
                 <div className="flex flex-col flex-1 overflow-y-auto no-scrollbar relative z-10 pb-10">
                   {/* Top Header with Avatar and Fade */}
@@ -884,7 +878,7 @@ export default function DashboardProfile() {
                         <span className="text-5xl font-bold bg-gradient-to-br from-white to-white/30 bg-clip-text text-transparent">{name.charAt(0) || "?"}</span>
                       </div>
                     )}
-                    <div className="absolute bottom-0 w-full h-1/2 bg-gradient-to-t from-black via-black/40 to-transparent transition-all duration-700" />
+                    <div className="absolute bottom-0 w-full h-[45%] transition-all duration-700" style={{ background: `linear-gradient(to top, ${cardColor} 15%, transparent)` }} />
                   </div>
 
                   {/* Profile Content */}
