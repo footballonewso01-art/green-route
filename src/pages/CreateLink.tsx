@@ -528,11 +528,11 @@ export default function CreateLink() {
             <div className="space-y-3">
               <ToggleRow
                 icon={Shuffle}
-                label="A/B Split Test"
-                description="Rotate multiple URLs"
+                label="A/B Traffic Splitter"
+                description="Rotate and split traffic evenly"
                 checked={form.ab_split}
-                onChange={() => handleToggle("ab_split", "ab_testing", "A/B Split Test", "Randomly rotate traffic between several alternative URLs to test performance.")}
-                tooltip="Randomly rotates traffic between several alternative URLs."
+                onChange={() => handleToggle("ab_split", "ab_testing", "A/B Traffic Splitter", "Smartly rotate and distribute your traffic evenly across multiple destination URLs. Perfect for affiliate testing or load balancing.")}
+                tooltip="Evenly rotates traffic between several alternative URLs. Ideal for testing which offer converts better."
                 disabled={!checkPlan(userPlan, "ab_testing")}
                 lockedTooltip="Available on Agency Plan"
               />
