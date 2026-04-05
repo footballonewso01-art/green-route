@@ -441,7 +441,10 @@ routerAdd("GET", "/{slug}", (c) => {
             link.get("device_targeting") ||
             link.get("ab_split") ||
             link.get("interstitial_enabled") ||
-            link.get("mode") === "direct";
+            link.get("mode") === "direct" ||
+            link.get("fb_pixel") ||
+            link.get("google_pixel") ||
+            link.get("tiktok_pixel");
 
         if (!hasComplexLogic) {
             try {

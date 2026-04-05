@@ -4,6 +4,69 @@ import { pb } from "@/lib/pocketbase";
 import { Loader2, AlertTriangle, Smartphone, ExternalLink, MoreVertical, Share2, Compass } from "lucide-react";
 import PublicProfile from "./PublicProfile";
 
+// Utility to inject tracking pixels and allow them 400ms to fire before the page is destroyed by a redirect
+/* eslint-disable @typescript-eslint/no-explicit-any, prefer-rest-params, prefer-spread, no-var, @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-expressions */
+const fireTrackingPixels = (link: Record<string, any>): Promise<void> => {
+    const hasFb = typeof link.fb_pixel === 'string' && link.fb_pixel.trim().length > 0;
+    const hasGoogle = typeof link.google_pixel === 'string' && link.google_pixel.trim().length > 0;
+    const hasTiktok = typeof link.tiktok_pixel === 'string' && link.tiktok_pixel.trim().length > 0;
+
+    if (!hasFb && !hasGoogle && !hasTiktok) {
+        return Promise.resolve(); // Fast resolution if no pixels are present
+    }
+
+    return new Promise((resolve) => {
+        // Safe timeout so we never lock the user and still process pixels
+        setTimeout(resolve, 400);
+
+        try {
+            // FB Pixel
+            if (hasFb) {
+                (function(f:any,b:any,e:any,v:any,n?:any,t?:any,s?:any)
+                {if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+                t.src=v;s=b.getElementsByTagName(e)[0];s?.parentNode?.insertBefore(t,s)})(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
+                // @ts-ignore
+                window.fbq('init', link.fb_pixel.trim());
+                // @ts-ignore
+                window.fbq('track', 'PageView');
+            }
+
+            // Google Pixel (gtag)
+            if (hasGoogle) {
+                const s = document.createElement('script');
+                s.src = `https://www.googletagmanager.com/gtag/js?id=${link.google_pixel.trim()}`;
+                s.async = true;
+                document.head.appendChild(s);
+                // @ts-ignore
+                window.dataLayer = window.dataLayer || [];
+                // @ts-ignore
+                function gtag(){window.dataLayer.push(arguments);}
+                // @ts-ignore
+                gtag('js', new Date());
+                // @ts-ignore
+                gtag('config', link.google_pixel.trim());
+            }
+
+            // TikTok Pixel
+            if (hasTiktok) {
+                (function (w:any, d:any, t:any) {
+                w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];ttq.setAndDefer=function(t:any,e:any){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t:any){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e:any,n?:any){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};var o=d.createElement("script");o.type="text/javascript";o.async=!0;o.src=i+"?sdkid="+e+"&lib="+t;var a=d.getElementsByTagName("script")[0];a?.parentNode?.insertBefore(o,a)};
+                // @ts-ignore
+                ttq.load(link.tiktok_pixel.trim());
+                // @ts-ignore
+                ttq.page();
+                // @ts-ignore
+                })(window, document, 'ttq');
+            }
+        } catch (err) {
+            console.error("Pixel track error:", err);
+            resolve();
+        }
+    });
+};
+/* eslint-enable @typescript-eslint/no-explicit-any, prefer-rest-params, prefer-spread, no-var, @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-expressions */
+
 /**
  * RedirectHandler — Ultra-fast redirect engine.
  *
@@ -205,6 +268,7 @@ export default function RedirectHandler() {
                 if (link.mode === 'direct' && isInApp) {
                     setStatus("deeplink");
                     await trackClick(link);
+                    await fireTrackingPixels(link);
 
                     const isIOS = /iPhone|iPad|iPod/i.test(ua);
                     const isAndroid = /Android/i.test(ua);
@@ -250,8 +314,9 @@ export default function RedirectHandler() {
                     setStatus("verifying");
                     await trackClick(link);
 
-                    const performFinalAction = () => {
+                    const performFinalAction = async () => {
                         redirected.current = true;
+                        await fireTrackingPixels(link);
                         window.location.replace(finalDestination);
                     };
                     const interactionHandler = () => {
@@ -265,6 +330,7 @@ export default function RedirectHandler() {
                     // Track click FIRST, then redirect
                     redirected.current = true;
                     await trackClick(link);
+                    await fireTrackingPixels(link);
                     window.location.replace(finalDestination);
                 }
 
