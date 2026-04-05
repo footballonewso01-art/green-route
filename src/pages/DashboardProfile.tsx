@@ -288,7 +288,8 @@ export default function DashboardProfile() {
       }
 
       toast.success("Profile saved successfully");
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as { message?: string; response?: { data?: any } };
       console.error("[handleSaveProfile] Error:", error);
       
       let detailedError = error?.message || "Unknown error";
