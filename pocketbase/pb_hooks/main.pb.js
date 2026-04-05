@@ -485,8 +485,7 @@ routerAdd("GET", "/{slug}", (c) => {
                     });
                     $app.save(clickRecord);
 
-                    link.set("clicks_count", link.get("clicks_count") + 1);
-                    $app.save(link);
+                    $app.db().newQuery("UPDATE links SET clicks_count = clicks_count + 1 WHERE id = {:id}").bind({"id": link.id}).execute();
                 }
             } catch (err) {
                 $app.logger().error("Fast tracking error: " + err);
