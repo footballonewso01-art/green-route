@@ -17,4 +17,15 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // On Vercel Preview deploys, auto-point to staging PocketBase
+  // VERCEL_ENV is set automatically by Vercel: "production" | "preview" | "development"
+  define: {
+    ...(process.env.VERCEL_ENV === "preview"
+      ? {
+          "import.meta.env.VITE_POCKETBASE_URL": JSON.stringify(
+            "https://greenroute-pb-staging.fly.dev"
+          ),
+        }
+      : {}),
+  },
 }));
