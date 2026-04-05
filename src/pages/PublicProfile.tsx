@@ -14,6 +14,7 @@ interface ProfileData {
   theme: string;
   full_avatar_url?: string;
   custom_theme_bg?: string;
+  card_color?: string;
   social_links?: { id: string; url: string; icon_type: string; icon_value: string }[];
 }
 
@@ -74,6 +75,7 @@ export default function PublicProfile() {
           avatar: userRecord.name ? userRecord.name.charAt(0).toUpperCase() : userRecord.username.charAt(0).toUpperCase(),
           full_avatar_url: userRecord.avatar ? pb.files.getUrl(userRecord, userRecord.avatar) : undefined,
           custom_theme_bg: userRecord.custom_theme_bg ? pb.files.getUrl(userRecord, userRecord.custom_theme_bg) : undefined,
+          card_color: userRecord.card_color || "#000000",
           social_links: Array.isArray(userRecord.social_links) ? userRecord.social_links : [],
           plan: userRecord.plan || "creator",
         });
@@ -150,7 +152,7 @@ export default function PublicProfile() {
       <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-accent/10 blur-[150px] rounded-full pointer-events-none opacity-30 z-0" />
 
       {/* Main Profile Card */}
-      <div className="w-full max-w-[528px] bg-black sm:rounded-[1.5rem] min-h-[100dvh] sm:min-h-[98vh] sm:mt-[1vh] sm:mb-[1vh] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8),0_0_40px_rgba(0,0,0,0.4)] animate-fade-in relative z-10 flex flex-col">
+      <div className="w-full max-w-[528px] sm:rounded-[1.5rem] min-h-[100dvh] sm:min-h-[98vh] sm:mt-[1vh] sm:mb-[1vh] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8),0_0_40px_rgba(0,0,0,0.4)] animate-fade-in relative z-10 flex flex-col" style={{ backgroundColor: profile.card_color || '#000000' }}>
 
         {/* Top Header with Avatar and Fade */}
         <div className="relative aspect-[10/7] w-full overflow-hidden shrink-0">
@@ -167,8 +169,8 @@ export default function PublicProfile() {
               </span>
             </div>
           )}
-          {/* Fade to Black Overlay - Lower and softer */}
-          <div className="absolute -bottom-1 left-0 w-full h-[41%] bg-gradient-to-t from-black from-15% via-black/60 to-transparent transition-all duration-700 pointer-events-none" />
+          {/* Fade Overlay - Lower and softer to match card color */}
+          <div className="absolute -bottom-1 left-0 w-full h-[45%] transition-all duration-700 pointer-events-none" style={{ background: `linear-gradient(to top, ${profile.card_color || '#000000'} 15%, transparent)` }} />
         </div >
 
         {/* Profile Content */}

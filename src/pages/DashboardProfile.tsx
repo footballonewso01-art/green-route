@@ -58,6 +58,7 @@ export default function DashboardProfile() {
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [theme, setTheme] = useState(user?.theme || "minimal-dark");
+  const [cardColor, setCardColor] = useState((user as { card_color?: string })?.card_color || "#000000");
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const canCustomize = checkPlan(userPlan, "profile_customization");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -102,6 +103,7 @@ export default function DashboardProfile() {
       setName(user.name || "");
       setUsername(user.username || "");
       setBio(user.bio || "");
+      if ((user as { card_color?: string }).card_color) setCardColor((user as { card_color?: string }).card_color as string);
       // theme is initialized directly in useState to prevent flashing
       if (user.avatar && user.collectionId) {
         setAvatarPreview(pb.files.getUrl(user as unknown as Record<string, unknown>, user.avatar));
@@ -201,6 +203,7 @@ export default function DashboardProfile() {
         username,
         bio,
         theme,
+        card_color: cardColor,
         social_links: socialLinks,
       };
 
@@ -472,7 +475,7 @@ export default function DashboardProfile() {
 
             <div className="space-y-4 pt-2">
               <h3 className="text-sm font-medium flex items-center gap-2 text-white">
-                <Palette className="w-4 h-4 text-accent" /> Profile Theme
+                <Palette className="w-4 h-4 text-accent" /> Background Theme
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {THEMES.map((t) => (
@@ -539,6 +542,56 @@ export default function DashboardProfile() {
                   />
                 </div>
               )}
+            </div>
+
+            {/* Card Color Theme */}
+            <div className="space-y-4 pt-4 border-t border-white/10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium flex items-center gap-2 text-white">
+                    <Palette className="w-4 h-4 text-accent" /> Card Theme
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Choose the base color for your profile card and gradient.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="relative group/picker">
+                    <input
+                      type="color"
+                      value={cardColor}
+                      onChange={(e) => canCustomize && setCardColor(e.target.value)}
+                      disabled={!canCustomize}
+                      className={`w-10 h-10 rounded-xl cursor-pointer bg-surface border-2 border-border p-0.5 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-lg [&::-webkit-color-swatch]:border-none ${!canCustomize ? "opacity-50 cursor-not-allowed" : "hover:border-accent/40"}`}
+                      title="Card Color"
+                    />
+                    <div className="absolute top-1/2 -translate-y-1/2 right-12 px-2 py-1 bg-surface border border-border rounded text-[10px] text-white opacity-0 group-hover/picker:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                      {cardColor.toUpperCase()}
+                    </div>
+                  </div>
+                  {cardColor !== "#000000" && (
+                    <button
+                      onClick={() => canCustomize && setCardColor("#000000")}
+                      disabled={!canCustomize}
+                      className="text-xs text-muted-foreground hover:text-white transition-colors underline underline-offset-2"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              <div className="w-full h-16 rounded-xl border border-border mt-3 relative overflow-hidden bg-[url('https://transparenttextures.com/patterns/cubes.png')] bg-surface/50">
+                {/* Preview block simulating the card */}
+                <div className="absolute inset-0 max-w-[124px] mx-auto rounded-t-2xl shadow-xl mt-4 border border-white/10 overflow-hidden flex flex-col" style={{ backgroundColor: cardColor }}>
+                  <div className="w-full h-full relative">
+                    <div className="absolute bottom-0 left-0 w-full h-[60%]" style={{ background: `linear-gradient(to top, ${cardColor} 15%, transparent)` }} />
+                    <div className="absolute inset-x-0 bottom-3 flex items-center justify-center pointer-events-none">
+                       <div className="w-6 h-6 rounded-full bg-white/20"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
