@@ -13,6 +13,7 @@ interface User {
   theme: string;
   social_links: Record<string, unknown>[];
   custom_theme_bg: string;
+  card_color: string;
   username_last_changed: string;
   plan: string;
   role?: string;
@@ -58,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           theme: parsed.model.theme || 'minimal-dark',
           social_links: parsed.model.social_links || [],
           custom_theme_bg: parsed.model.custom_theme_bg || '',
+          card_color: parsed.model.card_color || '#000000',
           username_last_changed: parsed.model.username_last_changed || '',
           plan: parsed.model.plan,
           role: parsed.model.role || 'user',
@@ -95,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           theme: model.theme || 'minimal-dark',
           social_links: model.social_links || [],
           custom_theme_bg: model.custom_theme_bg || '',
+          card_color: model.card_color || '#000000',
           username_last_changed: model.username_last_changed || '',
           plan: model.plan,
           role: model.role || 'user',
@@ -201,6 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       theme: (userData.theme as string) || 'minimal-dark',
       social_links: (userData.social_links as Record<string, unknown>[]) || [],
       custom_theme_bg: (userData.custom_theme_bg as string) || '',
+      card_color: (userData.card_color as string) || '#000000',
       username_last_changed: (userData.username_last_changed as string) || '',
       plan: userData.plan as string,
       role: (userData.role as string) || 'user',

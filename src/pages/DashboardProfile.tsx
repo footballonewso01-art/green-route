@@ -58,7 +58,7 @@ export default function DashboardProfile() {
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [theme, setTheme] = useState(user?.theme || "minimal-dark");
-  const [cardColor, setCardColor] = useState((user as { card_color?: string })?.card_color || "#000000");
+  const [cardColor, setCardColor] = useState(user?.card_color || "#000000");
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const canCustomize = checkPlan(userPlan, "profile_customization");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -103,7 +103,7 @@ export default function DashboardProfile() {
       setName(user.name || "");
       setUsername(user.username || "");
       setBio(user.bio || "");
-      if ((user as { card_color?: string }).card_color) setCardColor((user as { card_color?: string }).card_color as string);
+      if (user.card_color) setCardColor(user.card_color);
       // theme is initialized directly in useState to prevent flashing
       if (user.avatar && user.collectionId) {
         setAvatarPreview(pb.files.getUrl(user as unknown as Record<string, unknown>, user.avatar));
