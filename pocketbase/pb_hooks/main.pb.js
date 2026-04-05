@@ -422,8 +422,14 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
 routerAdd("GET", "/{slug}", (c) => {
     const slug = c.pathParam("slug");
 
-    const reserved = ["dashboard", "login", "register", "privacy", "terms", "api", "_", "logo.png", "favicon.ico", "assets"];
-    if (reserved.some(r => slug.startsWith(r)) || slug.includes(".")) {
+    // Strict validation: Only alphanumeric and hyphens. 
+    // This inherently blocks dots (e.g. logo.png) and prevents tricky path executions.
+    if (!/^[a-zA-Z0-9-]+$/.test(slug)) {
+        return c.next();
+    }
+
+    const reserved = ["dashboard", "login", "register", "privacy", "terms", "api", "assets"];
+    if (reserved.some(r => slug.startsWith(r))) {
         return c.next();
     }
 
