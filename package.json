@@ -5,10 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:staging": "vite --mode staging",
     "build": "vite build",
+    "build:staging": "vite build --mode staging",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
+    "deploy:staging": "npx vercel --yes",
+    "deploy:prod": "npx vercel --prod --yes",
     "test": "vitest run",
     "test:watch": "vitest"
   },

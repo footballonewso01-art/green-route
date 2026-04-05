@@ -1,13 +1,13 @@
-# fly.toml app configuration file generated for greenroute-pb on 2026-03-11T18:09:34+02:00
+# Staging configuration for greenroute-pb-staging
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'greenroute-pb'
+app = 'greenroute-pb-staging'
 primary_region = 'fra'
 
 [[mounts]]
-  source = 'pb_data'
+  source = 'pb_data_staging'
   destination = '/pb/pb_data'
 
 [http_service]
