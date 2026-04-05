@@ -262,6 +262,19 @@ export default function RedirectHandler() {
                     finalDestination = allOptions[Math.floor(Math.random() * allOptions.length)] as string;
                 }
 
+                // ----- APPEND UTM PARAMETERS -----
+                if (link.utm_source || link.utm_medium || link.utm_campaign) {
+                    try {
+                        const urlObj = new URL(finalDestination);
+                        if (link.utm_source) urlObj.searchParams.set("utm_source", link.utm_source as string);
+                        if (link.utm_medium) urlObj.searchParams.set("utm_medium", link.utm_medium as string);
+                        if (link.utm_campaign) urlObj.searchParams.set("utm_campaign", link.utm_campaign as string);
+                        finalDestination = urlObj.toString();
+                    } catch (e) {
+                        console.error("Invalid destination URL for UTM tags", e);
+                    }
+                }
+
                 setDestination(finalDestination);
 
                 // Step 3: Track click, then redirect

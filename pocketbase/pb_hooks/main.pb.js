@@ -515,8 +515,33 @@ routerAdd("GET", "/{slug}", (c) => {
             } catch (err) {
                 $app.logger().error("Fast tracking error: " + err);
             }
+            let finalDest = link.get("destination_url");
+            const uSrc = link.get("utm_source");
+            const uMed = link.get("utm_medium");
+            const uCmp = link.get("utm_campaign");
 
-            return c.redirect(302, link.get("destination_url"));
+            if (uSrc || uMed || uCmp) {
+                let utmParts = [];
+                if (uSrc) utmParts.push("utm_source=" + encodeURIComponent(uSrc));
+                if (uMed) utmParts.push("utm_medium=" + encodeURIComponent(uMed));
+                if (uCmp) utmParts.push("utm_campaign=" + encodeURIComponent(uCmp));
+
+                if (utmParts.length > 0) {
+                    let utmStr = utmParts.join("&");
+                    let hashIdx = finalDest.indexOf("#");
+                    if (hashIdx !== -1) {
+                        let base = finalDest.substring(0, hashIdx);
+                        let hash = finalDest.substring(hashIdx);
+                        let sep = base.indexOf("?") === -1 ? "?" : "&";
+                        finalDest = base + sep + utmStr + hash;
+                    } else {
+                        let sep = finalDest.indexOf("?") === -1 ? "?" : "&";
+                        finalDest = finalDest + sep + utmStr;
+                    }
+                }
+            }
+
+            return c.redirect(302, finalDest);
         }
     } catch (e) {
         // Slug not found, fall through to SPA
