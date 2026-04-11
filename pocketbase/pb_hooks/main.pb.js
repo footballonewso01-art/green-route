@@ -569,14 +569,16 @@ routerAdd("GET", "/{slug}", (c) => {
 });
 
 // ==========================================
-// CLICK TRACKING SYNC HOOK
+// CLICK TRACKING SYNC HOOK (GLOBAL)
 // ==========================================
-onRecordAfterCreateRequest((e) => {
+onRecordAfterCreate((e) => {
     try {
         const linkId = e.record.get("link_id");
         if (linkId) {
             // Atomic increment to ensure links.clicks_count always matches clicks collection density
-            $app.db().newQuery("UPDATE links SET clicks_count = clicks_count + 1 WHERE id = {:id}")
+            // Using $app.db() ensures execution outside of the immediate record transaction if needed, 
+            // but usually this runs in the same context.
+            $app.db().newQuery("UPDATE links SET clicks_count = (SELECT COUNT(*) FROM clicks WHERE link_id = {:id}) WHERE id = {:id}")
                 .bind({ "id": linkId })
                 .execute();
         }
