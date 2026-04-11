@@ -97,6 +97,24 @@ export default function LandingPage() {
   const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    // Record pageview event anonymously
+    try {
+      const isTracked = sessionStorage.getItem("landing_viewed");
+      if (!isTracked) {
+        let deviceId = localStorage.getItem("device_id");
+        if (!deviceId) {
+          deviceId = crypto.randomUUID();
+          localStorage.setItem("device_id", deviceId);
+        }
+        
+        pb.collection("analytics_events").create({
+          event_name: "landing_pageview",
+          metadata: { deviceId, path: "/" }
+        }).catch(() => {});
+        sessionStorage.setItem("landing_viewed", "true");
+      }
+    } catch(e) {}
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {

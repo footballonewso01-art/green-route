@@ -11,12 +11,14 @@ RUN wget https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSIO
     && chmod +x /pb/pocketbase \
     && rm pocketbase_${PB_VERSION}_linux_amd64.zip
 
-# Copy hooks
-COPY ./pb_hooks /pb/hooks_image
+# Copy hooks to standard location used by PocketBase v0.23+
+# (the --hooksDir flag was removed, so it MUST be in pb_hooks)
+ARG CACHEBUST=202604070200
+COPY ./pb_hooks /pb/pb_hooks
+COPY ./pb_migrations /pb/pb_migrations
 
 # Expose the default port
 EXPOSE 8080
 
-# Run PocketBase directly. 
-# PocketBase will load hooks from /pb/hooks_image
-CMD ["/pb/pocketbase", "serve", "--http=0.0.0.0:8080", "--dir=/pb/pb_data", "--hooksDir=/pb/hooks_image"]
+# Run PocketBase
+CMD ["/pb/pocketbase", "serve", "--http=0.0.0.0:8080", "--dir=/pb/pb_data"]
