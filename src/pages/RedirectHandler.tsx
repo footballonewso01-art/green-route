@@ -252,12 +252,15 @@ export default function RedirectHandler() {
                 const device = /Mobi|Android/i.test(ua) ? "Mobile" : /Tablet|iPad/i.test(ua) ? "Tablet" : "Desktop";
 
                 // 1. Device Targeting (Priority 1)
-                if (link.device_targeting && (link.device_targeting as Record<string, string>)[device]) {
-                    finalDestination = (link.device_targeting as Record<string, string>)[device];
+                if (link.device_targeting && typeof link.device_targeting === 'object' && Object.keys(link.device_targeting).length > 0) {
+                    const rules = link.device_targeting as Record<string, string>;
+                    if (rules[device]) {
+                        finalDestination = rules[device];
+                    }
                 }
 
                 // 2. Geo Targeting (Priority 2)
-                if (link.geo_targeting && typeof link.geo_targeting === 'object') {
+                if (link.geo_targeting && typeof link.geo_targeting === 'object' && Object.keys(link.geo_targeting).length > 0) {
                     try {
                         const geoRes = await fetch("https://cloudflare.com/cdn-cgi/trace", { signal: AbortSignal.timeout(1000) });
                         const geoText = await geoRes.text();

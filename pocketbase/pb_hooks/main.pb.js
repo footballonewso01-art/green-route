@@ -436,12 +436,20 @@ routerAdd("GET", "/{slug}", (c) => {
     try {
         const link = $app.findFirstRecordByFilter("links", "slug = {:slug} && active = true", { slug: slug });
 
+        const geoTargeting = link.get("geo_targeting");
+        const deviceTargeting = link.get("device_targeting");
+        const hasGeoRules = geoTargeting && typeof geoTargeting === 'object' && Object.keys(geoTargeting).length > 0;
+        const hasDeviceRules = deviceTargeting && typeof deviceTargeting === 'object' && Object.keys(deviceTargeting).length > 0;
+
         const hasComplexLogic =
-            link.get("geo_targeting") ||
-            link.get("device_targeting") ||
+            hasGeoRules ||
+            hasDeviceRules ||
             link.get("ab_split") ||
+            link.get("cloaking") ||
             link.get("interstitial_enabled") ||
             link.get("mode") === "direct" ||
+            link.get("mode") === "landing" ||
+            link.get("mode") === "smart" ||
             link.get("fb_pixel") ||
             link.get("google_pixel") ||
             link.get("tiktok_pixel");
