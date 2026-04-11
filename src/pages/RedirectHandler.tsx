@@ -264,9 +264,32 @@ export default function RedirectHandler() {
                 } else {
                     const device = /Mobi|Android/i.test(ua) ? "Mobile" : /Tablet|iPad/i.test(ua) ? "Tablet" : "Desktop";
 
-                    if (link.device_targeting && (link.device_targeting as Record<string, string>)[device]) {
-                        finalDestination = (link.device_targeting as Record<string, string>)[device];
+                    // 1. Device Targeting (Priority 1)
+                    if (link.device_targeting && typeof link.device_targeting === 'object' && Object.keys(link.device_targeting).length > 0) {
+                        const rules = link.device_targeting as Record<string, string>;
+                        if (rules[device]) {
+                            finalDestination = rules[device];
+                        }
                     }
+
+                    // 2. Geo Targeting (Priority 2)
+                    if (link.geo_targeting && typeof link.geo_targeting === 'object' && Object.keys(link.geo_targeting).length > 0) {
+                        try {
+                            const geoRes = await fetch("https://cloudflare.com/cdn-cgi/trace", { signal: AbortSignal.timeout(1000) });
+                            const geoText = await geoRes.text();
+                            const locMatch = geoText.match(/loc=([A-Z]{2})/);
+                            if (locMatch && locMatch[1]) {
+                                const countryCode = locMatch[1];
+                                const rules = link.geo_targeting as Record<string, string>;
+                                if (rules[countryCode]) {
+                                    finalDestination = rules[countryCode];
+                                }
+                            }
+                        } catch (e) {
+                            console.error("Geo targeting lookup failed (RedirectHandler):", e);
+                        }
+                    }
+
                     if (link.ab_split && Array.isArray(link.split_urls) && link.split_urls.length > 0) {
                         const allOptions = [finalDestination, ...link.split_urls];
                         finalDestination = allOptions[Math.floor(Math.random() * allOptions.length)] as string;

@@ -207,12 +207,16 @@ export default function CreateLink() {
 
       const formData = new FormData();
       Object.entries(data).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
-          if (typeof value === 'object') {
-            formData.append(key, JSON.stringify(value));
-          } else {
-            formData.append(key, String(value));
-          }
+        // Essential fix: Allow null/undefined to pass through as empty string to clear fields in PocketBase
+        if (value === null || value === undefined) {
+          formData.append(key, '');
+          return;
+        }
+
+        if (typeof value === 'object') {
+          formData.append(key, JSON.stringify(value));
+        } else {
+          formData.append(key, String(value));
         }
       });
 

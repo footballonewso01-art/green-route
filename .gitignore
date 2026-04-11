@@ -7,6 +7,22 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Database & Logs
+*.db
+*.db-journal
+*.sqlite
+data.db
+logs.db
+pocketbase/pb_data/
+pb_data/
+**/pb_data/
+err.txt
+logs.txt
+
+# Production debris
+full_schema_prod.json
+links_schema_prod.json
+
 node_modules
 dist
 dist-ssr

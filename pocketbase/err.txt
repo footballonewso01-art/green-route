@@ -1,9 +1,0 @@
-panic: nil passed instead of *os.File to NewColorable()
-
-goroutine 1 [running]:
-github.com/mattn/go-colorable.NewColorable(0xffffffffffffffff?)
-	/home/runner/go/pkg/mod/github.com/mattn/go-colorable@v0.1.14/colorable_windows.go:104 +0x1d9
-github.com/mattn/go-colorable.NewColorableStdout(...)
-	/home/runner/go/pkg/mod/github.com/mattn/go-colorable@v0.1.14/colorable_windows.go:122
-github.com/fatih/color.init()
-	/home/runner/go/pkg/mod/github.com/fatih/color@v1.15.0/color.go:27 +0xf0
