@@ -917,8 +917,8 @@ onRecordViewRequest((e) => {
 }, "links");
 
 // Universal click counter incrementer
-// PocketBase v0.24 JS hook — callback passed directly (no .add())
-$app.onRecordAfterCreateSuccess("clicks", (e) => {
+// PocketBase v0.24: callback first, collection name last (same pattern as onRecordViewRequest above)
+$app.onRecordAfterCreateSuccess((e) => {
     try {
         const linkId = e.record.get("link_id");
         if (linkId) {
@@ -931,6 +931,6 @@ $app.onRecordAfterCreateSuccess("clicks", (e) => {
         $app.logger().error("Critical error incrementing clicks_count for link_id " + e.record.get("link_id") + ": " + err);
     }
     return e.next();
-});
+}, "clicks");
 
 console.log("--- main.pb.js LOADED SUCCESSFULLY ---");
