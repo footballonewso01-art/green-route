@@ -917,10 +917,11 @@ onRecordViewRequest((e) => {
 }, "links");
 
 // Universal click counter incrementer
-// PocketBase v0.24: callback first, collection name last (same pattern as onRecordViewRequest above)
-$app.onRecordAfterCreateSuccess((e) => {
+// PocketBase v0.24 JSVM: GLOBAL function (not $app.), callback first, collection last
+onRecordAfterCreateSuccess((e) => {
     try {
         const linkId = e.record.get("link_id");
+        console.log("CLICK HOOK FIRED: link_id=" + linkId);
         if (linkId) {
             // Use Direct SQL for maximum reliability and to avoid hook recursion/locking issues
             $app.db().newQuery("UPDATE links SET clicks_count = clicks_count + 1 WHERE id = {:id}")
@@ -930,7 +931,7 @@ $app.onRecordAfterCreateSuccess((e) => {
     } catch (err) {
         $app.logger().error("Critical error incrementing clicks_count for link_id " + e.record.get("link_id") + ": " + err);
     }
-    return e.next();
+    e.next();
 }, "clicks");
 
 console.log("--- main.pb.js LOADED SUCCESSFULLY ---");
