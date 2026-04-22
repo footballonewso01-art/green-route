@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Zap, Eye, EyeOff } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
+import { parseAuthError } from "@/lib/authErrors";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -58,7 +59,7 @@ export default function RegisterPage() {
       toast.success("Account created successfully!");
       navigate("/dashboard");
     } catch (error: unknown) {
-      toast.error((error as Error).message || "Failed to register");
+      toast.error(parseAuthError(error, "register"));
     } finally {
       setLoading(false);
     }

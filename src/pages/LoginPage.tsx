@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Zap, Eye, EyeOff } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
+import { parseAuthError } from "@/lib/authErrors";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ export default function LoginPage() {
       await pb.collection('users').authWithPassword(email, password);
       navigate("/dashboard");
     } catch (error: unknown) {
-      toast.error((error as Error).message || "Failed to login");
+      toast.error(parseAuthError(error, "login"));
     } finally {
       setLoading(false);
     }
