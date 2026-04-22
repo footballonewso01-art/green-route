@@ -1,18 +1,3 @@
-/// <reference path="../pb_data/types.d.ts" />
-migrate((db) => {
-    const dao = new Dao(db);
-    const collection = dao.findCollectionByNameOrId("users");
+﻿// No-op: schema already exists on prod. Converted for PB v0.24 compat.
+migrate((app) => { /* already applied */ }, (app) => { /* no-op */ });
 
-    const field = collection.schema.getFieldByName("social_links");
-    if (field) {
-        field.options = {
-            "maxSize": 2000000
-        };
-        return dao.saveCollection(collection);
-    }
-
-    return null;
-}, (db) => {
-    // No-op for down migration in this context
-    return null;
-})

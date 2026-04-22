@@ -258,11 +258,20 @@ export default function AdminOverview() {
                 { name: 'Agency', value: users.filter(u => u.plan === 'agency').length },
             ]);
 
-            // Top Users (Traffic Generators)
-            const clickCountsByUserId = currentClicks.reduce((acc: Record<string, number>, c: any) => {
-                if (c.user_id) acc[c.user_id] = (acc[c.user_id] || 0) + 1;
+            // BUG-07 FIX: clicks don't have user_id — aggregate via link_id → links → user_id
+            const clickCountsByLinkId = currentClicks.reduce((acc: Record<string, number>, c: any) => {
+                if (c.link_id) acc[c.link_id] = (acc[c.link_id] || 0) + 1;
                 return acc;
             }, {});
+
+            // Map link_id → user_id using already-loaded links
+            const clickCountsByUserId: Record<string, number> = {};
+            for (const [linkId, count] of Object.entries(clickCountsByLinkId)) {
+                const link = links.find((l: any) => l.id === linkId);
+                if (link && link.user_id) {
+                    clickCountsByUserId[link.user_id] = (clickCountsByUserId[link.user_id] || 0) + (count as number);
+                }
+            }
             
             const topUsers = Object.entries(clickCountsByUserId)
                 .sort((a, b) => (b[1] as number) - (a[1] as number))

@@ -58,13 +58,16 @@ export default function AnalyticsPage() {
 
         const filter = linkId ? `link_id="${linkId}" && ${baseFilter}` : baseFilter;
 
-        const records = await pb.collection('clicks').getFullList<ClickRecord>({
+        // BUG-03 FIX: Use bounded getList instead of getFullList (OOM prevention)
+        // Cap at 5000 records for breakdown charts; use totalItems for accurate count
+        const result = await pb.collection('clicks').getList<ClickRecord>(1, 5000, {
           filter,
           sort: '-created',
           expand: 'link_id',
         });
 
-        setClicksCount(records.length);
+        const records = result.items;
+        setClicksCount(result.totalItems); // Accurate total from API, not records.length
         setUniqueCount(records.filter(r => r.is_unique).length);
         setRecentActivities(records.slice(0, 5));
 
@@ -149,11 +152,11 @@ export default function AnalyticsPage() {
         });
         setTrendData(Object.entries(days).map(([date, clicks]) => ({ date, clicks })).reverse());
 
-        // Process Heatmap (day of week × hour)
+        // Process Heatmap (day of week × hour) — BUG-12 FIX: use UTC for consistency
         const heatmap = Array.from({ length: 7 }, () => Array(24).fill(0));
         records.forEach(r => {
           const d = new Date(r.created);
-          heatmap[d.getDay()][d.getHours()]++;
+          heatmap[d.getUTCDay()][d.getUTCHours()]++;
         });
         setHeatmapData(heatmap);
 
@@ -244,7 +247,7 @@ export default function AnalyticsPage() {
         </div>
         <div className="glass-card p-4">
           <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Avg. Daily</p>
-          <div className="text-2xl font-bold">{Math.round(clicksCount / (period === "24h" ? 1 : parseInt(period))).toLocaleString()}</div>
+          <div className="text-2xl font-bold">{Math.round(clicksCount / ({ "24h": 1, "7d": 7, "30d": 30, "90d": 90 }[period] || 1)).toLocaleString()}</div>
         </div>
         <div className="glass-card p-4 border-l-muted-foreground/30 border-l-2">
           <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Top Location</p>

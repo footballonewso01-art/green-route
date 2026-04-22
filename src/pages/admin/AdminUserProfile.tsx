@@ -59,6 +59,7 @@ export default function AdminUserProfile() {
     const [user, setUser] = useState<AdminUser | null>(null);
     const [links, setLinks] = useState<AdminLink[]>([]);
     const [clicks, setClicks] = useState<AdminClick[]>([]);
+    const [clicksTotalItems, setClicksTotalItems] = useState(0);
     const [loading, setLoading] = useState(true);
     const [internalNotes, setInternalNotes] = useState("");
     const [savingNotes, setSavingNotes] = useState(false);
@@ -98,6 +99,7 @@ export default function AdminUserProfile() {
                 requestKey: null
             });
             setClicks(clicksData.items as unknown as AdminClick[]);
+            setClicksTotalItems(clicksData.totalItems);
 
             // Generate Chart Data (Last 7 days)
             const data = [];
@@ -198,7 +200,7 @@ export default function AdminUserProfile() {
 
     if (!user) return null;
 
-    const totalClicks = clicks.length; // From our top 100 sample or we could aggregate differently
+    const totalClicks = clicksTotalItems;
     const totalLinks = links.length;
     const lastClick = clicks.length > 0 ? clicks[0] : null;
 
@@ -297,7 +299,7 @@ export default function AdminUserProfile() {
                             <p className="text-3xl font-bold text-foreground mt-2">{totalLinks}</p>
                         </div>
                         <div className="bg-surface border border-border rounded-2xl p-6">
-                            <h3 className="text-sm font-medium text-muted-foreground">Recent Clicks (Sample)</h3>
+                            <h3 className="text-sm font-medium text-muted-foreground">Total Clicks</h3>
                             <p className="text-3xl font-bold text-foreground mt-2">{totalClicks}</p>
                         </div>
                         <div className="bg-surface border border-border rounded-2xl p-6">

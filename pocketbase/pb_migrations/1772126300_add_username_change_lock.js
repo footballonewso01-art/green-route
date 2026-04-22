@@ -1,23 +1,3 @@
-/// <reference path="../pb_data/types.d.ts" />
-migrate((db) => {
-    const dao = new Dao(db);
-    const collection = dao.findCollectionByNameOrId("users");
+﻿// No-op: schema already exists on prod. Converted for PB v0.24 compat.
+migrate((app) => { /* already applied */ }, (app) => { /* no-op */ });
 
-    collection.schema.addField(new SchemaField({
-        "system": false,
-        "id": "username_last_changed",
-        "name": "username_last_changed",
-        "type": "date",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {}
-    }));
-
-    return dao.saveCollection(collection);
-}, (db) => {
-    const dao = new Dao(db);
-    const collection = dao.findCollectionByNameOrId("users");
-    collection.schema.removeField("username_last_changed");
-    return dao.saveCollection(collection);
-})

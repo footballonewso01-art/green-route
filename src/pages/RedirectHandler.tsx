@@ -99,16 +99,26 @@ export default function RedirectHandler() {
     }, []);
 
     // ── Track click — returns a promise that resolves when the click is saved ──
+    // NOTE (BUG-01): Double-tracking is architecturally prevented:
+    // - Simple links: server tracks + 302 redirect → SPA never loads
+    // - Complex links: server does c.next() → SPA loads → this function tracks
+    // The hasTracked ref + sessionStorage key provide defense-in-depth.
     const hasTracked = useRef(false);
 
     const trackClick = useCallback(async (link: Record<string, unknown>) => {
         if (hasTracked.current) return;
+        // Defense-in-depth: sessionStorage guard survives React re-renders
+        const trackKey = `gr_tracked_${link.id}`;
+        if (sessionStorage.getItem(trackKey)) return;
         hasTracked.current = true;
+        sessionStorage.setItem(trackKey, "1");
 
         const ua = navigator.userAgent;
+        // [SYNC: ua-parsing] — Must match server-side logic in main.pb.js:505-526
         const isBot = /bot|crawler|spider|criteo|facebookexternalhit/i.test(ua);
         if (isBot) return;
 
+        // [SYNC: ua-parsing] — OS/Browser/Device detection must match main.pb.js:508-526
         let os = "Other";
         if (/Windows/i.test(ua)) os = "Windows";
         else if (/iPhone|iPad|iPod/i.test(ua)) os = "iOS";
@@ -149,10 +159,13 @@ export default function RedirectHandler() {
             }
         }
 
-        const today = new Date().toISOString().split('T')[0];
-        const storageKey = `gr_unique_${link.id}_${today}`;
-        const isUnique = !localStorage.getItem(storageKey);
-        if (isUnique) localStorage.setItem(storageKey, "1");
+        // BUG-04 FIX: Use cookie-based uniqueness (matches server-side approach)
+        const cookieName = `gr_visit_${link.id}`;
+        const isUnique = !document.cookie.includes(cookieName);
+        if (isUnique) {
+            // Set cookie with 24h expiry (matches server-side Set-Cookie)
+            document.cookie = `${cookieName}=1; path=/; max-age=86400`;
+        }
 
         let country = "Unknown";
         try {
@@ -182,8 +195,7 @@ export default function RedirectHandler() {
         const timeout = new Promise(resolve => setTimeout(resolve, 1500));
         await Promise.race([clickPromise, timeout]);
 
-        // Increment click count (fire-and-forget)
-        pb.collection('links').update(link.id as string, { 'clicks_count+': 1 }).catch(() => { });
+        // clicks_count increment is handled server-side via onRecordAfterCreateSuccess hook
     }, []);
 
     // ── Main redirect logic ──
@@ -241,7 +253,10 @@ export default function RedirectHandler() {
                 }
 
                 const ua = navigator.userAgent;
-                const isBot = /bot|crawler|spider|criteo|facebook|google|bing|twitter|linkedin|instagram|tiktok/i.test(ua);
+                // BUG-14 FIX: Use specific bot patterns for cloaking — NOT broad names
+                // "facebook" catches FBAN/FBAV (real users), "instagram" catches in-app (real users)
+                // Only match actual crawler/preview bots, not webview browsers
+                const isBot = /bot|crawl|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(ua);
                 const isInApp = /Instagram|TikTok|FBAN|FBAV/i.test(ua);
 
                 // Bot cloaking
@@ -323,13 +338,27 @@ export default function RedirectHandler() {
                     const isTikTok = /TikTok/i.test(ua);
 
                     if (isAndroid) {
-                        // Android: Use intent:// to open in default browser (not just Chrome)
-                        const scheme = finalDestination.replace(/^https?:\/\//, "");
-                        window.location.href = `intent://${scheme}#Intent;scheme=https;action=android.intent.action.VIEW;end`;
-                        // Fallback after 1s if intent didn't work
-                        setTimeout(() => {
-                            window.location.href = finalDestination;
-                        }, 1000);
+                        if (isInstagram) {
+                            // Instagram Android WebView blocks intent:// — use googlechrome:// scheme
+                            const chromeUrl = finalDestination.replace(/^https:\/\//, "googlechrome://navigate?url=https://").replace(/^http:\/\//, "googlechrome://navigate?url=http://");
+                            window.location.href = chromeUrl;
+                            // Fallback: direct intent with browser_fallback_url
+                            setTimeout(() => {
+                                const scheme = finalDestination.replace(/^https?:\/\//, "");
+                                window.location.href = `intent://${scheme}#Intent;scheme=https;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(finalDestination)};end`;
+                            }, 800);
+                            // Final fallback: plain navigation
+                            setTimeout(() => {
+                                window.location.href = finalDestination;
+                            }, 1600);
+                        } else {
+                            // Other Android in-app browsers: intent with fallback
+                            const scheme = finalDestination.replace(/^https?:\/\//, "");
+                            window.location.href = `intent://${scheme}#Intent;scheme=https;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(finalDestination)};end`;
+                            setTimeout(() => {
+                                window.location.href = finalDestination;
+                            }, 1000);
+                        }
                     } else if (isIOS) {
                         if (isInstagram || isTikTok) {
                             // iOS Instagram/TikTok: Use x-safari-https:// scheme to force Safari

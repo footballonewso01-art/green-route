@@ -7,6 +7,16 @@ console.log("--- main.pb.js LOADING ---");
 
 
 // Helper for Stripe REST API calls
+function readerToString(reader) {
+    let result = "";
+    const buffer = new Uint8Array(1024);
+    while (true) {
+        const n = reader.read(buffer);
+        if (n <= 0) break;
+        result += String.fromCharCode.apply(null, buffer.subarray(0, n));
+    }
+    return result;
+}
 
 // (Diagnostic code removed)
 
@@ -492,9 +502,11 @@ routerAdd("GET", "/{slug}", (c) => {
             try {
                 const request = c.request;
                 const uaStr = request.header.get("User-Agent") || "";
+                // [SYNC: ua-parsing] — Must match frontend logic in RedirectHandler.tsx:120-140
                 const isBot = /bot|crawler|spider|criteo|facebookexternalhit/i.test(uaStr);
 
                 if (!isBot) {
+                    // [SYNC: ua-parsing] — OS/Browser/Device detection
                     let os = "Other";
                     if (/Windows/i.test(uaStr)) os = "Windows";
                     else if (/iPhone|iPad|iPod/i.test(uaStr)) os = "iOS";
@@ -516,19 +528,45 @@ routerAdd("GET", "/{slug}", (c) => {
                     else if (/Tablet|iPad/i.test(uaStr)) device = "Tablet";
 
                     let referrer = "Direct";
-                    const ref = request.header.get("Referer") || "";
-                    if (ref) {
-                        try {
-                            if (ref.includes("instagram.com")) referrer = "Instagram";
-                            else if (ref.includes("t.co") || ref.includes("twitter.com")) referrer = "Twitter";
-                            else if (ref.includes("facebook.com")) referrer = "Facebook";
-                            else if (ref.includes("tiktok.com")) referrer = "TikTok";
-                            else if (ref.includes("google.com")) referrer = "Google";
-                            else referrer = ref.split("/")[2] || "Other";
-                        } catch (e) { }
+                    // BUG-06 FIX: Check ?ref= query param first (e.g. Profile traffic)
+                    const rawUrl = request.url ? String(request.url) : "";
+                    const refParamMatch = rawUrl.match(/[?&]ref=([^&]+)/);
+                    if (refParamMatch && refParamMatch[1] === "profile") {
+                        referrer = "Profile";
+                    } else {
+                        const ref = request.header.get("Referer") || "";
+                        if (ref) {
+                            try {
+                                if (ref.includes("instagram.com")) referrer = "Instagram";
+                                else if (ref.includes("t.co") || ref.includes("twitter.com")) referrer = "Twitter";
+                                else if (ref.includes("facebook.com")) referrer = "Facebook";
+                                else if (ref.includes("tiktok.com")) referrer = "TikTok";
+                                else if (ref.includes("google.com")) referrer = "Google";
+                                else referrer = ref.split("/")[2] || "Other";
+                            } catch (e) { }
+                        }
                     }
 
-                    let country = request.header.get("CF-IPCountry") || "Unknown";
+                    // BUG-05 FIX: Check multiple geo headers with Fly-Region fallback
+                    let country = request.header.get("CF-IPCountry")
+                        || request.header.get("X-Country-Code")
+                        || "";
+                    if (!country) {
+                        // Fly.io edge region as rough geo fallback
+                        const flyRegion = request.header.get("Fly-Region") || "";
+                        const regionMap = {
+                            "ams": "NL", "arn": "SE", "atl": "US", "bog": "CO",
+                            "bom": "IN", "bos": "US", "cdg": "FR", "den": "US",
+                            "dfw": "US", "ewr": "US", "eze": "AR", "fra": "DE",
+                            "gdl": "MX", "gig": "BR", "gru": "BR", "hkg": "HK",
+                            "iad": "US", "jnb": "ZA", "lax": "US", "lhr": "GB",
+                            "maa": "IN", "mad": "ES", "mia": "US", "nrt": "JP",
+                            "ord": "US", "otp": "RO", "phx": "US", "qro": "MX",
+                            "scl": "CL", "sea": "US", "sin": "SG", "sjc": "US",
+                            "syd": "AU", "waw": "PL", "yul": "CA", "yyz": "CA"
+                        };
+                        country = regionMap[flyRegion.toLowerCase()] || "Unknown";
+                    }
 
                     const cookieHeader = request.header.get("Cookie") || "";
                     const cookieName = "gr_visit_" + link.id;
@@ -552,9 +590,7 @@ routerAdd("GET", "/{slug}", (c) => {
                     });
                     $app.save(clickRecord);
 
-                    // Use Record API instead of raw SQL for better internal consistency and WAL handling
-                    link.set("clicks_count", link.get("clicks_count") + 1);
-                    $app.save(link);
+                    // clicks_count increment is handled by onRecordAfterCreateSuccess hook
                 }
             } catch (err) {
                 // Log and swallow fast-tracking errors to ensure redirect always happens
@@ -879,5 +915,22 @@ onRecordViewRequest((e) => {
 
     return e.next();
 }, "links");
+
+// Universal click counter incrementer
+// Use native v0.24 syntax to catch both API creations and internal server-side saves
+$app.onRecordAfterCreateSuccess("clicks").add((e) => {
+    try {
+        const linkId = e.record.get("link_id");
+        if (linkId) {
+            // Use Direct SQL for maximum reliability and to avoid hook recursion/locking issues
+            $app.db().newQuery("UPDATE links SET clicks_count = clicks_count + 1 WHERE id = {:id}")
+                .bind({ id: linkId })
+                .execute();
+        }
+    } catch (err) {
+        $app.logger().error("Critical error incrementing clicks_count for link_id " + e.record.get("link_id") + ": " + err);
+    }
+    return e.next();
+});
 
 console.log("--- main.pb.js LOADED SUCCESSFULLY ---");

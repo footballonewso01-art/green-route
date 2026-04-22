@@ -19,21 +19,26 @@ export default function DashboardHome() {
     const fetchDashboardData = async () => {
       try {
         const userId = pb.authStore.model?.id;
-        const [links, clicks] = await Promise.all([
+        // BUG-02 FIX: Use getList with bounded limit instead of getFullList (OOM prevention)
+        // Get last 7 days of clicks only, capped at 200 for trend chart + recent list
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const [links, clicksResult] = await Promise.all([
           pb.collection('links').getFullList({
             filter: `user_id="${userId}"`,
             requestKey: null
           }),
-          pb.collection('clicks').getFullList({
-            filter: `link_id.user_id="${userId}"`,
+          pb.collection('clicks').getList(1, 200, {
+            filter: `link_id.user_id="${userId}" && created >= "${sevenDaysAgo.toISOString()}"`,
             sort: '-created',
-            limit: 50,
             requestKey: null
           })
         ]);
 
+        const clicks = clicksResult.items;
         const activeLinks = links.filter(l => l.active).length;
-        const totalClicks = clicks.length;
+        // Use clicks_count from links (always accurate) instead of loading all click records
+        const totalClicks = links.reduce((sum, l) => sum + ((l as any).clicks_count || 0), 0);
 
         setStats({
           totalClicks,
@@ -41,7 +46,7 @@ export default function DashboardHome() {
           clickRate: links.length > 0 ? Math.round((totalClicks / links.length) * 10) / 10 : 0,
         });
 
-        // Recent clicks
+        // Recent clicks (from bounded result)
         setRecentClicks(clicks.slice(0, 5).map(c => ({
           slug: links.find(l => l.id === c.link_id)?.slug || "unknown",
           country: c.country || "Unknown",
@@ -49,7 +54,7 @@ export default function DashboardHome() {
           time: new Date(c.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         })));
 
-        // Trend data (simple last 7 days)
+        // Trend data (last 7 days from bounded clicks)
         const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
         const last7Days = Array.from({ length: 7 }, (_, i) => {
           const d = new Date();

@@ -1,31 +1,3 @@
-/// <reference path="../pb_data/types.d.ts" />
-migrate((db) => {
-  const dao = new Dao(db)
-  const collection = dao.findCollectionByNameOrId("_pb_users_auth_")
+﻿// No-op: schema already exists on prod. Converted for PB v0.24 compat.
+migrate((app) => { /* already applied */ }, (app) => { /* no-op */ });
 
-  // add
-  collection.schema.addField(new SchemaField({
-    "system": false,
-    "id": "pf1dvsrw",
-    "name": "theme",
-    "type": "text",
-    "required": false,
-    "presentable": false,
-    "unique": false,
-    "options": {
-      "min": null,
-      "max": null,
-      "pattern": ""
-    }
-  }))
-
-  return dao.saveCollection(collection)
-}, (db) => {
-  const dao = new Dao(db)
-  const collection = dao.findCollectionByNameOrId("_pb_users_auth_")
-
-  // remove
-  collection.schema.removeField("pf1dvsrw")
-
-  return dao.saveCollection(collection)
-})
