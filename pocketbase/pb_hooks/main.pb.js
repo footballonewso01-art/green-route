@@ -917,8 +917,8 @@ onRecordViewRequest((e) => {
 }, "links");
 
 // Universal click counter incrementer
-// Use native v0.24 syntax to catch both API creations and internal server-side saves
-$app.onRecordAfterCreateSuccess("clicks").add((e) => {
+// PocketBase v0.24 JS hook — callback passed directly (no .add())
+$app.onRecordAfterCreateSuccess("clicks", (e) => {
     try {
         const linkId = e.record.get("link_id");
         if (linkId) {
