@@ -6,6 +6,14 @@ console.log("--- main.pb.js LOADING ---");
 // (Database initialization moved to migrations)
 
 
+// All Agency Price IDs (live + test, monthly + annual) for reliable plan detection
+const AGENCY_PRICE_IDS = [
+    "price_1T9ojK1kCVZzZn9tmOrvoNOn", // live monthly
+    "price_1TA5kT1kCVZzZn9tAP7AsNjs", // live annual
+    "price_1TA5ay1kCVZzZn9thZD9Rhsi", // test monthly
+    "price_1TA5mh1kCVZzZn9tN3UmsgCC"  // test annual
+];
+
 // Helper for Stripe REST API calls
 function readerToString(reader) {
     let result = "";
@@ -230,12 +238,14 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             if (lineItems.data && lineItems.data.length > 0) {
                 const price = lineItems.data[0].price;
                 amount = price.unit_amount / 100;
-                if (amount >= 29) {
+                // Use Price ID for reliable detection (amount fails for annual: $9/pro, $24/agency)
+                if (price.id && AGENCY_PRICE_IDS.indexOf(price.id) !== -1) {
                     planName = "agency";
-                } else if (amount >= 11) {
+                } else {
                     planName = "pro";
                 }
             }
+            $app.logger().info("Webhook: detected plan=" + planName + " amount=" + amount);
 
             $app.runInTransaction((txApp) => {
                 const user = txApp.findRecordById("users", userId);
@@ -390,12 +400,6 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
             return c.json(200, { activated: false, reason: "Payment not completed yet" });
         }
 
-        // Check if plan is already active (idempotent)
-        const currentPlan = user.get("plan");
-        if (currentPlan !== "creator") {
-            return c.json(200, { activated: true, plan: currentPlan, note: "Already active" });
-        }
-
         // Determine plan from line items
         const lineItemsRes = $http.send({
             url: "https://api.stripe.com/v1/checkout/sessions/" + sessionId + "/line_items",
@@ -411,9 +415,20 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
         let planName = "pro";
         let amount = 0;
         if (lineItems.data && lineItems.data.length > 0) {
-            amount = lineItems.data[0].price.unit_amount / 100;
-            if (amount >= 29) planName = "agency";
-            else if (amount >= 11) planName = "pro";
+            const price = lineItems.data[0].price;
+            amount = price.unit_amount / 100;
+            // Use Price ID for reliable detection (same as webhook)
+            if (price.id && AGENCY_PRICE_IDS.indexOf(price.id) !== -1) {
+                planName = "agency";
+            } else {
+                planName = "pro";
+            }
+        }
+
+        // Check if plan is already active (idempotent) — but AFTER detecting plan
+        const currentPlan = user.get("plan");
+        if (currentPlan === planName) {
+            return c.json(200, { activated: true, plan: currentPlan, note: "Already active" });
         }
 
         const billingCycle = session.metadata ? (session.metadata.billingCycle || "monthly") : "monthly";
