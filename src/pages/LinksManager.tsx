@@ -49,22 +49,25 @@ export default function LinksManager() {
           try {
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            const clicksRes = await pb.collection('clicks').getList(1, 1000, {
-              filter: `link_id.user_id="${userId}" && created >= "${sevenDaysAgo.toISOString().replace('T', ' ')}"`,
-              sort: 'created'
+            const analyticsRes = await pb.collection('analytics_daily').getList(1, 1000, {
+              filter: `link_id.user_id="${userId}" && day >= "${sevenDaysAgo.toISOString().split('T')[0]}"`,
+              sort: 'day'
             });
   
             // Build sparklines array (7 items representing 7 days)
             const sparks: Record<string, number[]> = {};
             records.items.forEach(link => { sparks[link.id] = [0,0,0,0,0,0,0]; });
             
-            clicksRes.items.forEach(click => {
-              if (sparks[click.link_id]) {
-                const clickDate = new Date(click.created);
-                const diffDays = Math.floor((new Date().getTime() - clickDate.getTime()) / (1000 * 3600 * 24));
+            const today = new Date();
+            today.setUTCHours(0, 0, 0, 0);
+
+            analyticsRes.items.forEach((row: any) => {
+              if (sparks[row.link_id]) {
+                const rowDate = new Date(row.day);
+                const diffDays = Math.floor((today.getTime() - rowDate.getTime()) / (1000 * 3600 * 24));
                 const safeDiff = Math.max(0, Math.min(6, diffDays));
                 const idx = 6 - safeDiff;
-                sparks[click.link_id][idx] += 1;
+                sparks[row.link_id][idx] += row.count;
               }
             });
             setSparklines(sparks);
