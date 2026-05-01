@@ -285,7 +285,7 @@ export default function LinksManager() {
                             ? `bento-card p-5 flex flex-col justify-between gap-4 transition-all duration-300 min-h-[160px] ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:shadow-glow'}`
                             : `glass-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-all duration-200 ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:border-accent/20'}`}
                         >
-                          <div className="flex items-start justify-between gap-3">
+                          <div className={`flex items-start justify-between gap-3 ${viewMode === 'list' ? 'flex-1 min-w-0' : ''}`}>
                             <div className="flex items-center gap-3 flex-1 min-w-0">
                               <div {...provided.dragHandleProps} className="text-muted-foreground/50 hover:text-foreground cursor-grab active:cursor-grabbing p-1 -ml-2 -mt-2">
                                 <GripVertical className="w-4 h-4" />
