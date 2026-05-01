@@ -295,8 +295,13 @@ export default function LinksManager() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-sm font-semibold text-accent truncate max-w-[200px]">
-                                      {link.domain ? link.domain.replace('https://', '') : window.location.host}/{link.slug}
+                                    <span className={`text-sm font-semibold text-accent ${viewMode === 'list' ? 'truncate max-w-[200px]' : 'break-all'}`}>
+                                      {viewMode === 'bento' 
+                                        ? (`${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`.length > 35 
+                                            ? `${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`.substring(0, 35) + "..." 
+                                            : `${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`)
+                                        : `${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`
+                                      }
                                     </span>
                                 {link.title && <span className="text-xs font-medium px-2 py-0.5 rounded bg-surface border border-border">{link.title}</span>}
                                 <button onClick={() => copyToClipboard(link.slug, link.domain)} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -304,9 +309,12 @@ export default function LinksManager() {
                                 </button>
                               </div>
                               <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs text-muted-foreground truncate max-w-[200px] flex items-center gap-1">
+                                <span className={`text-xs text-muted-foreground flex items-center gap-1 ${viewMode === 'list' ? 'truncate max-w-[200px]' : 'break-all'}`}>
                                   <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                                  {link.destination_url}
+                                  {viewMode === 'bento'
+                                    ? (link.destination_url.length > 35 ? link.destination_url.substring(0, 35) + "..." : link.destination_url)
+                                    : link.destination_url
+                                  }
                                 </span>
                               </div>
                               </div>
@@ -330,30 +338,37 @@ export default function LinksManager() {
                           {viewMode === "bento" ? (
                             /* Bento Grid Bottom Section */
                             <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
-                              <div className="flex items-center gap-4">
-                                <div>
-                                  <div className="text-lg font-bold text-foreground">{(link.clicks_count || 0).toLocaleString()}</div>
-                                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Clicks</div>
+                              <div className="flex items-center gap-6 ml-2">
+                                <div className="flex items-center gap-3">
+                                  <div>
+                                    <div className="text-lg font-bold text-foreground">{(link.clicks_count || 0).toLocaleString()}</div>
+                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Clicks</div>
+                                  </div>
+                                  <div className="w-14 h-8 flex items-end gap-0.5 opacity-50" title="Clicks over last 7 days">
+                                    {(sparklines[link.id] || [0,0,0,0,0,0,0]).map((val, i) => {
+                                      const maxVal = Math.max(...(sparklines[link.id] || [0,0,0,0,0,0,0]), 1);
+                                      return (
+                                        <div key={i} className="w-1 bg-accent/50 rounded-t-sm transition-all" style={{ height: `${(val / maxVal) * 100}%`, minHeight: '2px' }} />
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                                {/* Sparkline Real Data */}
-                                <div className="w-16 h-8 flex items-end gap-0.5 opacity-50" title="Clicks over last 7 days">
-                                  {(sparklines[link.id] || [0,0,0,0,0,0,0]).map((val, i) => {
-                                    const maxVal = Math.max(...(sparklines[link.id] || [0,0,0,0,0,0,0]), 1);
-                                    return (
-                                      <div key={i} className="w-1.5 bg-accent/50 rounded-t-sm transition-all" style={{ height: `${(val / maxVal) * 100}%`, minHeight: '2px' }} />
-                                    );
-                                  })}
+                                
+                                <div className="flex items-center gap-3">
+                                  <div>
+                                    <div className="text-lg font-bold text-foreground">{((sparklines[link.id] || []).reduce((a,b)=>a+b,0)/7).toFixed(1)}</div>
+                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Avg.Daily</div>
+                                  </div>
+                                  <div className="w-14 h-8 flex items-end gap-0.5 opacity-50" title="Average Daily Trend">
+                                    {(sparklines[link.id] || [0,0,0,0,0,0,0]).map((val, i) => {
+                                      const maxVal = Math.max(...(sparklines[link.id] || [0,0,0,0,0,0,0]), 1);
+                                      return (
+                                        <div key={i} className="w-1 bg-blue-500/50 rounded-t-sm transition-all" style={{ height: `${(val / maxVal) * 100}%`, minHeight: '2px' }} />
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               </div>
-  
-                              {/* Profile Toggle */}
-                              <button
-                                onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
-                                className={`p-2 rounded-lg transition-colors ${link.show_on_profile !== false ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground bg-surface hover:bg-surface-hover'}`}
-                                title={link.show_on_profile !== false ? "Visible on profile" : "Hidden from profile"}
-                              >
-                                {link.show_on_profile !== false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                              </button>
   
                               <div className="flex items-center gap-2">
                                 <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors scale-90" title="Toggle active status">
