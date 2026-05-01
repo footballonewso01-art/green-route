@@ -317,9 +317,6 @@ export default function LinksManager() {
                                 ))}
                               </div>
                             </div>
-                              <div className="text-lg font-bold text-foreground">{(link.clicks_count || 0).toLocaleString()}</div>
-                              <div className="text-xs text-muted-foreground">clicks</div>
-                            </div>
 
                             {/* Profile Toggle */}
                             <button
