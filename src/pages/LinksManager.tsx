@@ -358,14 +358,6 @@ export default function LinksManager() {
                                     <div className="text-lg font-bold text-foreground">{((sparklines[link.id] || []).reduce((a,b)=>a+b,0)/7).toFixed(1)}</div>
                                     <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Avg.Daily</div>
                                   </div>
-                                  <div className="w-14 h-8 flex items-end gap-0.5 opacity-50" title="Average Daily Trend">
-                                    {(sparklines[link.id] || [0,0,0,0,0,0,0]).map((val, i) => {
-                                      const maxVal = Math.max(...(sparklines[link.id] || [0,0,0,0,0,0,0]), 1);
-                                      return (
-                                        <div key={i} className="w-1 bg-blue-500/50 rounded-t-sm transition-all" style={{ height: `${(val / maxVal) * 100}%`, minHeight: '2px' }} />
-                                      );
-                                    })}
-                                  </div>
                                 </div>
                               </div>
   
