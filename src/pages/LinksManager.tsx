@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, ExternalLink, BarChart3, ToggleLeft, ToggleRight, Copy, Trash2, Edit, Loader2, GripVertical, Eye, EyeOff, Globe, QrCode, Download, X, Link2 } from "lucide-react";
+import { Plus, Search, ExternalLink, BarChart3, ToggleLeft, ToggleRight, Copy, Trash2, Edit, Loader2, GripVertical, Eye, EyeOff, Globe, QrCode, Download, X, Link2, LayoutGrid, List } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { QRCodeCanvas } from 'qrcode.react';
 import { IconRenderer } from '@/components/icons/IconRenderer';
@@ -29,8 +29,8 @@ export default function LinksManager() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [qrModal, setQrModal] = useState<{ slug: string; title: string; domain?: string } | null>(null);
-  const [editingSlugId, setEditingSlugId] = useState<string | null>(null);
-  const [editingSlugValue, setEditingSlugValue] = useState("");
+  const [viewMode, setViewMode] = useState<"bento" | "list">("bento");
+  const [sparklines, setSparklines] = useState<Record<string, number[]>>({});
   const qrRef = useRef<HTMLDivElement>(null);
 
   const fetchLinks = async () => {
@@ -41,6 +41,34 @@ export default function LinksManager() {
         sort: 'order,-created',
       });
       setLinks(records.items);
+
+      // Fetch recent clicks for sparklines
+      if (records.items.length > 0) {
+        try {
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          const clicksRes = await pb.collection('clicks').getList(1, 1000, {
+            filter: `link_id.user_id="${userId}" && created >= "${sevenDaysAgo.toISOString().replace('T', ' ')}"`,
+            sort: 'created'
+          });
+
+          // Build sparklines array (7 items representing 7 days)
+          const sparks: Record<string, number[]> = {};
+          records.items.forEach(link => { sparks[link.id] = [0,0,0,0,0,0,0]; });
+          
+          clicksRes.items.forEach(click => {
+            if (sparks[click.link_id]) {
+              const clickDate = new Date(click.created);
+              const diffDays = Math.floor((new Date().getTime() - clickDate.getTime()) / (1000 * 3600 * 24));
+              const idx = 6 - (diffDays > 6 ? 6 : diffDays);
+              sparks[click.link_id][idx] += 1;
+            }
+          });
+          setSparklines(sparks);
+        } catch (e) {
+          console.error("Failed to fetch clicks for sparkline", e);
+        }
+      }
     } catch (error: unknown) {
       toast.error((error as Error).message || "Failed to fetch links");
     } finally {
@@ -64,18 +92,13 @@ export default function LinksManager() {
     }
   };
 
-  const saveSlugInline = async (id: string) => {
-    if (!editingSlugValue.trim() || editingSlugValue.includes(' ')) {
-      toast.error("Invalid slug. No spaces allowed.");
-      return;
-    }
+  const toggleProfileVisibility = async (id: string, currentStatus: boolean) => {
     try {
-      await pb.collection('links').update(id, { slug: editingSlugValue.trim() });
-      setLinks(links.map(l => l.id === id ? { ...l, slug: editingSlugValue.trim() } : l));
-      toast.success("Slug updated successfully");
-      setEditingSlugId(null);
+      await pb.collection('links').update(id, { show_on_profile: !currentStatus });
+      setLinks(links.map((l) => (l.id === id ? { ...l, show_on_profile: !currentStatus } : l)));
+      toast.success(!currentStatus ? "Link will show on profile" : "Link hidden from profile");
     } catch (error: unknown) {
-      toast.error("Failed to update slug. It might be already taken.");
+      toast.error((error as { message?: string }).message || "Failed to update visibility");
     }
   };
 
@@ -90,15 +113,7 @@ export default function LinksManager() {
     }
   };
 
-  const toggleProfileVisibility = async (id: string, currentStatus: boolean) => {
-    try {
-      await pb.collection('links').update(id, { show_on_profile: !currentStatus });
-      setLinks(links.map((l) => (l.id === id ? { ...l, show_on_profile: !currentStatus } : l)));
-      toast.success(!currentStatus ? "Link will show on profile" : "Link hidden from profile");
-    } catch (error: unknown) {
-      toast.error((error as { message?: string }).message || "Failed to update visibility");
-    }
-  };
+
 
   const handleDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
@@ -194,9 +209,27 @@ export default function LinksManager() {
           <h1 className="text-2xl font-bold text-foreground">Links</h1>
           <p className="text-muted-foreground text-sm mt-1">{links.length} total links</p>
         </div>
-        <Link to="/dashboard/links/create" className="btn-primary-glow text-sm !py-2 !px-4 inline-flex items-center gap-2 w-fit">
-          <Plus className="w-4 h-4" /> New Link
-        </Link>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center bg-surface border border-border p-1 rounded-xl">
+            <button 
+              onClick={() => setViewMode("bento")} 
+              className={`p-1.5 rounded-lg transition-colors ${viewMode === "bento" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"}`}
+              title="Bento View"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={() => setViewMode("list")} 
+              className={`p-1.5 rounded-lg transition-colors ${viewMode === "list" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"}`}
+              title="List View"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+          <Link to="/dashboard/links/create" className="btn-primary-glow text-sm !py-2 !px-4 inline-flex items-center gap-2">
+            <Plus className="w-4 h-4" /> New Link
+          </Link>
+        </div>
       </div>
 
       {/* Search */}
@@ -232,7 +265,7 @@ export default function LinksManager() {
           <DragDropContext onDragEnd={handleDragEnd}>
             <Droppable droppableId="links-list" isDropDisabled={filtered.length <= 1}>
               {(provided) => (
-                <div {...provided.droppableProps} ref={provided.innerRef} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div {...provided.droppableProps} ref={provided.innerRef} className={viewMode === "bento" ? "grid grid-cols-1 xl:grid-cols-2 gap-4" : "space-y-3"}>
                   {filtered.map((link, index) => (
                     <Draggable key={link.id} draggableId={link.id} index={index} isDragDisabled={search.length > 0 || filtered.length <= 1}>
                       {(provided, snapshot) => (
@@ -242,7 +275,9 @@ export default function LinksManager() {
                           style={{
                             ...provided.draggableProps.style,
                           }}
-                          className={`bento-card p-5 flex flex-col justify-between gap-4 transition-all duration-300 min-h-[160px] ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:shadow-glow'}`}
+                          className={viewMode === "bento" 
+                            ? `bento-card p-5 flex flex-col justify-between gap-4 transition-all duration-300 min-h-[160px] ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:shadow-glow'}`
+                            : `glass-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-all duration-200 ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:border-accent/20'}`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -254,28 +289,9 @@ export default function LinksManager() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
-                                  {editingSlugId === link.id ? (
-                                    <div className="flex items-center gap-2">
-                                      <input 
-                                        type="text" 
-                                        value={editingSlugValue} 
-                                        onChange={(e) => setEditingSlugValue(e.target.value)}
-                                        onKeyDown={(e) => { if(e.key === 'Enter') saveSlugInline(link.id); if(e.key === 'Escape') setEditingSlugId(null); }}
-                                        className="bg-background border border-accent rounded px-2 py-0.5 text-sm font-semibold text-accent focus:outline-none w-32"
-                                        autoFocus
-                                      />
-                                      <button onClick={() => saveSlugInline(link.id)} className="text-accent hover:text-emerald-400">Save</button>
-                                      <button onClick={() => setEditingSlugId(null)} className="text-muted-foreground hover:text-red-400"><X className="w-4 h-4"/></button>
-                                    </div>
-                                  ) : (
-                                    <span 
-                                      className="text-sm font-semibold text-accent truncate max-w-[200px] cursor-pointer hover:underline"
-                                      onDoubleClick={() => { setEditingSlugId(link.id); setEditingSlugValue(link.slug); }}
-                                      title="Double click to edit slug"
-                                    >
+                                    <span className="text-sm font-semibold text-accent truncate max-w-[200px]">
                                       {link.domain ? link.domain.replace('https://', '') : window.location.host}/{link.slug}
                                     </span>
-                                  )}
                                 {link.title && <span className="text-xs font-medium px-2 py-0.5 rounded bg-surface border border-border">{link.title}</span>}
                                 <button onClick={() => copyToClipboard(link.slug, link.domain)} className="text-muted-foreground hover:text-foreground transition-colors">
                                   <Copy className="w-3.5 h-3.5" />
@@ -303,44 +319,73 @@ export default function LinksManager() {
                             </div>
                           </div>
 
-                          {/* Bento Grid Bottom Section */}
-                          <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
-                            <div className="flex items-center gap-4">
-                              <div>
-                                <div className="text-lg font-bold text-foreground">{(link.clicks_count || 0).toLocaleString()}</div>
-                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Clicks</div>
+                          {viewMode === "bento" ? (
+                            /* Bento Grid Bottom Section */
+                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
+                              <div className="flex items-center gap-4">
+                                <div>
+                                  <div className="text-lg font-bold text-foreground">{(link.clicks_count || 0).toLocaleString()}</div>
+                                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Clicks</div>
+                                </div>
+                                {/* Sparkline Real Data */}
+                                <div className="w-16 h-8 flex items-end gap-0.5 opacity-50" title="Clicks over last 7 days">
+                                  {(sparklines[link.id] || [0,0,0,0,0,0,0]).map((val, i) => {
+                                    const maxVal = Math.max(...(sparklines[link.id] || [0,0,0,0,0,0,0]), 1);
+                                    return (
+                                      <div key={i} className="w-1.5 bg-accent/50 rounded-t-sm transition-all" style={{ height: `${(val / maxVal) * 100}%`, minHeight: '2px' }} />
+                                    );
+                                  })}
+                                </div>
                               </div>
-                              {/* Sparkline Mock */}
-                              <div className="w-16 h-8 flex items-end gap-0.5 opacity-50">
-                                {[3, 5, 2, 7, 4, 8, 5].map((val, i) => (
-                                  <div key={i} className="w-1.5 bg-accent/50 rounded-t-sm" style={{ height: `${(val / 8) * 100}%` }} />
-                                ))}
+  
+                              {/* Profile Toggle */}
+                              <button
+                                onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
+                                className={`p-2 rounded-lg transition-colors ${link.show_on_profile !== false ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground bg-surface hover:bg-surface-hover'}`}
+                                title={link.show_on_profile !== false ? "Visible on profile" : "Hidden from profile"}
+                              >
+                                {link.show_on_profile !== false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                              </button>
+  
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors scale-90" title="Toggle active status">
+                                  {link.active ? (
+                                    <ToggleRight className="w-8 h-8 text-accent" />
+                                  ) : (
+                                    <ToggleLeft className="w-8 h-8 text-muted-foreground" />
+                                  )}
+                                </button>
+                                
+                                <Link to={`/dashboard/analytics?link=${link.id}`} className="p-2.5 rounded-xl bg-surface border border-border hover:border-accent/50 text-foreground transition-all tactile-btn" title="View Analytics">
+                                  <BarChart3 className="w-4 h-4 text-accent" />
+                                </Link>
                               </div>
                             </div>
-
-                            {/* Profile Toggle */}
-                            <button
-                              onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
-                              className={`p-2 rounded-lg transition-colors ${link.show_on_profile !== false ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground bg-surface hover:bg-surface-hover'}`}
-                              title={link.show_on_profile !== false ? "Visible on profile" : "Hidden from profile"}
-                            >
-                              {link.show_on_profile !== false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                            </button>
-
-                            <div className="flex items-center gap-2">
-                              <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors scale-90" title="Toggle active status">
+                          ) : (
+                            /* List View Right Side Actions */
+                            <div className="flex items-center gap-6">
+                              <div className="text-center">
+                                <div className="text-lg font-bold text-foreground">{(link.clicks_count || 0).toLocaleString()}</div>
+                                <div className="text-xs text-muted-foreground">clicks</div>
+                              </div>
+  
+                              <button
+                                onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
+                                className={`p-2 rounded-lg transition-colors ${link.show_on_profile !== false ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground bg-surface hover:bg-surface-hover'}`}
+                                title={link.show_on_profile !== false ? "Visible on profile" : "Hidden from profile"}
+                              >
+                                {link.show_on_profile !== false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                              </button>
+  
+                              <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors" title="Toggle active status">
                                 {link.active ? (
                                   <ToggleRight className="w-8 h-8 text-accent" />
                                 ) : (
                                   <ToggleLeft className="w-8 h-8 text-muted-foreground" />
                                 )}
                               </button>
-                              
-                              <Link to={`/dashboard/analytics?link=${link.id}`} className="p-2.5 rounded-xl bg-surface border border-border hover:border-accent/50 text-foreground transition-all tactile-btn" title="View Analytics">
-                                <BarChart3 className="w-4 h-4 text-accent" />
-                              </Link>
                             </div>
-                          </div>
+                          )}
                         </div>
                       )}
                     </Draggable>
