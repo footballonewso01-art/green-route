@@ -29,7 +29,9 @@ export default function LinksManager() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [qrModal, setQrModal] = useState<{ slug: string; title: string; domain?: string } | null>(null);
-  const [viewMode, setViewMode] = useState<"bento" | "list">("bento");
+  const [viewMode, setViewMode] = useState<"bento" | "list">(() => {
+    return (localStorage.getItem("links_view_mode") as "bento" | "list") || "bento";
+  });
   const [sparklines, setSparklines] = useState<Record<string, number[]>>({});
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -79,6 +81,10 @@ export default function LinksManager() {
   useEffect(() => {
     fetchLinks();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem("links_view_mode", viewMode);
+  }, [viewMode]);
 
   const filtered = links.filter((l) => l.slug.includes(search) || l.destination_url.includes(search));
 
@@ -306,17 +312,19 @@ export default function LinksManager() {
                               </div>
                             </div>
                             
-                            <div className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
-                              <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
-                                <QrCode className="w-4 h-4" />
-                              </button>
-                              <Link to={`/dashboard/links/edit/${link.id}`} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="Edit Full Settings">
-                                <Edit className="w-4 h-4" />
-                              </Link>
-                              <button onClick={() => deleteLink(link.id)} className="p-2 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors" title="Delete">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
+                            {viewMode === "bento" && (
+                              <div className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+                                <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
+                                  <QrCode className="w-4 h-4" />
+                                </button>
+                                <Link to={`/dashboard/links/edit/${link.id}`} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="Edit Full Settings">
+                                  <Edit className="w-4 h-4" />
+                                </Link>
+                                <button onClick={() => deleteLink(link.id)} className="p-2 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors" title="Delete">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
                           </div>
 
                           {viewMode === "bento" ? (
@@ -384,6 +392,21 @@ export default function LinksManager() {
                                   <ToggleLeft className="w-8 h-8 text-muted-foreground" />
                                 )}
                               </button>
+
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
+                                  <QrCode className="w-4 h-4" />
+                                </button>
+                                <Link to={`/dashboard/analytics?link=${link.id}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
+                                  <BarChart3 className="w-4 h-4" />
+                                </Link>
+                                <Link to={`/dashboard/links/edit/${link.id}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
+                                  <Edit className="w-4 h-4" />
+                                </Link>
+                                <button onClick={() => deleteLink(link.id)} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
