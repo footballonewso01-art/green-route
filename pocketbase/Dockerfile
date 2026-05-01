@@ -12,7 +12,7 @@ RUN wget https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSIO
     && rm pocketbase_${PB_VERSION}_linux_amd64.zip
 
 # Copy hooks and repair script
-ARG CACHEBUST=202604170900
+ARG CACHEBUST=202604261250
 COPY ./pb_hooks /pb/pb_hooks
 COPY ./pb_migrations /pb/pb_migrations
 COPY ./repair_db.py /pb/repair_db.py

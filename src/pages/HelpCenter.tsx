@@ -496,7 +496,7 @@ const helpCategories: Category[] = [
                             </div>
                             <div className="p-4 rounded-xl bg-surface border border-border">
                                 <h4 className="font-semibold text-foreground mb-2">Can I get a refund?</h4>
-                                <p className="text-sm text-muted-foreground">Yes, we offer a <strong className="text-foreground">30-day money-back guarantee</strong> on all paid plans. Contact us at contact@linktery.com.</p>
+                                <p className="text-sm text-muted-foreground">Yes, we offer a <strong className="text-foreground">30-day money-back guarantee</strong> on all paid plans. Contact us at Telegram: @linkterysupport.</p>
                             </div>
                             <div className="p-4 rounded-xl bg-surface border border-border">
                                 <h4 className="font-semibold text-foreground mb-2">Is there a free trial?</h4>
@@ -722,9 +722,9 @@ export default function HelpCenter() {
                     <div>
                         <p className="text-sm font-bold text-foreground mb-0.5">Still need help?</p>
                         <p className="text-sm text-muted-foreground">
-                            Contact us at{" "}
-                            <a href="mailto:contact@linktery.com" className="text-accent hover:underline font-medium">
-                                contact@linktery.com
+                            Contact us at Telegram:{" "}
+                            <a href="https://t.me/linkterysupport" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline font-medium">
+                                @linkterysupport
                             </a>
                         </p>
                     </div>

@@ -38,6 +38,67 @@ def repair():
         else:
             print("Collection 'links' not found.")
             
+        # Check for missing fields 'domain' and 'created_ip'
+        # Add domain to links
+        cursor.execute("SELECT id, fields FROM _collections WHERE name='links'")
+        links_row = cursor.fetchone()
+        if links_row:
+            links_id = links_row[0]
+            links_fields = json.loads(links_row[1])
+            if not any(f.get('name') == 'domain' for f in links_fields):
+                print("Adding 'domain' field to 'links' schema...")
+                links_fields.append({
+                    "autogeneratePattern": "",
+                    "hidden": False,
+                    "id": "domain_id_gen",
+                    "max": 0,
+                    "min": 0,
+                    "name": "domain",
+                    "pattern": "",
+                    "presentable": False,
+                    "primaryKey": False,
+                    "required": False,
+                    "system": False,
+                    "type": "text"
+                })
+                cursor.execute("UPDATE _collections SET fields = ? WHERE id = ?", (json.dumps(links_fields, separators=(',', ':')), links_id))
+                try:
+                    cursor.execute("ALTER TABLE links ADD COLUMN domain TEXT DEFAULT '' NOT NULL")
+                    print("Added column 'domain' to SQLite table 'links'.")
+                except Exception as e:
+                    print(f"Column domain likely exists: {e}")
+                conn.commit()
+                
+        # Add created_ip to users
+        cursor.execute("SELECT id, fields FROM _collections WHERE name='users'")
+        users_row = cursor.fetchone()
+        if users_row:
+            users_id = users_row[0]
+            users_fields = json.loads(users_row[1])
+            if not any(f.get('name') == 'created_ip' for f in users_fields):
+                print("Adding 'created_ip' field to 'users' schema...")
+                users_fields.append({
+                    "autogeneratePattern": "",
+                    "hidden": False,
+                    "id": "created_ip_gen",
+                    "max": 0,
+                    "min": 0,
+                    "name": "created_ip",
+                    "pattern": "",
+                    "presentable": False,
+                    "primaryKey": False,
+                    "required": False,
+                    "system": False,
+                    "type": "text"
+                })
+                cursor.execute("UPDATE _collections SET fields = ? WHERE id = ?", (json.dumps(users_fields, separators=(',', ':')), users_id))
+                try:
+                    cursor.execute("ALTER TABLE users ADD COLUMN created_ip TEXT DEFAULT '' NOT NULL")
+                    print("Added column 'created_ip' to SQLite table 'users'.")
+                except Exception as e:
+                    print(f"Column created_ip likely exists: {e}")
+                conn.commit()
+
         # --- BUG-11 FIX: Conditional sync — only fix drifted records, report drift ---
         print("Checking clicks_count drift...")
         cursor.execute("""

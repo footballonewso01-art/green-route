@@ -120,21 +120,13 @@ export default function DashboardLayout() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      {/* Sidebar */}
-      <aside className={`fixed lg:sticky lg:top-0 lg:h-screen inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+      {/* Sidebar (Desktop Only) */}
+      <aside className="hidden lg:flex sticky top-0 h-screen inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex-col">
         <div className="h-16 flex items-center justify-between px-6 border-b border-sidebar-border">
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <img src="/logo.webp" alt="Linktery" className="h-[60px] w-auto mix-blend-screen" />
             <span className="font-extrabold text-foreground text-[20px] tracking-tight translate-y-[0.5px]">Linktery</span>
           </Link>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-muted-foreground">
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         <div className="px-4 py-4 space-y-4">
@@ -248,12 +240,14 @@ export default function DashboardLayout() {
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 pb-20 lg:pb-0">
         <header className="h-16 border-b border-border flex items-center px-6 gap-4">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-muted-foreground">
-            <Menu className="w-5 h-5" />
-          </button>
-          <div className="flex-1" />
+          <div className="flex-1 lg:hidden flex items-center">
+            <Link to="/" className="flex items-center gap-2">
+              <img src="/logo.webp" alt="Linktery" className="h-[40px] w-auto mix-blend-screen" />
+            </Link>
+          </div>
+          <div className="hidden lg:block flex-1" />
           <div className="flex items-center gap-3">
             {/* Notification Bell */}
             <div className="relative">
@@ -318,9 +312,43 @@ export default function DashboardLayout() {
           </div>
         </header>
 
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-4 lg:p-6 overflow-auto">
           <Outlet />
         </main>
+      </div>
+
+      {/* Floating Bottom Navigation (Mobile Only) */}
+      <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-sm glass-card rounded-[2rem] px-2 py-2 border border-border/50 shadow-2xl flex items-center justify-between">
+        <Link 
+          to="/dashboard" 
+          className={`flex flex-col items-center justify-center w-14 h-12 rounded-2xl transition-colors ${location.pathname === '/dashboard' ? 'text-accent' : 'text-muted-foreground hover:bg-surface-hover'}`}
+        >
+          <LayoutDashboard className="w-5 h-5" />
+        </Link>
+        <Link 
+          to="/dashboard/links" 
+          className={`flex flex-col items-center justify-center w-14 h-12 rounded-2xl transition-colors ${location.pathname === '/dashboard/links' ? 'text-accent' : 'text-muted-foreground hover:bg-surface-hover'}`}
+        >
+          <Link2 className="w-5 h-5" />
+        </Link>
+        <Link 
+          to="/dashboard/links/create" 
+          className="flex items-center justify-center w-14 h-14 -mt-6 rounded-full bg-accent text-accent-foreground shadow-glow tactile-btn border-4 border-background"
+        >
+          <span className="text-2xl leading-none font-light mb-0.5">+</span>
+        </Link>
+        <Link 
+          to="/dashboard/analytics" 
+          className={`flex flex-col items-center justify-center w-14 h-12 rounded-2xl transition-colors ${location.pathname === '/dashboard/analytics' ? 'text-accent' : 'text-muted-foreground hover:bg-surface-hover'}`}
+        >
+          <BarChart3 className="w-5 h-5" />
+        </Link>
+        <Link 
+          to="/dashboard/profile" 
+          className={`flex flex-col items-center justify-center w-14 h-12 rounded-2xl transition-colors ${location.pathname.startsWith('/dashboard/profile') || location.pathname.startsWith('/dashboard/settings') ? 'text-accent' : 'text-muted-foreground hover:bg-surface-hover'}`}
+        >
+          <User className="w-5 h-5" />
+        </Link>
       </div>
     </div>
   );

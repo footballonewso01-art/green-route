@@ -7,7 +7,8 @@ console.log("--- main.pb.js LOADING ---");
 
 
 // All Agency Price IDs (live + test, monthly + annual) for reliable plan detection
-const AGENCY_PRICE_IDS = [
+// NOTE: Must use 'var' (not 'const') so routerAdd callbacks can access it in PB v0.24 JSVM
+var AGENCY_PRICE_IDS = [
     "price_1T9ojK1kCVZzZn9tmOrvoNOn", // live monthly
     "price_1TA5kT1kCVZzZn9tAP7AsNjs", // live annual
     "price_1TA5ay1kCVZzZn9thZD9Rhsi", // test monthly
@@ -161,13 +162,12 @@ routerAdd("POST", "/api/stripe/create-portal", (c) => {
 routerAdd("POST", "/api/stripe/webhook", (c) => {
     const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
 
+    // --- Phase 1: Parse event ID from body ---
     let eventId;
     try {
-        // Read raw body and parse — DynamicModel and $apis.requestInfo fail on complex Stripe payloads
         const rawBody = readerToString(c.request.body);
         const body = JSON.parse(rawBody);
         eventId = body.id;
-
         if (!eventId || !String(eventId).startsWith('evt_')) {
             $app.logger().error("Webhook: invalid event id: " + JSON.stringify(eventId));
             return c.json(400, { error: "Invalid event id" });
@@ -182,6 +182,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
         return c.json(500, { error: "Stripe secret key missing" });
     }
 
+    // --- Phase 2: Verify event with Stripe API ---
+    let verifiedEvent;
     try {
         const res = $http.send({
             url: "https://api.stripe.com/v1/events/" + eventId,
@@ -193,20 +195,26 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             timeout: 10
         });
         if (res.statusCode >= 400) {
-            throw new Error("Stripe Error " + res.statusCode + ": " + res.raw);
+            throw new Error("Stripe API Error " + res.statusCode + ": " + res.raw);
         }
-        const verifiedEvent = res.json;
+        verifiedEvent = res.json;
+    } catch (fetchErr) {
+        $app.logger().error("Webhook: Stripe fetch error: " + fetchErr);
+        return c.json(500, { error: "Stripe fetch error: " + String(fetchErr) });
+    }
 
-        $app.logger().info("Webhook: processing event " + verifiedEvent.type + " id=" + eventId);
+    $app.logger().info("Webhook: processing event " + verifiedEvent.type + " id=" + eventId);
 
-        try {
-            // Attempt to track the event ID. SQLite throws UNIQUE constraint error on duplicate.
-            $app.db().newQuery("INSERT INTO _processed_stripe_events (id) VALUES ({:id})").bind({"id": eventId}).execute();
-        } catch (dbErr) {
-            $app.logger().error("Webhook: Event already processed (Replay Attack blocked) id=" + eventId);
-            return c.json(200, { received: true, note: "Already processed" }); // 200 so Stripe doesn't infinitely retry
-        }
+    // --- Phase 3: Dedup check (INSERT, fail on duplicate) ---
+    try {
+        $app.db().newQuery("INSERT INTO _processed_stripe_events (id) VALUES ({:id})").bind({"id": eventId}).execute();
+    } catch (dupErr) {
+        $app.logger().info("Webhook: Event already processed id=" + eventId);
+        return c.json(200, { received: true, note: "Already processed" });
+    }
 
+    // --- Phase 4: Process event (wrapped so we can rollback dedup on failure) ---
+    try {
         if (verifiedEvent.type === "checkout.session.completed") {
             const session = verifiedEvent.data.object;
             const userId = session.client_reference_id || (session.metadata ? session.metadata.userId : null);
@@ -215,12 +223,15 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             const subscriptionId = session.subscription || "";
 
             if (!userId) {
-                $app.logger().error("Webhook: checkout.session.completed but no userId found in session");
+                // No userId = can't process. Remove dedup so Stripe retries won't help either.
+                // Keep dedup to avoid log spam — this is a permanent data issue.
+                $app.logger().error("Webhook: checkout.session.completed but no userId in session " + session.id);
                 return c.json(200, { received: true, note: "missing userid" });
             }
 
             $app.logger().info("Webhook: activating plan for user " + userId);
 
+            // Fetch line items to determine plan
             const lineItemsRes = $http.send({
                 url: "https://api.stripe.com/v1/checkout/sessions/" + session.id + "/line_items",
                 method: "GET",
@@ -231,41 +242,37 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 timeout: 10
             });
             if (lineItemsRes.statusCode >= 400) throw new Error("Stripe Items Error " + lineItemsRes.statusCode);
-            const lineItems = lineItemsRes.json;
-            let planName = "pro";
-            let amount = 0;
+
+            var planName = "pro";
+            var amount = 0;
+            var lineItems = lineItemsRes.json;
 
             if (lineItems.data && lineItems.data.length > 0) {
-                const price = lineItems.data[0].price;
+                var price = lineItems.data[0].price;
                 amount = price.unit_amount / 100;
-                // Use Price ID for reliable detection (amount fails for annual: $9/pro, $24/agency)
                 if (price.id && AGENCY_PRICE_IDS.indexOf(price.id) !== -1) {
                     planName = "agency";
-                } else {
-                    planName = "pro";
                 }
             }
-            $app.logger().info("Webhook: detected plan=" + planName + " amount=" + amount);
+            $app.logger().info("Webhook: detected plan=" + planName + " amount=" + amount + " billingCycle=" + billingCycle);
 
+            // Activate plan in transaction
             $app.runInTransaction((txApp) => {
-                const user = txApp.findRecordById("users", userId);
+                var user = txApp.findRecordById("users", userId);
                 user.set("plan", planName);
-                const now = new DateTime();
-
-                // Add 1 year or 1 month based on metadata
-                const expiry = billingCycle === "annual"
+                var now = new DateTime();
+                var expiry = billingCycle === "annual"
                     ? now.addDate(1, 0, 2)
                     : now.addDate(0, 1, 2);
-
                 user.set("plan_expires_at", expiry.format("Y-m-d H:i:sP"));
                 txApp.save(user);
 
-                const existingBilling = txApp.findRecordsByFilter(
+                // Upsert billing record
+                var existingBilling = txApp.findRecordsByFilter(
                     "billing", "user_id = {:userId}", "-created", 1, 0, { userId: userId }
                 );
-
                 if (existingBilling.length > 0) {
-                    const bRecord = existingBilling[0];
+                    var bRecord = existingBilling[0];
                     bRecord.set("plan", planName);
                     bRecord.set("amount", amount);
                     bRecord.set("status", "active");
@@ -274,8 +281,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                     bRecord.set("stripe_subscription_id", subscriptionId);
                     txApp.save(bRecord);
                 } else {
-                    const billingColl = txApp.findCollectionByNameOrId("billing");
-                    const billingRecord = new Record(billingColl, {
+                    var billingColl = txApp.findCollectionByNameOrId("billing");
+                    var billingRecord = new Record(billingColl, {
                         "user_id": userId,
                         "plan": planName,
                         "amount": amount,
@@ -288,96 +295,94 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 }
             });
 
-            $app.logger().info("Webhook: plan '" + planName + "' activated for user " + userId);
+            $app.logger().info("Webhook: SUCCESS plan '" + planName + "' activated for user " + userId);
+
         } else if (verifiedEvent.type === "invoice.paid") {
-            const invoice = verifiedEvent.data.object;
-            const customerId = invoice.customer;
-            // Only process if it's a subscription renewal (has subscription and is not the first invoice)
+            var invoice = verifiedEvent.data.object;
+            var invCustomerId = invoice.customer;
             if (invoice.subscription && invoice.billing_reason === "subscription_cycle") {
-                const amount = invoice.amount_paid / 100;
-                $app.logger().info("Webhook: renewal payment detected for customer " + customerId + " amount=" + amount);
+                var invAmount = invoice.amount_paid / 100;
+                $app.logger().info("Webhook: renewal payment for customer " + invCustomerId + " amount=" + invAmount);
 
-                const records = $app.findRecordsByFilter(
-                    "billing", "stripe_customer_id = {:custId}", "-created", 1, 0, { custId: customerId }
+                var records = $app.findRecordsByFilter(
+                    "billing", "stripe_customer_id = {:custId}", "-created", 1, 0, { custId: invCustomerId }
                 );
-
                 if (records.length > 0) {
-                    const bRecord = records[0];
-                    const userId = bRecord.get("user_id");
-                    
+                    var bRecord = records[0];
+                    var bUserId = bRecord.get("user_id");
                     $app.runInTransaction((txApp) => {
-                        const user = txApp.findRecordById("users", userId);
-                        const currentPlan = user.get("plan");
-                        const now = new DateTime();
-                        
-                        // Extend based on plan amount in invoice
-                        // (Roughly: 11+ is pro, 29+ is agency)
-                        const expiry = (amount >= 29 || currentPlan === "agency")
+                        var user = txApp.findRecordById("users", bUserId);
+                        var currentPlan = user.get("plan");
+                        var now = new DateTime();
+                        var expiry = (invAmount >= 29 || currentPlan === "agency")
                             ? now.addDate(1, 0, 2)
                             : now.addDate(0, 1, 2);
-
                         user.set("plan_expires_at", expiry.format("Y-m-d H:i:sP"));
                         txApp.save(user);
-                        
                         bRecord.set("status", "active");
-                        bRecord.set("amount", amount);
+                        bRecord.set("amount", invAmount);
                         txApp.save(bRecord);
                     });
-                    $app.logger().info("Webhook: plan extended for user " + userId + " due to renewal");
+                    $app.logger().info("Webhook: SUCCESS plan extended for user " + bUserId);
                 }
             }
+
         } else if (verifiedEvent.type === "customer.subscription.deleted") {
-            const subscription = verifiedEvent.data.object;
-            const customerId = subscription.customer;
-
-            const records = $app.findRecordsByFilter(
-                "billing", "stripe_customer_id = {:custId}", "-created", 1, 0, { custId: customerId }
+            var sub = verifiedEvent.data.object;
+            var subCustomerId = sub.customer;
+            var subRecords = $app.findRecordsByFilter(
+                "billing", "stripe_customer_id = {:custId}", "-created", 1, 0, { custId: subCustomerId }
             );
-
-            if (records.length > 0) {
-                const bRecord = records[0];
-                bRecord.set("status", "canceled");
-                $app.save(bRecord);
-
-                const userId = bRecord.get("user_id");
-                const user = $app.findRecordById("users", userId);
-                user.set("plan", "creator");
-                user.set("plan_expires_at", "");
-                $app.save(user);
-                $app.logger().info("Webhook: plan reverted to creator for user " + userId + " (subscription deleted)");
+            if (subRecords.length > 0) {
+                var bRec = subRecords[0];
+                bRec.set("status", "canceled");
+                $app.save(bRec);
+                var subUserId = bRec.get("user_id");
+                var subUser = $app.findRecordById("users", subUserId);
+                subUser.set("plan", "creator");
+                subUser.set("plan_expires_at", "");
+                $app.save(subUser);
+                $app.logger().info("Webhook: SUCCESS plan reverted to creator for user " + subUserId);
             }
         }
 
+        // All processing succeeded
         return c.json(200, { received: true });
-    } catch (err) {
-        $app.logger().error("Webhook processing error: " + err);
-        return c.json(500, { error: String(err) });
+
+    } catch (processingErr) {
+        // Processing failed — remove dedup entry so Stripe can retry
+        try {
+            $app.db().newQuery("DELETE FROM _processed_stripe_events WHERE id = {:id}").bind({"id": eventId}).execute();
+            $app.logger().info("Webhook: Rolled back dedup for event " + eventId + " (will allow retry)");
+        } catch (delErr) { /* ignore cleanup errors */ }
+        $app.logger().error("Webhook: PROCESSING FAILED for event " + eventId + ": " + processingErr);
+        return c.json(500, { error: String(processingErr) });
     }
 });
 
 // Stripe: Verify Session & Activate Plan (Fallback for when webhook doesn't fire)
 // Called from frontend success page with ?session_id=cs_xxx
 routerAdd("POST", "/api/stripe/verify-session", (c) => {
-    const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
+    var STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
     if (!STRIPE_SECRET_KEY) {
         return c.json(500, { error: "Stripe not configured" });
     }
 
-    const user = c.auth;
+    var user = c.auth;
     if (!user || user.collection().name !== "users") {
         return c.json(401, { error: "Unauthorized" });
     }
 
     try {
-        const rawBody = readerToString(c.request.body);
-        const body = JSON.parse(rawBody);
-        const sessionId = body.sessionId;
+        var rawBody = readerToString(c.request.body);
+        var body = JSON.parse(rawBody);
+        var sessionId = body.sessionId;
         if (!sessionId) {
             return c.json(400, { error: "sessionId required" });
         }
 
         // Fetch the checkout session from Stripe
-        const res = $http.send({
+        var res = $http.send({
             url: "https://api.stripe.com/v1/checkout/sessions/" + sessionId,
             method: "GET",
             headers: {
@@ -388,7 +393,7 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
         if (res.statusCode >= 400) {
             throw new Error("Stripe session fetch error: " + res.statusCode);
         }
-        const session = res.json;
+        var session = res.json;
 
         // Safety: ensure this session belongs to this user
         if (session.client_reference_id !== user.id) {
@@ -401,7 +406,7 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
         }
 
         // Determine plan from line items
-        const lineItemsRes = $http.send({
+        var lineItemsRes = $http.send({
             url: "https://api.stripe.com/v1/checkout/sessions/" + sessionId + "/line_items",
             method: "GET",
             headers: {
@@ -410,47 +415,44 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
             timeout: 10
         });
         if (lineItemsRes.statusCode >= 400) throw new Error("Line items error");
-        const lineItems = lineItemsRes.json;
+        var lineItems = lineItemsRes.json;
 
-        let planName = "pro";
-        let amount = 0;
+        var planName = "pro";
+        var amount = 0;
         if (lineItems.data && lineItems.data.length > 0) {
-            const price = lineItems.data[0].price;
+            var price = lineItems.data[0].price;
             amount = price.unit_amount / 100;
-            // Use Price ID for reliable detection (same as webhook)
             if (price.id && AGENCY_PRICE_IDS.indexOf(price.id) !== -1) {
                 planName = "agency";
-            } else {
-                planName = "pro";
             }
         }
 
         // Check if plan is already active (idempotent) — but AFTER detecting plan
-        const currentPlan = user.get("plan");
+        var currentPlan = user.get("plan");
         if (currentPlan === planName) {
             return c.json(200, { activated: true, plan: currentPlan, note: "Already active" });
         }
 
-        const billingCycle = session.metadata ? (session.metadata.billingCycle || "monthly") : "monthly";
-        const customerId = session.customer || "";
-        const subscriptionId = session.subscription || "";
+        var billingCycle = session.metadata ? (session.metadata.billingCycle || "monthly") : "monthly";
+        var customerId = session.customer || "";
+        var subscriptionId = session.subscription || "";
 
         $app.runInTransaction((txApp) => {
-            const u = txApp.findRecordById("users", user.id);
+            var u = txApp.findRecordById("users", user.id);
             u.set("plan", planName);
-            const now = new DateTime();
-            const expiry = billingCycle === "annual"
+            var now = new DateTime();
+            var expiry = billingCycle === "annual"
                 ? now.addDate(1, 0, 2)
                 : now.addDate(0, 1, 2);
             u.set("plan_expires_at", expiry.format("Y-m-d H:i:sP"));
             txApp.save(u);
 
             // Upsert billing record
-            const existing = txApp.findRecordsByFilter(
+            var existing = txApp.findRecordsByFilter(
                 "billing", "user_id = {:uid}", "-created", 1, 0, { uid: user.id }
             );
             if (existing.length > 0) {
-                const b = existing[0];
+                var b = existing[0];
                 b.set("plan", planName);
                 b.set("amount", amount);
                 b.set("status", "active");
@@ -459,8 +461,8 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
                 b.set("stripe_subscription_id", subscriptionId);
                 txApp.save(b);
             } else {
-                const billingColl = txApp.findCollectionByNameOrId("billing");
-                const b = new Record(billingColl, {
+                var billingColl = txApp.findCollectionByNameOrId("billing");
+                var b = new Record(billingColl, {
                     "user_id": user.id, "plan": planName, "amount": amount,
                     "status": "active", "payment_method": "Stripe",
                     "stripe_customer_id": customerId, "stripe_subscription_id": subscriptionId
@@ -763,9 +765,53 @@ onRecordUpdateRequest((e) => {
                 throw new BadRequestError("You can only change your username once every 21 days. (Next change allowed in " + (21 - diffDays) + " days)");
             }
         }
-        e.record.set("username_last_changed", new DateTime());
+        
+        // BUG FIX: Do not trigger cooldown if the account was created less than 1 hour ago.
+        // This prevents Google OAuth2 registration from instantly locking the username,
+        // and gives new users a grace period to set their desired username.
+        const createdStr = e.record.get("created");
+        const createdDate = createdStr ? new Date(createdStr.toString()) : new Date();
+        const nowMs = new Date().getTime();
+        const createdMs = createdDate.getTime();
+        
+        if ((nowMs - createdMs) > 60 * 60 * 1000) {
+            e.record.set("username_last_changed", new DateTime());
+        }
     }
 
+    e.next();
+}, "users");
+
+// IP Rate Limiting for new registrations
+// Requires PocketBase Settings > trustedProxy.headers = ["Fly-Client-IP"]
+onRecordCreateRequest((e) => {
+    try {
+        const clientIP = e.realIP();
+
+        if (clientIP) {
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString().replace("T", " ");
+            
+            const records = $app.findRecordsByFilter(
+                "users", 
+                "created_ip = {:ip} && created >= {:time}", 
+                "-created", 
+                10, 
+                0, 
+                { ip: clientIP, time: oneHourAgo }
+            );
+
+            if (records.length >= 2) {
+                throw new BadRequestError("Too many accounts created from this IP. Please try again later.");
+            }
+            
+            e.record.set("created_ip", clientIP);
+        }
+    } catch (err) {
+        if (err instanceof BadRequestError) {
+            throw err;
+        }
+        console.error("RATELIMIT ERROR:", err);
+    }
     e.next();
 }, "users");
 

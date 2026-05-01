@@ -1,5 +1,5 @@
 // src/components/icons/IconRenderer.tsx
-import { Globe } from 'lucide-react';
+import { Image as ImageIcon } from 'lucide-react';
 import { getPresetIcon } from './presets';
 
 interface IconRendererProps {
@@ -71,8 +71,7 @@ export function IconRenderer({ type, value, url, className = "w-5 h-5", fallback
 function Fallback({ className, fallback }: { url?: string, className: string, fallback: boolean }) {
     if (!fallback) return null;
 
-    // Always use the consistent Lucide vector globe as requested.
-    // (Removed Google Favicon API to avoid random low-poly planets)
-    return <Globe className={className} />;
+    // Always use the consistent Lucide vector image as requested.
+    return <ImageIcon className={className} />;
 }
 

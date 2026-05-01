@@ -1,16 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
 import { pb } from "@/lib/pocketbase";
 import {
-    Users, Link as LinkIcon, Activity, TrendingUp, ChevronLeft,
+    Users, Activity, TrendingUp, ChevronLeft,
     ArrowUpRight, ArrowDownRight, Zap, Target, MousePointer2,
-    AlertCircle, Lightbulb, ShieldCheck, Globe, Clock, History
+    Lightbulb, History
 } from "lucide-react";
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
-    ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie
+    ResponsiveContainer, Cell, PieChart, Pie
 } from "recharts";
 import { useNavigate } from "react-router-dom";
-import { format, subDays, startOfDay, isAfter, subHours, differenceInDays } from "date-fns";
+import { format, subDays, isAfter, subHours, differenceInDays } from "date-fns";
 import { toast } from "sonner";
 
 interface DashboardStats {
@@ -66,11 +66,6 @@ export default function AdminOverview() {
     const [dauData, setDauData] = useState<any[]>([]);
     const [conversionEvents, setConversionEvents] = useState<any[]>([]);
     const [pulseEvents, setPulseEvents] = useState<any[]>([]);
-    const [systemHealth, setSystemHealth] = useState({
-        errorRate: 0,
-        avgLatencyp95: 0,
-        alerts: [] as string[]
-    });
 
     useEffect(() => {
         fetchDashboardData();
@@ -112,13 +107,12 @@ export default function AdminOverview() {
                 }
             };
 
-            const [users, links, billing, clicksResult, analytics, logs] = await Promise.all([
+            const [users, links, billing, clicksResult, analytics] = await Promise.all([
                 safeFetch("users", { sort: "-created" }),
                 safeFetch("links"),
                 safeFetch("billing"),
                 safeClicksFetch(),
-                safeFetch("analytics_events", { sort: "-created", filter: `created > "${sinceDate}"` }),
-                safeFetch("system_logs", { sort: "-created", filter: `created > "${sinceDate}"` })
+                safeFetch("analytics_events", { sort: "-created", filter: `created > "${sinceDate}"` })
             ]);
 
             const clicks = clicksResult.items;
@@ -195,27 +189,6 @@ export default function AdminOverview() {
             // Pulse list: Last 10 events
             setPulseEvents(analytics.filter(e => e.event_name !== 'active_session').slice(0, 10));
 
-            // System Health calculation from logs
-            const last24h = subHours(now, 24);
-            const totalLogs24h = logs.filter(l => isAfter(new Date(l.created), last24h)).length;
-            const errorLogs24h = logs.filter(l => l.level === 'error' && isAfter(new Date(l.created), last24h)).length;
-            const errorRate = totalLogs24h >= 10 ? (errorLogs24h / totalLogs24h) * 100 : 0;
-
-            // Extract p95 latency if available in metadata/context
-            const latencies = logs.filter(l => l.metadata?.latency).map(l => l.metadata.latency);
-            const p95Latency = latencies.length > 0 ? latencies.sort((a, b) => a - b)[Math.floor(latencies.length * 0.95)] : 0;
-
-            const alerts = [];
-            if (errorRate > 10 && totalLogs24h >= 20) alerts.push("High error rate detected ( > 10%). Check logs for API instability.");
-            if (dauUsers.size < (mauUsers.size * 0.05)) alerts.push("Low stickiness (DAU/MAU < 5%). Onboarding friction suspected.");
-            if (churnRate > 10) alerts.push("Critical churn rate alert. Subscription cancellations have spiked.");
-
-            setSystemHealth({
-                errorRate: parseFloat(errorRate.toFixed(2)),
-                avgLatencyp95: p95Latency || 0,
-                alerts
-            });
-
             // Growth Chart Generation
             const chartPoints = [];
             const chartDaysToFetch = timeRange === '24h' ? 1 : timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
@@ -251,33 +224,48 @@ export default function AdminOverview() {
             }
             setDauData(dauPoints);
 
-            // Plan Pie Chart
+            // Plan Pie Chart — users with empty/null/undefined plan count as Creator
+            const proCount = users.filter(u => u.plan === 'pro').length;
+            const agencyCount = users.filter(u => u.plan === 'agency').length;
+            const creatorCount = users.length - proCount - agencyCount;
             setPlanData([
-                { name: 'Creator', value: users.filter(u => u.plan === 'creator').length },
-                { name: 'Pro', value: users.filter(u => u.plan === 'pro').length },
-                { name: 'Agency', value: users.filter(u => u.plan === 'agency').length },
+                { name: 'Creator', value: creatorCount },
+                { name: 'Pro', value: proCount },
+                { name: 'Agency', value: agencyCount },
             ]);
 
-            // BUG-07 FIX: clicks don't have user_id — aggregate via link_id → links → user_id
-            const clickCountsByLinkId = currentClicks.reduce((acc: Record<string, number>, c: any) => {
-                if (c.link_id) acc[c.link_id] = (acc[c.link_id] || 0) + 1;
-                return acc;
-            }, {});
-
-            // Map link_id → user_id using already-loaded links
-            const clickCountsByUserId: Record<string, number> = {};
-            for (const [linkId, count] of Object.entries(clickCountsByLinkId)) {
-                const link = links.find((l: any) => l.id === linkId);
-                if (link && link.user_id) {
-                    clickCountsByUserId[link.user_id] = (clickCountsByUserId[link.user_id] || 0) + (count as number);
+            // Top Creators: count total clicks per user via their links
+            // Group links by user_id first
+            const linksByUser: Record<string, any[]> = {};
+            links.forEach((l: any) => {
+                if (l.user_id) {
+                    if (!linksByUser[l.user_id]) linksByUser[l.user_id] = [];
+                    linksByUser[l.user_id].push(l);
                 }
-            }
-            
-            const topUsers = Object.entries(clickCountsByUserId)
-                .sort((a, b) => (b[1] as number) - (a[1] as number))
+            });
+
+            // For each user, count total clicks across all their links using API totalItems
+            const userClickCounts: { userId: string; count: number }[] = [];
+            const clickCountPromises = Object.entries(linksByUser).map(async ([userId, userLinks]) => {
+                try {
+                    // Build filter for all link IDs belonging to this user
+                    const linkIds = userLinks.map((l: any) => l.id);
+                    const filterParts = linkIds.map((id: string) => `link_id="${id}"`);
+                    const filter = `(${filterParts.join('||')})`;
+                    const result = await pb.collection("clicks").getList(1, 1, {
+                        filter,
+                        requestKey: null
+                    });
+                    userClickCounts.push({ userId, count: result.totalItems });
+                } catch { /* skip user on error */ }
+            });
+            await Promise.all(clickCountPromises);
+
+            const topUsers = userClickCounts
+                .sort((a, b) => b.count - a.count)
                 .slice(0, 5)
-                .map(([userId, count]) => {
-                    const u = users.find(u => u.id === userId);
+                .map(({ userId, count }) => {
+                    const u = users.find((u: any) => u.id === userId);
                     return { id: userId, username: u?.username || 'Unknown', count, plan: u?.plan || 'creator' };
                 });
             setTopCreators(topUsers);
@@ -329,11 +317,10 @@ export default function AdminOverview() {
         const list = [];
         if (stats.trends.users > 10) list.push(`Viral growth detected: New signups up ${stats.trends.users}% this period.`);
         if (stats.churnRate > 5) list.push(`Revenue alert: Churn is ${stats.churnRate.toFixed(1)}%.`);
-        if (systemHealth.errorRate < 0.5 && systemHealth.avgLatencyp95 < 200) list.push("Infrastructure health is optimal. System scaling cleanly.");
         if (stats.arpu > 0) list.push(`Your Average Revenue Per Paid User (ARPU) is $${stats.arpu.toFixed(2)}.`);
         if (list.length === 0) list.push("Metrics are within expected baseline ranges.", "Monitoring normal user behavior patterns.");
         return list;
-    }, [stats, systemHealth]);
+    }, [stats]);
 
     if (loading) return (
         <div className="min-h-[80vh] flex flex-col items-center justify-center gap-4">
@@ -371,23 +358,9 @@ export default function AdminOverview() {
                 </div>
             </div>
 
-            {/* Alerts Block */}
-            {systemHealth.alerts.length > 0 && (
-                <div className="grid grid-cols-1 gap-4">
-                    {systemHealth.alerts.map((alert, i) => (
-                        <div key={i} className="flex items-center gap-4 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl animate-in fade-in slide-in-from-top-4">
-                            <AlertCircle className="w-6 h-6 text-red-500 shrink-0" />
-                            <p className="text-red-200 font-medium">{alert}</p>
-                            <button className="ml-auto text-xs font-bold text-red-500 hover:underline uppercase">Investigate</button>
-                        </div>
-                    ))}
-                </div>
-            )}
-
             {/* KPI Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 <KPIBadge label="Total Users" value={stats.totalUsers} trend={stats.trends.users} />
-                <KPIBadge label="Estimated MRR" value={stats.mrr} trend={stats.trends.revenue} isCurrency={true} />
                 <KPIBadge label="Total Redirects" value={stats.totalClicksInPeriod} trend={stats.trends.clicks} />
                 <KPIBadge label="Active (DAU/MAU)" value={`${stats.dau} / ${stats.mau}`} trend={stats.trends.dau} />
             </div>
@@ -552,28 +525,7 @@ export default function AdminOverview() {
                         </div>
                     </div>
 
-                    {/* System Health Block */}
-                    <div className="bg-surface border border-border rounded-3xl p-8 shadow-xl space-y-6">
-                        <h2 className="text-xl font-bold flex items-center gap-3">
-                            System Health <ShieldCheck className="w-5 h-5 text-accent" />
-                        </h2>
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between">
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium text-muted-foreground">Error Rate</p>
-                                    <p className="text-2xl font-black text-white">{systemHealth.errorRate}%</p>
-                                </div>
-                                <Activity className={`w-8 h-8 ${systemHealth.errorRate > 1 ? 'text-red-500' : 'text-accent'}`} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium text-muted-foreground">p95 Latency</p>
-                                    <p className="text-2xl font-black text-white">{systemHealth.avgLatencyp95}ms</p>
-                                </div>
-                                <Clock className="w-8 h-8 text-blue-500" />
-                            </div>
-                        </div>
-                    </div>
+
 
                     {/* Smart Insights */}
                     <div className="bg-accent/5 border border-accent/20 rounded-3xl p-8 shadow-xl relative overflow-hidden group">

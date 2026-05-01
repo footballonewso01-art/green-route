@@ -212,9 +212,10 @@ export default function RedirectHandler() {
             }
 
             try {
+                const currentDomain = window.location.host;
                 // Step 1: PARALLEL resolution — link AND user at once (halves latency)
                 const [linkResult, userResult] = await Promise.allSettled([
-                    pb.collection('links').getFirstListItem(`slug="${username}"`),
+                    pb.collection('links').getFirstListItem(`slug="${username}" && (domain="${currentDomain}" || domain="")`),
                     pb.collection('users').getFirstListItem(`username="${username}"`)
                 ]);
 

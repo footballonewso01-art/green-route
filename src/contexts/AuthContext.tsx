@@ -83,6 +83,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.location.href = "/login";
     }
 
+    // Refresh user data from server on mount (picks up plan changes, etc.)
+    if (pb.authStore.isValid && pb.authStore.token) {
+      pb.collection('users').authRefresh().then((result) => {
+        if (result?.record) {
+          localStorage.setItem('pocketbase_auth', JSON.stringify({
+            token: pb.authStore.token,
+            model: result.record
+          }));
+        }
+      }).catch(() => {
+        // Silent fail — stale data is acceptable as fallback
+      });
+    }
+
     const unsubscribe = pb.authStore.onChange((token, model) => {
       if (model) {
         const updatedUser = {

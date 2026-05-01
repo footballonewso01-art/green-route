@@ -45,12 +45,49 @@ function ScrollToTop() {
   return null;
 }
 
+// Redirects alternate domains to the main domain if they access system pages
+function DomainGuard() {
+  const location = useLocation();
+  
+  useEffect(() => {
+    const hostname = window.location.hostname;
+    const MAIN_DOMAIN = "linktery.com";
+    
+    // If not main domain, not localhost, and not a vercel preview URL
+    if (hostname !== MAIN_DOMAIN && hostname !== 'localhost' && !hostname.includes('vercel.app')) {
+      // System paths that should NOT be accessed on alternate domains
+      const isSystemPath = location.pathname === '/' || 
+                          location.pathname.startsWith('/login') || 
+                          location.pathname.startsWith('/register') || 
+                          location.pathname.startsWith('/dashboard') || 
+                          location.pathname.startsWith('/pricing') || 
+                          location.pathname.startsWith('/admin');
+                          
+      if (isSystemPath) {
+        window.location.replace(`https://${MAIN_DOMAIN}${location.pathname}${location.search}`);
+      }
+    }
+  }, [location.pathname, location.search]);
+
+  return null;
+}
+
+function AmbientBackground() {
+  return (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none z-[-1]">
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-accent/10 blur-[120px] animate-pulse" style={{ animationDuration: '8s' }} />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-500/10 blur-[120px] animate-pulse" style={{ animationDuration: '12s' }} />
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay"></div>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isValid, loading } = useAuth();
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center relative z-10">
         <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -107,6 +144,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <ScrollToTop />
+        <DomainGuard />
+        <AmbientBackground />
         <AuthProvider>
           <AppRoutes />
         </AuthProvider>

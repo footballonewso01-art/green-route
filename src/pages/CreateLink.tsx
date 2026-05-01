@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Globe, Smartphone, Clock, Shuffle, Loader2, Shield, Info, ExternalLink, Lock, Zap, CalendarRange } from "lucide-react";
+import { ArrowLeft, Globe, Smartphone, Clock, Shuffle, Loader2, Shield, Info, ExternalLink, Lock, Zap, CalendarRange, ChevronDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { pb } from "@/lib/pocketbase";
 import { urlSchema } from "@/lib/validations";
@@ -31,6 +31,7 @@ export default function CreateLink() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(!!id);
+  const availableDomains = import.meta.env.VITE_AVAILABLE_DOMAINS?.split(",").map((d: string) => d.trim()).filter(Boolean) || [window.location.host];
   const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; feature: string; description: string; planNeeded?: "pro" | "agency" }>({
     open: false,
     feature: "",
@@ -43,6 +44,7 @@ export default function CreateLink() {
   const [form, setForm] = useState({
     title: "",
     url: "",
+    domain: availableDomains[0],
     slug: !id && !checkPlan((user as { plan?: string })?.plan || "creator", "custom_slug") ? generateRandomSlug() : "",
     show_on_profile: false,
     cloaking: false,
@@ -88,6 +90,7 @@ export default function CreateLink() {
           setForm({
             title: record.title || "",
             url: record.destination_url,
+            domain: record.domain || availableDomains[0],
             slug: record.slug,
             show_on_profile: record.show_on_profile !== false,
             cloaking: record.cloaking,
@@ -175,11 +178,32 @@ export default function CreateLink() {
     }
     const validatedUrl = urlValidation.data;
 
+    if (form.slug) {
+      try {
+        const [existingLinks, existingUsers] = await Promise.all([
+          pb.collection('links').getList(1, 1, { filter: `slug="${form.slug}" && id!="${id || ''}"` }),
+          pb.collection('users').getList(1, 1, { filter: `username="${form.slug}"` })
+        ]);
+
+        if (existingLinks.totalItems > 0) {
+          toast.error("This slug is already in use by another link");
+          return;
+        }
+        if (existingUsers.totalItems > 0) {
+          toast.error("This slug is reserved by a user profile");
+          return;
+        }
+      } catch (err) {
+        console.error("Slug validation error:", err);
+      }
+    }
+
     setLoading(true);
     try {
       const data = {
         title: form.title,
         destination_url: validatedUrl,
+        domain: form.domain,
         slug: form.slug,
         show_on_profile: form.show_on_profile,
         cloaking: form.cloaking,
@@ -355,6 +379,25 @@ export default function CreateLink() {
           </div>
 
           <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Choose Domain</label>
+            <div className="relative mb-4">
+              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                <Globe className="w-4 h-4 text-accent opacity-70" />
+              </div>
+              <select 
+                value={form.domain} 
+                onChange={(e) => update("domain", e.target.value)} 
+                className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-surface border border-border text-foreground appearance-none focus:outline-none focus:border-accent/50 transition-colors cursor-pointer"
+              >
+                {availableDomains.map((d: string) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              </div>
+            </div>
+            
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-sm font-medium text-foreground block">Custom Slug</label>
               {!checkPlan(userPlan, "custom_slug") && (
@@ -374,7 +417,7 @@ export default function CreateLink() {
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-0 sm:gap-2">
               <span className="text-[12px] sm:text-sm text-muted-foreground bg-surface px-3 py-2 sm:py-2.5 rounded-t-xl sm:rounded-xl border border-border sm:border-r-0 sm:rounded-r-none whitespace-nowrap overflow-hidden text-ellipsis">
-                {window.location.host}/
+                {form.domain}/
               </span>
               <input
                 required

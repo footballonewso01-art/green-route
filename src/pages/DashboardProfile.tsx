@@ -218,11 +218,13 @@ export default function DashboardProfile() {
         await pb.collection("users").update(user.id, fileData, { requestKey: null });
       }
 
-      // Step 3: Synchronize Regular Links
-      console.log("[handleSaveProfile] Syncing regular links...");
-      // Fetch currently persisted links for this user to compare
+      // Step 3: Synchronize Regular Links (ONLY profile links, not all links)
+      console.log("[handleSaveProfile] Syncing profile links...");
+      // CRITICAL: Only fetch show_on_profile=true links to compare against local state
+      // Local state 'links' only contains show_on_profile=true links (from fetchLinks)
+      // Fetching ALL links here would cause non-profile links to be deleted!
       const dbLinksResult = await pb.collection('links').getList<LinkItem>(1, 100, {
-        filter: `user_id = "${user.id}"`,
+        filter: `user_id = "${user.id}" && show_on_profile=true`,
         requestKey: null,
       });
       const dbLinks = dbLinksResult.items;

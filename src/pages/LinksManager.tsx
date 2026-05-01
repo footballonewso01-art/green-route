@@ -28,7 +28,9 @@ export default function LinksManager() {
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [qrModal, setQrModal] = useState<{ slug: string; title: string } | null>(null);
+  const [qrModal, setQrModal] = useState<{ slug: string; title: string; domain?: string } | null>(null);
+  const [editingSlugId, setEditingSlugId] = useState<string | null>(null);
+  const [editingSlugValue, setEditingSlugValue] = useState("");
   const qrRef = useRef<HTMLDivElement>(null);
 
   const fetchLinks = async () => {
@@ -59,6 +61,21 @@ export default function LinksManager() {
       toast.success("Link status updated");
     } catch (error: unknown) {
       toast.error((error as Error).message || "Failed to update link");
+    }
+  };
+
+  const saveSlugInline = async (id: string) => {
+    if (!editingSlugValue.trim() || editingSlugValue.includes(' ')) {
+      toast.error("Invalid slug. No spaces allowed.");
+      return;
+    }
+    try {
+      await pb.collection('links').update(id, { slug: editingSlugValue.trim() });
+      setLinks(links.map(l => l.id === id ? { ...l, slug: editingSlugValue.trim() } : l));
+      toast.success("Slug updated successfully");
+      setEditingSlugId(null);
+    } catch (error: unknown) {
+      toast.error("Failed to update slug. It might be already taken.");
     }
   };
 
@@ -123,8 +140,9 @@ export default function LinksManager() {
     }
   };
 
-  const copyToClipboard = (slug: string) => {
-    const url = `${window.location.origin}/${slug}`;
+  const copyToClipboard = (slug: string, domain?: string) => {
+    const baseUrl = domain ? `https://${domain}` : window.location.origin;
+    const url = `${baseUrl}/${slug}`;
     navigator.clipboard.writeText(url);
     toast.success("Link copied to clipboard");
   };
@@ -214,7 +232,7 @@ export default function LinksManager() {
           <DragDropContext onDragEnd={handleDragEnd}>
             <Droppable droppableId="links-list" isDropDisabled={filtered.length <= 1}>
               {(provided) => (
-                <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
+                <div {...provided.droppableProps} ref={provided.innerRef} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   {filtered.map((link, index) => (
                     <Draggable key={link.id} draggableId={link.id} index={index} isDragDisabled={search.length > 0 || filtered.length <= 1}>
                       {(provided, snapshot) => (
@@ -224,21 +242,42 @@ export default function LinksManager() {
                           style={{
                             ...provided.draggableProps.style,
                           }}
-                          className={`glass-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-all duration-200 ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:border-accent/20'}`}
+                          className={`bento-card p-5 flex flex-col justify-between gap-4 transition-all duration-300 min-h-[160px] ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:shadow-glow'}`}
                         >
-                          <div {...provided.dragHandleProps} className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing p-1">
-                            <GripVertical className="w-5 h-5" />
-                          </div>
-
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className={`w-10 h-10 bg-background border border-border rounded-xl flex items-center justify-center shrink-0 overflow-hidden ${link.size === 'large' ? 'ring-2 ring-accent/30 shadow-lg shadow-accent/5' : ''}`}>
-                              <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className="w-7 h-7 text-accent" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-semibold text-accent">{link.slug}</span>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div {...provided.dragHandleProps} className="text-muted-foreground/50 hover:text-foreground cursor-grab active:cursor-grabbing p-1 -ml-2 -mt-2">
+                                <GripVertical className="w-4 h-4" />
+                              </div>
+                              <div className={`w-12 h-12 bg-background border border-border rounded-2xl flex items-center justify-center shrink-0 overflow-hidden ${link.size === 'large' ? 'ring-2 ring-accent/30 shadow-lg shadow-accent/5' : ''}`}>
+                                <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className="w-7 h-7 text-accent" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  {editingSlugId === link.id ? (
+                                    <div className="flex items-center gap-2">
+                                      <input 
+                                        type="text" 
+                                        value={editingSlugValue} 
+                                        onChange={(e) => setEditingSlugValue(e.target.value)}
+                                        onKeyDown={(e) => { if(e.key === 'Enter') saveSlugInline(link.id); if(e.key === 'Escape') setEditingSlugId(null); }}
+                                        className="bg-background border border-accent rounded px-2 py-0.5 text-sm font-semibold text-accent focus:outline-none w-32"
+                                        autoFocus
+                                      />
+                                      <button onClick={() => saveSlugInline(link.id)} className="text-accent hover:text-emerald-400">Save</button>
+                                      <button onClick={() => setEditingSlugId(null)} className="text-muted-foreground hover:text-red-400"><X className="w-4 h-4"/></button>
+                                    </div>
+                                  ) : (
+                                    <span 
+                                      className="text-sm font-semibold text-accent truncate max-w-[200px] cursor-pointer hover:underline"
+                                      onDoubleClick={() => { setEditingSlugId(link.id); setEditingSlugValue(link.slug); }}
+                                      title="Double click to edit slug"
+                                    >
+                                      {link.domain ? link.domain.replace('https://', '') : window.location.host}/{link.slug}
+                                    </span>
+                                  )}
                                 {link.title && <span className="text-xs font-medium px-2 py-0.5 rounded bg-surface border border-border">{link.title}</span>}
-                                <button onClick={() => copyToClipboard(link.slug)} className="text-muted-foreground hover:text-foreground transition-colors">
+                                <button onClick={() => copyToClipboard(link.slug, link.domain)} className="text-muted-foreground hover:text-foreground transition-colors">
                                   <Copy className="w-3.5 h-3.5" />
                                 </button>
                               </div>
@@ -248,11 +287,36 @@ export default function LinksManager() {
                                   {link.destination_url}
                                 </span>
                               </div>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+                              <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
+                                <QrCode className="w-4 h-4" />
+                              </button>
+                              <Link to={`/dashboard/links/edit/${link.id}`} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="Edit Full Settings">
+                                <Edit className="w-4 h-4" />
+                              </Link>
+                              <button onClick={() => deleteLink(link.id)} className="p-2 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors" title="Delete">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-6">
-                            <div className="text-center">
+                          {/* Bento Grid Bottom Section */}
+                          <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
+                            <div className="flex items-center gap-4">
+                              <div>
+                                <div className="text-lg font-bold text-foreground">{(link.clicks_count || 0).toLocaleString()}</div>
+                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Clicks</div>
+                              </div>
+                              {/* Sparkline Mock */}
+                              <div className="w-16 h-8 flex items-end gap-0.5 opacity-50">
+                                {[3, 5, 2, 7, 4, 8, 5].map((val, i) => (
+                                  <div key={i} className="w-1.5 bg-accent/50 rounded-t-sm" style={{ height: `${(val / 8) * 100}%` }} />
+                                ))}
+                              </div>
+                            </div>
                               <div className="text-lg font-bold text-foreground">{(link.clicks_count || 0).toLocaleString()}</div>
                               <div className="text-xs text-muted-foreground">clicks</div>
                             </div>
@@ -266,27 +330,18 @@ export default function LinksManager() {
                               {link.show_on_profile !== false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                             </button>
 
-                            <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors" title="Toggle active status">
-                              {link.active ? (
-                                <ToggleRight className="w-8 h-8 text-accent" />
-                              ) : (
-                                <ToggleLeft className="w-8 h-8 text-muted-foreground" />
-                              )}
-                            </button>
-
-                            <div className="flex items-center gap-1">
-                              <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug })} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
-                                <QrCode className="w-4 h-4" />
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors scale-90" title="Toggle active status">
+                                {link.active ? (
+                                  <ToggleRight className="w-8 h-8 text-accent" />
+                                ) : (
+                                  <ToggleLeft className="w-8 h-8 text-muted-foreground" />
+                                )}
                               </button>
-                              <Link to={`/dashboard/analytics?link=${link.id}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
-                                <BarChart3 className="w-4 h-4" />
+                              
+                              <Link to={`/dashboard/analytics?link=${link.id}`} className="p-2.5 rounded-xl bg-surface border border-border hover:border-accent/50 text-foreground transition-all tactile-btn" title="View Analytics">
+                                <BarChart3 className="w-4 h-4 text-accent" />
                               </Link>
-                              <Link to={`/dashboard/links/edit/${link.id}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
-                                <Edit className="w-4 h-4" />
-                              </Link>
-                              <button onClick={() => deleteLink(link.id)} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
                             </div>
                           </div>
                         </div>
@@ -313,7 +368,7 @@ export default function LinksManager() {
             </div>
             <div ref={qrRef} className="bg-white rounded-2xl p-6 inline-block mx-auto">
               <QRCodeCanvas
-                value={`${window.location.origin}/${qrModal.slug}`}
+                value={qrModal.domain ? `https://${qrModal.domain}/${qrModal.slug}` : `${window.location.origin}/${qrModal.slug}`}
                 size={200}
                 bgColor="#ffffff"
                 fgColor="#0a0a0a"
@@ -325,7 +380,8 @@ export default function LinksManager() {
             <div className="flex gap-3">
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/${qrModal.slug}`);
+                  const baseUrl = qrModal.domain ? `https://${qrModal.domain}` : window.location.origin;
+                  navigator.clipboard.writeText(`${baseUrl}/${qrModal.slug}`);
                   toast.success('Link copied!');
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-surface border border-border text-foreground font-medium hover:bg-surface-hover transition-colors flex items-center justify-center gap-2 text-sm"

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
 
 export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
@@ -133,10 +134,25 @@ export default function DashboardHome() {
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const displayName = pb.authStore.model?.name || pb.authStore.model?.username || "Friend";
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+  };
+
   return (
-    <div className="space-y-8">
+    <motion.div 
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      className="space-y-8"
+    >
       {/* Welcome Card */}
-      <div className="relative overflow-hidden glass-card px-8 py-5 group">
+      <motion.div variants={itemVariants} className="relative overflow-hidden glass-card px-8 py-5 group">
         {/* Background decorative elements */}
         <div className="absolute -right-12 -top-12 w-48 h-48 bg-accent/10 rounded-full blur-3xl group-hover:bg-accent/20 transition-colors duration-500" />
         <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl" />
@@ -155,8 +171,10 @@ export default function DashboardHome() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Link to="/dashboard/profile" className="btn-primary-glow flex items-center gap-2 px-6 !py-2.5 text-sm shadow-xl shadow-accent/20">
-              <Plus className="w-4 h-4" /> Create Link
+            <Link to="/dashboard/profile">
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="btn-primary-glow flex items-center gap-2 px-6 py-2.5 text-sm shadow-xl shadow-accent/20">
+                <Plus className="w-4 h-4" /> Create Link
+              </motion.button>
             </Link>
             <button
               onClick={() => {
@@ -170,13 +188,13 @@ export default function DashboardHome() {
             </button>
           </div>
         </div>
-      </div>
+      </motion.div>
 
 
       {/* Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {metrics.map((m) => (
-          <div key={m.title} className="glass-card p-5">
+          <motion.div variants={itemVariants} key={m.title} className="glass-card p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center">
                 <m.icon className="w-4 h-4 text-accent" />
@@ -188,13 +206,13 @@ export default function DashboardHome() {
             </div>
             <div className="text-2xl font-bold text-foreground">{m.value}</div>
             <div className="text-xs text-muted-foreground mt-0.5">{m.title}</div>
-          </div>
+          </motion.div>
         ))}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Chart */}
-        <div className="lg:col-span-2 glass-card p-6">
+        <motion.div variants={itemVariants} className="lg:col-span-2 glass-card p-6">
           <h2 className="text-lg font-semibold text-foreground mb-4">Clicks This Week</h2>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={trendData}>
@@ -213,10 +231,10 @@ export default function DashboardHome() {
               <Area type="monotone" dataKey="clicks" stroke="hsl(153, 68%, 55%)" fill="url(#clickGradient)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
-        </div>
+        </motion.div>
 
         {/* Recent Clicks */}
-        <div className="glass-card p-6">
+        <motion.div variants={itemVariants} className="glass-card p-6">
           <h2 className="text-lg font-semibold text-foreground mb-4">Recent Clicks</h2>
           <div className="space-y-3">
             {recentClicks.length === 0 ? <p className="text-sm text-muted-foreground">No recent clicks</p> : recentClicks.map((c, i) => (
@@ -229,8 +247,8 @@ export default function DashboardHome() {
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }

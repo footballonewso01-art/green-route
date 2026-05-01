@@ -1,5 +1,4 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -79,11 +78,27 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 
 @layer components {
   .glass-card {
-    @apply bg-card/60 backdrop-blur-xl border border-glass-border rounded-2xl;
+    @apply bg-card/60 backdrop-blur-xl border border-glass-border/40 rounded-3xl;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 8px 32px rgba(0, 0, 0, 0.4);
   }
 
   .glass-card-hover {
     @apply glass-card transition-all duration-300 hover:scale-[1.02] hover:border-accent/30 hover:shadow-glow;
+  }
+
+  /* 2026 Pro-Max Additions */
+  .tactile-btn {
+    @apply relative overflow-hidden transition-all duration-200 active:scale-95;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 2px 4px rgba(0, 0, 0, 0.4);
+  }
+  
+  .tactile-btn:active {
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4), 0 0 0 rgba(0, 0, 0, 0);
+  }
+
+  .bento-card {
+    @apply bg-surface/50 backdrop-blur-lg border border-border/60 rounded-[32px] overflow-hidden relative transition-colors hover:border-border;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
   }
 
   .glow-text {
@@ -164,6 +179,10 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
     transform: translateX(-100%);
     animation: shimmer 2s infinite;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  }
+
+  .bg-grid-white {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32' fill='none' stroke='rgba(255, 255, 255, 0.04)'%3e%3cpath d='M0 .5H31.5V32'/%3e%3c/svg%3e");
   }
 }
 

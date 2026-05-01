@@ -10,6 +10,7 @@ type LinkRecord = {
     id: string;
     destination_url: string;
     slug: string;
+    domain?: string;
     active: boolean;
     clicks_count: number;
     user_id: string;
@@ -171,7 +172,7 @@ export default function AdminLinks() {
                                 </tr>
                             ) : (
                                 links.map((link) => {
-                                    const shortUrl = `${window.location.host}/${link.slug}`;
+                                    const shortUrl = `${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`;
                                     return (
                                         <tr key={link.id} className="hover:bg-surface-hover transition-colors">
                                             <td className="px-6 py-4">
