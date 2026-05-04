@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BarChart3, Link2, MousePointer, TrendingUp, ArrowUpRight, ArrowDownRight, Loader2, Plus, Share2, Sparkles, Calendar } from "lucide-react";
+import { Link2, MousePointer, TrendingUp, ArrowUpRight, ArrowDownRight, Loader2, Plus, Share2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { pb } from "@/lib/pocketbase";
@@ -39,7 +39,7 @@ export default function DashboardHome() {
         const clicks = clicksResult.items;
         const activeLinks = links.filter(l => l.active).length;
         // Use clicks_count from links (always accurate) instead of loading all click records
-        const totalClicks = links.reduce((sum, l) => sum + ((l as any).clicks_count || 0), 0);
+        const totalClicks = links.reduce((sum, l) => sum + ((l as { clicks_count?: number }).clicks_count || 0), 0);
 
         setStats({
           totalClicks,
@@ -131,7 +131,6 @@ export default function DashboardHome() {
   ];
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const displayName = pb.authStore.model?.name || pb.authStore.model?.username || "Friend";
 
   const containerVariants = {

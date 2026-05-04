@@ -35,6 +35,39 @@ export default function LinksManager() {
   const [sparklines, setSparklines] = useState<Record<string, number[]>>({});
   const qrRef = useRef<HTMLDivElement>(null);
 
+  const fetchSparklines = async (linksList: LinkItem[]) => {
+    if (linksList.length === 0) return;
+    try {
+      const userId = pb.authStore.model?.id;
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const analyticsRes = await pb.collection('analytics_daily').getList(1, 1000, {
+        filter: `link_id.user_id="${userId}" && day >= "${sevenDaysAgo.toISOString().split('T')[0]}"`,
+        sort: 'day'
+      });
+
+      // Build sparklines array (7 items representing 7 days)
+      const sparks: Record<string, number[]> = {};
+      linksList.forEach(link => { sparks[link.id] = [0,0,0,0,0,0,0]; });
+      
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+
+      analyticsRes.items.forEach((row: { link_id: string, count: number, day: string }) => {
+        if (sparks[row.link_id]) {
+          const rowDate = new Date(row.day);
+          const diffDays = Math.floor((today.getTime() - rowDate.getTime()) / (1000 * 3600 * 24));
+          const safeDiff = Math.max(0, Math.min(6, diffDays));
+          const idx = 6 - safeDiff;
+          sparks[row.link_id][idx] += row.count;
+        }
+      });
+      setSparklines(sparks);
+    } catch (e) {
+      console.error("Failed to fetch clicks for sparkline", e);
+    }
+  };
+
   const fetchLinks = async () => {
     try {
       const userId = pb.authStore.model?.id;
@@ -44,37 +77,8 @@ export default function LinksManager() {
       });
       setLinks(records.items);
 
-      // Fetch recent clicks for sparklines
-      if (records.items.length > 0) {
-          try {
-            const sevenDaysAgo = new Date();
-            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            const analyticsRes = await pb.collection('analytics_daily').getList(1, 1000, {
-              filter: `link_id.user_id="${userId}" && day >= "${sevenDaysAgo.toISOString().split('T')[0]}"`,
-              sort: 'day'
-            });
-  
-            // Build sparklines array (7 items representing 7 days)
-            const sparks: Record<string, number[]> = {};
-            records.items.forEach(link => { sparks[link.id] = [0,0,0,0,0,0,0]; });
-            
-            const today = new Date();
-            today.setUTCHours(0, 0, 0, 0);
-
-            analyticsRes.items.forEach((row: any) => {
-              if (sparks[row.link_id]) {
-                const rowDate = new Date(row.day);
-                const diffDays = Math.floor((today.getTime() - rowDate.getTime()) / (1000 * 3600 * 24));
-                const safeDiff = Math.max(0, Math.min(6, diffDays));
-                const idx = 6 - safeDiff;
-                sparks[row.link_id][idx] += row.count;
-              }
-            });
-            setSparklines(sparks);
-        } catch (e) {
-          console.error("Failed to fetch clicks for sparkline", e);
-        }
-      }
+      // Load sparklines asynchronously without blocking the main UI
+      fetchSparklines(records.items);
     } catch (error: unknown) {
       toast.error((error as Error).message || "Failed to fetch links");
     } finally {
@@ -84,6 +88,7 @@ export default function LinksManager() {
 
   useEffect(() => {
     fetchLinks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -220,7 +225,8 @@ export default function LinksManager() {
           <p className="text-muted-foreground text-sm mt-1">{links.length} total links</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center bg-surface border border-border p-1 rounded-xl">
+          {/* View Toggle - Hidden on Mobile, only Desktop/Tablet can switch */}
+          <div className="hidden sm:flex items-center bg-surface border border-border p-1 rounded-xl">
             <button 
               onClick={() => setViewMode("bento")} 
               className={`p-1.5 rounded-lg transition-colors ${viewMode === "bento" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"}`}
@@ -275,8 +281,16 @@ export default function LinksManager() {
           <DragDropContext onDragEnd={handleDragEnd}>
             <Droppable droppableId="links-list" isDropDisabled={filtered.length <= 1}>
               {(provided) => (
-                <div {...provided.droppableProps} ref={provided.innerRef} className={viewMode === "bento" ? "grid grid-cols-1 xl:grid-cols-2 gap-4" : "space-y-3"}>
-                  {filtered.map((link, index) => (
+                <div 
+                  {...provided.droppableProps} 
+                  ref={provided.innerRef} 
+                  className={viewMode === "bento" ? "grid grid-cols-1 xl:grid-cols-2 gap-4" : "space-y-3"}
+                >
+                  {filtered.map((link, index) => {
+                    // Force List View for mobile devices regardless of state
+                    const effectiveViewMode = (typeof window !== 'undefined' && window.innerWidth < 640) ? 'list' : viewMode;
+                    
+                    return (
                     <Draggable key={link.id} draggableId={link.id} index={index} isDragDisabled={search.length > 0 || filtered.length <= 1}>
                       {(provided, snapshot) => (
                         <div
@@ -285,11 +299,11 @@ export default function LinksManager() {
                           style={{
                             ...provided.draggableProps.style,
                           }}
-                          className={viewMode === "bento" 
+                          className={effectiveViewMode === "bento" 
                             ? `bento-card p-5 flex flex-col justify-between gap-4 transition-all duration-300 min-h-[160px] ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:shadow-glow'}`
                             : `glass-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-all duration-200 ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:border-accent/20'}`}
                         >
-                          <div className={`flex items-start justify-between gap-3 ${viewMode === 'list' ? 'flex-1 min-w-0' : ''}`}>
+                          <div className={`flex items-start justify-between gap-3 ${effectiveViewMode === 'list' ? 'flex-1 min-w-0' : ''}`}>
                             <div className="flex items-center gap-3 flex-1 min-w-0">
                               <div {...provided.dragHandleProps} className="text-muted-foreground/50 hover:text-foreground cursor-grab active:cursor-grabbing p-1 -ml-2 -mt-2">
                                 <GripVertical className="w-4 h-4" />
@@ -299,8 +313,8 @@ export default function LinksManager() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <span className={`text-sm font-semibold text-accent ${viewMode === 'list' ? 'truncate max-w-[200px]' : 'break-all'}`}>
-                                      {viewMode === 'bento' 
+                                    <span className={`text-sm font-semibold text-accent ${effectiveViewMode === 'list' ? 'truncate max-w-[200px]' : 'break-all'}`}>
+                                      {effectiveViewMode === 'bento' 
                                         ? (`${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`.length > 35 
                                             ? `${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`.substring(0, 35) + "..." 
                                             : `${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`)
@@ -313,9 +327,9 @@ export default function LinksManager() {
                                 </button>
                               </div>
                               <div className="flex items-center gap-2 mt-1">
-                                <span className={`text-xs text-muted-foreground flex items-center gap-1 ${viewMode === 'list' ? 'truncate max-w-[200px]' : 'break-all'}`}>
+                                <span className={`text-xs text-muted-foreground flex items-center gap-1 ${effectiveViewMode === 'list' ? 'truncate max-w-[200px]' : 'break-all'}`}>
                                   <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                                  {viewMode === 'bento'
+                                  {effectiveViewMode === 'bento'
                                     ? (link.destination_url.length > 35 ? link.destination_url.substring(0, 35) + "..." : link.destination_url)
                                     : link.destination_url
                                   }
@@ -324,7 +338,7 @@ export default function LinksManager() {
                               </div>
                             </div>
                             
-                            {viewMode === "bento" && (
+                            {effectiveViewMode === "bento" && (
                               <div className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
                                 <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
                                   <QrCode className="w-4 h-4" />
@@ -338,8 +352,8 @@ export default function LinksManager() {
                               </div>
                             )}
                           </div>
-
-                          {viewMode === "bento" ? (
+ 
+                          {effectiveViewMode === "bento" ? (
                             /* Bento Grid Bottom Section */
                             <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
                               <div className="flex items-center gap-6 ml-2">
@@ -403,7 +417,7 @@ export default function LinksManager() {
                                   <ToggleLeft className="w-8 h-8 text-muted-foreground" />
                                 )}
                               </button>
-
+ 
                               <div className="flex items-center gap-1">
                                 <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
                                   <QrCode className="w-4 h-4" />
@@ -423,7 +437,7 @@ export default function LinksManager() {
                         </div>
                       )}
                     </Draggable>
-                  ))}
+                  )})}
                   {provided.placeholder}
                 </div>
               )}
@@ -431,8 +445,6 @@ export default function LinksManager() {
           </DragDropContext>
         )}
       </div>
-
-      {/* QR Code Modal */}
       {qrModal && (
         <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setQrModal(null)}>
           <div className="bg-surface border border-border rounded-2xl p-8 w-full max-w-sm shadow-2xl text-center space-y-6" onClick={e => e.stopPropagation()}>

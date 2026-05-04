@@ -99,6 +99,129 @@ def repair():
                     print(f"Column created_ip likely exists: {e}")
                 conn.commit()
 
+        # --- HIGHLOAD REFACTOR: Replace analytics_daily view with physical Rollup Table ---
+        cursor.execute("SELECT name, type FROM sqlite_master WHERE name='analytics_daily'")
+        col_type = cursor.fetchone()
+        
+        if col_type and col_type[1] == 'view':
+            print("Found old analytics_daily VIEW. Dropping it to migrate to physical Rollup Table...")
+            cursor.execute("DROP VIEW analytics_daily")
+            # Delete the old _collections record for the view
+            cursor.execute("DELETE FROM _collections WHERE name='analytics_daily'")
+            # Delete any migration records relating to it
+            cursor.execute("DELETE FROM _migrations WHERE file LIKE '%analytics_view%'")
+            conn.commit()
+            col_type = None # Proceed to create physical table
+            
+        # FORCE RECREATE to fix 17-char field ID bug
+        cursor.execute("DROP TABLE IF EXISTS analytics_daily")
+        cursor.execute("DELETE FROM _collections WHERE name='analytics_daily'")
+        conn.commit()
+
+        cursor.execute("SELECT id FROM _collections WHERE name='analytics_daily'")
+        coll_exists = cursor.fetchone()
+
+        if not coll_exists:
+            print("Creating analytics_daily physical Rollup Table...")
+            cursor.execute("SELECT id FROM _collections WHERE name='links'")
+            links_id_row = cursor.fetchone()
+            links_id = links_id_row[0] if links_id_row else "links0000000000"
+            
+            fields_json = [
+                {
+                    "system": False,
+                    "hidden": False,
+                    "primaryKey": False,
+                    "id": "f_link_id",
+                    "name": "link_id",
+                    "type": "relation",
+                    "required": True,
+                    "presentable": False,
+                    "unique": False,
+                    "options": {
+                        "collectionId": links_id,
+                        "cascadeDelete": True,
+                        "minSelect": None,
+                        "maxSelect": 1,
+                        "displayFields": None
+                    }
+                },
+                {
+                    "system": False,
+                    "hidden": False,
+                    "primaryKey": False,
+                    "id": "f_day_000",
+                    "name": "day",
+                    "type": "date",
+                    "required": True,
+                    "presentable": False,
+                    "unique": False,
+                    "options": {"min": "", "max": ""}
+                },
+                {
+                    "system": False,
+                    "hidden": False,
+                    "primaryKey": False,
+                    "id": "f_count_0",
+                    "name": "count",
+                    "type": "number",
+                    "required": True,
+                    "presentable": False,
+                    "unique": False,
+                    "options": {"min": 0, "max": None, "noDecimal": True}
+                }
+            ]
+            
+            # 1. Register in _collections
+            cursor.execute("""
+                INSERT INTO _collections (id, system, type, name, listRule, viewRule, createRule, updateRule, deleteRule, fields, indexes, created, updated)
+                VALUES (
+                    'analyticsdaily0', 0, 'base', 'analytics_daily', 
+                    '@request.auth.id != "" && link_id.user_id = @request.auth.id', 
+                    '@request.auth.id != "" && link_id.user_id = @request.auth.id',
+                    null, null, null,
+                    ?,
+                    '["CREATE UNIQUE INDEX idx_analytics_daily_link_day ON analytics_daily (link_id, day)"]',
+                    datetime('now'), datetime('now')
+                )
+            """, (json.dumps(fields_json, separators=(',', ':')),))
+            
+            # 2. Create the physical SQLite table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS analytics_daily (
+                    id TEXT PRIMARY KEY,
+                    link_id TEXT NOT NULL,
+                    day TEXT NOT NULL,
+                    count REAL NOT NULL DEFAULT 0,
+                    created TEXT NOT NULL,
+                    updated TEXT NOT NULL,
+                    FOREIGN KEY(link_id) REFERENCES links(id) ON DELETE CASCADE
+                )
+            """)
+            
+            # 3. Create unique index for UPSERT
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_analytics_daily_link_day ON analytics_daily (link_id, day)")
+            
+            # 4. Backfill historical data from clicks table (Zero downtime migration)
+            print("Backfilling historical analytics data from clicks...")
+            cursor.execute("""
+                INSERT INTO analytics_daily (id, link_id, day, count, created, updated)
+                SELECT 
+                    lower(hex(randomblob(7))) || 'a' as id, 
+                    link_id, 
+                    date(created) || ' 00:00:00.000Z' as day, 
+                    count(id) as count,
+                    datetime('now'),
+                    datetime('now')
+                FROM clicks 
+                GROUP BY link_id, date(created)
+                ON CONFLICT(link_id, day) DO UPDATE SET count = count + excluded.count
+            """)
+            conn.commit()
+            print("Successfully migrated analytics_daily to a physical table.")
+        else:
+            print("analytics_daily table exists and is healthy.")
+
         # --- BUG-11 FIX: Conditional sync — only fix drifted records, report drift ---
         print("Checking clicks_count drift...")
         cursor.execute("""

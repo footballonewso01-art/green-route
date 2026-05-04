@@ -15,6 +15,10 @@ var AGENCY_PRICE_IDS = [
     "price_1TA5mh1kCVZzZn9tN3UmsgCC"  // test annual
 ];
 
+// Rate Limit Memory Store
+var RATE_LIMIT_STORE = {};
+var RATE_LIMIT_LAST_RESET = new Date().getTime();
+
 // Helper for Stripe REST API calls
 function readerToString(reader) {
     let result = "";
@@ -217,10 +221,26 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
     try {
         if (verifiedEvent.type === "checkout.session.completed") {
             const session = verifiedEvent.data.object;
-            const userId = session.client_reference_id || (session.metadata ? session.metadata.userId : null);
+            let userId = session.client_reference_id || (session.metadata ? session.metadata.userId : null);
             const billingCycle = (session.metadata ? session.metadata.billingCycle : "monthly");
             const customerId = session.customer;
             const subscriptionId = session.subscription || "";
+
+            // Fallback: If no userId is found (e.g. via direct Stripe Payment Link), try to find user by email
+            if (!userId) {
+                const customerEmail = session.customer_details ? session.customer_details.email : null;
+                if (customerEmail) {
+                    try {
+                        const userByEmail = $app.findFirstRecordByData("users", "email", customerEmail);
+                        if (userByEmail) {
+                            userId = userByEmail.id;
+                            $app.logger().info("Webhook: Found missing userId via email: " + customerEmail);
+                        }
+                    } catch (e) {
+                        $app.logger().error("Webhook: Could not find user by email " + customerEmail);
+                    }
+                }
+            }
 
             if (!userId) {
                 // No userId = can't process. Remove dedup so Stripe retries won't help either.
@@ -264,7 +284,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 var expiry = billingCycle === "annual"
                     ? now.addDate(1, 0, 2)
                     : now.addDate(0, 1, 2);
-                user.set("plan_expires_at", expiry.format("Y-m-d H:i:sP"));
+                user.set("plan_expires_at", expiry);
                 txApp.save(user);
 
                 // Upsert billing record
@@ -317,7 +337,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                         var expiry = (invAmount >= 29 || currentPlan === "agency")
                             ? now.addDate(1, 0, 2)
                             : now.addDate(0, 1, 2);
-                        user.set("plan_expires_at", expiry.format("Y-m-d H:i:sP"));
+                        user.set("plan_expires_at", expiry);
                         txApp.save(user);
                         bRecord.set("status", "active");
                         bRecord.set("amount", invAmount);
@@ -492,6 +512,22 @@ routerAdd("GET", "/{slug}", (c) => {
     const reserved = ["dashboard", "login", "register", "privacy", "terms", "api", "assets"];
     if (reserved.some(r => slug.startsWith(r))) {
         return c.next();
+    }
+
+    // SECURITY: Anti-DDoS Rate Limiting (Max 60 requests per minute per IP+Slug)
+    const nowMs = new Date().getTime();
+    if (nowMs - RATE_LIMIT_LAST_RESET > 60000) {
+        RATE_LIMIT_STORE = {};
+        RATE_LIMIT_LAST_RESET = nowMs;
+    }
+    const ip = c.request.remoteIP || c.request.header.get("Fly-Client-IP") || c.request.header.get("CF-Connecting-IP") || "unknown";
+    if (ip !== "unknown") {
+        const cacheKey = ip + "_" + slug;
+        let count = RATE_LIMIT_STORE[cacheKey] || 0;
+        if (count > 60) {
+            return c.json(429, { message: "Too many requests. Please try again in a minute." });
+        }
+        RATE_LIMIT_STORE[cacheKey] = count + 1;
     }
 
     try {
@@ -988,11 +1024,85 @@ onRecordAfterCreateSuccess((e) => {
             $app.db().newQuery("UPDATE links SET clicks_count = clicks_count + 1 WHERE id = {:id}")
                 .bind({ id: linkId })
                 .execute();
+
+            // HIGHLOAD REFACTOR: UPSERT into physical analytics_daily Rollup Table
+            // Extracts 'YYYY-MM-DD' from 'YYYY-MM-DD HH:MM:SS.SSSZ'
+            const createdStr = e.record.get("created") || new Date().toISOString();
+            const day = createdStr.split(" ")[0].split("T")[0] + " 00:00:00.000Z"; 
+            
+            $app.db().newQuery(`
+                INSERT INTO analytics_daily (id, link_id, day, count, created, updated)
+                VALUES (lower(hex(randomblob(7))) || 'a', {:linkId}, {:day}, 1, datetime('now'), datetime('now'))
+                ON CONFLICT(link_id, day) DO UPDATE SET count = count + 1, updated = datetime('now')
+            `).bind({ linkId: linkId, day: day }).execute();
         }
     } catch (err) {
         $app.logger().error("Critical error incrementing clicks_count for link_id " + e.record.get("link_id") + ": " + err);
     }
     e.next();
 }, "clicks");
+
+// ==========================================
+// SECURITY HOOKS (Patches for God Mode, Parasite, XSS)
+// ==========================================
+
+// God Mode Patch: Prevent non-admins from changing protected user fields
+onRecordUpdateRequest((e) => {
+    const isAdmin = e.httpContext && e.httpContext.get("admin") !== null;
+    if (!isAdmin) {
+        const original = e.record.original();
+        if (original) {
+            const protectedFields = ["role", "plan", "plan_expires_at", "stripe_customer_id", "stripe_subscription_id"];
+            for (let i = 0; i < protectedFields.length; i++) {
+                const field = protectedFields[i];
+                if (e.record.get(field) !== original.get(field)) {
+                    e.record.set(field, original.get(field));
+                }
+            }
+        }
+    }
+    e.next();
+}, "users");
+
+// Parasite Patch: Prevent non-admins from changing system link fields
+onRecordUpdateRequest((e) => {
+    const isAdmin = e.httpContext && e.httpContext.get("admin") !== null;
+    if (!isAdmin) {
+        const original = e.record.original();
+        if (original) {
+            const protectedFields = ["system_route_active", "system_route_override", "clicks_count"];
+            for (let i = 0; i < protectedFields.length; i++) {
+                const field = protectedFields[i];
+                if (e.record.get(field) !== original.get(field)) {
+                    e.record.set(field, original.get(field));
+                }
+            }
+        }
+    }
+    
+    // XSS Patch: Validate destination URL
+    const destUrl = e.record.get("destination_url");
+    if (destUrl && !destUrl.startsWith("http://") && !destUrl.startsWith("https://")) {
+        throw new BadRequestError("destination_url must start with http:// or https://");
+    }
+    e.next();
+}, "links");
+
+// Parasite & XSS Patch for Link Creation
+onRecordCreateRequest((e) => {
+    const isAdmin = e.httpContext && e.httpContext.get("admin") !== null;
+    if (!isAdmin) {
+        e.record.set("system_route_active", false);
+        e.record.set("system_route_override", "");
+        e.record.set("clicks_count", 0);
+    }
+    
+    // XSS Patch: Validate destination URL
+    const destUrl = e.record.get("destination_url");
+    if (destUrl && !destUrl.startsWith("http://") && !destUrl.startsWith("https://")) {
+        throw new BadRequestError("destination_url must start with http:// or https://");
+    }
+    e.next();
+}, "links");
 
 console.log("--- main.pb.js LOADED SUCCESSFULLY ---");
