@@ -416,7 +416,10 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
         var session = res.json;
 
         // Safety: ensure this session belongs to this user
-        if (session.client_reference_id !== user.id) {
+        // Allow match by client_reference_id OR by email (for sessions created without userId)
+        var sessionEmail = session.customer_details ? session.customer_details.email : null;
+        var userEmail = user.get("email");
+        if (session.client_reference_id !== user.id && sessionEmail !== userEmail) {
             return c.json(403, { error: "Session does not belong to this user" });
         }
 
@@ -464,7 +467,7 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
             var expiry = billingCycle === "annual"
                 ? now.addDate(1, 0, 2)
                 : now.addDate(0, 1, 2);
-            u.set("plan_expires_at", expiry.format("Y-m-d H:i:sP"));
+            u.set("plan_expires_at", expiry);
             txApp.save(u);
 
             // Upsert billing record
