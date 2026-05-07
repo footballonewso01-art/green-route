@@ -1069,8 +1069,11 @@ onRecordUpdateRequest((e) => {
 
 // Parasite Patch: Prevent non-admins from changing system link fields
 onRecordUpdateRequest((e) => {
-    const isAdmin = e.httpContext && e.httpContext.get("admin") !== null;
-    if (!isAdmin) {
+    const isSuperAdmin = e.httpContext && e.httpContext.get("admin") !== null;
+    const authUser = e.httpContext ? e.httpContext.get("authRecord") : null;
+    const isAppAdmin = authUser && authUser.get("role") === "admin";
+
+    if (!isSuperAdmin && !isAppAdmin) {
         const original = e.record.original();
         if (original) {
             const protectedFields = ["system_route_active", "system_route_override", "clicks_count"];
