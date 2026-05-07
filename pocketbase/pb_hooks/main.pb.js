@@ -783,6 +783,134 @@ routerAdd("POST", "/api/admin/update-route-override", (c) => {
     }
 });
 
+// Promocodes: Validate (Public)
+routerAdd("POST", "/api/promocodes/validate", (c) => {
+    try {
+        const data = new DynamicModel({ "code": "" });
+        c.bindBody(data);
+        const code = data.code ? data.code.trim().toUpperCase() : "";
+        if (!code) throw new BadRequestError("Promocode is required");
+
+        let promo = null;
+        try {
+            promo = $app.findFirstRecordByFilter("promocodes", "code = {:code} && is_active = true", { code: code });
+        } catch (e) {
+            throw new BadRequestError("Invalid or inactive promocode");
+        }
+
+        const maxUses = promo.get("max_uses") || 0;
+        const currentUses = promo.get("current_uses") || 0;
+        if (maxUses > 0 && currentUses >= maxUses) {
+            throw new BadRequestError("This promocode has reached its usage limit");
+        }
+
+        return c.json(200, {
+            valid: true,
+            plan: promo.get("reward_plan"),
+            days: promo.get("reward_days")
+        });
+    } catch (err) {
+        return c.json(400, { valid: false, error: err.message });
+    }
+});
+
+// Promocodes: Apply (Auth required)
+routerAdd("POST", "/api/promocodes/apply", (c) => {
+    try {
+        const user = c.auth;
+        if (!user || user.collection().name !== "users") {
+            return c.json(401, { error: "Unauthorized" });
+        }
+
+        const data = new DynamicModel({ "code": "" });
+        c.bindBody(data);
+        const code = data.code ? data.code.trim().toUpperCase() : "";
+        if (!code) throw new BadRequestError("Promocode is required");
+
+        if (user.get("promocode_used")) {
+            throw new BadRequestError("You have already used a promocode on this account");
+        }
+
+        let promo = null;
+        try {
+            promo = $app.findFirstRecordByFilter("promocodes", "code = {:code} && is_active = true", { code: code });
+        } catch (e) {
+            throw new BadRequestError("Invalid or inactive promocode");
+        }
+
+        const maxUses = promo.get("max_uses") || 0;
+        const currentUses = promo.get("current_uses") || 0;
+        if (maxUses > 0 && currentUses >= maxUses) {
+            throw new BadRequestError("This promocode has reached its usage limit");
+        }
+
+        const rewardPlan = promo.get("reward_plan");
+        const rewardDays = promo.get("reward_days");
+        const currentPlan = user.get("plan") || "creator";
+        
+        // Validation hierarchy: agency > pro > creator
+        const planWeights = { "creator": 0, "pro": 1, "agency": 2 };
+        const currentWeight = planWeights[currentPlan] || 0;
+        const rewardWeight = planWeights[rewardPlan] || 0;
+
+        if (currentWeight > rewardWeight) {
+            throw new BadRequestError("Your current " + currentPlan + " plan is higher than the " + rewardPlan + " reward");
+        }
+        if (currentWeight === rewardWeight && currentPlan !== "creator") {
+            throw new BadRequestError("You already have the " + currentPlan + " plan");
+        }
+
+        $app.runInTransaction((txApp) => {
+            const txUser = txApp.findRecordById("users", user.id);
+            const txPromo = txApp.findRecordById("promocodes", promo.id);
+            
+            // Handle plan fallback if upgrading
+            if (currentPlan !== "creator") {
+                txUser.set("fallback_plan", currentPlan);
+                txUser.set("fallback_expires_at", txUser.get("plan_expires_at"));
+            }
+
+            // Apply new plan
+            txUser.set("plan", rewardPlan);
+            const now = new DateTime();
+            const expiry = now.addDate(0, 0, rewardDays);
+            txUser.set("plan_expires_at", expiry);
+            txUser.set("promocode_used", txPromo.id);
+            txApp.save(txUser);
+
+            // Create billing record
+            const billingColl = txApp.findCollectionByNameOrId("billing");
+            const b = new Record(billingColl, {
+                "user_id": txUser.id,
+                "plan": rewardPlan,
+                "amount": 0,
+                "status": "active",
+                "payment_method": "Free Trial"
+            });
+            txApp.save(b);
+
+            // Update promo count
+            txPromo.set("current_uses", (txPromo.get("current_uses") || 0) + 1);
+            txApp.save(txPromo);
+
+            // Create log
+            const logsColl = txApp.findCollectionByNameOrId("promocode_logs");
+            const log = new Record(logsColl, {
+                "promocode_id": txPromo.id,
+                "user_id": txUser.id,
+                "plan_awarded": rewardPlan,
+                "days_awarded": rewardDays
+            });
+            txApp.save(log);
+        });
+
+        $app.logger().info("Promocode " + code + " applied successfully by user " + user.id);
+        return c.json(200, { success: true, message: "Promocode applied: " + rewardDays + " days of " + rewardPlan + "!" });
+    } catch (err) {
+        return c.json(400, { success: false, error: err.message });
+    }
+});
+
 
 
 // ==========================================
@@ -908,7 +1036,7 @@ onRecordUpdateRequest((e) => {
     e.next();
 }, "users");
 
-// Hourly cron: downgrade expired plans
+// Hourly cron: downgrade expired plans or restore fallback
 cronAdd("check_expired_plans", "0 * * * *", () => {
     const now = new DateTime();
     const nowStr = now.format("Y-m-d H:i:s");
@@ -922,8 +1050,30 @@ cronAdd("check_expired_plans", "0 * * * *", () => {
 
         for (let i = 0; i < records.length; i++) {
             const user = records[i];
-            user.set("plan", "creator");
-            user.set("plan_expires_at", "");
+            const fallbackPlan = user.get("fallback_plan");
+            const fallbackExpires = user.get("fallback_expires_at");
+            
+            let restored = false;
+            if (fallbackPlan && fallbackPlan !== "creator" && fallbackExpires) {
+                const fallbackDateStr = fallbackExpires.toString();
+                if (fallbackDateStr && fallbackDateStr.trim() !== "") {
+                    // Check if fallback date is in the future
+                    const fallbackDate = new Date(fallbackDateStr);
+                    if (fallbackDate > new Date()) {
+                        user.set("plan", fallbackPlan);
+                        user.set("plan_expires_at", new DateTime(fallbackDate));
+                        restored = true;
+                    }
+                }
+            }
+            
+            if (!restored) {
+                user.set("plan", "creator");
+                user.set("plan_expires_at", "");
+            }
+            
+            user.set("fallback_plan", "");
+            user.set("fallback_expires_at", "");
             $app.save(user);
         }
     } catch (err) {
