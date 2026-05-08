@@ -1,11 +1,15 @@
 migrate((app) => {
+    let promoId = "pbc_211886784";
+    let usersId = "_pb_users_auth_";
+
     // 1. Create promocodes collection if it doesn't exist
     try {
-        app.findCollectionByNameOrId("promocodes");
+        const existing = app.findCollectionByNameOrId("promocodes");
+        promoId = existing.id;
     } catch (e) {
         // Collection doesn't exist, create it
         const promocodes = new Collection({
-            id: "pbc_211886784",
+            id: promoId,
             name: "promocodes",
             type: "base",
             system: false,
@@ -161,7 +165,7 @@ migrate((app) => {
                 },
                 {
                     "cascadeDelete": false,
-                    "collectionId": "pbc_211886784",
+                    "collectionId": promoId,
                     "hidden": false,
                     "id": "relation3345745625",
                     "maxSelect": 1,
@@ -174,7 +178,7 @@ migrate((app) => {
                 },
                 {
                     "cascadeDelete": true,
-                    "collectionId": "_pb_users_auth_",
+                    "collectionId": usersId,
                     "hidden": false,
                     "id": "relation2809058197",
                     "maxSelect": 1,
@@ -238,11 +242,11 @@ migrate((app) => {
 
     // 3. Add promocode_used relation to users collection
     const users = app.findCollectionByNameOrId("users");
-    const hasField = users.fields.getById("relation2847107457");
+    const hasField = users.fields.getByName("promocode_used");
     if (!hasField) {
         users.fields.add({
             "cascadeDelete": false,
-            "collectionId": "pbc_211886784",
+            "collectionId": promoId,
             "hidden": false,
             "id": "relation2847107457",
             "maxSelect": 1,
