@@ -469,14 +469,14 @@ export default function CreateLink() {
             </div>
             <p className="text-[10px] text-muted-foreground italic px-1">Large boxes allow for a more prominent display and appear 3x taller.</p>
 
-            {form.size === "large" && (
+            {(
               <div className="mt-4 p-4 rounded-xl border border-border bg-surface/50 space-y-3">
                 <label className="text-sm font-medium text-foreground block flex items-center gap-2">
                   <ImageIcon className="w-4 h-4 text-accent" /> Custom Background Image
                 </label>
                 <div className="flex items-center gap-4">
                   {bgImagePreview ? (
-                    <div className="relative w-32 object-cover aspect-[10/5.4] rounded-lg overflow-hidden border border-border group">
+                    <div className={`relative w-32 object-cover ${form.size === 'large' ? 'aspect-[10/5.4]' : 'aspect-[10/3]'} rounded-lg overflow-hidden border border-border group`}>
                       <img src={bgImagePreview} alt="Background Preview" className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <button
@@ -492,9 +492,9 @@ export default function CreateLink() {
                       </div>
                     </div>
                   ) : (
-                    <div className="w-32 aspect-[10/5.4] rounded-lg border border-dashed border-border bg-background flex flex-col items-center justify-center text-muted-foreground gap-1">
+                    <div className={`w-32 ${form.size === 'large' ? 'aspect-[10/5.4]' : 'aspect-[10/3]'} rounded-lg border border-dashed border-border bg-background flex flex-col items-center justify-center text-muted-foreground gap-1`}>
                       <ImageIcon className="w-5 h-5 opacity-50" />
-                      <span className="text-[10px]">10:5.4</span>
+                      <span className="text-[10px]">{form.size === 'large' ? '10:5.4' : '10:3'}</span>
                     </div>
                   )}
                   <div className="flex-1">
@@ -769,7 +769,7 @@ export default function CreateLink() {
                 image={imageToCrop}
                 crop={crop}
                 zoom={zoom}
-                aspect={10 / 5.4}
+                aspect={form.size === 'large' ? 10 / 5.4 : 10 / 3}
                 onCropChange={setCrop}
                 onZoomChange={setZoom}
                 onCropComplete={handleCropComplete}

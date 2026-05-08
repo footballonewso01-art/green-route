@@ -59,6 +59,7 @@ export default function DashboardProfile() {
   const [bio, setBio] = useState("");
   const [theme, setTheme] = useState(user?.theme || "minimal-dark");
   const [cardColor, setCardColor] = useState(user?.card_color || "#000000");
+  const [onlineCounter, setOnlineCounter] = useState(!!user?.online_counter);
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const canCustomize = checkPlan(userPlan, "profile_customization");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -104,6 +105,7 @@ export default function DashboardProfile() {
       setUsername(user.username || "");
       setBio(user.bio || "");
       if (user.card_color) setCardColor(user.card_color);
+      setOnlineCounter(!!user.online_counter);
       // theme is initialized directly in useState to prevent flashing
       if (user.avatar && user.collectionId) {
         setAvatarPreview(pb.files.getUrl(user as unknown as Record<string, unknown>, user.avatar));
@@ -204,6 +206,7 @@ export default function DashboardProfile() {
         bio,
         theme,
         card_color: cardColor,
+        online_counter: onlineCounter,
         social_links: socialLinks,
       };
 
@@ -588,6 +591,27 @@ export default function DashboardProfile() {
                 style={{ backgroundColor: cardColor }} 
               />
             </div>
+
+            {/* Online Counter Toggle */}
+            <div className="space-y-2 pt-4 border-t border-white/10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium flex items-center gap-2 text-white">
+                    <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span></span>
+                    Online Counter
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Show a live viewer count on your public profile (fake).
+                  </p>
+                </div>
+                <button
+                  onClick={() => setOnlineCounter(!onlineCounter)}
+                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${onlineCounter ? 'bg-accent' : 'bg-border'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${onlineCounter ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Identity Section */}
@@ -624,7 +648,7 @@ export default function DashboardProfile() {
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-1 block">Bio</label>
-              <textarea value={bio} onChange={(e) => setBio(e.target.value)} disabled={!canCustomize} placeholder="Write a short bio..." rows={2} className="w-full px-4 py-2 rounded-xl bg-surface border border-border focus:outline-none input-glow focus:border-accent/50 transition-colors resize-none disabled:opacity-50" />
+              <textarea value={bio} onChange={(e) => { const v = e.target.value; const lines = v.split('\n'); if (lines.length > 3) return; setBio(v); }} onInput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }} ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }} disabled={!canCustomize} placeholder="Write a short bio..." rows={1} className="w-full px-4 py-2 rounded-xl bg-surface border border-border focus:outline-none input-glow focus:border-accent/50 transition-colors resize-none disabled:opacity-50 overflow-hidden" />
             </div>
           </div>
 
@@ -884,7 +908,7 @@ export default function DashboardProfile() {
                   </div>
 
                   {/* Profile Content */}
-                  <div className="px-5 -mt-10 relative">
+                  <div className="px-4 -mt-14 relative">
                     <div className="text-center space-y-1">
                       <h4 className="text-2xl font-black tracking-tight text-white drop-shadow-lg">{name || "Your Name"}</h4>
                       <p className="text-muted-foreground text-xs font-medium tracking-wide">@{username || "username"}</p>
@@ -901,10 +925,24 @@ export default function DashboardProfile() {
                       </div>
                     )}
 
-                    {/* Bio */}
-                    <div className="mt-2 text-center">
-                      <p className="text-white text-xs leading-relaxed max-w-[240px] mx-auto">{bio || "Your bio will appear here..."}</p>
-                    </div>
+                    {bio && (
+                      <div className="mt-2 text-center">
+                        <p className="text-white text-xs leading-relaxed max-w-[240px] mx-auto whitespace-pre-line line-clamp-3">{bio || "Your bio will appear here..."}</p>
+                      </div>
+                    )}
+
+                    {/* Online Counter Preview */}
+                    {onlineCounter && (
+                      <div className="mt-3 flex items-center justify-center gap-2">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                        </span>
+                        <span className="text-[10px] font-medium tracking-wide text-white/50">
+                          <span className="font-bold text-white/70">342</span> people are currently watching this
+                        </span>
+                      </div>
+                    )}
 
                     {/* Dynamic Links */}
                     <div className="w-full mt-5 space-y-3">
@@ -912,14 +950,14 @@ export default function DashboardProfile() {
                         <div className="text-center text-white/40 text-sm italic mt-10">No visible links yet.</div>
                       ) : (
                         profileLinks.map((link) => {
-                          const bgImageUrl = (link.size === 'large' && link.bg_image)
+                          const bgImageUrl = link.bg_image
                             ? pb.files.getUrl(link, link.bg_image)
                             : null;
 
                           return (
-                            <div key={link.id} className={`w-full rounded-2xl bg-[#111] border border-white/5 hover:bg-[#161616] hover:border-white/20 transition-all group cursor-pointer shadow-lg shadow-black/5 relative overflow-hidden flex ${link.size === 'large' ? 'flex-col p-3 aspect-[10/6] sm:aspect-[10/5.4]' : 'h-[40px] items-center justify-center'}`}>
+                            <div key={link.id} className={`w-full rounded-2xl bg-[#111] border border-white/5 hover:bg-[#161616] hover:border-white/20 transition-all group cursor-pointer shadow-lg shadow-black/5 relative overflow-hidden flex ${link.size === 'large' ? 'flex-col p-3 aspect-[10/6] sm:aspect-[10/5.4]' : 'h-[40px] items-center justify-center px-1'}`}>
 
-                              {/* Large Size Background Map */}
+                              {/* Custom Background */}
                               {bgImageUrl && (
                                 <>
                                   <img
@@ -927,7 +965,7 @@ export default function DashboardProfile() {
                                     alt="Background"
                                     className="absolute inset-0 w-full h-full object-cover z-0 transition-transform duration-700 group-hover:scale-105"
                                   />
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20 z-0" />
+                                  <div className={`absolute inset-0 z-0 ${link.size === 'large' ? 'bg-gradient-to-t from-black/90 via-black/40 to-black/20' : 'bg-black/50'}`} />
                                 </>
                               )}
 

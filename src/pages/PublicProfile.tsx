@@ -1,10 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { ExternalLink, Globe, Loader2 } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { IconRenderer } from '@/components/icons/IconRenderer';
 import { checkPlan } from "@/lib/plans";
+
+/** Returns true if a hex color is perceptually light (text on top should be dark). */
+function isLightColor(hex: string): boolean {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  // Perceived brightness formula (ITU-R BT.709)
+  return (r * 0.299 + g * 0.587 + b * 0.114) > 150;
+}
 
 interface ProfileData {
   id: string;
@@ -15,6 +25,7 @@ interface ProfileData {
   full_avatar_url?: string;
   custom_theme_bg?: string;
   card_color?: string;
+  online_counter?: boolean;
   social_links?: { id: string; url: string; icon_type: string; icon_value: string }[];
 }
 
@@ -54,6 +65,35 @@ const SOCIAL_PLATFORMS = [
   { key: 'spotify', pattern: /spotify\.com|open\.spotify/i, icon: '🎧', label: 'Spotify' },
 ];
 
+function OnlineCounter({ cardColor }: { cardColor: string }) {
+  const base = useMemo(() => Math.floor(Math.random() * (387 - 318 + 1)) + 318, []);
+  const [count, setCount] = useState(base);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCount(prev => {
+        const delta = Math.floor(Math.random() * 11) - 5;
+        return Math.max(318, Math.min(387, prev + delta));
+      });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const light = isLightColor(cardColor);
+
+  return (
+    <div className="mt-4 flex items-center justify-center gap-2">
+      <span className="relative flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+      </span>
+      <span className={`text-xs font-medium tracking-wide ${light ? 'text-black/50' : 'text-white/50'}`}>
+        <span className={`font-bold ${light ? 'text-black/70' : 'text-white/70'}`}>{count}</span> people are currently watching this
+      </span>
+    </div>
+  );
+}
+
 export default function PublicProfile() {
   const { username } = useParams();
   const [profile, setProfile] = useState<(ProfileData & { plan?: string }) | null>(null);
@@ -76,6 +116,7 @@ export default function PublicProfile() {
           full_avatar_url: userRecord.avatar ? pb.files.getUrl(userRecord, userRecord.avatar) : undefined,
           custom_theme_bg: userRecord.custom_theme_bg ? pb.files.getUrl(userRecord, userRecord.custom_theme_bg) : undefined,
           card_color: userRecord.card_color || "#000000",
+          online_counter: !!userRecord.online_counter,
           social_links: Array.isArray(userRecord.social_links) ? userRecord.social_links : [],
           plan: userRecord.plan || "creator",
         });
@@ -174,7 +215,7 @@ export default function PublicProfile() {
         </div >
 
         {/* Profile Content */}
-        <div className="px-5 pb-16 -mt-10 relative flex-1 flex flex-col">
+        <div className="px-4 pb-16 -mt-16 relative flex-1 flex flex-col">
           <div className="text-center space-y-1">
             <h1 className="text-3xl font-black tracking-tight text-white drop-shadow-lg">
               {profile.name}
@@ -206,14 +247,21 @@ export default function PublicProfile() {
           }
 
           {/* Bio */}
-          <div className="mt-3 text-center px-3">
-            <p className="text-white text-sm leading-relaxed max-w-[280px] mx-auto">
-              {profile.bio}
-            </p>
-          </div>
+          {profile.bio && (
+            <div className="mt-3 text-center px-3">
+              <p className={`text-sm leading-relaxed max-w-[280px] mx-auto whitespace-pre-line line-clamp-3 ${isLightColor(profile.card_color || '#000000') ? 'text-black/80' : 'text-white'}`}>
+                {profile.bio}
+              </p>
+            </div>
+          )}
+
+          {/* Online Counter */}
+          {profile.online_counter && (
+            <OnlineCounter cardColor={profile.card_color || '#000000'} />
+          )}
 
           {/* Links Section */}
-          <div className="mt-6 space-y-3.5">
+          <div className="mt-6 space-y-3">
             {links.length === 0 ? (
               <div className="text-center p-10 rounded-2xl border border-white/5 bg-white/5 backdrop-blur-sm">
                 <Globe className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
@@ -221,7 +269,7 @@ export default function PublicProfile() {
               </div>
             ) : (
               links.map((link) => {
-                const bgImageUrl = (link.size === 'large' && link.bg_image)
+                const bgImageUrl = link.bg_image
                   ? pb.files.getUrl(link, link.bg_image)
                   : null;
 
@@ -231,9 +279,9 @@ export default function PublicProfile() {
                     href={`/${link.slug}?ref=profile`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`group relative block w-full bg-[#111] hover:bg-[#161616] border border-white/5 hover:border-accent/30 rounded-2xl transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${link.size === 'large' ? 'aspect-[10/6] sm:aspect-[10/4.3]' : 'py-[14px] px-4'}`}
+                    className={`group relative block w-full bg-[#111] hover:bg-[#161616] rounded-2xl transition-all duration-300 hover:-translate-y-0.5 overflow-hidden will-change-transform isolate ${link.size === 'large' ? 'aspect-[10/6] sm:aspect-[10/4.3]' : 'py-[14px] px-5'}`}
                   >
-                    {/* Size Large Custom Background */}
+                    {/* Custom Background */}
                     {bgImageUrl && (
                       <>
                         <img
@@ -241,12 +289,12 @@ export default function PublicProfile() {
                           alt="Background"
                           className="absolute inset-0 w-full h-full object-cover z-0 transition-transform duration-700 group-hover:scale-105"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20 z-0" />
+                        <div className={`absolute inset-0 z-0 ${link.size === 'large' ? 'bg-gradient-to-t from-black/90 via-black/40 to-black/20' : 'bg-black/50'}`} />
                       </>
                     )}
 
                     <div className={`relative z-10 flex ${link.size === 'large' ? 'flex-col h-full p-5 justify-between' : 'items-center justify-center min-h-[40px]'}`}>
-                      <div className={`${link.size === 'large' ? 'shrink-0 self-start' : 'absolute left-0 shrink-0'} w-11 h-11 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center overflow-hidden group-hover:bg-accent/20 transition-colors shadow-lg`}>
+                      <div className={`${link.size === 'large' ? 'shrink-0 self-start' : 'absolute left-0 shrink-0'} w-11 h-11 rounded-xl ${bgImageUrl ? 'bg-white/20 backdrop-blur-md' : 'bg-white/10'} flex items-center justify-center overflow-hidden group-hover:bg-accent/20 transition-colors shadow-lg`}>
                         <IconRenderer
                           type={link.icon_type}
                           value={link.icon_value}
@@ -275,21 +323,21 @@ export default function PublicProfile() {
           <div className="mt-auto pt-16 flex flex-col items-center gap-6 pb-8 justify-end flex-grow">
             {!checkPlan(profile.plan, "remove_branding") && (
               <div className="text-center mt-auto">
-                <a href="/" className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground/50 hover:text-white transition-colors group">
+                <a href="/" className={`inline-flex items-center gap-1.5 text-[10px] transition-colors group ${isLightColor(profile.card_color || '#000000') ? 'text-black/40 hover:text-black' : 'text-muted-foreground/50 hover:text-white'}`}>
                   <span className="uppercase tracking-widest font-medium translate-y-[1px]">Powered by</span>
                   <span className="font-black flex items-center gap-1 group-hover:opacity-100">
-                    <img src="/logo.webp" alt="Linktery" className="h-6 w-auto grayscale mix-blend-screen opacity-80 group-hover:opacity-100 transition-opacity" />
-                    <span className="uppercase tracking-tighter text-[11px] text-white/80 group-hover:text-white translate-y-[0.5px]">Linktery</span>
+                    <img src="/logo.webp" alt="Linktery" className={`h-6 w-auto opacity-80 group-hover:opacity-100 transition-opacity ${isLightColor(profile.card_color || '#000000') ? 'invert' : 'grayscale mix-blend-screen'}`} />
+                    <span className={`uppercase tracking-tighter text-[11px] translate-y-[0.5px] ${isLightColor(profile.card_color || '#000000') ? 'text-black/70 group-hover:text-black' : 'text-white/80 group-hover:text-white'}`}>Linktery</span>
                   </span>
                 </a>
               </div>
             )}
 
             {/* Legal Links */}
-            <div className="flex items-center gap-3 text-[10px] uppercase font-bold tracking-widest text-white/20 relative z-50">
-              <a href="/privacy" className="hover:text-white/60 transition-colors pointer-events-auto">Privacy Policy</a>
+            <div className={`flex items-center gap-3 text-[10px] uppercase font-bold tracking-widest relative z-50 ${isLightColor(profile.card_color || '#000000') ? 'text-black/20' : 'text-white/20'}`}>
+              <a href="/privacy" className={`transition-colors pointer-events-auto ${isLightColor(profile.card_color || '#000000') ? 'hover:text-black/60' : 'hover:text-white/60'}`}>Privacy Policy</a>
               <span>|</span>
-              <a href="/terms" className="hover:text-white/60 transition-colors pointer-events-auto">Terms & Conditions</a>
+              <a href="/terms" className={`transition-colors pointer-events-auto ${isLightColor(profile.card_color || '#000000') ? 'hover:text-black/60' : 'hover:text-white/60'}`}>Terms & Conditions</a>
             </div>
           </div>
         </div >

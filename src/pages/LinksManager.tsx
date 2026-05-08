@@ -22,6 +22,7 @@ interface LinkItem {
   icon_value?: string;
   size?: "regular" | "large";
   bg_image?: string;
+  domain?: string;
 }
 
 export default function LinksManager() {
@@ -39,27 +40,43 @@ export default function LinksManager() {
     if (linksList.length === 0) return;
     try {
       const userId = pb.authStore.model?.id;
+      if (!userId) return;
+
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const analyticsRes = await pb.collection('analytics_daily').getList(1, 1000, {
-        filter: `link_id.user_id="${userId}" && day >= "${sevenDaysAgo.toISOString().split('T')[0]}"`,
-        sort: 'day'
-      });
+      const filter = `link_id.user_id="${userId}" && created >= "${sevenDaysAgo.toISOString()}"`;
 
-      // Build sparklines array (7 items representing 7 days)
+      // Paginate to collect ALL clicks (not capped at 5000)
+      const allItems: { link_id: string; created: string }[] = [];
+      let page = 1;
+      const perPage = 500;
+      let hasMore = true;
+      while (hasMore) {
+        const res = await pb.collection('clicks').getList(page, perPage, {
+          filter,
+          fields: 'link_id,created',
+          sort: 'created',
+          requestKey: null,
+        });
+        allItems.push(...(res.items as unknown as { link_id: string; created: string }[]));
+        hasMore = res.totalPages > page;
+        page++;
+      }
+
       const sparks: Record<string, number[]> = {};
       linksList.forEach(link => { sparks[link.id] = [0,0,0,0,0,0,0]; });
-      
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
 
-      analyticsRes.items.forEach((row: { link_id: string, count: number, day: string }) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      allItems.forEach(row => {
         if (sparks[row.link_id]) {
-          const rowDate = new Date(row.day);
+          const rowDate = new Date(row.created);
+          rowDate.setHours(0, 0, 0, 0);
           const diffDays = Math.floor((today.getTime() - rowDate.getTime()) / (1000 * 3600 * 24));
-          const safeDiff = Math.max(0, Math.min(6, diffDays));
-          const idx = 6 - safeDiff;
-          sparks[row.link_id][idx] += row.count;
+          if (diffDays >= 0 && diffDays <= 6) {
+            sparks[row.link_id][6 - diffDays]++;
+          }
         }
       });
       setSparklines(sparks);

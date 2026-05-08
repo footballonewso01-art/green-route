@@ -81,52 +81,80 @@ export default function AdminOverview() {
             const currentPeriodStart = subDays(now, daysToFetch);
             const prevPeriodStart = subDays(now, daysToFetch * 2);
             const sinceDate = format(prevPeriodStart, "yyyy-MM-dd HH:mm:ss");
+            const currentSinceDate = format(currentPeriodStart, "yyyy-MM-dd HH:mm:ss");
 
-            // Safe fetch: returns [] on failure so one broken collection doesn't crash the dashboard
-            const safeFetch = async (collection: string, opts: any = {}) => {
-                try {
-                    return await pb.collection(collection).getFullList({ requestKey: null, ...opts });
-                } catch (e) {
-                    console.warn(`[AdminOverview] Failed to fetch "${collection}":`, e);
-                    return [];
-                }
-            };
+            // ── Parallel fetches with minimal field selection ──
+            const [
+                usersRes,
+                linksRes,
+                billingRes,
+                analyticsRes,
+            ] = await Promise.all([
+                // Users: only fields needed for metrics
+                pb.collection("users").getFullList({
+                    fields: 'id,created,plan,plan_status,username',
+                    sort: '-created',
+                    requestKey: null,
+                }).catch(() => []),
 
-            // For clicks: use getList with a cap to avoid fetching 100k+ records via auto-pagination
-            const safeClicksFetch = async () => {
-                try {
-                    const result = await pb.collection("clicks").getList(1, 2000, {
-                        sort: "-created",
-                        filter: `created > "${sinceDate}"`,
-                        requestKey: null
-                    });
-                    return { items: result.items, totalItems: result.totalItems };
-                } catch (e) {
-                    console.warn('[AdminOverview] Failed to fetch "clicks":', e);
-                    return { items: [], totalItems: 0 };
-                }
-            };
+                // Links: only id, user_id, clicks_count for Top Creators
+                pb.collection("links").getFullList({
+                    fields: 'id,user_id,clicks_count',
+                    requestKey: null,
+                }).catch(() => []),
 
-            const [users, links, billing, clicksResult, analytics] = await Promise.all([
-                safeFetch("users", { sort: "-created" }),
-                safeFetch("links"),
-                safeFetch("billing"),
-                safeClicksFetch(),
-                safeFetch("analytics_events", { sort: "-created", filter: `created > "${sinceDate}"` })
+                // Billing: only what we need
+                pb.collection("billing").getFullList({
+                    fields: 'id,created,status,amount',
+                    requestKey: null,
+                }).catch(() => []),
+
+                // Analytics events (full fetch with minimal fields for accurate DAU/MAU)
+                pb.collection("analytics_events").getFullList({
+                    sort: '-created',
+                    filter: `created > "${sinceDate}"`,
+                    fields: 'id,created,event_name,user_id,metadata',
+                    requestKey: null,
+                }).catch(() => []),
             ]);
 
-            const clicks = clicksResult.items;
+            // Clicks: use unique requestKeys to prevent SDK auto-cancellation
+            let clicksTotalCurrent = 0;
+            let clicksTotalPrev = 0;
+            try {
+                const curRes = await pb.collection("clicks").getList(1, 1, {
+                    filter: `created > "${currentSinceDate}"`,
+                    requestKey: 'admin-clicks-current',
+                });
+                clicksTotalCurrent = curRes.totalItems;
+            } catch (e) {
+                console.warn("[AdminOverview] Current clicks fetch failed:", e);
+            }
+            try {
+                const prevRes = await pb.collection("clicks").getList(1, 1, {
+                    filter: `created > "${sinceDate}" && created <= "${currentSinceDate}"`,
+                    requestKey: 'admin-clicks-prev',
+                });
+                clicksTotalPrev = prevRes.totalItems;
+            } catch (e) {
+                console.warn("[AdminOverview] Previous clicks fetch failed:", e);
+            }
 
-            // Metrics Calculation
+            const users = usersRes as any[];
+            const links = linksRes as any[];
+            const billing = billingRes as any[];
+            const analytics = Array.isArray(analyticsRes) ? analyticsRes as any[] : (analyticsRes as any).items || [];
+
+            // ── Metrics ──
             const paidUsers = users.filter(u => u.plan !== 'creator' && u.plan_status === 'active');
             const totalRevenue = billing.filter(b => b.status === 'success').reduce((acc, b) => acc + (b.amount || 0), 0);
             const mrr = paidUsers.reduce((acc, u) => acc + (u.plan === 'pro' ? 9.99 : u.plan === 'agency' ? 29.99 : 0), 0);
             const arpu = paidUsers.length > 0 ? mrr / paidUsers.length : 0;
 
-            const dauUsers = new Set(analytics.filter(e => isAfter(new Date(e.created), subHours(now, 24))).map(e => e.user_id));
-            const mauUsers = new Set(analytics.filter(e => isAfter(new Date(e.created), subDays(now, 30))).map(e => e.user_id));
+            const dauUsers = new Set(analytics.filter((e: any) => isAfter(new Date(e.created), subHours(now, 24))).map((e: any) => e.user_id));
+            const mauUsers = new Set(analytics.filter((e: any) => isAfter(new Date(e.created), subDays(now, 30))).map((e: any) => e.user_id));
 
-            // Trend helper
+            // ── Trends ──
             const getTrend = (current: number, previous: number) => {
                 if (previous === 0) return current > 0 ? 100 : 0;
                 return Math.round(((current - previous) / previous) * 100);
@@ -138,29 +166,27 @@ export default function AdminOverview() {
             const currentRev = billing.filter(b => b.status === 'success' && isAfter(new Date(b.created), currentPeriodStart)).reduce((acc, b) => acc + b.amount, 0);
             const previousRev = billing.filter(b => b.status === 'success' && isAfter(new Date(b.created), prevPeriodStart) && !isAfter(new Date(b.created), currentPeriodStart)).reduce((acc, b) => acc + b.amount, 0);
 
-            // Clicks in Period
-            const currentClicks = clicks.filter(c => isAfter(new Date(c.created), currentPeriodStart));
-            const previousClicks = clicks.filter(c => isAfter(new Date(c.created), prevPeriodStart) && !isAfter(new Date(c.created), currentPeriodStart));
+            const currentClicksCount = clicksTotalCurrent;
+            const previousClicksCount = clicksTotalPrev;
 
-            // Funnel Stats Calculation
+            // ── Funnel ──
+            const currentAnalytics = analytics.filter((e: any) => isAfter(new Date(e.created), currentPeriodStart));
             const currentLandingViews = new Set(
-                analytics.filter(e => e.event_name === 'landing_pageview' && isAfter(new Date(e.created), currentPeriodStart))
-                .map(e => e.metadata?.deviceId || e.id)
+                currentAnalytics.filter((e: any) => e.event_name === 'landing_pageview').map((e: any) => e.metadata?.deviceId || e.id)
             ).size;
-            
             const currentSignups = currentUsers.length;
-            const currentActiveIds = new Set(analytics.filter(e => isAfter(new Date(e.created), currentPeriodStart) && e.user_id && e.user_id !== '').map(e => e.user_id));
+            const currentActiveIds = new Set(currentAnalytics.filter((e: any) => e.user_id && e.user_id !== '').map((e: any) => e.user_id));
             const currentPaidSignups = currentUsers.filter(u => u.plan !== 'creator' && u.plan_status === 'active').length;
-
             const convRate = currentLandingViews > 0 ? (currentPaidSignups / currentLandingViews) * 100 : 0;
+
+            const prevAnalytics = analytics.filter((e: any) => !isAfter(new Date(e.created), currentPeriodStart));
             const prevLandingViews = new Set(
-                analytics.filter(e => e.event_name === 'landing_pageview' && isAfter(new Date(e.created), prevPeriodStart) && !isAfter(new Date(e.created), currentPeriodStart))
-                .map(e => e.metadata?.deviceId || e.id)
+                prevAnalytics.filter((e: any) => e.event_name === 'landing_pageview').map((e: any) => e.metadata?.deviceId || e.id)
             ).size;
             const prevPaidSignups = previousUsers.filter(u => u.plan !== 'creator' && u.plan_status === 'active').length;
             const prevConvRate = prevLandingViews > 0 ? (prevPaidSignups / prevLandingViews) * 100 : 0;
 
-            // Churn (30d)
+            // Churn
             const cancelledLast30 = billing.filter(b => (b.status === 'refunded' || b.status === 'cancelled') && isAfter(new Date(b.created), subDays(now, 30))).length;
             const churnRate = paidUsers.length > 0 ? (cancelledLast30 / paidUsers.length) * 100 : 0;
 
@@ -176,106 +202,111 @@ export default function AdminOverview() {
                 arpu,
                 conversionRate: convRate,
                 churnRate,
-                totalClicksInPeriod: clicksResult.totalItems,
+                totalClicksInPeriod: currentClicksCount,
                 trends: {
                     users: getTrend(currentUsers.length, previousUsers.length),
                     revenue: getTrend(currentRev, previousRev),
-                    dau: getTrend(dauUsers.size, new Set(analytics.filter(e => isAfter(new Date(e.created), subHours(now, 48)) && !isAfter(new Date(e.created), subHours(now, 24))).map(e => e.user_id)).size),
+                    dau: getTrend(dauUsers.size, new Set(analytics.filter((e: any) => isAfter(new Date(e.created), subHours(now, 48)) && !isAfter(new Date(e.created), subHours(now, 24))).map((e: any) => e.user_id)).size),
                     conversion: getTrend(convRate, prevConvRate),
-                    clicks: getTrend(currentClicks.length, previousClicks.length)
+                    clicks: getTrend(currentClicksCount, previousClicksCount)
                 }
             });
 
-            // Pulse list: Last 10 events
-            setPulseEvents(analytics.filter(e => e.event_name !== 'active_session').slice(0, 10));
+            // ── Pulse ──
+            setPulseEvents(analytics.filter((e: any) => e.event_name !== 'active_session').slice(0, 10));
 
-            // Growth Chart Generation
+            // ── Growth Chart (O(N) bucketing instead of O(N*D) filtering) ──
+            const chartDays = timeRange === '24h' ? 1 : timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
+            const userBuckets = new Array(chartDays).fill(0);
+            const revBuckets = new Array(chartDays).fill(0);
+
+            users.forEach(u => {
+                const diff = differenceInDays(now, new Date(u.created));
+                if (diff >= 0 && diff < chartDays) userBuckets[chartDays - 1 - diff]++;
+            });
+            billing.filter(b => b.status === 'success').forEach(b => {
+                const diff = differenceInDays(now, new Date(b.created));
+                if (diff >= 0 && diff < chartDays) revBuckets[chartDays - 1 - diff] += (b.amount || 0);
+            });
+
+            // Convert buckets to cumulative chart points
+            let cumulativeUsers = users.filter(u => differenceInDays(now, new Date(u.created)) >= chartDays).length;
+            let cumulativeRev = billing.filter(b => b.status === 'success' && differenceInDays(now, new Date(b.created)) >= chartDays).reduce((a, b) => a + (b.amount || 0), 0);
             const chartPoints = [];
-            const chartDaysToFetch = timeRange === '24h' ? 1 : timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
-
-            for (let i = chartDaysToFetch - 1; i >= 0; i--) {
-                const day = subDays(now, i);
-                const dayStr = format(day, timeRange === '24h' ? 'HH:00' : 'MMM dd');
-
+            for (let i = 0; i < chartDays; i++) {
+                cumulativeUsers += userBuckets[i];
+                cumulativeRev += revBuckets[i];
+                const day = subDays(now, chartDays - 1 - i);
                 chartPoints.push({
-                    name: dayStr,
-                    users: users.filter(u => differenceInDays(now, new Date(u.created)) <= i).length,
-                    revenue: billing.filter(b => b.status === 'success' && differenceInDays(now, new Date(b.created)) <= i).reduce((acc, b) => acc + (b.amount || 0), 0)
+                    name: format(day, timeRange === '24h' ? 'HH:00' : 'MMM dd'),
+                    users: cumulativeUsers,
+                    revenue: cumulativeRev,
                 });
             }
             setGrowthData(chartPoints);
- 
-            // DAU Chart Generation (Separate logic for engagement)
-            const dauPoints = [];
-            for (let i = chartDaysToFetch - 1; i >= 0; i--) {
-                const day = subDays(now, i);
-                const dayMatch = format(day, "yyyy-MM-dd");
-                
-                // For 'all' range, we might need a broader check, but usually it's limited to 90 days in chartPoints
-                const dailyActive = new Set(
-                    analytics.filter(e => e.created.startsWith(dayMatch) && e.user_id && e.user_id !== '')
-                             .map(e => e.user_id)
-                ).size;
 
+            // ── DAU Chart (O(N) bucketing) ──
+            const dauBuckets: Record<string, Set<string>> = {};
+            for (let i = 0; i < chartDays; i++) {
+                dauBuckets[format(subDays(now, i), "yyyy-MM-dd")] = new Set();
+            }
+            analytics.forEach((e: any) => {
+                if (!e.user_id || e.user_id === '') return;
+                const dayKey = e.created.substring(0, 10);
+                if (dauBuckets[dayKey]) dauBuckets[dayKey].add(e.user_id);
+            });
+            const dauPoints = [];
+            for (let i = chartDays - 1; i >= 0; i--) {
+                const day = subDays(now, i);
+                const key = format(day, "yyyy-MM-dd");
                 dauPoints.push({
                     name: format(day, timeRange === '24h' ? 'HH:00' : 'MMM dd'),
-                    dau: dailyActive
+                    dau: dauBuckets[key]?.size || 0,
                 });
             }
             setDauData(dauPoints);
 
-            // Plan Pie Chart — users with empty/null/undefined plan count as Creator
+            // ── Plan Pie ──
             const proCount = users.filter(u => u.plan === 'pro').length;
             const agencyCount = users.filter(u => u.plan === 'agency').length;
-            const creatorCount = users.length - proCount - agencyCount;
             setPlanData([
-                { name: 'Creator', value: creatorCount },
+                { name: 'Creator', value: users.length - proCount - agencyCount },
                 { name: 'Pro', value: proCount },
                 { name: 'Agency', value: agencyCount },
             ]);
 
-            // Top Creators: count total clicks per user via their links
-            // Group links by user_id first
-            const linksByUser: Record<string, any[]> = {};
+            // ── Top Creators (ZERO extra API calls — uses links.clicks_count) ──
+            const clicksByUser: Record<string, number> = {};
             links.forEach((l: any) => {
-                if (l.user_id) {
-                    if (!linksByUser[l.user_id]) linksByUser[l.user_id] = [];
-                    linksByUser[l.user_id].push(l);
-                }
+                if (l.user_id) clicksByUser[l.user_id] = (clicksByUser[l.user_id] || 0) + (l.clicks_count || 0);
             });
-
-            // For each user, count total clicks across all their links using API totalItems
-            const userClickCounts: { userId: string; count: number }[] = [];
-            const clickCountPromises = Object.entries(linksByUser).map(async ([userId, userLinks]) => {
-                try {
-                    // Build filter for all link IDs belonging to this user
-                    const linkIds = userLinks.map((l: any) => l.id);
-                    const filterParts = linkIds.map((id: string) => `link_id="${id}"`);
-                    const filter = `(${filterParts.join('||')})`;
-                    const result = await pb.collection("clicks").getList(1, 1, {
-                        filter,
-                        requestKey: null
-                    });
-                    userClickCounts.push({ userId, count: result.totalItems });
-                } catch { /* skip user on error */ }
-            });
-            await Promise.all(clickCountPromises);
-
-            const topUsers = userClickCounts
-                .sort((a, b) => b.count - a.count)
+            const topUsers = Object.entries(clicksByUser)
+                .sort(([,a], [,b]) => b - a)
                 .slice(0, 5)
-                .map(({ userId, count }) => {
+                .map(([userId, count]) => {
                     const u = users.find((u: any) => u.id === userId);
                     return { id: userId, username: u?.username || 'Unknown', count, plan: u?.plan || 'creator' };
                 });
             setTopCreators(topUsers);
 
-            // Traffic Data for period
-            const countries: Record<string, number> = {};
-            currentClicks.forEach(c => { if (c.country && c.country.trim() !== "") countries[c.country] = (countries[c.country] || 0) + 1; else countries["Unknown"] = (countries["Unknown"] || 0) + 1 });
-            setTrafficData(Object.entries(countries).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5));
+            // ── Traffic Data (from capped clicks sample) ──
+            // Fetch a sample of recent clicks with country field for geo breakdown
+            try {
+                const trafficSample = await pb.collection("clicks").getList(1, 500, {
+                    filter: `created > "${currentSinceDate}"`,
+                    fields: 'country',
+                    sort: '-created',
+                    requestKey: null,
+                });
+                const countries: Record<string, number> = {};
+                trafficSample.items.forEach((c: any) => {
+                    const key = c.country?.trim() || 'Unknown';
+                    countries[key] = (countries[key] || 0) + 1;
+                });
+                setTrafficData(Object.entries(countries).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5));
+            } catch { setTrafficData([]); }
 
-            // New Funnel Stats: landing -> register -> active -> paid
+            // ── Funnel ──
             setConversionEvents([
                 { name: 'Landing Visitors', value: currentLandingViews, color: '#3b82f6' },
                 { name: 'Signups', value: currentSignups, color: '#10b981' },

@@ -11,6 +11,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [promocode, setPromocode] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -44,8 +45,31 @@ export default function RegisterPage() {
       toast.error("You must agree to the Privacy Policy and Terms & Conditions");
       return;
     }
+    
     setLoading(true);
+
     try {
+      // 1. Pre-validate promocode if provided
+      const trimmedPromo = promocode.trim();
+      if (trimmedPromo) {
+        try {
+          const res = await pb.send("/api/promocodes/validate", {
+            method: "POST",
+            body: { code: trimmedPromo }
+          });
+          if (!res.valid) {
+            toast.error(res.error || "Invalid promocode");
+            setLoading(false);
+            return;
+          }
+        } catch (err: any) {
+          toast.error(err?.response?.message || err?.response?.error || "Invalid promocode");
+          setLoading(false);
+          return; // Stop registration
+        }
+      }
+
+      // 2. Register user
       const generatedUsername = await generateUniqueUsername(email);
 
       await pb.collection('users').create({
@@ -56,7 +80,25 @@ export default function RegisterPage() {
         username: generatedUsername,
       });
       await pb.collection('users').authWithPassword(email, password);
-      toast.success("Account created successfully!");
+      
+      // 3. Apply promocode after successful registration
+      if (trimmedPromo) {
+        try {
+          const applyRes = await pb.send("/api/promocodes/apply", {
+            method: "POST",
+            body: { code: trimmedPromo }
+          });
+          if (applyRes.success) {
+            toast.success(applyRes.message);
+          }
+        } catch (err) {
+          console.error("Failed to apply promocode after registration", err);
+          // Don't fail the whole registration if promo applying fails somehow
+        }
+      } else {
+        toast.success("Account created successfully!");
+      }
+      
       navigate("/dashboard");
     } catch (error: unknown) {
       toast.error(parseAuthError(error, "register"));
@@ -172,6 +214,22 @@ export default function RegisterPage() {
               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">
+              Promocode <span className="text-muted-foreground font-normal">(Optional)</span>
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={promocode}
+                onChange={(e) => setPromocode(e.target.value.toUpperCase())}
+                className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors uppercase"
+                placeholder="Promo"
+              />
+              <Zap className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             </div>
           </div>
 

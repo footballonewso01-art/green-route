@@ -29,6 +29,7 @@ import AdminOverview from "./pages/admin/AdminOverview";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminUserProfile from "./pages/admin/AdminUserProfile";
 import AdminLinks from "./pages/admin/AdminLinks";
+import AdminPromocodes from "./pages/admin/AdminPromocodes";
 
 import RedirectHandler from "./pages/RedirectHandler";
 
@@ -77,7 +78,7 @@ function AmbientBackground() {
     <div className="fixed inset-0 overflow-hidden pointer-events-none z-[-1]">
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-accent/10 blur-[120px] animate-pulse" style={{ animationDuration: '8s' }} />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-500/10 blur-[120px] animate-pulse" style={{ animationDuration: '12s' }} />
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay"></div>
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E')] opacity-[0.03] mix-blend-overlay"></div>
     </div>
   );
 }
@@ -129,6 +130,7 @@ const AppRoutes = () => (
       <Route path="users" element={<AdminUsers />} />
       <Route path="users/:id" element={<AdminUserProfile />} />
       <Route path="links" element={<AdminLinks />} />
+      <Route path="promocodes" element={<AdminPromocodes />} />
     </Route>
 
     {/* Short Link Redirector - Catch all other usernames/slugs */}

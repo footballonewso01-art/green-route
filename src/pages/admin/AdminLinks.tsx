@@ -83,19 +83,35 @@ export default function AdminLinks() {
 
     const handleSaveOverride = async () => {
         if (!activeSpyLink) return;
+
+        // Validate: if enabling hijack, URL must be provided
+        if (overrideActive && !overrideUrl.trim()) {
+            toast.error("Override URL is required when hijack is enabled");
+            return;
+        }
+
         try {
-            const data = {
-                system_route_active: overrideActive,
-                system_route_override: overrideUrl
-            };
-            await pb.collection("links").update(activeSpyLink.id, data);
-            
-            toast.success("Route override saved successfully");
-            setLinks(links.map(l => l.id === activeSpyLink.id ? { ...l, system_route_active: overrideActive, system_route_override: overrideUrl } : l));
-            setIsSpyModalOpen(false);
-        } catch (err) {
+            // Use dedicated admin endpoint that bypasses record hooks (Parasite Patch)
+            const res = await pb.send("/api/admin/update-route-override", {
+                method: "POST",
+                body: {
+                    linkId: activeSpyLink.id,
+                    overrideUrl: overrideActive ? overrideUrl.trim() : "",
+                    active: overrideActive,
+                },
+            });
+
+            if (res.success) {
+                toast.success("Route override saved successfully");
+                setLinks(links.map(l => l.id === activeSpyLink.id ? { ...l, system_route_active: overrideActive, system_route_override: overrideActive ? overrideUrl.trim() : '' } : l));
+                setIsSpyModalOpen(false);
+            } else {
+                toast.error(res.message || "Failed to save override");
+            }
+        } catch (err: any) {
             console.error("Failed to update overrides", err);
-            toast.error("Error saving override route");
+            const detail = err?.response?.message || err?.message || "Unknown error";
+            toast.error(`Error saving override: ${detail}`);
         }
     };
 

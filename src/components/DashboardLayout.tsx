@@ -83,6 +83,7 @@ export default function DashboardLayout() {
       { title: "Overview", path: "/admin/overview", icon: BarChart3, badge: { text: "Admin", color: "bg-red-500/20 text-red-500" } },
       { title: "Users", path: "/admin/users", icon: Users, badge: { text: "Admin", color: "bg-red-500/20 text-red-500" } },
       { title: "Links Safety", path: "/admin/links", icon: LinkIcon, badge: { text: "Admin", color: "bg-red-500/20 text-red-500" } },
+      { title: "Promocodes", path: "/admin/promocodes", icon: Zap, badge: { text: "Admin", color: "bg-red-500/20 text-red-500" } },
     ]
   };
 

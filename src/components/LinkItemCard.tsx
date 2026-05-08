@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { LinkItem } from "@/pages/DashboardProfile"; // We need to export this or move it
+import Cropper from "react-easy-crop";
+import { LinkItem } from "@/pages/DashboardProfile"; 
 import { GripVertical, Edit, Trash2, ExternalLink, Loader2, Save, Upload } from "lucide-react";
 import { IconRenderer } from "@/components/icons/IconRenderer";
 import { IconPicker } from "@/components/icons/IconPicker";
@@ -7,6 +8,7 @@ import { DraggableProvided, DraggableStateSnapshot } from "@hello-pangea/dnd";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { urlSchema } from "@/lib/validations";
+import { getCroppedImg } from "@/utils/cropImage";
 
 interface LinkItemCardProps {
     link: LinkItem;
@@ -33,6 +35,48 @@ export const LinkItemCard = React.memo(({ link, provided, snapshot, onUpdate, on
     );
     const [editBgImageRemoved, setEditBgImageRemoved] = useState(false);
 
+    // Cropping states
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+    const [showCropModal, setShowCropModal] = useState(false);
+    const [cropSourceImage, setCropSourceImage] = useState<string | null>(null);
+
+    const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    };
+
+    const handleCropSave = async () => {
+    if (editBgImagePreview && croppedAreaPixels) {
+        // Generate cropped image data URL
+        const croppedUrl = await getCroppedImg(editBgImagePreview, croppedAreaPixels);
+        // Convert data URL to Blob/File for upload handling
+        const dataUrlToFile = (dataurl: string, filename: string): File => {
+            const arr = dataurl.split(',');
+            const mime = arr[0].match(/:(.*?);/)?.[1] ?? 'image/jpeg';
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new File([u8arr], filename, { type: mime });
+        };
+        const file = dataUrlToFile(croppedUrl, 'cropped-bg.jpg');
+        setEditBgImagePreview(croppedUrl);
+        setEditBgImageFile(file);
+        setShowCropModal(false);
+    }
+};
+
+    const handleCropCancel = () => {
+        setShowCropModal(false);
+        setCropSourceImage(null);
+        // Clear the upload since crop was not confirmed
+        setEditBgImagePreview(null);
+        setEditBgImageFile(null);
+    };
+
     const startEditing = () => {
         setEditTitle(link.title || "");
         setEditUrl(link.destination_url || "");
@@ -51,8 +95,6 @@ export const LinkItemCard = React.memo(({ link, provided, snapshot, onUpdate, on
     };
 
     const cancelEditing = () => {
-        // If it's a completely new, unsaved link and user cancels, maybe we should delete it? 
-        // That logic was handled in parent before. We'll just reset state and exit edit mode.
         setEditTitle(link.title || "");
         setEditUrl(link.destination_url || "");
         setIsEditing(false);
@@ -145,48 +187,55 @@ export const LinkItemCard = React.memo(({ link, provided, snapshot, onUpdate, on
                             </button>
                         </div>
 
-                        {/* Custom Background upload for Large size */}
-                        {editSize === "large" && (
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Custom Background</label>
-                                {editBgImagePreview && !editBgImageRemoved ? (
-                                    <div className="relative w-full h-16 rounded-lg overflow-hidden border border-border">
-                                        <img src={editBgImagePreview} alt="BG Preview" className="w-full h-full object-cover" />
-                                        <button
-                                            type="button"
-                                            onClick={() => { setEditBgImageRemoved(true); setEditBgImageFile(null); setEditBgImagePreview(null); }}
-                                            className="absolute top-1 right-1 w-5 h-5 bg-red-500/80 hover:bg-red-500 rounded flex items-center justify-center transition-colors"
-                                        >
-                                            <Trash2 className="w-3 h-3 text-white" />
-                                        </button>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Custom Background</label>
+                            {editBgImagePreview && !editBgImageRemoved ? (
+                                <div className={`relative w-full bg-[#111] border border-white/5 rounded-2xl overflow-hidden ${editSize === 'large' ? 'aspect-[10/3.9]' : 'py-[14px] px-5'}`}>
+                                    <img src={editBgImagePreview} alt="Background preview" className="absolute inset-0 w-full h-full object-cover z-0" />
+                                    <div className={`absolute inset-0 z-[1] ${editSize === 'large' ? 'bg-gradient-to-t from-black/90 via-black/40 to-black/20' : 'bg-black/50'}`} />
+                                    <div className={`relative z-10 flex w-full ${editSize === 'large' ? 'flex-col h-full p-5 justify-between' : 'items-center justify-center min-h-[40px]'}`}>
+                                        <span className={`font-bold text-white uppercase tracking-wider ${editSize === 'large' ? 'mt-auto text-sm text-center w-full drop-shadow-lg' : 'text-xs text-center w-full'}`}>{editTitle || "Link Title"}</span>
                                     </div>
-                                ) : (
-                                    <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border hover:border-accent/50 cursor-pointer transition-colors">
-                                        <Upload className="w-4 h-4 text-muted-foreground" />
-                                        <span className="text-[10px] text-muted-foreground">Upload image</span>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            className="hidden"
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) {
-                                                    if (file.size > 5 * 1024 * 1024) {
-                                                        toast.error("Background image must be less than 5MB");
-                                                        return;
-                                                    }
-                                                    setEditBgImageFile(file);
-                                                    setEditBgImageRemoved(false);
-                                                    const reader = new FileReader();
-                                                    reader.onloadend = () => setEditBgImagePreview(reader.result as string);
-                                                    reader.readAsDataURL(file);
+                                    <button
+                                        type="button"
+                                        onClick={() => { setEditBgImageRemoved(true); setEditBgImageFile(null); setEditBgImagePreview(null); }}
+                                        className="absolute top-1.5 right-1.5 w-5 h-5 bg-red-500/80 hover:bg-red-500 rounded flex items-center justify-center transition-colors z-20"
+                                    >
+                                        <Trash2 className="w-3 h-3 text-white" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border hover:border-accent/50 cursor-pointer transition-colors">
+                                    <Upload className="w-4 h-4 text-muted-foreground" />
+                                    <span className="text-[10px] text-muted-foreground">Upload image</span>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                if (file.size > 5 * 1024 * 1024) {
+                                                    toast.error("Background image must be less than 5MB");
+                                                    return;
                                                 }
-                                            }}
-                                        />
-                                    </label>
-                                )}
-                            </div>
-                        )}
+                                                setEditBgImageRemoved(false);
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => {
+                                                    const dataUrl = reader.result as string;
+                                                    setCropSourceImage(dataUrl);
+                                                    setEditBgImagePreview(dataUrl);
+                                                    setCrop({ x: 0, y: 0 });
+                                                    setZoom(1);
+                                                    setShowCropModal(true);
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                    />
+                                </label>
+                            )}
+                        </div>
 
                         <div className="flex gap-2 justify-end pt-1">
                             <button onClick={cancelEditing} className="text-xs text-muted-foreground hover:text-white">Cancel</button>
@@ -194,6 +243,48 @@ export const LinkItemCard = React.memo(({ link, provided, snapshot, onUpdate, on
                                 {editLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Save
                             </button>
                         </div>
+
+                        {/* Crop Modal Overlay */}
+                        {showCropModal && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={handleCropCancel}>
+                                <div className="bg-surface rounded-xl p-4 max-w-md w-full" onClick={e => e.stopPropagation()}>
+                                    <div style={{ position: 'relative', width: '100%', height: 300 }}>
+                                        <Cropper
+                                            image={cropSourceImage || editBgImagePreview!}
+                                            crop={crop}
+                                            zoom={zoom}
+                                            aspect={editSize === 'large' ? 10 / 4.3 : 10 / 3}
+                                            onCropChange={setCrop}
+                                            onZoomChange={setZoom}
+                                            onCropComplete={onCropComplete}
+                                        />
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min={1}
+                                        max={3}
+                                        step={0.1}
+                                        value={zoom}
+                                        onChange={e => setZoom(Number(e.target.value))}
+                                        className="w-full mt-2"
+                                    />
+                                    <div className="flex gap-2 mt-2 justify-end">
+                                        <button
+                                            onClick={handleCropCancel}
+                                            className="px-3 py-1 rounded bg-background text-muted-foreground hover:bg-accent/10 hover:text-accent"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleCropSave}
+                                            className="px-3 py-1 rounded bg-accent text-white hover:bg-accent/80"
+                                        >
+                                            Save
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="flex-1 min-w-0">

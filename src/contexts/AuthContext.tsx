@@ -16,6 +16,7 @@ interface User {
   card_color: string;
   username_last_changed: string;
   plan: string;
+  online_counter: boolean;
   role?: string;
 }
 
@@ -62,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           card_color: parsed.model.card_color || '#000000',
           username_last_changed: parsed.model.username_last_changed || '',
           plan: parsed.model.plan,
+          online_counter: !!parsed.model.online_counter,
           role: parsed.model.role || 'user',
         };
       } catch (e) {
@@ -114,6 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           card_color: model.card_color || '#000000',
           username_last_changed: model.username_last_changed || '',
           plan: model.plan,
+          online_counter: !!model.online_counter,
           role: model.role || 'user',
         };
         setUser(updatedUser);
@@ -221,6 +224,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       card_color: (userData.card_color as string) || '#000000',
       username_last_changed: (userData.username_last_changed as string) || '',
       plan: userData.plan as string,
+      online_counter: !!(userData.online_counter),
       role: (userData.role as string) || 'user',
     });
   };

@@ -79,7 +79,7 @@ const fireTrackingPixels = (link: Record<string, any>): Promise<void> => {
 export default function RedirectHandler() {
     const { username } = useParams();
     const navigate = useNavigate();
-    const [status, setStatus] = useState<"loading" | "verifying" | "error" | "deeplink" | "profile">("loading");
+    const [status, setStatus] = useState<"loading" | "verifying" | "error" | "deeplink" | "profile" | "blocked">("loading");
     const [error, setError] = useState<string | null>(null);
     const [destination, setDestination] = useState<string>("");
     const redirected = useRef(false);
@@ -87,16 +87,23 @@ export default function RedirectHandler() {
     // ── bfcache handler: if the page is restored from cache, re-resolve ──
     useEffect(() => {
         const handlePageShow = (e: PageTransitionEvent) => {
-            if (e.persisted) {
-                // Page was restored from bfcache after user hit Back
-                // Reset everything and re-resolve
-                redirected.current = false;
-                setStatus("loading");
+            if (e.persisted && username) {
+                // Safeguard against infinite bfcache restoration loops
+                const attemptKey = `redirect_attempts_${username}`;
+                const attempts = parseInt(sessionStorage.getItem(attemptKey) || '0', 10);
+                
+                if (attempts < 3) {
+                    redirected.current = false;
+                    setStatus("loading");
+                } else {
+                    console.warn("Too many bfcache restorations, ignoring.");
+                    setStatus("blocked");
+                }
             }
         };
         window.addEventListener("pageshow", handlePageShow);
         return () => window.removeEventListener("pageshow", handlePageShow);
-    }, []);
+    }, [username]);
 
     // ── Track click — returns a promise that resolves when the click is saved ──
     // NOTE (BUG-01): Double-tracking is architecturally prevented:
@@ -224,6 +231,13 @@ export default function RedirectHandler() {
 
                 // Profile takes priority if no active link found
                 if (!link && userProfile) {
+                    // If accessed from an alternate domain, redirect to main domain
+                    const MAIN_DOMAIN = "linktery.com";
+                    const hostname = window.location.hostname;
+                    if (hostname !== MAIN_DOMAIN && hostname !== 'localhost' && !hostname.includes('vercel.app')) {
+                        window.location.replace(`https://${MAIN_DOMAIN}/${username}`);
+                        return;
+                    }
                     setStatus("profile");
                     return;
                 }
@@ -326,6 +340,14 @@ export default function RedirectHandler() {
                 }
 
                 setDestination(finalDestination);
+
+                const attemptKey = `redirect_attempts_${username}`;
+                const attempts = parseInt(sessionStorage.getItem(attemptKey) || '0', 10);
+                if (attempts >= 3) {
+                    setStatus("blocked");
+                    return;
+                }
+                sessionStorage.setItem(attemptKey, (attempts + 1).toString());
 
                 // Step 3: Track click, then redirect
                 if (link.mode === 'direct' && isInApp) {
@@ -430,6 +452,47 @@ export default function RedirectHandler() {
             <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
                 <Loader2 className="w-12 h-12 text-accent animate-spin mb-4" />
                 <p className="text-muted-foreground text-sm animate-pulse">Loading destination...</p>
+            </div>
+        );
+    }
+
+    if (status === "blocked") {
+        return (
+            <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center animate-fade-in">
+                <div className="relative mb-8">
+                    <div className="absolute inset-0 bg-destructive/20 blur-3xl rounded-full animate-pulse" />
+                    <div className="relative w-24 h-24 rounded-[2rem] bg-surface border border-destructive/30 flex items-center justify-center shadow-xl shadow-destructive/10">
+                        <MoreVertical className="w-10 h-10 text-destructive animate-pulse" />
+                    </div>
+                </div>
+
+                <div className="space-y-4 mb-8 max-w-sm">
+                    <h1 className="text-2xl font-bold text-foreground">Manual Open Required</h1>
+                    <p className="text-muted-foreground text-sm leading-relaxed">
+                        Instagram is blocking this link from opening automatically. You must open it manually using your system browser.
+                    </p>
+                </div>
+
+                <div className="w-full max-w-sm">
+                    <div className="bg-surface/80 border-2 border-accent/50 rounded-2xl p-6 text-left space-y-5 shadow-lg shadow-accent/5 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-accent/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
+                        
+                        <p className="text-sm font-bold text-accent uppercase tracking-wider flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
+                            Required Steps:
+                        </p>
+                        
+                        <div className="flex items-start gap-4">
+                            <div className="w-8 h-8 rounded-full bg-background border-2 border-accent/30 flex items-center justify-center text-sm font-bold text-foreground flex-shrink-0">1</div>
+                            <p className="text-sm text-foreground pt-1">Tap the <span className="inline-flex items-center gap-1 bg-surface-hover px-2 py-1 rounded-md border border-border font-medium"><MoreVertical className="w-4 h-4" /> menu</span> icon in the top right corner.</p>
+                        </div>
+                        
+                        <div className="flex items-start gap-4">
+                            <div className="w-8 h-8 rounded-full bg-background border-2 border-accent/30 flex items-center justify-center text-sm font-bold text-foreground flex-shrink-0">2</div>
+                            <p className="text-sm text-foreground pt-1">Select <span className="font-bold text-accent bg-accent/10 px-2 py-1 rounded-md">"Open in Browser"</span> or <span className="font-bold text-accent bg-accent/10 px-2 py-1 rounded-md">"Open in Chrome/Safari"</span>.</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     }

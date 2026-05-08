@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lock, Globe, Key, ChevronRight } from "lucide-react";
+import { Lock, Globe, Key, ChevronRight, Zap, CheckCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { checkPlan } from "@/lib/plans";
 import { UpgradeModal } from "@/components/UpgradeModal";
@@ -8,14 +8,14 @@ import { pb } from "@/lib/pocketbase";
 import { Loader2 } from "lucide-react";
 
 const tabs = [
-  { id: "password", label: "Password", icon: Lock, limit: null },
+  { id: "account", label: "Account", icon: Lock, limit: null },
   { id: "domains", label: "Domains", icon: Globe, limit: "custom_domain", comingSoon: true },
   { id: "api", label: "API Keys", icon: Key, limit: "team_access", comingSoon: true },
 ];
 
 export default function SettingsPage() {
-  const { user } = useAuth();
-  const [active, setActive] = useState("password");
+  const { user, login } = useAuth(); // assuming login or a refresh method is available, if not we can use authRefresh directly
+  const [active, setActive] = useState("account");
   const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; feature: string; description: string; planNeeded?: "pro" | "agency" }>({ open: false, feature: "", description: "" });
 
   const [oldPassword, setOldPassword] = useState("");
@@ -23,7 +23,11 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loadingPassword, setLoadingPassword] = useState(false);
 
+  const [promocode, setPromocode] = useState("");
+  const [loadingPromocode, setLoadingPromocode] = useState(false);
+
   const userPlan = (user as { plan?: string })?.plan || "creator";
+  const hasUsedPromocode = !!(user as any)?.promocode_used;
 
   const handleTabClick = (tab: typeof tabs[0]) => {
     if (tab.comingSoon) {
@@ -51,6 +55,35 @@ export default function SettingsPage() {
         description: description,
         planNeeded: "agency"
       });
+    }
+  };
+
+  const handleApplyPromocode = async () => {
+    const code = promocode.trim();
+    if (!code) {
+      toast.error("Please enter a promocode");
+      return;
+    }
+
+    setLoadingPromocode(true);
+    try {
+      const res = await pb.send("/api/promocodes/apply", {
+        method: "POST",
+        body: { code }
+      });
+      if (res.success) {
+        toast.success(res.message);
+        // Refresh auth state to get updated plan and promocode_used
+        await pb.collection("users").authRefresh();
+        // The auth context listener should automatically update the user state
+      } else {
+        toast.error(res.message || "Failed to apply promocode");
+      }
+    } catch (err: any) {
+      console.error("Promocode apply error:", err);
+      toast.error(err?.response?.message || err?.response?.error || err?.message || "Failed to apply promocode");
+    } finally {
+      setLoadingPromocode(false);
     }
   };
 
@@ -147,43 +180,88 @@ export default function SettingsPage() {
         {/* Decorative background element */}
         <div className="absolute -right-20 -top-20 w-64 h-64 bg-accent/5 rounded-full blur-[100px] pointer-events-none"></div>
 
-        {active === "password" && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-foreground">Change Password</h2>
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Current Password</label>
-              <input
-                type="password"
-                value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
-              />
+        {active === "account" && (
+          <div className="space-y-8 relative z-10">
+            {/* Promocode Section */}
+            <div className="space-y-4 pb-6 border-b border-border/50">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Zap className="w-5 h-5 text-accent" />
+                Promocode
+              </h2>
+              
+              {hasUsedPromocode ? (
+                <div className="flex items-center justify-between p-4 rounded-xl border border-accent/20 bg-accent/5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5 text-accent" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">Promocode Activated</p>
+                      <p className="text-sm text-muted-foreground">You have already claimed your trial reward.</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground mb-3">Have a promo code? Enter it below!</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={promocode}
+                      onChange={(e) => setPromocode(e.target.value.toUpperCase())}
+                      className="flex-1 px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors uppercase"
+                      placeholder="ENTER CODE"
+                    />
+                    <button
+                      onClick={handleApplyPromocode}
+                      disabled={loadingPromocode || !promocode.trim()}
+                      className="btn-primary-glow text-sm !py-2 flex items-center gap-2 min-w-[100px] justify-center"
+                    >
+                      {loadingPromocode ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply Code"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">New Password</label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
-              />
+
+            {/* Change Password Section */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-foreground">Change Password</h2>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Current Password</label>
+                <input
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Confirm New Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
+                />
+              </div>
+              <button
+                onClick={handleUpdatePassword}
+                disabled={loadingPassword}
+                className="btn-primary-glow text-sm !py-2 flex items-center gap-2"
+              >
+                {loadingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : "Update Password"}
+              </button>
             </div>
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Confirm New Password</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
-              />
-            </div>
-            <button
-              onClick={handleUpdatePassword}
-              disabled={loadingPassword}
-              className="btn-primary-glow text-sm !py-2 flex items-center gap-2"
-            >
-              {loadingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : "Update Password"}
-            </button>
           </div>
         )}
 
