@@ -19,6 +19,7 @@ var AGENCY_PRICE_IDS = [
 var RATE_LIMIT_STORE = {};
 var RATE_LIMIT_LAST_RESET = new Date().getTime();
 
+
 // Helper for Stripe REST API calls
 function readerToString(reader) {
     let result = "";
@@ -786,6 +787,22 @@ routerAdd("POST", "/api/admin/update-route-override", (c) => {
 // Promocodes: Validate (Public)
 routerAdd("POST", "/api/promocodes/validate", (c) => {
     try {
+        const ip = c.realIP();
+        const limitKey = "rl_" + ip;
+        let rlData = $app.store().get(limitKey);
+        const now = new Date().getTime();
+        
+        if (!rlData || now - rlData.reset > 60000) {
+            rlData = { reqs: 0, reset: now };
+        }
+        
+        if (rlData.reqs >= 10) {
+            return c.json(429, { valid: false, error: "Too many requests. Please try again later." });
+        }
+        
+        rlData.reqs += 1;
+        $app.store().set(limitKey, rlData);
+
         const data = new DynamicModel({ "code": "" });
         c.bindBody(data);
         const code = data.code ? data.code.trim().toUpperCase() : "";
@@ -807,7 +824,7 @@ routerAdd("POST", "/api/promocodes/validate", (c) => {
         return c.json(200, {
             valid: true,
             plan: promo.get("reward_plan"),
-            days: promo.get("reward_days")
+            days: parseInt(promo.get("reward_days")) || 0
         });
     } catch (err) {
         return c.json(400, { valid: false, error: err.message });
@@ -817,6 +834,22 @@ routerAdd("POST", "/api/promocodes/validate", (c) => {
 // Promocodes: Apply (Auth required)
 routerAdd("POST", "/api/promocodes/apply", (c) => {
     try {
+        const ip = c.realIP();
+        const limitKey = "rl_" + ip;
+        let rlData = $app.store().get(limitKey);
+        const now = new Date().getTime();
+        
+        if (!rlData || now - rlData.reset > 60000) {
+            rlData = { reqs: 0, reset: now };
+        }
+        
+        if (rlData.reqs >= 10) {
+            return c.json(429, { success: false, error: "Too many requests. Please try again later." });
+        }
+        
+        rlData.reqs += 1;
+        $app.store().set(limitKey, rlData);
+
         const user = c.auth;
         if (!user || user.collection().name !== "users") {
             return c.json(401, { error: "Unauthorized" });
@@ -845,25 +878,39 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
         }
 
         const rewardPlan = promo.get("reward_plan");
-        const rewardDays = promo.get("reward_days");
-        const currentPlan = user.get("plan") || "creator";
+        const rewardDays = parseInt(promo.get("reward_days")) || 0;
         
-        // Validation hierarchy: agency > pro > creator
-        const planWeights = { "creator": 0, "pro": 1, "agency": 2 };
-        const currentWeight = planWeights[currentPlan] || 0;
-        const rewardWeight = planWeights[rewardPlan] || 0;
-
-        if (currentWeight > rewardWeight) {
-            throw new BadRequestError("Your current " + currentPlan + " plan is higher than the " + rewardPlan + " reward");
-        }
-        if (currentWeight === rewardWeight && currentPlan !== "creator") {
-            throw new BadRequestError("You already have the " + currentPlan + " plan");
-        }
+        let txMessage = "";
 
         $app.runInTransaction((txApp) => {
             const txUser = txApp.findRecordById("users", user.id);
             const txPromo = txApp.findRecordById("promocodes", promo.id);
             
+            // STRICT RACE CONDITION CHECKS
+            if (txUser.get("promocode_used")) {
+                throw new BadRequestError("You have already used a promocode on this account");
+            }
+
+            const txMaxUses = txPromo.get("max_uses") || 0;
+            const txCurrentUses = txPromo.get("current_uses") || 0;
+            if (txMaxUses > 0 && txCurrentUses >= txMaxUses) {
+                throw new BadRequestError("This promocode has reached its usage limit");
+            }
+
+            const currentPlan = txUser.get("plan") || "creator";
+            
+            // Validation hierarchy: agency > pro > creator
+            const planWeights = { "creator": 0, "pro": 1, "agency": 2 };
+            const currentWeight = planWeights[currentPlan] || 0;
+            const rewardWeight = planWeights[rewardPlan] || 0;
+
+            if (currentWeight > rewardWeight) {
+                throw new BadRequestError("Your current " + currentPlan + " plan is higher than the " + rewardPlan + " reward");
+            }
+            if (currentWeight === rewardWeight && currentPlan !== "creator") {
+                throw new BadRequestError("You already have the " + currentPlan + " plan");
+            }
+
             // Handle plan fallback if upgrading
             if (currentPlan !== "creator") {
                 txUser.set("fallback_plan", currentPlan);
@@ -885,12 +932,13 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
                 "plan": rewardPlan,
                 "amount": 0,
                 "status": "active",
-                "payment_method": "Free Trial"
+                "payment_method": "Free Trial",
+                "end_date": expiry.string()
             });
             txApp.save(b);
 
             // Update promo count
-            txPromo.set("current_uses", (txPromo.get("current_uses") || 0) + 1);
+            txPromo.set("current_uses", txCurrentUses + 1);
             txApp.save(txPromo);
 
             // Create log
@@ -902,10 +950,12 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
                 "days_awarded": rewardDays
             });
             txApp.save(log);
+            
+            txMessage = "Promocode applied: " + rewardDays + " days of " + rewardPlan + "!";
         });
 
         $app.logger().info("Promocode " + code + " applied successfully by user " + user.id);
-        return c.json(200, { success: true, message: "Promocode applied: " + rewardDays + " days of " + rewardPlan + "!" });
+        return c.json(200, { success: true, message: txMessage });
     } catch (err) {
         return c.json(400, { success: false, error: err.message });
     }
@@ -1262,3 +1312,46 @@ onRecordCreateRequest((e) => {
 }, "links");
 
 console.log("--- main.pb.js LOADED SUCCESSFULLY ---");
+
+routerAdd("GET", "/api/admin/promocodes/{id}/stats", (c) => {
+    try {
+        const admin = c.auth;
+        if (!admin || admin.get("role") !== "admin") {
+            throw new ForbiddenError("Only admins can access this.");
+        }
+        const id = c.request.pathValue("id");
+        
+        const logs = $app.findAllRecords("promocode_logs", $dbx.exp("promocode_id = {:id}", {id: id}));
+        
+        const result = [];
+        for (let i = 0; i < logs.length; i++) {
+            const log = logs[i];
+            let userJson = null;
+            try {
+                const user = $app.findRecordById("users", log.get("user_id"));
+                userJson = {
+                    id: user.id,
+                    username: user.get("username"),
+                    email: user.email(),
+                    avatar: user.get("avatar"),
+                    plan: user.get("plan"),
+                    created: user.get("created")
+                };
+            } catch (err) {}
+            
+            result.push({
+                id: log.id,
+                plan_awarded: log.get("plan_awarded"),
+                created: log.get("created"),
+                user: userJson
+            });
+        }
+        
+        // Sort by created DESC
+        result.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+        
+        return c.json(200, result);
+    } catch (e) {
+        return c.json(500, { error: e.toString(), stack: e.stack });
+    }
+});

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lock, Globe, Key, ChevronRight, Zap, CheckCircle } from "lucide-react";
+import { Lock, Globe, Key, ChevronRight, Gift, CheckCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { checkPlan } from "@/lib/plans";
 import { UpgradeModal } from "@/components/UpgradeModal";
@@ -185,7 +185,7 @@ export default function SettingsPage() {
             {/* Promocode Section */}
             <div className="space-y-4 pb-6 border-b border-border/50">
               <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                <Zap className="w-5 h-5 text-accent" />
+                <Gift className="w-5 h-5 text-accent" />
                 Promocode
               </h2>
               
@@ -209,8 +209,8 @@ export default function SettingsPage() {
                       type="text"
                       value={promocode}
                       onChange={(e) => setPromocode(e.target.value.toUpperCase())}
-                      className="flex-1 px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors uppercase"
-                      placeholder="ENTER CODE"
+                      className="flex-1 px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
+                      placeholder="Enter Code"
                     />
                     <button
                       onClick={handleApplyPromocode}

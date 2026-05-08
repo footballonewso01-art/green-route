@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Zap, Eye, EyeOff } from "lucide-react";
+import { Gift, Eye, EyeOff } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { parseAuthError } from "@/lib/authErrors";
@@ -90,6 +90,8 @@ export default function RegisterPage() {
           });
           if (applyRes.success) {
             toast.success(applyRes.message);
+            // Refresh auth state to get updated plan and promocode_used into AuthContext
+            await pb.collection("users").authRefresh();
           }
         } catch (err) {
           console.error("Failed to apply promocode after registration", err);
@@ -226,10 +228,10 @@ export default function RegisterPage() {
                 type="text"
                 value={promocode}
                 onChange={(e) => setPromocode(e.target.value.toUpperCase())}
-                className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors uppercase"
+                className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
                 placeholder="Promo"
               />
-              <Zap className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Gift className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             </div>
           </div>
 

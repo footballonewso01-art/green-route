@@ -13,6 +13,7 @@ type BillingRecord = {
     status: string;
     payment_method: string;
     created: string;
+    end_date?: string;
 };
 
 export default function BillingPage() {
@@ -86,8 +87,11 @@ export default function BillingPage() {
         });
     };
 
-    const getEndDate = (dateStr: string) => {
-        const d = new Date(dateStr);
+    const getEndDate = (log: BillingRecord) => {
+        if (log.end_date) {
+            return formatDate(log.end_date);
+        }
+        const d = new Date(log.created);
         d.setDate(d.getDate() + 30);
         return d.toLocaleDateString("ru-RU", {
             year: "numeric", month: "short", day: "numeric"
@@ -138,7 +142,7 @@ export default function BillingPage() {
                         </div>
                         <h2 className="text-2xl font-bold text-foreground mb-1">{activePlanDetails.name} Plan</h2>
                         <p className="text-sm text-muted-foreground">
-                            ${activePlanDetails.price}/month • Up to {activePlanDetails.limits.links} smart links
+                            ${activePlanDetails.price}/month • {activePlanDetails.limits.links === -1 ? "Unlimited" : `Up to ${activePlanDetails.limits.links}`} smart links
                         </p>
                     </div>
                 </div>
@@ -213,7 +217,7 @@ export default function BillingPage() {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-muted-foreground">{formatDate(log.created)}</td>
-                                        <td className="px-6 py-4 text-muted-foreground">{getEndDate(log.created)}</td>
+                                        <td className="px-6 py-4 text-muted-foreground">{getEndDate(log)}</td>
                                     </tr>
                                 ))
                             ) : (

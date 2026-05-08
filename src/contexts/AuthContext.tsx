@@ -65,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           plan: parsed.model.plan,
           online_counter: !!parsed.model.online_counter,
           role: parsed.model.role || 'user',
+          promocode_used: parsed.model.promocode_used || '',
         };
       } catch (e) {
         console.error("Failed to parse auth from localStorage:", e);
@@ -118,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           plan: model.plan,
           online_counter: !!model.online_counter,
           role: model.role || 'user',
+          promocode_used: model.promocode_used || '',
         };
         setUser(updatedUser);
 

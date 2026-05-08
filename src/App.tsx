@@ -30,6 +30,7 @@ import AdminUsers from "./pages/admin/AdminUsers";
 import AdminUserProfile from "./pages/admin/AdminUserProfile";
 import AdminLinks from "./pages/admin/AdminLinks";
 import AdminPromocodes from "./pages/admin/AdminPromocodes";
+import AdminPromocodeStats from "./pages/admin/AdminPromocodeStats";
 
 import RedirectHandler from "./pages/RedirectHandler";
 
@@ -131,6 +132,7 @@ const AppRoutes = () => (
       <Route path="users/:id" element={<AdminUserProfile />} />
       <Route path="links" element={<AdminLinks />} />
       <Route path="promocodes" element={<AdminPromocodes />} />
+      <Route path="promocodes/:id" element={<AdminPromocodeStats />} />
     </Route>
 
     {/* Short Link Redirector - Catch all other usernames/slugs */}
