@@ -93,8 +93,9 @@ export default function RegisterPage() {
             // Refresh auth state to get updated plan and promocode_used into AuthContext
             await pb.collection("users").authRefresh();
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error("Failed to apply promocode after registration", err);
+          toast.error(err?.response?.message || err?.response?.error || "Failed to apply promocode. You can try again in Settings.");
           // Don't fail the whole registration if promo applying fails somehow
         }
       } else {

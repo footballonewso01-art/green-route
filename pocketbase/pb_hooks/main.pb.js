@@ -932,8 +932,7 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
                 "plan": rewardPlan,
                 "amount": 0,
                 "status": "active",
-                "payment_method": "Free Trial",
-                "end_date": expiry.string()
+                "payment_method": "Free Trial"
             });
             txApp.save(b);
 
