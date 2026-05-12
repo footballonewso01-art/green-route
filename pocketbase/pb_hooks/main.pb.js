@@ -1249,11 +1249,20 @@ onRecordAfterCreateSuccess((e) => {
 // ==========================================
 
 // God Mode Patch: Prevent non-admins from changing protected user fields
-// Allows: PocketBase superadmins AND app-level admins (role=admin)
+// Allows: PocketBase superadmins (_superusers) AND app-level admins (role=admin)
+// PB v0.24: e.auth is the authenticated record; superadmins are in _superusers collection
 onRecordUpdateRequest((e) => {
-    const isSuperAdmin = e.httpContext && e.httpContext.get("admin") !== null;
-    const authUser = e.httpContext ? e.httpContext.get("authRecord") : null;
-    const isAppAdmin = authUser && authUser.get("role") === "admin";
+    // Check if request comes from a superadmin (_superusers collection)
+    let isSuperAdmin = false;
+    try {
+        isSuperAdmin = e.auth && e.auth.collection().name === "_superusers";
+    } catch(err) { /* e.auth may not have collection() */ }
+
+    // Check if request comes from an app-level admin (users with role=admin)
+    let isAppAdmin = false;
+    try {
+        isAppAdmin = e.auth && e.auth.collection().name === "users" && e.auth.get("role") === "admin";
+    } catch(err) { /* safe fallback */ }
 
     if (!isSuperAdmin && !isAppAdmin) {
         const original = e.record.original();
@@ -1272,9 +1281,15 @@ onRecordUpdateRequest((e) => {
 
 // Parasite Patch: Prevent non-admins from changing system link fields
 onRecordUpdateRequest((e) => {
-    const isSuperAdmin = e.httpContext && e.httpContext.get("admin") !== null;
-    const authUser = e.httpContext ? e.httpContext.get("authRecord") : null;
-    const isAppAdmin = authUser && authUser.get("role") === "admin";
+    let isSuperAdmin = false;
+    try {
+        isSuperAdmin = e.auth && e.auth.collection().name === "_superusers";
+    } catch(err) {}
+
+    let isAppAdmin = false;
+    try {
+        isAppAdmin = e.auth && e.auth.collection().name === "users" && e.auth.get("role") === "admin";
+    } catch(err) {}
 
     if (!isSuperAdmin && !isAppAdmin) {
         const original = e.record.original();
