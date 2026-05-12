@@ -1249,9 +1249,13 @@ onRecordAfterCreateSuccess((e) => {
 // ==========================================
 
 // God Mode Patch: Prevent non-admins from changing protected user fields
+// Allows: PocketBase superadmins AND app-level admins (role=admin)
 onRecordUpdateRequest((e) => {
-    const isAdmin = e.httpContext && e.httpContext.get("admin") !== null;
-    if (!isAdmin) {
+    const isSuperAdmin = e.httpContext && e.httpContext.get("admin") !== null;
+    const authUser = e.httpContext ? e.httpContext.get("authRecord") : null;
+    const isAppAdmin = authUser && authUser.get("role") === "admin";
+
+    if (!isSuperAdmin && !isAppAdmin) {
         const original = e.record.original();
         if (original) {
             const protectedFields = ["role", "plan", "plan_expires_at", "stripe_customer_id", "stripe_subscription_id"];
