@@ -271,7 +271,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             if (lineItems.data && lineItems.data.length > 0) {
                 var price = lineItems.data[0].price;
                 amount = price.unit_amount / 100;
-                if (price.id && AGENCY_PRICE_IDS.indexOf(price.id) !== -1) {
+                var agencyIds = ["price_1T9ojK1kCVZzZn9tmOrvoNOn","price_1TA5kT1kCVZzZn9tAP7AsNjs","price_1TA5ay1kCVZzZn9thZD9Rhsi","price_1TA5mh1kCVZzZn9tN3UmsgCC"];
+            if (price.id && agencyIds.indexOf(price.id) !== -1) {
                     planName = "agency";
                 }
             }
@@ -446,7 +447,8 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
         if (lineItems.data && lineItems.data.length > 0) {
             var price = lineItems.data[0].price;
             amount = price.unit_amount / 100;
-            if (price.id && AGENCY_PRICE_IDS.indexOf(price.id) !== -1) {
+            var agencyIds = ["price_1T9ojK1kCVZzZn9tmOrvoNOn","price_1TA5kT1kCVZzZn9tAP7AsNjs","price_1TA5ay1kCVZzZn9thZD9Rhsi","price_1TA5mh1kCVZzZn9tN3UmsgCC"];
+            if (price.id && agencyIds.indexOf(price.id) !== -1) {
                 planName = "agency";
             }
         }
