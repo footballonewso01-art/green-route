@@ -1407,6 +1407,11 @@ routerAdd("GET", "/api/admin/promocodes/{id}/payments", (c) => {
             for (var j = 0; j < bills.length; j++) {
                 var bill = bills[j];
                 var amount = bill.get("amount") || 0;
+                var method = bill.get("payment_method") || "";
+
+                // Skip free trials and $0 records — only real payments
+                if (amount <= 0 || method === "Free Trial" || method === "Given") continue;
+
                 totalSpend += amount;
 
                 payments.push({
