@@ -1375,3 +1375,67 @@ routerAdd("GET", "/api/admin/promocodes/{id}/stats", (c) => {
         return c.json(500, { error: e.toString(), stack: e.stack });
     }
 });
+
+// Admin: Get payment/billing stats for a specific promocode
+routerAdd("GET", "/api/admin/promocodes/{id}/payments", (c) => {
+    try {
+        var admin = c.auth;
+        if (!admin || admin.get("role") !== "admin") {
+            throw new ForbiddenError("Only admins can access this.");
+        }
+        var promoId = c.request.pathValue("id");
+
+        // Find all users who used this promocode
+        var users = $app.findAllRecords("users", $dbx.exp("promocode_used = {:id}", {id: promoId}));
+
+        var totalSpend = 0;
+        var payments = [];
+
+        for (var i = 0; i < users.length; i++) {
+            var user = users[i];
+            var userId = user.id;
+
+            // Get all billing records for this user, sorted by created ASC
+            var bills = $app.findAllRecords("billing",
+                $dbx.exp("user_id = {:uid}", {uid: userId}),
+                $dbx.orderBy("created", "ASC")
+            );
+
+            for (var j = 0; j < bills.length; j++) {
+                var bill = bills[j];
+                var amount = bill.get("amount") || 0;
+                totalSpend += amount;
+
+                payments.push({
+                    id: bill.id,
+                    user: {
+                        id: user.id,
+                        username: user.get("username"),
+                        email: user.email(),
+                        avatar: user.get("avatar")
+                    },
+                    plan: bill.get("plan"),
+                    amount: amount,
+                    status: bill.get("status"),
+                    payment_method: bill.get("payment_method"),
+                    stripe_subscription_id: bill.get("stripe_subscription_id") || "",
+                    is_first: j === 0,
+                    created: bill.get("created")
+                });
+            }
+        }
+
+        // Sort payments by date DESC (most recent first)
+        payments.sort(function(a, b) {
+            return new Date(b.created).getTime() - new Date(a.created).getTime();
+        });
+
+        return c.json(200, {
+            totalSpend: totalSpend,
+            totalPayments: payments.length,
+            payments: payments
+        });
+    } catch (e) {
+        return c.json(500, { error: e.toString(), stack: e.stack });
+    }
+});

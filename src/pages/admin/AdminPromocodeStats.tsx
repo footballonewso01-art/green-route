@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronLeft, Users, Activity, Calendar, ExternalLink } from "lucide-react";
+import { ChevronLeft, Users, Activity, Calendar, ExternalLink, DollarSign, Receipt, ChevronDown } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { format, isValid } from "date-fns";
@@ -42,12 +42,39 @@ type PromocodeLog = {
   created: string;
 };
 
+type PaymentUser = {
+  id: string;
+  username: string;
+  email: string;
+  avatar: string;
+};
+
+type PaymentRecord = {
+  id: string;
+  user: PaymentUser;
+  plan: string;
+  amount: number;
+  status: string;
+  payment_method: string;
+  is_first: boolean;
+  created: string;
+};
+
+type PaymentsData = {
+  totalSpend: number;
+  totalPayments: number;
+  payments: PaymentRecord[];
+};
+
 export default function AdminPromocodeStats() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [promo, setPromo] = useState<Promocode | null>(null);
   const [logs, setLogs] = useState<PromocodeLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [paymentsData, setPaymentsData] = useState<PaymentsData | null>(null);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
+  const [showPayments, setShowPayments] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -82,6 +109,24 @@ export default function AdminPromocodeStats() {
     fetchData();
   }, [id]);
 
+  // Fetch payments data
+  useEffect(() => {
+    const fetchPayments = async () => {
+      if (!id) return;
+      try {
+        const data = await pb.send(`/api/admin/promocodes/${id}/payments`, {
+          method: 'GET',
+        });
+        setPaymentsData(data as PaymentsData);
+      } catch (err) {
+        console.error("Failed to load payment stats:", err);
+      } finally {
+        setPaymentsLoading(false);
+      }
+    };
+    fetchPayments();
+  }, [id]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -99,7 +144,7 @@ export default function AdminPromocodeStats() {
     );
   }
 
-  const getAvatarUrl = (user: UserData) => {
+  const getAvatarUrl = (user: UserData | PaymentUser) => {
     if (user.avatar) {
       return `${pb.baseUrl}/api/files/users/${user.id}/${user.avatar}`;
     }
@@ -146,15 +191,120 @@ export default function AdminPromocodeStats() {
             <h3 className="text-xl font-bold text-foreground mt-0.5 uppercase">{promo.reward_plan} <span className="text-base font-normal text-muted-foreground lowercase">({promo.reward_days} days)</span></h3>
           </div>
         </div>
+
+        {/* Total Spend KPI */}
         <div className="glass-card p-5 rounded-2xl flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20 shrink-0">
-            <Calendar className="w-6 h-6 text-purple-500" />
+          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shrink-0">
+            <DollarSign className="w-6 h-6 text-emerald-500" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">Total Spend</p>
+            {paymentsLoading ? (
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground mt-1" />
+            ) : (
+              <h3 className="text-2xl font-bold text-emerald-500 mt-0.5">
+                ${paymentsData?.totalSpend?.toFixed(2) || "0.00"}
+              </h3>
+            )}
+          </div>
+        </div>
+
+        <div className="glass-card p-5 rounded-2xl flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20 shrink-0">
+            <Calendar className="w-6 h-6 text-orange-500" />
           </div>
           <div>
             <p className="text-sm font-medium text-muted-foreground">Created</p>
             <h3 className="text-lg font-bold text-foreground mt-0.5">{safeFormat(promo.created, "MMM d, yyyy")}</h3>
           </div>
         </div>
+      </div>
+
+      {/* Payment Logs Section */}
+      <div className="glass-card rounded-2xl overflow-hidden border border-border">
+        <button
+          onClick={() => setShowPayments(!showPayments)}
+          className="w-full p-5 border-b border-border bg-surface/30 flex items-center justify-between hover:bg-surface/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+              <Receipt className="w-5 h-5 text-emerald-500" />
+            </div>
+            <div className="text-left">
+              <h3 className="font-semibold text-foreground text-lg">Payment Logs</h3>
+              <p className="text-sm text-muted-foreground">
+                {paymentsData ? `${paymentsData.totalPayments} payment${paymentsData.totalPayments !== 1 ? 's' : ''} • $${paymentsData.totalSpend.toFixed(2)} total` : 'Loading...'}
+              </p>
+            </div>
+          </div>
+          <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform duration-300 ${showPayments ? 'rotate-180' : ''}`} />
+        </button>
+
+        {showPayments && (
+          <div className="overflow-x-auto animate-in slide-in-from-top-2 duration-200">
+            {paymentsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-accent" />
+              </div>
+            ) : !paymentsData || paymentsData.payments.length === 0 ? (
+              <div className="px-6 py-12 text-center text-muted-foreground italic">
+                No payments from users of this promocode yet.
+              </div>
+            ) : (
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-background/50 text-muted-foreground">
+                  <tr>
+                    <th className="px-6 py-4 font-medium">User</th>
+                    <th className="px-6 py-4 font-medium">Email</th>
+                    <th className="px-6 py-4 font-medium">Plan</th>
+                    <th className="px-6 py-4 font-medium">Amount</th>
+                    <th className="px-6 py-4 font-medium">Type</th>
+                    <th className="px-6 py-4 font-medium">Method</th>
+                    <th className="px-6 py-4 font-medium">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {paymentsData.payments.map((payment) => (
+                    <tr key={payment.id} className="hover:bg-surface/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={getAvatarUrl(payment.user)}
+                            alt={payment.user.username}
+                            className="w-8 h-8 rounded-full object-cover border border-border"
+                          />
+                          <span className="font-medium text-foreground">@{payment.user.username}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 font-mono text-muted-foreground text-xs">{payment.user.email}</td>
+                      <td className="px-6 py-4">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-accent/10 text-accent border border-accent/20">
+                          {payment.plan}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`font-bold ${payment.amount > 0 ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+                          ${payment.amount.toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
+                          payment.is_first
+                            ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
+                            : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                        }`}>
+                          {payment.is_first ? 'First' : 'Renewal'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground text-xs">{payment.payment_method || "—"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{safeFormat(payment.created, "MMM d, yyyy • HH:mm")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Users Table */}
