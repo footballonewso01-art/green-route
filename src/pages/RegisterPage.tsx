@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Gift, Eye, EyeOff } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
@@ -7,6 +7,7 @@ import { parseAuthError } from "@/lib/authErrors";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -14,6 +15,14 @@ export default function RegisterPage() {
   const [promocode, setPromocode] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Pre-fill name from ?username= query param (from landing page claim box)
+  useEffect(() => {
+    const prefilledUsername = searchParams.get("username");
+    if (prefilledUsername && !name) {
+      setName(prefilledUsername);
+    }
+  }, [searchParams]);
 
   // Helper function to generate a guaranteed unique username
   const generateUniqueUsername = async (emailOrName: string) => {
@@ -62,8 +71,9 @@ export default function RegisterPage() {
             setLoading(false);
             return;
           }
-        } catch (err: any) {
-          toast.error(err?.response?.message || err?.response?.error || "Invalid promocode");
+        } catch (err: unknown) {
+          const error = err as { response?: { message?: string, error?: string } };
+          toast.error(error?.response?.message || error?.response?.error || "Invalid promocode");
           setLoading(false);
           return; // Stop registration
         }
@@ -93,9 +103,10 @@ export default function RegisterPage() {
             // Refresh auth state to get updated plan and promocode_used into AuthContext
             await pb.collection("users").authRefresh();
           }
-        } catch (err: any) {
-          console.error("Failed to apply promocode after registration", err);
-          toast.error(err?.response?.message || err?.response?.error || "Failed to apply promocode. You can try again in Settings.");
+        } catch (err: unknown) {
+          const error = err as { response?: { message?: string, error?: string } };
+          console.error("Failed to apply promocode after registration", error);
+          toast.error(error?.response?.message || error?.response?.error || "Failed to apply promocode. You can try again in Settings.");
           // Don't fail the whole registration if promo applying fails somehow
         }
       } else {

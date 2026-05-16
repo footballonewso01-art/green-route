@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, BarChart3, Shield, Zap, Globe, MousePointer, ExternalLink, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
@@ -89,6 +89,60 @@ const plans = [
     popular: false
   },
 ];
+
+function HeroClaimBox() {
+  const navigate = useNavigate();
+  const [username, setUsername] = useState("");
+  const [focused, setFocused] = useState(false);
+
+  const handleClaim = () => {
+    const trimmed = username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
+    navigate(`/register${trimmed ? `?username=${encodeURIComponent(trimmed)}` : ""}`);
+  };
+
+  return (
+    <div
+      className={`inline-flex items-center gap-0 rounded-2xl border transition-all duration-300 bg-surface/80 backdrop-blur-sm overflow-hidden ${
+        focused ? "border-accent/50 shadow-glow" : "border-border/60 hover:border-border"
+      }`}
+    >
+      {/* Logo + Domain prefix */}
+      <div
+        className="flex items-center gap-2.5 pl-4 pr-1 py-3 cursor-pointer select-none shrink-0"
+        onClick={() => document.getElementById("hero-username-input")?.focus()}
+      >
+        <img src="/logo.webp" alt="Linktery" className="h-6 w-6 mix-blend-screen" />
+        <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+          linktery.com/
+        </span>
+      </div>
+
+      {/* Username Input */}
+      <input
+        id="hero-username-input"
+        type="text"
+        value={username}
+        onChange={(e) => setUsername(e.target.value.replace(/\s/g, ""))}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onKeyDown={(e) => e.key === "Enter" && handleClaim()}
+        placeholder="yourname"
+        className="bg-transparent text-foreground text-sm font-medium placeholder:text-muted-foreground/40 outline-none w-[120px] md:w-[160px] py-3"
+        maxLength={30}
+        autoComplete="off"
+        spellCheck={false}
+      />
+
+      {/* CTA Button */}
+      <button
+        onClick={handleClaim}
+        className="btn-primary-glow !rounded-xl !py-2.5 !px-5 text-sm font-semibold shrink-0 mr-1.5"
+      >
+        Start for free
+      </button>
+    </div>
+  );
+}
 
 export default function LandingPage() {
   const { user } = useAuth();
@@ -181,7 +235,7 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="relative pt-32 pb-20 px-6 min-h-[90vh] flex items-center overflow-hidden">
-        {/* Background Video (Localized to Hero) */}
+        {/* Background Video */}
         <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-30">
           <video
             autoPlay
@@ -192,48 +246,48 @@ export default function LandingPage() {
           >
             <source src="/mainvid.min.mp4" type="video/mp4" />
           </video>
-          {/* Dark gradient overlay for smooth transition to next section */}
           <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/40 to-background" />
           <div className="absolute inset-0 backdrop-blur-[2px]" />
         </div>
 
-        <div className="max-w-7xl mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-accent text-sm mb-8">
-            <Zap className="w-3.5 h-3.5" />
-            Smart Link Management Platform
-          </div>
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6">
-            Control Your Traffic.
-            <br />
-            <span className="gradient-text">Maximize Every Click.</span>
-          </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-            Advanced link management with smart routing, deep linking, and real-time analytics. Built for creators, affiliates, and marketers.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            {user ? (
-              <Link to="/dashboard" className="btn-primary-glow text-base inline-flex items-center justify-center gap-2">
-                Open Dashboard <ArrowRight className="w-4 h-4" />
-              </Link>
-            ) : (
-              <Link to="/register" className="btn-primary-glow text-base inline-flex items-center justify-center gap-2">
-                Get Started Free <ArrowRight className="w-4 h-4" />
-              </Link>
-            )}
-            <a href="#features" className="px-6 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-surface-hover transition-all duration-200 text-base inline-flex items-center justify-center">
-              Learn More
-            </a>
-          </div>
+        <div className="max-w-7xl mx-auto relative z-10 w-full">
+          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-8">
+            {/* Left: Text Content */}
+            <div className="flex-1 max-w-2xl">
+              <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 leading-[1.05]">
+                <span className="gradient-text italic">Control Traffic</span>
+                <br />
+                with the best link
+                <br />
+                in bio.
+              </h1>
+              <p className="text-lg md:text-xl text-muted-foreground max-w-lg mb-10 leading-relaxed">
+                Linktery gives you smart routing, deep linking, and real-time analytics — all in one link, so you maximize every click.
+              </p>
 
-          {/* Dashboard Preview */}
-          <div className="mt-16 mx-auto max-w-6xl relative animate-fade-in" style={{ animationDelay: '0.4s' }}>
-            <div className="absolute inset-0 bg-accent/10 blur-3xl rounded-3xl" />
-            <div className="relative glass-card p-2 rounded-2xl overflow-hidden shadow-glow">
-              <img src="/mainstat.webp" alt="Linktery Dashboard" className="w-full rounded-xl shadow-2xl" fetchPriority="high" loading="eager" />
+              {/* Username Claim Box */}
+              <HeroClaimBox />
+            </div>
+
+            {/* Right: Phone Mockup */}
+            <div className="flex-1 flex justify-center lg:justify-end relative">
+              <div className="relative animate-fade-in" style={{ animationDelay: '0.3s' }}>
+                {/* Glow behind phone */}
+                <div className="absolute inset-0 bg-accent/15 blur-[80px] rounded-full scale-75 translate-x-8 translate-y-8" />
+                <img
+                  src="/mobila.png"
+                  alt="Linktery Profile on Phone"
+                  className="relative w-[320px] md:w-[400px] lg:w-[440px] h-auto drop-shadow-2xl"
+                  style={{ transform: 'perspective(1000px) rotateY(-5deg) rotateX(2deg)' }}
+                  fetchPriority="high"
+                  loading="eager"
+                />
+              </div>
             </div>
           </div>
         </div>
       </section>
+
 
       {/* Features */}
       <section id="features" ref={sectionRef} className="py-24 px-6 relative overflow-hidden group">
