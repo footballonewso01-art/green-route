@@ -208,10 +208,10 @@ export default function LandingPage() {
           <div className="absolute inset-0 backdrop-blur-[2px]" />
         </div>
 
-        <div className="max-w-7xl mx-auto w-full relative z-10">
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+        <div className="max-w-[90rem] mx-auto w-full relative z-10 px-2 sm:px-4">
+          <div className="grid lg:grid-cols-[1fr_auto] gap-8 lg:gap-16 items-center">
             {/* Left side — Text + Claim Box */}
-            <div className="text-left max-w-xl">
+            <div className="text-left max-w-2xl">
               <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[4.2rem] font-extrabold tracking-tight mb-6 leading-[1.08]">
                 <span className="italic">Make More</span>
                 <br />
@@ -258,13 +258,13 @@ export default function LandingPage() {
             </div>
 
             {/* Right side — Phone Mockup */}
-            <div className="relative flex justify-center lg:justify-end animate-fade-in" style={{ animationDelay: '0.3s' }}>
+            <div className="relative flex justify-center lg:justify-end" style={{ animationDelay: '0.3s' }}>
               {/* Subtle glow behind phone */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-accent/8 rounded-full blur-[80px] pointer-events-none" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-accent/8 rounded-full blur-[120px] pointer-events-none" />
               <img
                 src="/mobila.png"
                 alt="Linktery mobile profile"
-                className="relative w-[280px] sm:w-[320px] md:w-[360px] lg:w-[420px] h-auto drop-shadow-2xl"
+                className="relative w-[500px] sm:w-[580px] md:w-[650px] lg:w-[720px] h-auto drop-shadow-2xl animate-hero-float"
                 fetchPriority="high"
                 loading="eager"
               />

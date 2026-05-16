@@ -107,6 +107,10 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.5" },
         },
+        "hero-float": {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%": { transform: "translateY(-12px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -116,6 +120,7 @@ export default {
         "scale-in": "scale-in 0.3s ease-out",
         "slide-in-left": "slide-in-left 0.3s ease-out",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "hero-float": "hero-float 4s ease-in-out infinite",
       },
     },
   },
