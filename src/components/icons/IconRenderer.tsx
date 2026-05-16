@@ -1,6 +1,7 @@
 // src/components/icons/IconRenderer.tsx
 import { Image as ImageIcon } from 'lucide-react';
 import { getPresetIcon } from './presets';
+import DOMPurify from 'dompurify';
 
 interface IconRendererProps {
     type: string | string[] | undefined | null;
@@ -38,11 +39,16 @@ export function IconRenderer({ type, value, url, className = "w-5 h-5", fallback
             '<svg width="100%" height="100%" '
         );
 
+        // Sanitize SVG to prevent XSS
+        const sanitizedSvg = DOMPurify.sanitize(svgWithDimensions, {
+            USE_PROFILES: { svg: true, svgFilters: true }
+        });
+
         return (
             <div
                 className={`flex items-center justify-center ${className}`}
                 style={{ minWidth: 0, minHeight: 0 }}
-                dangerouslySetInnerHTML={{ __html: svgWithDimensions }}
+                dangerouslySetInnerHTML={{ __html: sanitizedSvg }}
             />
         );
     }

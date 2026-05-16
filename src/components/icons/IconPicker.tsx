@@ -23,6 +23,8 @@ const QUICK_EMOJIS = [
     "❤️", "👀", "👋", "🎉", "🌟", "💡", "🛠️", "📸", "🎤", "🌍"
 ];
 
+import DOMPurify from 'dompurify';
+
 export function IconPicker({ currentType, currentValue, onChange, onClose, anchorRef }: IconPickerProps) {
     const [activeTab, setActiveTab] = useState<Tab>(
         (currentType as Tab) && currentType !== "none" ? (currentType as Tab) : "preset"
@@ -193,16 +195,19 @@ export function IconPicker({ currentType, currentValue, onChange, onClose, ancho
                         </div >
 
                         <div className="grid grid-cols-5 gap-3 pt-2">
-                            {filteredPresets.map(icon => (
+                            {filteredPresets.map(icon => {
+                                const sanitizedSvg = DOMPurify.sanitize(icon.svg, { USE_PROFILES: { svg: true, svgFilters: true } });
+                                return (
                                 <button
                                     key={icon.id}
                                     onClick={() => { onChange("preset", icon.id); onClose(); }}
                                     className={`relative w-11 h-11 shrink-0 rounded-xl flex items-center justify-center transition-all group overflow-hidden ${currentType === "preset" && currentValue === icon.id ? 'bg-accent/10 text-accent ring-1 ring-accent' : 'bg-background text-muted-foreground hover:text-white hover:bg-surface-hover'}`}
                                     title={icon.name}
                                 >
-                                    <div dangerouslySetInnerHTML={{ __html: icon.svg }} className="w-5 h-5 flex-shrink-0 fill-current [&>svg]:w-full [&>svg]:h-full" />
+                                    <div dangerouslySetInnerHTML={{ __html: sanitizedSvg }} className="w-5 h-5 flex-shrink-0 fill-current [&>svg]:w-full [&>svg]:h-full" />
                                 </button>
-                            ))}
+                                );
+                            })}
                         </div >
                         {
                             filteredPresets.length === 0 && (
