@@ -324,7 +324,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             var invCustomerId = invoice.customer;
             if (invoice.subscription && invoice.billing_reason === "subscription_cycle") {
                 var invAmount = invoice.amount_paid / 100;
-                $app.logger().info("Webhook: renewal payment for customer " + invCustomerId + " amount=" + invAmount);
+                console.log("Webhook: invoice.paid renewal for customer " + invCustomerId + " amount=$" + invAmount);
 
                 var records = $app.findRecordsByFilter(
                     "billing", "stripe_customer_id = {:custId}", "-created", 1, 0, { custId: invCustomerId }
@@ -332,20 +332,26 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 if (records.length > 0) {
                     var bRecord = records[0];
                     var bUserId = bRecord.get("user_id");
+                    // Use billing record's plan as source of truth (user.plan may have been cleared by expiry cron)
+                    var billingPlan = bRecord.get("plan") || "pro";
+
                     $app.runInTransaction((txApp) => {
                         var user = txApp.findRecordById("users", bUserId);
-                        var currentPlan = user.get("plan");
                         var now = new DateTime();
-                        var expiry = (invAmount >= 29 || currentPlan === "agency")
+                        var expiry = (invAmount >= 29 || billingPlan === "agency")
                             ? now.addDate(1, 0, 2)
                             : now.addDate(0, 1, 2);
+                        // Restore plan AND extend expiry
+                        user.set("plan", billingPlan);
                         user.set("plan_expires_at", expiry);
                         txApp.save(user);
                         bRecord.set("status", "active");
                         bRecord.set("amount", invAmount);
                         txApp.save(bRecord);
                     });
-                    $app.logger().info("Webhook: SUCCESS plan extended for user " + bUserId);
+                    console.log("Webhook: SUCCESS plan '" + billingPlan + "' extended for user " + bUserId);
+                } else {
+                    console.log("Webhook: invoice.paid - no billing record found for customer " + invCustomerId);
                 }
             }
 
@@ -361,10 +367,10 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 $app.save(bRec);
                 var subUserId = bRec.get("user_id");
                 var subUser = $app.findRecordById("users", subUserId);
-                subUser.set("plan", "creator");
+                subUser.set("plan", "");
                 subUser.set("plan_expires_at", "");
                 $app.save(subUser);
-                $app.logger().info("Webhook: SUCCESS plan reverted to creator for user " + subUserId);
+                console.log("Webhook: subscription.deleted - plan removed for user " + subUserId);
             }
         }
 
