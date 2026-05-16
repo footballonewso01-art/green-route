@@ -1089,27 +1089,29 @@ onRecordUpdateRequest((e) => {
 
 // Hourly cron: downgrade expired plans or restore fallback
 cronAdd("check_expired_plans", "0 * * * *", () => {
-    const now = new DateTime();
-    const nowStr = now.format("Y-m-d H:i:s");
+    console.log("[CRON] check_expired_plans running at " + new Date().toISOString());
 
     try {
-        const records = $app.findRecordsByFilter(
+        var nowStr = new Date().toISOString().replace("T", " ").substring(0, 19);
+
+        var records = $app.findRecordsByFilter(
             "users",
-            "plan != 'creator' && plan_expires_at != '' && plan_expires_at <= {:now}",
+            "plan != 'creator' && plan != '' && plan_expires_at != '' && plan_expires_at <= {:now}",
             "-created", 0, 0, { now: nowStr }
         );
 
-        for (let i = 0; i < records.length; i++) {
-            const user = records[i];
-            const fallbackPlan = user.get("fallback_plan");
-            const fallbackExpires = user.get("fallback_expires_at");
+        console.log("[CRON] Found " + records.length + " expired users");
+
+        for (var i = 0; i < records.length; i++) {
+            var user = records[i];
+            var fallbackPlan = user.get("fallback_plan");
+            var fallbackExpires = user.get("fallback_expires_at");
             
-            let restored = false;
+            var restored = false;
             if (fallbackPlan && fallbackPlan !== "creator" && fallbackExpires) {
-                const fallbackDateStr = fallbackExpires.toString();
+                var fallbackDateStr = fallbackExpires.toString();
                 if (fallbackDateStr && fallbackDateStr.trim() !== "") {
-                    // Check if fallback date is in the future
-                    const fallbackDate = new Date(fallbackDateStr);
+                    var fallbackDate = new Date(fallbackDateStr);
                     if (fallbackDate > new Date()) {
                         user.set("plan", fallbackPlan);
                         user.set("plan_expires_at", new DateTime(fallbackDate));
@@ -1119,16 +1121,17 @@ cronAdd("check_expired_plans", "0 * * * *", () => {
             }
             
             if (!restored) {
-                user.set("plan", "creator");
+                user.set("plan", "");
                 user.set("plan_expires_at", "");
             }
             
             user.set("fallback_plan", "");
             user.set("fallback_expires_at", "");
             $app.save(user);
+            console.log("[CRON] Downgraded: " + user.email() + " | was: " + user.get("plan") + " | restored: " + restored);
         }
     } catch (err) {
-        $app.logger().error("Error checking expired plans: " + err);
+        console.log("[CRON] ERROR: " + err.toString());
     }
 });
 
