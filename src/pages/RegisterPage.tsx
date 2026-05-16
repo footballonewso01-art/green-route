@@ -9,20 +9,12 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(searchParams.get("username") || "");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [promocode, setPromocode] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // Pre-fill name from ?username= query param (from landing page claim box)
-  useEffect(() => {
-    const prefilledUsername = searchParams.get("username");
-    if (prefilledUsername && !name) {
-      setName(prefilledUsername);
-    }
-  }, [searchParams]);
 
   // Helper function to generate a guaranteed unique username
   const generateUniqueUsername = async (emailOrName: string) => {

@@ -90,63 +90,12 @@ const plans = [
   },
 ];
 
-function HeroClaimBox() {
-  const navigate = useNavigate();
-  const [username, setUsername] = useState("");
-  const [focused, setFocused] = useState(false);
-
-  const handleClaim = () => {
-    const trimmed = username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
-    navigate(`/register${trimmed ? `?username=${encodeURIComponent(trimmed)}` : ""}`);
-  };
-
-  return (
-    <div
-      className={`inline-flex items-center gap-0 rounded-2xl border transition-all duration-300 bg-surface/80 backdrop-blur-sm overflow-hidden ${
-        focused ? "border-accent/50 shadow-glow" : "border-border/60 hover:border-border"
-      }`}
-    >
-      {/* Logo + Domain prefix */}
-      <div
-        className="flex items-center gap-2.5 pl-4 pr-1 py-3 cursor-pointer select-none shrink-0"
-        onClick={() => document.getElementById("hero-username-input")?.focus()}
-      >
-        <img src="/logo.webp" alt="Linktery" className="h-6 w-6 mix-blend-screen" />
-        <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-          linktery.com/
-        </span>
-      </div>
-
-      {/* Username Input */}
-      <input
-        id="hero-username-input"
-        type="text"
-        value={username}
-        onChange={(e) => setUsername(e.target.value.replace(/\s/g, ""))}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        onKeyDown={(e) => e.key === "Enter" && handleClaim()}
-        placeholder="yourname"
-        className="bg-transparent text-foreground text-sm font-medium placeholder:text-muted-foreground/40 outline-none w-[120px] md:w-[160px] py-3"
-        maxLength={30}
-        autoComplete="off"
-        spellCheck={false}
-      />
-
-      {/* CTA Button */}
-      <button
-        onClick={handleClaim}
-        className="btn-primary-glow !rounded-xl !py-2.5 !px-5 text-sm font-semibold shrink-0 mr-1.5"
-      >
-        Start for free
-      </button>
-    </div>
-  );
-}
-
 export default function LandingPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
+  const [claimUsername, setClaimUsername] = useState("");
+  const [isClaimFocused, setIsClaimFocused] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -197,6 +146,15 @@ export default function LandingPage() {
     return null;
   };
 
+  const handleClaimLink = () => {
+    const username = claimUsername.trim().replace(/[^a-zA-Z0-9_]/g, '');
+    if (user) {
+      navigate("/dashboard");
+    } else {
+      navigate(username ? `/register?username=${encodeURIComponent(username)}` : "/register");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Navbar */}
@@ -233,8 +191,8 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="relative pt-32 pb-20 px-6 min-h-[90vh] flex items-center overflow-hidden">
+      {/* Hero — link.me inspired layout */}
+      <section className="relative pt-28 md:pt-32 pb-12 md:pb-20 px-6 min-h-[90vh] flex items-center overflow-hidden">
         {/* Background Video */}
         <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-30">
           <video
@@ -250,44 +208,70 @@ export default function LandingPage() {
           <div className="absolute inset-0 backdrop-blur-[2px]" />
         </div>
 
-        <div className="max-w-7xl mx-auto relative z-10 w-full">
-          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-8">
-            {/* Left: Text Content */}
-            <div className="flex-1 max-w-2xl">
-              <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 leading-[1.05]">
-                <span className="gradient-text italic">Control Traffic</span>
+        <div className="max-w-7xl mx-auto w-full relative z-10">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+            {/* Left side — Text + Claim Box */}
+            <div className="text-left max-w-xl">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[4.2rem] font-extrabold tracking-tight mb-6 leading-[1.08]">
+                <span className="italic">Make More</span>
                 <br />
-                with the best link
+                <span>with the best</span>
                 <br />
-                in bio.
+                <span>link in bio.</span>
               </h1>
-              <p className="text-lg md:text-xl text-muted-foreground max-w-lg mb-10 leading-relaxed">
-                Linktery gives you smart routing, deep linking, and real-time analytics — all in one link, so you maximize every click.
+              <p className="text-base md:text-lg text-muted-foreground mb-8 max-w-md leading-relaxed">
+                Linktery puts everything you share — links, products, social profiles, and analytics — into one smart link so your audience finds exactly what they need.
               </p>
 
-              {/* Username Claim Box */}
-              <HeroClaimBox />
+              {/* Claim your link box */}
+              <div
+                className={`inline-flex items-center gap-0 rounded-full border transition-all duration-300 pr-1 py-1 pl-4 cursor-text ${
+                  isClaimFocused
+                    ? "border-accent/50 bg-surface shadow-lg shadow-accent/10"
+                    : "border-border/80 bg-surface/80 hover:border-border"
+                }`}
+                onClick={() => document.getElementById("claim-input")?.focus()}
+              >
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <img src="/logo.webp" alt="" className="h-5 w-5 mix-blend-screen" />
+                  <span className="text-sm font-medium text-foreground/80 whitespace-nowrap">linktery.com/</span>
+                </div>
+                <input
+                  id="claim-input"
+                  type="text"
+                  value={claimUsername}
+                  onChange={(e) => setClaimUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
+                  onFocus={() => setIsClaimFocused(true)}
+                  onBlur={() => setIsClaimFocused(false)}
+                  onKeyDown={(e) => e.key === "Enter" && handleClaimLink()}
+                  placeholder="yourname"
+                  className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none w-24 sm:w-32 py-1"
+                  maxLength={24}
+                />
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleClaimLink(); }}
+                  className="ml-1 px-4 py-2 bg-foreground text-background text-sm font-semibold rounded-full hover:opacity-90 transition-opacity whitespace-nowrap"
+                >
+                  Start for free
+                </button>
+              </div>
             </div>
 
-            {/* Right: Phone Mockup */}
-            <div className="flex-1 flex justify-center lg:justify-end relative">
-              <div className="relative animate-fade-in" style={{ animationDelay: '0.3s' }}>
-                {/* Glow behind phone */}
-                <div className="absolute inset-0 bg-accent/15 blur-[80px] rounded-full scale-75 translate-x-8 translate-y-8" />
-                <img
-                  src="/mobila.png"
-                  alt="Linktery Profile on Phone"
-                  className="relative w-[320px] md:w-[400px] lg:w-[440px] h-auto drop-shadow-2xl"
-                  style={{ transform: 'perspective(1000px) rotateY(-5deg) rotateX(2deg)' }}
-                  fetchPriority="high"
-                  loading="eager"
-                />
-              </div>
+            {/* Right side — Phone Mockup */}
+            <div className="relative flex justify-center lg:justify-end animate-fade-in" style={{ animationDelay: '0.3s' }}>
+              {/* Subtle glow behind phone */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-accent/8 rounded-full blur-[80px] pointer-events-none" />
+              <img
+                src="/mobila.png"
+                alt="Linktery mobile profile"
+                className="relative w-[280px] sm:w-[320px] md:w-[360px] lg:w-[420px] h-auto drop-shadow-2xl"
+                fetchPriority="high"
+                loading="eager"
+              />
             </div>
           </div>
         </div>
       </section>
-
 
       {/* Features */}
       <section id="features" ref={sectionRef} className="py-24 px-6 relative overflow-hidden group">
