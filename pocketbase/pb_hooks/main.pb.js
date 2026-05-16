@@ -1395,11 +1395,14 @@ routerAdd("GET", "/api/admin/promocodes/{id}/payments", (c) => {
             var user = users[i];
             var userId = user.id;
 
-            // Get all billing records for this user, sorted by created ASC
+            // Get all billing records for this user
             var bills = $app.findAllRecords("billing",
-                $dbx.exp("user_id = {:uid}", {uid: userId}),
-                $dbx.orderBy("created", "ASC")
+                $dbx.exp("user_id = {:uid}", {uid: userId})
             );
+            // Sort by created ASC in JS
+            bills.sort(function(a, b) {
+                return new Date(a.get("created")).getTime() - new Date(b.get("created")).getTime();
+            });
 
             for (var j = 0; j < bills.length; j++) {
                 var bill = bills[j];
