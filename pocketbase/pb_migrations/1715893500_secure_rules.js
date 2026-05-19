@@ -19,10 +19,11 @@ migrate((db) => {
   dao.saveCollection(billing);
 
   // SECURE LINKS
-  // Prevent public scraping of all links and restrict editing
+  // listRule: only owners can list their own links (prevents bulk scraping)
+  // viewRule: public — required for RedirectHandler to resolve slugs for unauthenticated visitors
   const links = dao.findCollectionByNameOrId("links");
   links.listRule = "@request.auth.id = user_id";
-  links.viewRule = "@request.auth.id = user_id";
+  links.viewRule = "";
   dao.saveCollection(links);
 }, (db) => {
   const dao = new Dao(db);
