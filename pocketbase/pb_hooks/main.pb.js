@@ -1456,3 +1456,153 @@ routerAdd("GET", "/api/admin/promocodes/{id}/payments", (c) => {
         return c.json(500, { error: e.toString(), stack: e.stack });
     }
 });
+
+// ============================================
+// ANALYTICS: Server-Side SQL Aggregation
+// ============================================
+// Replaces slow client-side processing with instant SQLite GROUP BY queries.
+// Returns pre-aggregated JSON (~2KB) instead of thousands of raw click records.
+routerAdd("GET", "/api/analytics/stats", (c) => {
+    try {
+        var user = c.auth;
+        if (!user || user.collection().name !== "users") {
+            return c.json(401, { message: "Unauthorized" });
+        }
+
+        var linkId = c.queryParam("linkId") || "";
+        var period = c.queryParam("period") || "7d";
+
+        // Build WHERE clause with parameterized queries (SQL injection safe)
+        var userId = user.id;
+
+        // Calculate date cutoff
+        var days = 7;
+        if (period === "24h") days = 1;
+        else if (period === "30d") days = 30;
+        else if (period === "90d") days = 90;
+
+        // Base WHERE: only clicks belonging to user's links + within time period
+        var whereBase = "c.link_id IN (SELECT id FROM links WHERE user_id = {:userId}) AND c.created >= datetime('now', '-' || {:days} || ' days')";
+        var params = { userId: userId, days: days };
+
+        if (linkId !== "") {
+            whereBase = "c.link_id = {:linkId} AND " + whereBase;
+            params["linkId"] = linkId;
+        }
+
+        var db = $app.db();
+
+        // 1. Total + Unique counts
+        var totalRow = new DynamicModel({ "total": 0, "uniq": 0 });
+        db.newQuery("SELECT count(c.id) as total, sum(CASE WHEN c.is_unique = 1 THEN 1 ELSE 0 END) as uniq FROM clicks c WHERE " + whereBase)
+            .bind(params)
+            .one(totalRow);
+
+        // 2. Countries (top 20)
+        var CountryModel = new DynamicModel({ "name": "", "clicks": 0 });
+        var countriesRaw = arrayOf(CountryModel);
+        db.newQuery("SELECT COALESCE(c.country, 'Unknown') as name, count(c.id) as clicks FROM clicks c WHERE " + whereBase + " GROUP BY name ORDER BY clicks DESC LIMIT 20")
+            .bind(params)
+            .all(countriesRaw);
+
+        // 3. Referrers (top 5)
+        var RefModel = new DynamicModel({ "name": "", "clicks": 0 });
+        var referrersRaw = arrayOf(RefModel);
+        db.newQuery("SELECT COALESCE(c.referrer, 'Direct') as name, count(c.id) as clicks FROM clicks c WHERE " + whereBase + " GROUP BY name ORDER BY clicks DESC LIMIT 5")
+            .bind(params)
+            .all(referrersRaw);
+
+        // 4. Devices
+        var DevModel = new DynamicModel({ "name": "", "value": 0 });
+        var devicesRaw = arrayOf(DevModel);
+        db.newQuery("SELECT COALESCE(c.device, 'Other') as name, count(c.id) as value FROM clicks c WHERE " + whereBase + " GROUP BY name ORDER BY value DESC")
+            .bind(params)
+            .all(devicesRaw);
+
+        // 5. Browsers (top 3)
+        var BrModel = new DynamicModel({ "name": "", "value": 0 });
+        var browsersRaw = arrayOf(BrModel);
+        db.newQuery("SELECT COALESCE(c.browser, 'Other') as name, count(c.id) as value FROM clicks c WHERE " + whereBase + " GROUP BY name ORDER BY value DESC LIMIT 3")
+            .bind(params)
+            .all(browsersRaw);
+
+        // 6. OS (top 3)
+        var OsModel = new DynamicModel({ "name": "", "value": 0 });
+        var osRaw = arrayOf(OsModel);
+        db.newQuery("SELECT COALESCE(c.os, 'Other') as name, count(c.id) as value FROM clicks c WHERE " + whereBase + " GROUP BY name ORDER BY value DESC LIMIT 3")
+            .bind(params)
+            .all(osRaw);
+
+        // 7. Trend (daily or hourly for 24h)
+        var TrendModel = new DynamicModel({ "date": "", "clicks": 0 });
+        var trendRaw = arrayOf(TrendModel);
+        if (period === "24h") {
+            db.newQuery("SELECT strftime('%Y-%m-%dT%H:00:00Z', c.created) as date, count(c.id) as clicks FROM clicks c WHERE " + whereBase + " GROUP BY date ORDER BY date ASC")
+                .bind(params)
+                .all(trendRaw);
+        } else {
+            db.newQuery("SELECT date(c.created) as date, count(c.id) as clicks FROM clicks c WHERE " + whereBase + " GROUP BY date ORDER BY date ASC")
+                .bind(params)
+                .all(trendRaw);
+        }
+
+        // 8. Heatmap (day_of_week x hour)
+        var HeatModel = new DynamicModel({ "dow": 0, "hour": 0, "clicks": 0 });
+        var heatRaw = arrayOf(HeatModel);
+        db.newQuery("SELECT CAST(strftime('%w', c.created) AS INTEGER) as dow, CAST(strftime('%H', c.created) AS INTEGER) as hour, count(c.id) as clicks FROM clicks c WHERE " + whereBase + " GROUP BY dow, hour")
+            .bind(params)
+            .all(heatRaw);
+
+        // Build heatmap 7x24 matrix
+        var heatmap = [];
+        for (var d = 0; d < 7; d++) {
+            var row = [];
+            for (var h = 0; h < 24; h++) {
+                row.push(0);
+            }
+            heatmap.push(row);
+        }
+        for (var i = 0; i < heatRaw.length; i++) {
+            var hr = heatRaw[i];
+            if (hr.dow >= 0 && hr.dow < 7 && hr.hour >= 0 && hr.hour < 24) {
+                heatmap[hr.dow][hr.hour] = hr.clicks;
+            }
+        }
+
+        // Format countries with percentages
+        var total = totalRow.total || 0;
+        var countriesOut = [];
+        for (var ci = 0; ci < countriesRaw.length; ci++) {
+            countriesOut.push({
+                name: countriesRaw[ci].name,
+                clicks: countriesRaw[ci].clicks,
+                pct: total > 0 ? Math.round((countriesRaw[ci].clicks / total) * 100) : 0
+            });
+        }
+
+        // Format referrers with percentages
+        var referrersOut = [];
+        for (var ri = 0; ri < referrersRaw.length; ri++) {
+            referrersOut.push({
+                name: referrersRaw[ri].name,
+                clicks: referrersRaw[ri].clicks,
+                pct: total > 0 ? Math.round((referrersRaw[ri].clicks / total) * 100) : 0
+            });
+        }
+
+        return c.json(200, {
+            total: total,
+            unique: totalRow.uniq || 0,
+            countries: countriesOut,
+            referrers: referrersOut,
+            devices: devicesRaw,
+            browsers: browsersRaw,
+            os: osRaw,
+            trend: trendRaw,
+            heatmap: heatmap
+        });
+    } catch (e) {
+        $app.logger().error("Analytics stats API error: " + e.toString());
+        return c.json(500, { message: "Analytics query failed: " + e.toString() });
+    }
+});

@@ -44,123 +44,87 @@ export default function AnalyticsPage() {
     const fetchAnalytics = async () => {
       setLoading(true);
       try {
-        const userId = pb.authStore.model?.id;
-        let baseFilter = `link_id.user_id="${userId}"`;
+        // === SERVER-SIDE SQL AGGREGATION ===
+        // Single API call returns pre-aggregated data (~2KB) instead of thousands of raw records.
+        const queryParams = new URLSearchParams({ period });
+        if (linkId) queryParams.set("linkId", linkId);
 
-        if (period) {
-          const d = new Date();
-          if (period === "24h") d.setHours(d.getHours() - 24);
-          else if (period === "7d") d.setDate(d.getDate() - 7);
-          else if (period === "30d") d.setDate(d.getDate() - 30);
-          else if (period === "90d") d.setDate(d.getDate() - 90);
-          baseFilter += ` && created >= "${d.toISOString()}"`;
-        }
+        const stats = await pb.send(`/api/analytics/stats?${queryParams.toString()}`, { method: "GET" });
 
-        const filter = linkId ? `link_id="${linkId}" && ${baseFilter}` : baseFilter;
+        // 1. Totals (already computed by SQL)
+        setClicksCount(stats.total || 0);
+        setUniqueCount(stats.unique || 0);
 
-        // BUG-03 FIX: Use bounded getList instead of getFullList (OOM prevention)
-        // Cap at 5000 records for breakdown charts; use totalItems for accurate count
-        const result = await pb.collection('clicks').getList<ClickRecord>(1, 5000, {
-          filter,
-          sort: '-created',
-          expand: 'link_id',
-        });
+        // 2. Countries (already sorted + with pct from server)
+        setCountries(stats.countries || []);
 
-        const records = result.items;
-        setClicksCount(result.totalItems); // Accurate total from API, not records.length
-        setUniqueCount(records.filter(r => r.is_unique).length);
-        setRecentActivities(records.slice(0, 5));
+        // 3. Referrers (already sorted + with pct from server)
+        setReferrers(stats.referrers || []);
 
-        // Process Countries
-        const countryMap: Record<string, number> = {};
-        records.forEach(r => {
-          const c = r.country || "Unknown";
-          countryMap[c] = (countryMap[c] || 0) + 1;
-        });
-        const countryList = Object.entries(countryMap)
-          .map(([name, clicks]) => ({ name, clicks, pct: Math.round((clicks / records.length) * 100) }))
-          .sort((a, b) => b.clicks - a.clicks);
-        setCountries(countryList);
-
-        // Process Referrers
-        const refMap: Record<string, number> = {};
-        records.forEach(r => {
-          const s = r.referrer || "Direct";
-          refMap[s] = (refMap[s] || 0) + 1;
-        });
-        const refList = Object.entries(refMap)
-          .map(([name, clicks]) => ({ name, clicks, pct: Math.round((clicks / records.length) * 100) }))
-          .sort((a, b) => b.clicks - a.clicks)
-          .slice(0, 5);
-        setReferrers(refList);
-
-        // Process Devices
+        // 4. Devices (map server data to colored chart format)
         const deviceMap: Record<string, number> = {};
-        records.forEach(r => {
-          const d = r.device || "Other";
-          deviceMap[d] = (deviceMap[d] || 0) + 1;
-        });
+        (stats.devices || []).forEach((d: { name: string; value: number }) => { deviceMap[d.name] = d.value; });
         setDevices([
           { name: "Mobile", value: deviceMap["Mobile"] || 0, color: "hsl(153, 68%, 55%)" },
           { name: "Desktop", value: deviceMap["Desktop"] || 0, color: "hsl(155, 70%, 14%)" },
           { name: "Tablet", value: deviceMap["Tablet"] || 0, color: "hsl(155, 25%, 35%)" },
         ]);
 
-        // Process Browsers
-        const browserMap: Record<string, number> = {};
-        records.forEach(r => {
-          const b = r.browser || "Other";
-          browserMap[b] = (browserMap[b] || 0) + 1;
-        });
-        const browserSlice = Object.entries(browserMap)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 3)
-          .map(([name, value], i) => ({
-            name,
-            value,
-            color: i === 0 ? "hsl(153, 68%, 55%)" : i === 1 ? "hsl(155, 35%, 25%)" : "hsl(155, 20%, 40%)"
-          }));
-        setBrowserData(browserSlice);
+        // 5. Browsers (add colors)
+        const browserColors = ["hsl(153, 68%, 55%)", "hsl(155, 35%, 25%)", "hsl(155, 20%, 40%)"];
+        setBrowserData((stats.browsers || []).map((b: { name: string; value: number }, i: number) => ({
+          ...b, color: browserColors[i] || browserColors[2]
+        })));
 
-        // Process OS
-        const osMap: Record<string, number> = {};
-        records.forEach(r => {
-          const o = r.os || "Other";
-          osMap[o] = (osMap[o] || 0) + 1;
-        });
-        const osSlice = Object.entries(osMap)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 3)
-          .map(([name, value], i) => ({
-            name,
-            value,
-            color: i === 0 ? "hsl(153, 68%, 55%)" : i === 1 ? "hsl(155, 35%, 25%)" : "hsl(155, 20%, 40%)"
-          }));
-        setOsData(osSlice);
+        // 6. OS (add colors)
+        setOsData((stats.os || []).map((o: { name: string; value: number }, i: number) => ({
+          ...o, color: browserColors[i] || browserColors[2]
+        })));
 
-        // Process Trends
-        const days: Record<string, number> = {};
+        // 7. Trend — fill gaps for days without clicks so the chart line is continuous
+        const trendFromServer: { date: string; clicks: number }[] = stats.trend || [];
+        const trendMap: Record<string, number> = {};
+        trendFromServer.forEach(t => { trendMap[t.date] = t.clicks; });
+
         const daysToLookBack = period === "24h" ? 1 : period === "7d" ? 7 : period === "30d" ? 30 : 90;
-        for (let i = 0; i < daysToLookBack; i++) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          days[d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })] = 0;
-        }
-        records.forEach(r => {
-          const dateStr = new Date(r.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-          if (days[dateStr] !== undefined) days[dateStr]++;
-        });
-        setTrendData(Object.entries(days).map(([date, clicks]) => ({ date, clicks })).reverse());
+        const filledTrend: { date: string; clicks: number }[] = [];
 
-        // Process Heatmap (day of week × hour) — BUG-12 FIX: use UTC for consistency
-        const heatmap = Array.from({ length: 7 }, () => Array(24).fill(0));
-        records.forEach(r => {
-          const d = new Date(r.created);
-          heatmap[d.getUTCDay()][d.getUTCHours()]++;
+        if (period === "24h") {
+          // Hourly buckets for last 24h
+          for (let i = 23; i >= 0; i--) {
+            const d = new Date();
+            d.setMinutes(0, 0, 0);
+            d.setHours(d.getHours() - i);
+            const key = d.toISOString().replace(/:\d{2}\.\d{3}Z$/, ':00:00Z');
+            filledTrend.push({ date: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), clicks: trendMap[key] || 0 });
+          }
+        } else {
+          // Daily buckets
+          for (let i = daysToLookBack - 1; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const isoDate = d.toISOString().split('T')[0]; // YYYY-MM-DD
+            const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            filledTrend.push({ date: label, clicks: trendMap[isoDate] || 0 });
+          }
+        }
+        setTrendData(filledTrend);
+
+        // 8. Heatmap — server returns ready 7×24 matrix
+        setHeatmapData(stats.heatmap || Array.from({ length: 7 }, () => Array(24).fill(0)));
+
+        // 9. Recent activities — small separate query (only 5 records with expand)
+        const recentResult = await pb.collection('clicks').getList<ClickRecord>(1, 5, {
+          filter: linkId
+            ? `link_id="${linkId}" && link_id.user_id="${pb.authStore.model?.id}"`
+            : `link_id.user_id="${pb.authStore.model?.id}"`,
+          sort: '-created',
+          expand: 'link_id',
         });
-        setHeatmapData(heatmap);
+        setRecentActivities(recentResult.items);
 
       } catch (error: unknown) {
+        console.error("Analytics fetch error:", error);
         toast.error("Failed to fetch analytics");
       } finally {
         setLoading(false);
