@@ -4,6 +4,7 @@ import { Zap, Check, Shield, BarChart3, Globe, MousePointer } from "lucide-react
 import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
 import { PlanType, PLAN_RANKS } from "@/lib/plans";
+import { useSeo } from "@/hooks/useSeo";
 
 const plans = [
   {
@@ -54,6 +55,12 @@ const plans = [
 export default function PricingPage() {
   const { user } = useAuth();
   const userPlan = (user as { plan?: PlanType })?.plan;
+
+  useSeo({
+    title: "Pricing & Plans",
+    description: "Choose the right Linktery plan for your needs. Free Creator plan, Creator Pro with advanced analytics & geo targeting, or Agency with unlimited links and A/B testing.",
+    canonical: "/pricing",
+  });
 
   return (
     <div className="min-h-screen bg-background py-20 px-6">

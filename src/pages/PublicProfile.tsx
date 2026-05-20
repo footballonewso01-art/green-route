@@ -5,6 +5,7 @@ import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { IconRenderer } from '@/components/icons/IconRenderer';
 import { checkPlan } from "@/lib/plans";
+import { useSeo } from "@/hooks/useSeo";
 
 /** Returns true if a hex color is perceptually light (text on top should be dark). */
 function isLightColor(hex: string): boolean {
@@ -100,6 +101,16 @@ export default function PublicProfile() {
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  useSeo({
+    title: profile
+      ? `${profile.name} (@${username})`
+      : `@${username || ""}`,
+    description: profile?.bio
+      ? `${profile.bio.slice(0, 155)}${profile.bio.length > 155 ? "…" : ""}`
+      : `Check out @${username || ""} on Linktery — smart links, bio page, and more.`,
+    canonical: `/${username || ""}`,
+  });
+
   useEffect(() => {
     const fetchData = async () => {
       if (!username) return;
@@ -129,9 +140,6 @@ export default function PublicProfile() {
         });
         setLinks(linkRecords.items);
 
-        // Update document title
-        const displayName = userRecord.name || userRecord.username;
-        document.title = `Check out ${displayName} (@${userRecord.username})`;
 
       } catch (error: unknown) {
         toast.error("Profile not found");
@@ -141,9 +149,6 @@ export default function PublicProfile() {
     };
 
     fetchData();
-
-    // Reset title on unmount
-    return () => { document.title = "Linktery"; };
   }, [username]);
 
   if (loading) {

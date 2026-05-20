@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
 import { PlanType, PLAN_RANKS } from "@/lib/plans";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { useSeo } from "@/hooks/useSeo";
 
 const features = [
   {
@@ -95,6 +96,12 @@ export default function LandingPage() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
   const videoRef = useRef<HTMLVideoElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
+
+  useSeo({
+    title: "Smart Link Management & Traffic Routing",
+    description: "Linktery is a smart link management platform with geo & device targeting, deep linking, real-time analytics, and link-in-bio profiles. Built for creators, affiliates, and marketers.",
+    canonical: "/",
+  });
 
   useEffect(() => {
     // Record pageview event anonymously

@@ -4,6 +4,7 @@ import { Zap, Eye, EyeOff } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { parseAuthError } from "@/lib/authErrors";
+import { useSeo } from "@/hooks/useSeo";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -11,6 +12,12 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useSeo({
+    title: "Login",
+    description: "Sign in to your Linktery account to manage smart links, view analytics, and optimize your traffic routing.",
+    canonical: "/login",
+  });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

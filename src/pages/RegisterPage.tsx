@@ -4,6 +4,7 @@ import { Gift, Eye, EyeOff } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { parseAuthError } from "@/lib/authErrors";
+import { useSeo } from "@/hooks/useSeo";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -15,6 +16,12 @@ export default function RegisterPage() {
   const [promocode, setPromocode] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useSeo({
+    title: "Sign Up",
+    description: "Create a free Linktery account. Start managing smart links with geo targeting, deep analytics, and link-in-bio profiles for creators and marketers.",
+    canonical: "/register",
+  });
 
   // Helper function to generate a guaranteed unique username
   const generateUniqueUsername = async (emailOrName: string) => {
