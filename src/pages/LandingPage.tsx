@@ -229,7 +229,8 @@ export default function LandingPage() {
           <div className="mt-16 mx-auto max-w-6xl relative animate-fade-in" style={{ animationDelay: '0.4s' }}>
             <div className="absolute inset-0 bg-accent/10 blur-3xl rounded-3xl" />
             <div className="relative glass-card p-2 rounded-2xl overflow-hidden shadow-glow">
-              <img src="/mainstat.webp" alt="Linktery Dashboard" className="w-full rounded-xl shadow-2xl" fetchPriority="high" loading="eager" />
+              {/* @ts-ignore - HTML attribute is lowercase */}
+              <img src="/mainstat.webp" alt="Linktery Dashboard" className="w-full rounded-xl shadow-2xl" fetchpriority="high" loading="eager" />
             </div>
           </div>
         </div>
