@@ -1,0 +1,11 @@
+# Replace api.yourdomain.com with your actual backend domain
+# Caddy will automatically provision SSL certificates from Let's Encrypt
+
+api.yourdomain.com {
+    reverse_proxy pocketbase:8080
+}
+
+# If frontend is also served from the same server via PocketBase static hosting
+# yourdomain.com {
+#     reverse_proxy pocketbase:8080
+# }

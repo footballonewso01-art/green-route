@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  pocketbase:
+    build: 
+      context: ..
+      dockerfile: pocketbase/Dockerfile
+    container_name: greenroute-pb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ../pocketbase/pb_data:/pb/pb_data
+      - ../pocketbase/pb_hooks:/pb/pb_hooks
+      - ../pocketbase/pb_migrations:/pb/pb_migrations
+      - ../pocketbase/pb_public:/pb/pb_public
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: greenroute-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - pocketbase
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -22,8 +22,9 @@ const TEST_PRICES = {
     }
 };
 
-// Automatically switch to Test Prices if running locally or pointing to Staging PB
-const isDev = import.meta.env.DEV;
-const isStaging = import.meta.env.VITE_POCKETBASE_URL?.includes('staging');
+// Use test prices ONLY when explicitly set via env var
+// Default = LIVE (safe for production)
+const useTestPrices = import.meta.env.VITE_STRIPE_MODE === "test";
 
-export const STRIPE_PRICES = (isDev || isStaging) ? TEST_PRICES : LIVE_PRICES;
+export const STRIPE_PRICES = useTestPrices ? TEST_PRICES : LIVE_PRICES;
+

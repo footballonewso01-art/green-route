@@ -1469,8 +1469,9 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
             return c.json(401, { message: "Unauthorized" });
         }
 
-        var linkId = c.queryParam("linkId") || "";
-        var period = c.queryParam("period") || "7d";
+        var query = c.request.url.query();
+        var linkId = query.get("linkId") || "";
+        var period = query.get("period") || "7d";
 
         // Build WHERE clause with parameterized queries (SQL injection safe)
         var userId = user.id;
@@ -1494,7 +1495,7 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
 
         // 1. Total + Unique counts
         var totalRow = new DynamicModel({ "total": 0, "uniq": 0 });
-        db.newQuery("SELECT count(c.id) as total, sum(CASE WHEN c.is_unique = 1 THEN 1 ELSE 0 END) as uniq FROM clicks c WHERE " + whereBase)
+        db.newQuery("SELECT count(c.id) as total, COALESCE(sum(CASE WHEN c.is_unique = 1 THEN 1 ELSE 0 END), 0) as uniq FROM clicks c WHERE " + whereBase)
             .bind(params)
             .one(totalRow);
 
