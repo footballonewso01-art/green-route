@@ -378,8 +378,8 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <div className="flex items-start gap-3 py-0.5">
-            <div className="relative flex items-center justify-center shrink-0 mt-0.5">
+          <div className="flex items-center gap-3 py-0.5">
+            <div className="relative flex items-center justify-center shrink-0">
               <input
                 type="checkbox"
                 id="terms"
