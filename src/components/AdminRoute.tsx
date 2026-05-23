@@ -1,9 +1,13 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
+import { useSeo } from "@/hooks/useSeo";
 
 export function AdminRoute() {
     const { user, loading, isAdmin } = useAuth();
+
+    // Technical SEO: Guarantee that administrative pages are never crawled/indexed.
+    useSeo({ noIndex: true });
 
     if (loading) {
         return (
@@ -23,3 +27,4 @@ export function AdminRoute() {
 
     return <Outlet />;
 }
+

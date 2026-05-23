@@ -24,6 +24,8 @@ import BillingPage from "./pages/Billing";
 import DashboardPricing from "./pages/DashboardPricing";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsAndConditions from "./pages/TermsAndConditions";
+import LinktreeAlternative from "./pages/LinktreeAlternative";
+import BeaconsAlternative from "./pages/BeaconsAlternative";
 import { AdminRoute } from "./components/AdminRoute";
 import AdminOverview from "./pages/admin/AdminOverview";
 import AdminUsers from "./pages/admin/AdminUsers";
@@ -63,6 +65,10 @@ function DomainGuard() {
                           location.pathname.startsWith('/register') || 
                           location.pathname.startsWith('/dashboard') || 
                           location.pathname.startsWith('/pricing') || 
+                          location.pathname.startsWith('/privacy') || 
+                          location.pathname.startsWith('/terms') || 
+                          location.pathname.startsWith('/alternatives') || 
+                          location.pathname.startsWith('/open-in-browser') || 
                           location.pathname.startsWith('/admin');
                           
       if (isSystemPath) {
@@ -110,6 +116,8 @@ const AppRoutes = () => (
     <Route path="/pricing" element={<PricingPage />} />
     <Route path="/privacy" element={<PrivacyPolicy />} />
     <Route path="/terms" element={<TermsAndConditions />} />
+    <Route path="/alternatives/linktree" element={<LinktreeAlternative />} />
+    <Route path="/alternatives/beacons" element={<BeaconsAlternative />} />
     <Route path="/auth" element={<Navigate to="/login" replace />} />
     <Route path="/open-in-browser" element={<InterstitialPage />} />
     <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
@@ -141,21 +149,25 @@ const AppRoutes = () => (
   </Routes>
 );
 
-const App = () => (
+export const AppContent = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <ScrollToTop />
-        <DomainGuard />
-        <AmbientBackground />
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </BrowserRouter>
+      <ScrollToTop />
+      <DomainGuard />
+      <AmbientBackground />
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
+);
+
+const App = () => (
+  <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <AppContent />
+  </BrowserRouter>
 );
 
 export default App;

@@ -6,6 +6,7 @@ import { PLANS, PlanType } from "@/lib/plans";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useSeo } from "@/hooks/useSeo";
 
 interface NavItem {
   title: string;
@@ -50,6 +51,8 @@ export default function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut, isAdmin } = useAuth();
+  
+  useSeo({ noIndex: true });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [linksCount, setLinksCount] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");

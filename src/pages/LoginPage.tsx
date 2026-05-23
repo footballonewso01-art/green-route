@@ -1,23 +1,115 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Zap, Eye, EyeOff } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { parseAuthError } from "@/lib/authErrors";
 import { useSeo } from "@/hooks/useSeo";
+import { SEO_PAGES } from "@/lib/seo-config";
+
+interface Star {
+  x: number;
+  y: number;
+  size: number;
+  opacity: number;
+  speed: number;
+  blinkDirection: number;
+}
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Background animated stars canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animationId: number;
+    let stars: Star[] = [];
+
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      initStars();
+    };
+
+    const initStars = () => {
+      stars = [];
+      const numStars = Math.floor((canvas.width * canvas.height) / 12000);
+      for (let i = 0; i < numStars; i++) {
+        stars.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          size: Math.random() * 2 + 0.5,
+          opacity: Math.random() * 0.7 + 0.1,
+          speed: Math.random() * 0.05 + 0.01,
+          blinkDirection: Math.random() > 0.5 ? 1 : -1,
+        });
+      }
+    };
+
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw grains/noise overlay manually via canvas for high performance
+      ctx.fillStyle = "rgba(255, 255, 255, 0.01)";
+      for (let i = 0; i < 5000; i++) {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        ctx.fillRect(x, y, 1, 1);
+      }
+
+      stars.forEach((star) => {
+        // Soft green glowing stars
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        
+        // Blink logic
+        star.opacity += star.blinkDirection * 0.005;
+        if (star.opacity > 0.8) {
+          star.opacity = 0.8;
+          star.blinkDirection = -1;
+        } else if (star.opacity < 0.1) {
+          star.opacity = 0.1;
+          star.blinkDirection = 1;
+        }
+
+        // Float up slowly
+        star.y -= star.speed * 12;
+        if (star.y < 0) {
+          star.y = canvas.height;
+          star.x = Math.random() * canvas.width;
+        }
+
+        ctx.fillStyle = `rgba(34, 197, 94, ${star.opacity})`;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = "rgba(34, 197, 94, 0.6)";
+        ctx.fill();
+        ctx.shadowBlur = 0; // reset
+      });
+
+      animationId = requestAnimationFrame(draw);
+    };
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+    draw();
+
+    return () => {
+      cancelAnimationFrame(animationId);
+      window.removeEventListener("resize", resizeCanvas);
+    };
+  }, []);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useSeo({
-    title: "Login",
-    description: "Sign in to your Linktery account to manage smart links, view analytics, and optimize your traffic routing.",
-    canonical: "/login",
-  });
+  useSeo(SEO_PAGES.login);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,8 +152,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-6">
-      <div className="absolute inset-0 overflow-hidden">
+    <div className="min-h-screen bg-background flex items-center justify-center px-6 relative overflow-hidden">
+      {/* Background stars canvas & grid */}
+      <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none w-full h-full opacity-60" />
+      <div className="absolute inset-0 bg-grid-white opacity-[0.03] z-0 pointer-events-none" />
+
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
       </div>

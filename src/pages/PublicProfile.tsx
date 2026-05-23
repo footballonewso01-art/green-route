@@ -101,6 +101,10 @@ export default function PublicProfile() {
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Technical SEO: Temporarily disable indexing for all user profiles.
+  // This can be scaled in the future by checking user settings, plan limits, or profile completeness (e.g., profile.seo_indexing_enabled)
+  const isProfileSeoIndexed = false;
+
   useSeo({
     title: profile
       ? `${profile.name} (@${username})`
@@ -109,6 +113,7 @@ export default function PublicProfile() {
       ? `${profile.bio.slice(0, 155)}${profile.bio.length > 155 ? "…" : ""}`
       : `Check out @${username || ""} on Linktery — smart links, bio page, and more.`,
     canonical: `/${username || ""}`,
+    noIndex: !isProfileSeoIndexed,
   });
 
   useEffect(() => {

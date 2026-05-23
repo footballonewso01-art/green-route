@@ -56,7 +56,8 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             { text: "3 Smart Links", icon: "🔗", tooltip: "Includes 3 Smart Links on Free plan." },
             { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
             { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
-            { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." }
+            { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." },
+            { text: "Domain Choose List", icon: "🌐", tooltip: "Select from a curated pool of domains to host your smart links." }
         ],
         limits: {
             links: 3,

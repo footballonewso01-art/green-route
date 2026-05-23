@@ -1,17 +1,19 @@
 import { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { ArrowRight, BarChart3, Shield, Zap, Globe, MousePointer, ExternalLink, User as UserIcon } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowRight, BarChart3, Shield, Zap, Globe, MousePointer, ExternalLink, User as UserIcon, Sparkles } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
 import { PlanType, PLAN_RANKS } from "@/lib/plans";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useSeo } from "@/hooks/useSeo";
+import { SEO_PAGES } from "@/lib/seo-config";
 
 const features = [
   {
     icon: Shield,
     title: "Link Optimization",
-    description: "Hide your destination URLs. Protect your campaigns from competitors and prying eyes.",
+    description: "Secure your destination URLs. Protect your campaigns from redirection hijacking and brand abuse.",
   },
   {
     icon: BarChart3,
@@ -50,7 +52,8 @@ const plans = [
       { text: "3 Smart Links", icon: "🔗", tooltip: "Includes 3 Smart Links on Free plan." },
       { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
       { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
-      { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." }
+      { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." },
+      { text: "Domain Choose List", icon: "🌐", tooltip: "Select from a curated pool of domains to host your smart links." }
     ],
     buttonText: "Start for Free",
     popular: false
@@ -91,17 +94,52 @@ const plans = [
   },
 ];
 
+const words = [
+  { text: "Your Link in Bio", className: "font-sans font-extrabold tracking-tight text-white" },
+  { text: "Link Masking Tool", className: "font-mono font-bold tracking-tighter text-white text-[0.78em]" },
+  { text: "Smart Redirects", className: "font-sans font-black italic tracking-tighter text-white text-[0.95em]" },
+  { text: "Deep Link Router", className: "font-sans font-extrabold tracking-wide text-white text-[0.82em]" },
+  { text: "Traffic Analytics", className: "font-sans font-black tracking-tighter text-white" },
+];
+
 export default function LandingPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [usernameInput, setUsernameInput] = useState("");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
   const videoRef = useRef<HTMLVideoElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
 
-  useSeo({
-    title: "Smart Link Management & Traffic Routing",
-    description: "Linktery is a smart link management platform with geo & device targeting, deep linking, real-time analytics, and link-in-bio profiles. Built for creators, affiliates, and marketers.",
-    canonical: "/",
-  });
+  const [wordIndex, setWordIndex] = useState(0);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    const startInterval = () => {
+      interval = setInterval(() => {
+        setWordIndex((prev) => (prev + 1) % words.length);
+      }, 3000);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearInterval(interval);
+      } else {
+        clearInterval(interval);
+        startInterval();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    startInterval();
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
+  useSeo(SEO_PAGES.home);
 
   useEffect(() => {
     // Record pageview event anonymously
@@ -120,7 +158,9 @@ export default function LandingPage() {
         }).catch(() => {});
         sessionStorage.setItem("landing_viewed", "true");
       }
-    } catch(e) {}
+    } catch(e) {
+      // Ignored
+    }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -204,40 +244,136 @@ export default function LandingPage() {
           <div className="absolute inset-0 backdrop-blur-[2px]" />
         </div>
 
-        <div className="max-w-7xl mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-accent text-sm mb-8">
-            <Zap className="w-3.5 h-3.5" />
-            Smart Link Management Platform
-          </div>
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6">
-            Control Your Traffic.
-            <br />
-            <span className="gradient-text">Maximize Every Click.</span>
-          </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-            Advanced link management with smart routing, deep linking, and real-time analytics. Built for creators, affiliates, and marketers.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            {user ? (
-              <Link to="/dashboard" className="btn-primary-glow text-base inline-flex items-center justify-center gap-2">
-                Open Dashboard <ArrowRight className="w-4 h-4" />
-              </Link>
-            ) : (
-              <Link to="/register" className="btn-primary-glow text-base inline-flex items-center justify-center gap-2">
-                Get Started Free <ArrowRight className="w-4 h-4" />
-              </Link>
-            )}
-            <a href="#features" className="px-6 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-surface-hover transition-all duration-200 text-base inline-flex items-center justify-center">
-              Learn More
-            </a>
+        <div className="max-w-7xl mx-auto w-full relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center text-left">
+          {/* Left Column: Content */}
+          <div className="lg:col-span-6 flex flex-col items-start transform lg:translate-y-[2%]">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-accent text-sm mb-7">
+              <Zap className="w-3.5 h-3.5" />
+              Traffic Management Platform
+            </div>
+            
+            <h1 className="text-4xl sm:text-5xl lg:text-[70px] font-extrabold tracking-tight mb-7 leading-[1.15] text-foreground w-full">
+              <span className="relative block overflow-hidden h-[1.15em] w-full">
+                <AnimatePresence mode="popLayout">
+                  <motion.span
+                    key={wordIndex}
+                    initial={{ y: "150%", opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: "-150%", opacity: 0 }}
+                    transition={{ duration: 0.75, ease: [0.76, 0, 0.24, 1] }}
+                    className={`absolute inset-x-0 block whitespace-nowrap ${words[wordIndex].className}`}
+                  >
+                    {words[wordIndex].text}
+                  </motion.span>
+                </AnimatePresence>
+              </span>
+              <span className="gradient-text block mt-1">Built to Convert.</span>
+            </h1>
+            
+            <p className="text-base md:text-[20px] text-muted-foreground mb-8 max-w-xl leading-relaxed">
+              Advanced link management with smart routing. Designed for creators, affiliates, and marketers.
+            </p>
+            
+            <div className="flex flex-col items-start gap-4 mb-8 w-full max-w-md relative z-20">
+              {user ? (
+                <Link to="/dashboard" className="btn-primary-glow text-base sm:text-[20px] inline-flex items-center justify-center gap-2 px-10 py-4.5 rounded-xl font-bold">
+                  Open Dashboard <ArrowRight className="w-4 h-4" />
+                </Link>
+              ) : (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (usernameInput.trim()) {
+                      navigate(`/register?username=${usernameInput.trim().toLowerCase()}`);
+                    }
+                  }}
+                  className="w-full flex items-center bg-surface/40 backdrop-blur-xl border border-border/60 hover:border-border/80 focus-within:border-accent/40 rounded-full p-1.5 transition-all duration-300 shadow-glow/5 focus-within:shadow-glow/15"
+                >
+                  <div className="flex items-center pl-1 pr-0 text-zinc-300 select-none font-medium text-[14.7px] sm:text-[16.6px] flex-shrink-0">
+                    <img src="/logo.webp" alt="Logo" className="h-10 w-auto mix-blend-screen mr-1 flex-shrink-0" />
+                    <span>linktery.com/</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_.]/g, "").slice(0, 22))}
+                    maxLength={22}
+                    placeholder="yourname"
+                    className="bg-transparent border-0 p-0 m-0 outline-none focus:ring-0 text-white placeholder:text-white/30 w-full min-w-0 py-2 pl-[1px] text-[14.7px] sm:text-[16.6px] pr-2"
+                  />
+                  <button
+                    type="submit"
+                    className="btn-primary-glow !rounded-full !py-2.5 !px-5 sm:!px-6 whitespace-nowrap text-sm font-bold active:scale-95 transition-transform"
+                  >
+                    Start for free
+                  </button>
+                </form>
+              )}
+            </div>
+
+            {/* Bullet points */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[15.5px] text-muted-foreground/80 mb-10 font-medium">
+              <span className="flex items-center gap-1.5">
+                <span className="text-accent">•</span> Free forever
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-accent">•</span> No credit card
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-accent">•</span> 30 sec setup
+              </span>
+            </div>
+
+            {/* Rating social proof widget */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 border-t border-border/50 pt-9 w-full max-w-xl">
+              {/* Overlapping avatars */}
+              <div className="flex -space-x-3.5">
+                <img
+                  className="inline-block h-[44px] w-[44px] rounded-full ring-2 ring-background object-cover"
+                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&h=100&q=80"
+                  alt="User avatar 1"
+                />
+                <img
+                  className="inline-block h-[44px] w-[44px] rounded-full ring-2 ring-background object-cover"
+                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80"
+                  alt="User avatar 2"
+                />
+                <img
+                  className="inline-block h-[44px] w-[44px] rounded-full ring-2 ring-background object-cover"
+                  src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&h=100&q=80"
+                  alt="User avatar 3"
+                />
+              </div>
+              <div className="flex flex-col items-start justify-center">
+                {/* 5 Stars */}
+                <div className="flex items-center gap-0.5 text-amber-400 mb-1">
+                  {[...Array(5)].map((_, i) => (
+                    <svg
+                      key={i}
+                      className="w-[19px] h-[19px] fill-current"
+                      viewBox="0 0 20 20"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+                <span className="text-[14px] md:text-[16px] text-muted-foreground font-medium text-left">
+                  Trusted by 95K creators across 350 agencies
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* Dashboard Preview */}
-          <div className="mt-16 mx-auto max-w-6xl relative animate-fade-in" style={{ animationDelay: '0.4s' }}>
-            <div className="absolute inset-0 bg-accent/10 blur-3xl rounded-3xl" />
-            <div className="relative glass-card p-2 rounded-2xl overflow-hidden shadow-glow">
-              {/* @ts-ignore - HTML attribute is lowercase */}
-              <img src="/mainstat.webp" alt="Linktery Dashboard" className="w-full rounded-xl shadow-2xl" fetchpriority="high" loading="eager" />
+          {/* Right Column: Mobile Screenshot */}
+          <div className="lg:col-span-6 flex justify-center relative w-full mt-10 lg:mt-0 transform lg:translate-y-[6%]">
+            <div className="relative animate-float w-full max-w-none flex justify-center">
+              <img
+                src="/mobila.png"
+                alt="Linktery mobile preview"
+                className="transform rotate-3 scale-[1.75] lg:scale-[2.31] lg:translate-x-[17%] w-full h-auto select-none pointer-events-none origin-center z-10"
+                loading="eager"
+              />
             </div>
           </div>
         </div>
@@ -246,7 +382,7 @@ export default function LandingPage() {
       {/* Features */}
       <section id="features" ref={sectionRef} className="py-24 px-6 relative overflow-hidden group">
         {/* Features Video Background */}
-        <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.07] scale-110 group-hover:scale-100 transition-transform duration-[3000ms] ease-out">
+        <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.07] scale-110 group-hover:scale-100 transition-transform [transition-duration:3s] ease-out">
           <video
             ref={videoRef}
             loop
@@ -339,30 +475,59 @@ export default function LandingPage() {
               const isAgency = plan.id === "agency";
 
               return (
-                <div key={plan.id} className={`relative group transition-all duration-500 hover:translate-y-[-8px] ${isPro ? "hover:scale-[1.05]" : ""}`}>
-                  <div className={`glass-card p-8 rounded-2xl relative flex flex-col h-full ${shouldHighlight ? (isAgency ? "shadow-indigo-glow" : "shadow-glow") : ""} ${isPro ? "premium-border" : ""} ${isAgency ? "border-indigo-500/30" : ""}`}>
-                    <div className="text-center mb-6">
-                      <h3 className={`text-xl font-bold mb-1 ${isPro ? "text-accent" : isAgency ? "text-indigo-400" : "text-foreground"}`}>{plan.name}</h3>
-                      <p className="text-sm text-muted-foreground mb-4">{plan.description}</p>
-                      <div className="text-4xl font-extrabold text-foreground">
-                        ${billingCycle === "annual" && plan.annualPrice ? plan.annualPrice : plan.price}
-                        <span className="text-base font-normal text-muted-foreground ml-1">/mo</span>
+                <div key={plan.id} className={`relative group transition-all duration-500 hover:translate-y-[-10px] flex flex-col ${isPro ? "hover:scale-[1.03]" : ""}`}>
+                  {/* Backdrop glowing background blurs */}
+                  {isPro && (
+                    <div className="absolute inset-0 bg-accent/10 rounded-[28px] blur-[30px] -z-10 group-hover:bg-accent/15 transition-all duration-500 pointer-events-none" />
+                  )}
+                  {isAgency && (
+                    <div className="absolute inset-0 bg-indigo-500/5 rounded-[28px] blur-[30px] -z-10 group-hover:bg-indigo-500/10 transition-all duration-500 pointer-events-none" />
+                  )}
+
+                  <div className={`glass-card pt-10 px-8 pb-8 rounded-[28px] relative flex flex-col h-full bg-card/60 backdrop-blur-2xl border transition-all duration-500 ${
+                    isPro 
+                      ? "border-accent/40 shadow-glow hover:border-accent/60" 
+                      : isAgency 
+                        ? "border-indigo-500/20 shadow-indigo-glow hover:border-indigo-500/40" 
+                        : "border-white/5 hover:border-white/15"
+                  }`}>
+                    
+                    <div className="text-left mb-6">
+                      <h3 className={`text-2xl font-extrabold mb-2 tracking-tight ${
+                        isPro ? "text-accent" : isAgency ? "text-indigo-400" : "text-foreground"
+                      }`}>{plan.name}</h3>
+                      <p className="text-sm text-muted-foreground h-12 leading-relaxed">{plan.description}</p>
+                      
+                      <div className="flex items-baseline mt-5 mb-2 gap-1.5">
+                        <span className="text-5xl font-black text-white tracking-tight">
+                          ${billingCycle === "annual" && plan.annualPrice ? plan.annualPrice : plan.price}
+                        </span>
+                        <span className="text-base font-medium text-muted-foreground">/mo</span>
+                        {billingCycle === "annual" && plan.annualPrice && (
+                          <span className="ml-2 text-[10px] font-bold text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            Save 20%
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <ul className="space-y-4 mb-8 flex-1">
+                    <ul className="space-y-3.5 mb-8 flex-1 text-left">
                       {plan.features.map((f, idx) => (
-                        <li key={idx} className="flex items-center gap-3 text-sm text-muted-foreground">
-                          <span className="text-lg">{f.icon}</span>
-                          <span className="flex-1">{f.text}</span>
+                        <li key={idx} className="flex items-center gap-3 text-sm text-muted-foreground group/feature">
+                          <span className={`w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-sm flex-shrink-0 transition-all duration-300 ${
+                            isPro ? "group-hover/feature:bg-accent/10 group-hover/feature:border-accent/30" : isAgency ? "group-hover/feature:bg-indigo-500/10 group-hover/feature:border-indigo-500/30" : "group-hover/feature:bg-white/10"
+                          }`}>
+                            {f.icon}
+                          </span>
+                          <span className="flex-1 truncate">{f.text}</span>
                           {f.tooltip && (
                             <Tooltip delayDuration={0}>
                               <TooltipTrigger asChild>
-                                <button type="button" className="w-4 h-4 rounded-full border border-muted-foreground/30 flex items-center justify-center text-[10px] cursor-help opacity-50 hover:opacity-100 hover:border-accent hover:text-accent transition-all">
+                                <button type="button" className="w-4 h-4 rounded-full border border-muted-foreground/30 flex items-center justify-center text-[10px] cursor-help opacity-40 hover:opacity-100 hover:border-accent hover:text-accent transition-all flex-shrink-0">
                                   i
                                 </button>
                               </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs text-[10px] leading-relaxed p-2 bg-surface border-border text-foreground shadow-2xl">
+                              <TooltipContent side="top" className="max-w-xs text-[10px] leading-relaxed p-2 bg-surface border-border text-foreground shadow-2xl z-50">
                                 <p>{f.tooltip}</p>
                               </TooltipContent>
                             </Tooltip>
@@ -375,21 +540,27 @@ export default function LandingPage() {
                       isCurrent ? (
                         <button
                           disabled
-                          className="w-full text-center py-4 rounded-2xl font-bold bg-surface-hover border border-white/10 text-muted-foreground cursor-not-allowed opacity-80"
+                          className="w-full text-center py-3.5 rounded-xl font-bold bg-surface-hover border border-white/10 text-muted-foreground cursor-not-allowed opacity-80 text-sm"
                         >
                           Your Current Plan
                         </button>
                       ) : isDowngrade ? (
                         <button
                           disabled
-                          className="w-full text-center py-4 rounded-2xl font-bold bg-surface-hover border border-border text-muted-foreground cursor-not-allowed opacity-60"
+                          className="w-full text-center py-3.5 rounded-xl font-bold bg-surface-hover border border-border text-muted-foreground cursor-not-allowed opacity-60 text-sm"
                         >
                           Included in Your Plan
                         </button>
                       ) : (
                         <Link
                           to="/dashboard/pricing"
-                          className={`w-full text-center py-4 rounded-2xl font-bold transition-all duration-300 block ${isPro ? "btn-primary-glow" : isAgency ? "bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20" : "border border-border hover:bg-surface-hover text-foreground"}`}
+                          className={`w-full text-center py-3.5 rounded-xl font-bold transition-all duration-300 block text-sm transform active:scale-95 ${
+                            isPro 
+                              ? "btn-primary-glow" 
+                              : isAgency 
+                                ? "bg-indigo-500 text-white shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:bg-indigo-600 hover:shadow-[0_0_25px_rgba(99,102,241,0.5)]" 
+                                : "border border-border hover:bg-surface-hover text-foreground hover:border-white/20"
+                          }`}
                         >
                           {plan.buttonText}
                         </Link>
@@ -397,15 +568,28 @@ export default function LandingPage() {
                     ) : (
                       <Link
                         to="/register"
-                        className={`w-full text-center py-4 rounded-2xl font-bold transition-all duration-300 block ${isPro ? "btn-primary-glow" : isAgency ? "bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20" : "border border-border hover:bg-surface-hover text-foreground"}`}
+                        className={`w-full text-center py-3.5 rounded-xl font-bold transition-all duration-300 block text-sm transform active:scale-95 ${
+                          isPro 
+                            ? "btn-primary-glow" 
+                            : isAgency 
+                              ? "bg-indigo-500 text-white shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:bg-indigo-600 hover:shadow-[0_0_25px_rgba(99,102,241,0.5)]" 
+                              : "border border-border hover:bg-surface-hover text-foreground hover:border-white/20"
+                        }`}
                       >
                         {plan.id === "creator" ? "Get Started" : plan.buttonText}
                       </Link>
                     )}
                   </div>
+                  
                   {showPopularBadge && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 glass-badge shimmer z-50">
-                      <Zap className="w-3 h-3 fill-current text-accent" /> Most Popular
+                    <div className="absolute -top-3.5 left-6 bg-accent text-accent-foreground text-xs font-bold uppercase tracking-wider py-1 px-3.5 rounded-full flex items-center gap-1 shadow-lg shadow-accent/20">
+                      <Zap className="w-3.5 h-3.5 fill-current" /> Most Popular
+                    </div>
+                  )}
+
+                  {isAgency && (
+                    <div className="absolute -top-3.5 left-6 bg-indigo-500 text-white text-xs font-bold uppercase tracking-wider py-1 px-3.5 rounded-full flex items-center gap-1 shadow-lg shadow-indigo-500/20 animate-fade-in">
+                      <Sparkles className="w-3.5 h-3.5 fill-current" /> Power User
                     </div>
                   )}
                 </div>

@@ -43,6 +43,7 @@ export const useAuth = () => {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
+    if (typeof window === "undefined") return null;
     const saved = localStorage.getItem("pocketbase_auth");
     if (saved) {
       try {

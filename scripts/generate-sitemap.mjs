@@ -4,39 +4,60 @@ import path from 'path';
 /**
  * SEO Sitemap Generator for Linktery (Vite/React)
  * 
- * This script generates a production-ready sitemap.xml in the public directory.
- * It includes all public-facing pages and excludes private/auth sections.
+ * This script dynamically extracts indexable pages from src/lib/seo-config.ts
+ * and generates a production-ready sitemap.xml.
  */
 
 const DOMAIN = 'https://linktery.com';
 
-// Indexable static routes currently defined in App.tsx
-const staticRoutes = [
-  '',           // Homepage
-  'pricing',    // Pricing
-  'login',      // Login
-  'register',   // Register
-  'privacy',    // Privacy Policy
-  'terms',      // Terms & Conditions
-];
+const getRoutesFromConfig = () => {
+  const configPath = path.join(process.cwd(), 'src/lib/seo-config.ts');
+  if (!fs.existsSync(configPath)) {
+    console.error(`⚠️ SEO Config file not found at: ${configPath}`);
+    return [];
+  }
 
-// Routes requested by user that are planned or indexable public pages
-const additionalRoutes = [
-  'features',   // Features page
-  'blog',       // Blog index
-  'docs',       // Documentation
-  // Landing pages & comparison pages
-  'alternatives/linktree',
-  'alternatives/beacons',
-];
+  const text = fs.readFileSync(configPath, 'utf8');
+  
+  // Match configuration blocks like: pageKey: { ... }
+  const blockRegex = /(\w+)\s*:\s*\{([^}]+)\}/g;
+  const routes = [];
+  let match;
 
-const allRoutes = [...staticRoutes, ...additionalRoutes];
+  while ((match = blockRegex.exec(text)) !== null) {
+    const key = match[1];
+    const content = match[2];
+
+    // Exclude noIndex configurations (e.g. login, register)
+    if (content.includes('noIndex: true')) {
+      continue;
+    }
+
+    // Extract the canonical property value
+    const canonicalMatch = content.match(/canonical\s*:\s*["']([^"']+)["']/);
+    if (canonicalMatch) {
+      let route = canonicalMatch[1];
+      // Normalize leading slash (e.g. "/pricing" -> "pricing", "/" -> "")
+      if (route.startsWith('/')) {
+        route = route.slice(1);
+      }
+      routes.push(route);
+    }
+  }
+
+  return routes;
+};
 
 const generateSitemap = () => {
+  const routes = getRoutesFromConfig();
+  if (routes.length === 0) {
+    console.error('❌ No indexable routes found in seo-config.ts');
+    process.exit(1);
+  }
+
   const today = new Date().toISOString().split('T')[0];
   
-  const urlEntries = allRoutes.map(route => {
-    // Ensure trailing slashes are handled correctly
+  const urlEntries = routes.map(route => {
     const url = route === '' ? DOMAIN : `${DOMAIN}/${route}`;
     
     // Assign priorities: Homepage (1.0) > Main Pages (0.8) > Nested/SEO Pages (0.6)
@@ -60,8 +81,6 @@ ${urlEntries}
 </urlset>`;
 
   const outputPath = path.join(process.cwd(), 'public', 'sitemap.xml');
-  
-  // Ensure the directory exists (though public should exist)
   const dir = path.dirname(outputPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -70,13 +89,22 @@ ${urlEntries}
   fs.writeFileSync(outputPath, sitemap.trim());
   
   console.log(`✅ Sitemap successfully generated at: ${outputPath}`);
-  console.log(`📊 Total URLs: ${allRoutes.length}`);
+
+  // Write to dist/sitemap.xml as well if dist folder exists (prevents build race condition)
+  const distPath = path.join(process.cwd(), 'dist', 'sitemap.xml');
+  const distDir = path.dirname(distPath);
+  if (fs.existsSync(distDir)) {
+    fs.writeFileSync(distPath, sitemap.trim());
+    console.log(`✅ Sitemap successfully copied to: ${distPath}`);
+  }
+  
+  console.log(`📊 Total URLs: ${routes.length}`);
 };
 
-// Run generation
 try {
   generateSitemap();
 } catch (error) {
   console.error('❌ Failed to generate sitemap:', error);
   process.exit(1);
 }
+

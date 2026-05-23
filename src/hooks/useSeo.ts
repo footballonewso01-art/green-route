@@ -5,38 +5,46 @@ interface SeoOptions {
   description?: string;
   canonical?: string;
   noIndex?: boolean;
+  ogImage?: string;
+  twitterCard?: "summary" | "summary_large_image" | "app" | "player";
 }
 
-export function useSeo({ title, description, canonical, noIndex }: SeoOptions) {
+export function useSeo({ title, description, canonical, noIndex, ogImage, twitterCard }: SeoOptions) {
   useEffect(() => {
-    // 1. Update Title
-    if (title) {
-      document.title = `${title} | Linktery`;
-    } else {
-      document.title = "Linktery - Smart Link Management & Traffic Routing";
-    }
+    // 1. Helper function for meta updates
+    const updateMeta = (name: string, content: string, isProperty = false) => {
+      if (!content) return;
+      const attr = isProperty ? "property" : "name";
+      let element = document.querySelector(`meta[${attr}="${name}"]`);
+      if (!element) {
+        element = document.createElement("meta");
+        element.setAttribute(attr, name);
+        document.head.appendChild(element);
+      }
+      element.setAttribute("content", content);
+    };
 
-    // 2. Update Meta Description
-    const descContent = description || "Linktery - Smart link management, targeting, and traffic routing analytics for creators.";
-    let metaDesc = document.querySelector('meta[name="description"]');
-    if (!metaDesc) {
-      metaDesc = document.createElement("meta");
-      metaDesc.setAttribute("name", "description");
-      document.head.appendChild(metaDesc);
-    }
-    metaDesc.setAttribute("content", descContent);
+    // 2. Title - Use verbatim as configured (which includes custom branding suffixes)
+    const finalTitle = title || "Linktery — Link in Bio & Traffic Analytics Platform";
+    document.title = finalTitle;
+    updateMeta("og:title", finalTitle, true);
+    updateMeta("twitter:title", finalTitle);
 
-    // Update og:description for social shares
-    let ogDesc = document.querySelector('meta[property="og:description"]');
-    if (ogDesc) {
-      ogDesc.setAttribute("content", descContent);
-    }
+    // 3. Description
+    const finalDesc = description || "Linktery - Smart link-in-bio and traffic management analytics for creators and marketers.";
+    updateMeta("description", finalDesc);
+    updateMeta("og:description", finalDesc, true);
+    updateMeta("twitter:description", finalDesc);
 
-    // 3. Update Canonical Link (Critical to fix Google Search Console duplicate content warnings)
+    // 4. Canonical Link (Strips query/UTM parameters from window.location by default)
     const mainDomain = "https://linktery.com";
+    let path = window.location.pathname;
+    // Canonical standard: normalize homepage path to empty string for trailing slash removal
+    if (path === "/") path = "";
+    
     const hrefValue = canonical
-      ? (canonical.startsWith("http") ? canonical : `${mainDomain}${canonical}`)
-      : `${mainDomain}${window.location.pathname}`;
+      ? (canonical.startsWith("http") ? canonical : `${mainDomain}${canonical === "/" ? "" : canonical}`)
+      : `${mainDomain}${path}`;
 
     let canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement;
     if (!canonicalLink) {
@@ -45,8 +53,18 @@ export function useSeo({ title, description, canonical, noIndex }: SeoOptions) {
       document.head.appendChild(canonicalLink);
     }
     canonicalLink.href = hrefValue;
+    updateMeta("og:url", hrefValue, true);
 
-    // 4. Update robots directive for staging, private admin directories, or explicit noIndex pages
+    // 5. Open Graph & Twitter Images
+    const finalImage = ogImage || `${mainDomain}/og-image.png`;
+    updateMeta("og:image", finalImage, true);
+    updateMeta("twitter:image", finalImage);
+
+    // 6. Twitter Card Type
+    const finalTwitterCard = twitterCard || "summary_large_image";
+    updateMeta("twitter:card", finalTwitterCard);
+
+    // 7. Robots Meta Directive (noindex, nofollow)
     let robotsMeta = document.querySelector('meta[name="robots"]');
     if (noIndex) {
       if (!robotsMeta) {
@@ -61,5 +79,6 @@ export function useSeo({ title, description, canonical, noIndex }: SeoOptions) {
         robotsMeta.setAttribute("content", "index, follow");
       }
     }
-  }, [title, description, canonical, noIndex]);
+  }, [title, description, canonical, noIndex, ogImage, twitterCard]);
 }
+

@@ -1,6 +1,8 @@
 import { Chrome } from "lucide-react";
+import { useSeo } from "@/hooks/useSeo";
 
 export default function InterstitialPage() {
+  useSeo({ noIndex: true });
   const openInChrome = () => {
     window.open(window.location.href, "_system");
   };

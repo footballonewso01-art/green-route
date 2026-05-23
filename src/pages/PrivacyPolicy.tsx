@@ -1,7 +1,10 @@
 import { Link } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
+import { useSeo } from "@/hooks/useSeo";
+import { SEO_PAGES } from "@/lib/seo-config";
 
 export default function PrivacyPolicy() {
+    useSeo(SEO_PAGES.privacy);
     return (
         <div className="min-h-screen bg-background text-white selection:bg-accent/30 selection:text-white font-sans">
             {/* Header */}

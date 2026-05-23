@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Zap } from "lucide-react";
+import { Zap, Sparkles } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import { PlanType, PLAN_RANKS } from "@/lib/plans";
@@ -17,7 +17,8 @@ const plans = [
             { text: "3 Smart Links", icon: "🔗", tooltip: "Includes 3 Smart Links on Free plan." },
             { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
             { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
-            { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." }
+            { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." },
+            { text: "Domain Choose List", icon: "🌐", tooltip: "Select from a curated pool of domains to host your smart links." }
         ],
         buttonText: "Start for Free",
         popular: false
@@ -170,30 +171,59 @@ export default function DashboardPricing() {
                         const isAgency = plan.id === "agency";
 
                         return (
-                            <div key={plan.id} className={`relative group transition-all duration-500 hover:translate-y-[-8px] ${isPro ? "hover:scale-[1.02]" : ""}`}>
-                                <div className={`glass-card p-8 rounded-2xl relative flex flex-col h-full ${shouldHighlight ? (isAgency ? "shadow-indigo-glow" : "shadow-glow") : ""} ${isPro ? "premium-border" : ""} ${isAgency ? "border-indigo-500/30" : ""}`}>
-                                    <div className="text-center mb-6">
-                                        <h3 className={`text-xl font-bold mb-1 ${isPro ? "text-accent" : isAgency ? "text-indigo-400" : "text-foreground"}`}>{plan.name}</h3>
-                                        <p className="text-sm text-muted-foreground mb-4 h-10">{plan.description}</p>
-                                        <div className="text-4xl font-extrabold text-foreground">
-                                            ${billingCycle === "annual" && plan.annualPrice ? plan.annualPrice : plan.price}
-                                            <span className="text-base font-normal text-muted-foreground ml-1">/mo</span>
+                            <div key={plan.id} className={`relative group transition-all duration-500 hover:translate-y-[-10px] flex flex-col ${isPro ? "hover:scale-[1.03]" : ""}`}>
+                                {/* Backdrop glowing background blurs */}
+                                {isPro && (
+                                    <div className="absolute inset-0 bg-accent/10 rounded-[28px] blur-[30px] -z-10 group-hover:bg-accent/15 transition-all duration-500 pointer-events-none" />
+                                )}
+                                {isAgency && (
+                                    <div className="absolute inset-0 bg-indigo-500/5 rounded-[28px] blur-[30px] -z-10 group-hover:bg-indigo-500/10 transition-all duration-500 pointer-events-none" />
+                                )}
+
+                                <div className={`glass-card pt-10 px-8 pb-8 rounded-[28px] relative flex flex-col h-full bg-card/60 backdrop-blur-2xl border transition-all duration-500 ${
+                                    isPro 
+                                        ? "border-accent/40 shadow-glow hover:border-accent/60" 
+                                        : isAgency 
+                                            ? "border-indigo-500/20 shadow-indigo-glow hover:border-indigo-500/40" 
+                                            : "border-white/5 hover:border-white/15"
+                                }`}>
+                                    
+                                    <div className="text-left mb-6">
+                                        <h3 className={`text-2xl font-extrabold mb-2 tracking-tight ${
+                                            isPro ? "text-accent" : isAgency ? "text-indigo-400" : "text-foreground"
+                                        }`}>{plan.name}</h3>
+                                        <p className="text-sm text-muted-foreground h-12 leading-relaxed">{plan.description}</p>
+                                        
+                                        <div className="flex items-baseline mt-5 mb-2 gap-1.5">
+                                            <span className="text-5xl font-black text-white tracking-tight">
+                                                ${billingCycle === "annual" && plan.annualPrice ? plan.annualPrice : plan.price}
+                                            </span>
+                                            <span className="text-base font-medium text-muted-foreground">/mo</span>
+                                            {billingCycle === "annual" && plan.annualPrice && (
+                                                <span className="ml-2 text-[10px] font-bold text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                                    Save 20%
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 
-                                    <ul className="space-y-4 mb-8 flex-1">
+                                    <ul className="space-y-3.5 mb-8 flex-1 text-left">
                                         {plan.features.map((f, idx) => (
-                                            <li key={idx} className="flex items-center gap-3 text-sm text-muted-foreground">
-                                                <span className="text-lg">{f.icon}</span>
-                                                <span className="flex-1">{f.text}</span>
+                                            <li key={idx} className="flex items-center gap-3 text-sm text-muted-foreground group/feature">
+                                                <span className={`w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-sm flex-shrink-0 transition-all duration-300 ${
+                                                    isPro ? "group-hover/feature:bg-accent/10 group-hover/feature:border-accent/30" : isAgency ? "group-hover/feature:bg-indigo-500/10 group-hover/feature:border-indigo-500/30" : "group-hover/feature:bg-white/10"
+                                                }`}>
+                                                    {f.icon}
+                                                </span>
+                                                <span className="flex-1 truncate">{f.text}</span>
                                                 {f.tooltip && (
                                                     <Tooltip delayDuration={0}>
                                                         <TooltipTrigger asChild>
-                                                            <button type="button" className="w-4 h-4 rounded-full border border-muted-foreground/30 flex items-center justify-center text-[10px] cursor-help opacity-50 hover:opacity-100 hover:border-accent hover:text-accent transition-all">
+                                                            <button type="button" className="w-4 h-4 rounded-full border border-muted-foreground/30 flex items-center justify-center text-[10px] cursor-help opacity-40 hover:opacity-100 hover:border-accent hover:text-accent transition-all flex-shrink-0">
                                                                 i
                                                             </button>
                                                         </TooltipTrigger>
-                                                        <TooltipContent side="top" className="max-w-xs text-[10px] leading-relaxed p-2 bg-surface border-border text-foreground shadow-2xl">
+                                                        <TooltipContent side="top" className="max-w-xs text-[10px] leading-relaxed p-2 bg-surface border-border text-foreground shadow-2xl z-50">
                                                             <p>{f.tooltip}</p>
                                                         </TooltipContent>
                                                     </Tooltip>
@@ -205,22 +235,31 @@ export default function DashboardPricing() {
                                     <button
                                         onClick={() => handleUpgrade(plan.id)}
                                         disabled={isDisabled || loading}
-                                        className={`block w-full text-center py-4 rounded-2xl font-bold transition-all duration-300 ${
+                                        className={`w-full text-center py-3.5 rounded-xl font-bold transition-all duration-300 block text-sm transform active:scale-95 ${
                                             isCurrent
                                                 ? "bg-surface-hover border border-white/10 text-muted-foreground cursor-not-allowed opacity-80"
                                                 : isDowngrade
                                                     ? "bg-surface-hover border border-border text-muted-foreground cursor-not-allowed opacity-60"
-                                                    : plan.popular
-                                                        ? "btn-primary-glow"
-                                                        : "border border-border hover:bg-surface-hover text-foreground hover:border-accent"
+                                                    : isPro 
+                                                        ? "btn-primary-glow" 
+                                                        : isAgency 
+                                                            ? "bg-indigo-500 text-white shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:bg-indigo-600 hover:shadow-[0_0_25px_rgba(99,102,241,0.5)]" 
+                                                            : "border border-border hover:bg-surface-hover text-foreground hover:border-white/20"
                                         }`}
                                     >
                                         {isCurrent ? "Your Current Plan" : isDowngrade ? "Included in Your Plan" : loading ? "Processing..." : plan.buttonText}
                                     </button>
                                 </div>
+                                
                                 {showPopularBadge && (
-                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 glass-badge shimmer z-50">
-                                        <Zap className="w-3 h-3 fill-current text-accent" /> Most Popular
+                                    <div className="absolute -top-3.5 left-6 bg-accent text-accent-foreground text-xs font-bold uppercase tracking-wider py-1 px-3.5 rounded-full flex items-center gap-1 shadow-lg shadow-accent/20">
+                                        <Zap className="w-3.5 h-3.5 fill-current" /> Most Popular
+                                    </div>
+                                )}
+
+                                {isAgency && (
+                                    <div className="absolute -top-3.5 left-6 bg-indigo-500 text-white text-xs font-bold uppercase tracking-wider py-1 px-3.5 rounded-full flex items-center gap-1 shadow-lg shadow-indigo-500/20 animate-fade-in">
+                                        <Sparkles className="w-3.5 h-3.5 fill-current" /> Power User
                                     </div>
                                 )}
                             </div>
