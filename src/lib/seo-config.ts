@@ -51,4 +51,9 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     description: "Compare Linktery vs Beacons. Analyze premium customization capabilities, device & location targeting features, pricing structures, and analytics to select the best tool.",
     canonical: "/alternatives/beacons",
   },
+  onlyfansSolution: {
+    title: "OnlyFans Link in Bio: Safe Sharing on Instagram & TikTok | Linktery",
+    description: "Learn how to safely share OnlyFans links on Instagram & TikTok without bans or shadowbans. Secure your creator profile with link cloaking and custom domains.",
+    canonical: "/solutions/onlyfans-link-in-bio",
+  },
 };

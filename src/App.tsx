@@ -26,6 +26,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsAndConditions from "./pages/TermsAndConditions";
 import LinktreeAlternative from "./pages/LinktreeAlternative";
 import BeaconsAlternative from "./pages/BeaconsAlternative";
+import OnlyFansSolution from "./pages/OnlyFansSolution";
 import { AdminRoute } from "./components/AdminRoute";
 import AdminOverview from "./pages/admin/AdminOverview";
 import AdminUsers from "./pages/admin/AdminUsers";
@@ -68,6 +69,7 @@ function DomainGuard() {
                           location.pathname.startsWith('/privacy') || 
                           location.pathname.startsWith('/terms') || 
                           location.pathname.startsWith('/alternatives') || 
+                          location.pathname.startsWith('/solutions') || 
                           location.pathname.startsWith('/open-in-browser') || 
                           location.pathname.startsWith('/admin');
                           
@@ -118,6 +120,7 @@ const AppRoutes = () => (
     <Route path="/terms" element={<TermsAndConditions />} />
     <Route path="/alternatives/linktree" element={<LinktreeAlternative />} />
     <Route path="/alternatives/beacons" element={<BeaconsAlternative />} />
+    <Route path="/solutions/onlyfans-link-in-bio" element={<OnlyFansSolution />} />
     <Route path="/auth" element={<Navigate to="/login" replace />} />
     <Route path="/open-in-browser" element={<InterstitialPage />} />
     <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>

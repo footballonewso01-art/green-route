@@ -70,7 +70,7 @@ const plans = [
       { text: "Remove Linktery Branding", icon: "✨", tooltip: "Completely remove the branding badge from your public profile." },
       { text: "Deeplink", icon: "⚡", tooltip: "Bypass in-app social browsers to open your links directly in Safari or Chrome." },
       { text: "Advanced Analytics", icon: "📊", tooltip: "Detailed tracking: clicks over time, countries, referrers, and device types." },
-      { text: "Link Optimization", icon: "🛡️", tooltip: "Hide your destination URLs from bots and competitor scrapers using cloaking." },
+      { text: "Link Optimization", icon: "🛡️", tooltip: "Optimize traffic quality by filtering automated crawlers and verifying visitors." },
       { text: "Geo Targeting", icon: "🌍", tooltip: "Route visitors to different destination URLs based on their country." }
     ],
     buttonText: "Upgrade to Pro",
