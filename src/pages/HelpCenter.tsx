@@ -641,14 +641,17 @@ export default function HelpCenter() {
     const totalArticles = helpCategories.reduce((sum, c) => sum + c.articles.length, 0);
 
     return (
-        <div className="relative w-full min-h-full overflow-hidden">
-            {/* Background stars canvas & grid */}
-            <canvas ref={canvasRef} className="fixed inset-0 z-[1] pointer-events-none w-full h-full opacity-55" />
-            <div className="absolute inset-0 bg-grid-white opacity-[0.02] z-[1] pointer-events-none" />
+        <div className="relative w-full min-h-full">
+            {/* Background elements wrapper - extends beyond main padding to prevent clipping at layout borders */}
+            <div className="absolute -top-10 -left-6 -right-6 -bottom-12 overflow-hidden pointer-events-none z-0">
+                {/* Background stars canvas & grid */}
+                <canvas ref={canvasRef} className="fixed inset-0 z-[1] pointer-events-none w-full h-full opacity-55" />
+                <div className="absolute inset-0 bg-grid-white opacity-[0.02] z-[1] pointer-events-none" />
 
-            {/* Premium Ambient Background Glows */}
-            <div className="absolute top-[-120px] left-1/2 -translate-x-1/2 w-[550px] h-[300px] bg-gradient-to-r from-accent/20 to-emerald-500/10 rounded-full blur-[120px] pointer-events-none z-0" />
-            <div className="absolute top-[250px] right-[-150px] w-[350px] h-[350px] bg-accent/5 rounded-full blur-[130px] pointer-events-none z-0" />
+                {/* Premium Ambient Background Glows */}
+                <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-gradient-to-r from-accent/25 to-emerald-500/10 rounded-full blur-[120px] z-0" />
+                <div className="absolute top-[250px] right-[-100px] w-[350px] h-[350px] bg-accent/5 rounded-full blur-[130px] z-0" />
+            </div>
 
             <div className="relative z-10 max-w-5xl mx-auto space-y-8 pb-12">
                 {/* Header */}
