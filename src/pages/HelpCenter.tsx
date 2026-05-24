@@ -550,13 +550,13 @@ export default function HelpCenter() {
 
         const initStars = () => {
             stars = [];
-            const numStars = Math.floor((canvas.width * canvas.height) / 15000);
+            const numStars = Math.floor((canvas.width * canvas.height) / 10000);
             for (let i = 0; i < numStars; i++) {
                 stars.push({
                     x: Math.random() * canvas.width,
                     y: Math.random() * canvas.height,
-                    size: Math.random() * 1.5 + 0.5,
-                    opacity: Math.random() * 0.4 + 0.1,
+                    size: Math.random() * 1.8 + 0.5,
+                    opacity: Math.random() * 0.6 + 0.2,
                     speed: Math.random() * 0.04 + 0.01,
                     blinkDirection: Math.random() > 0.5 ? 1 : -1,
                 });
@@ -579,25 +579,25 @@ export default function HelpCenter() {
                 ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
                 
                 // Blink logic
-                star.opacity += star.blinkDirection * 0.003;
-                if (star.opacity > 0.5) {
-                    star.opacity = 0.5;
+                star.opacity += star.blinkDirection * 0.004;
+                if (star.opacity > 0.7) {
+                    star.opacity = 0.7;
                     star.blinkDirection = -1;
-                } else if (star.opacity < 0.05) {
-                    star.opacity = 0.05;
+                } else if (star.opacity < 0.1) {
+                    star.opacity = 0.1;
                     star.blinkDirection = 1;
                 }
 
                 // Float up slowly
-                star.y -= star.speed * 8;
+                star.y -= star.speed * 10;
                 if (star.y < 0) {
                     star.y = canvas.height;
                     star.x = Math.random() * canvas.width;
                 }
 
-                ctx.fillStyle = `rgba(34, 197, 94, ${star.opacity * 0.25})`;
-                ctx.shadowBlur = 4;
-                ctx.shadowColor = "rgba(34, 197, 94, 0.3)";
+                ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity * 0.6})`;
+                ctx.shadowBlur = 6;
+                ctx.shadowColor = "rgba(255, 255, 255, 0.4)";
                 ctx.fill();
                 ctx.shadowBlur = 0; // reset
             });
@@ -643,34 +643,38 @@ export default function HelpCenter() {
     return (
         <div className="relative w-full min-h-full overflow-hidden">
             {/* Background stars canvas & grid */}
-            <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none w-full h-full opacity-20" />
-            <div className="absolute inset-0 bg-grid-white opacity-[0.02] z-0 pointer-events-none" />
+            <canvas ref={canvasRef} className="fixed inset-0 z-[1] pointer-events-none w-full h-full opacity-55" />
+            <div className="absolute inset-0 bg-grid-white opacity-[0.02] z-[1] pointer-events-none" />
+
+            {/* Premium Ambient Background Glows */}
+            <div className="absolute top-[-120px] left-1/2 -translate-x-1/2 w-[550px] h-[300px] bg-gradient-to-r from-accent/20 to-emerald-500/10 rounded-full blur-[120px] pointer-events-none z-0" />
+            <div className="absolute top-[250px] right-[-150px] w-[350px] h-[350px] bg-accent/5 rounded-full blur-[130px] pointer-events-none z-0" />
 
             <div className="relative z-10 max-w-5xl mx-auto space-y-8 pb-12">
                 {/* Header */}
-                <div className="text-center space-y-4 pt-4">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-accent text-sm">
-                        <HelpCircle className="w-4 h-4" /> Help Center
+                <div className="text-center space-y-4 pt-4 relative z-10">
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/25 bg-accent/10 text-accent text-xs font-semibold uppercase tracking-wider shadow-inner">
+                        <HelpCircle className="w-3.5 h-3.5" /> Help Center
                     </div>
                     <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
-                        How can we <span className="bg-gradient-to-r from-accent to-emerald-300 bg-clip-text text-transparent">help?</span>
+                        How can we <span className="bg-gradient-to-r from-accent via-accent to-emerald-300 bg-clip-text text-transparent drop-shadow-sm">help?</span>
                     </h1>
-                    <p className="text-muted-foreground text-lg max-w-xl mx-auto">
+                    <p className="text-muted-foreground text-base md:text-lg max-w-xl mx-auto font-medium">
                         Guides, tutorials, and answers to help you get the most out of Linktery.
                     </p>
                 </div>
 
                 {/* Search */}
-                <div className="relative max-w-2xl mx-auto">
-                    <div className="absolute inset-0 bg-accent/5 blur-2xl rounded-full" />
+                <div className="relative max-w-2xl mx-auto group">
+                    <div className="absolute -inset-0.5 bg-gradient-to-r from-accent to-emerald-500 rounded-2xl blur opacity-15 group-focus-within:opacity-30 transition duration-500 pointer-events-none" />
                     <div className="relative">
-                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-accent transition-colors" />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => { setSearchQuery(e.target.value); setActiveCategory(null); }}
                             placeholder="Search articles... (e.g. deeplinks, analytics, pricing)"
-                            className="w-full pl-14 pr-6 py-4 bg-surface/40 backdrop-blur-xl border border-border/60 rounded-2xl text-base focus:outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/10 transition-all placeholder:text-muted-foreground/50 text-white"
+                            className="w-full pl-14 pr-6 py-4 bg-surface/60 backdrop-blur-xl border border-border/80 rounded-2xl text-base focus:outline-none focus:border-accent/50 focus:ring-4 focus:ring-accent/5 transition-all placeholder:text-muted-foreground/45 text-white"
                         />
                         {searchQuery && (
                             <button
@@ -695,13 +699,13 @@ export default function HelpCenter() {
                             <button
                                 key={cat.id}
                                 onClick={() => setActiveCategory(cat.id)}
-                                className="group p-6 bg-surface/30 backdrop-blur-md border border-border/80 rounded-2xl text-left hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5 transition-all duration-300 hover:-translate-y-1"
+                                className="group p-6 bg-surface/50 hover:bg-surface/75 backdrop-blur-md border border-border/60 rounded-2xl text-left hover:border-accent/40 hover:shadow-[0_8px_30px_rgba(34,197,94,0.08)] hover:-translate-y-1.5 transition-all duration-300"
                             >
-                                <div className="w-12 h-12 rounded-xl bg-background/50 border border-border flex items-center justify-center mb-4 group-hover:border-accent/30 transition-colors">
+                                <div className="w-12 h-12 rounded-xl bg-background/60 border border-border/80 group-hover:border-accent/30 group-hover:bg-accent/5 flex items-center justify-center mb-4 transition-all duration-300 group-hover:shadow-[0_0_15px_rgba(34,197,94,0.1)]">
                                     <cat.icon className={`w-6 h-6 ${cat.color} transition-transform group-hover:scale-110`} />
                                 </div>
-                                <h3 className="font-bold text-foreground mb-1">{cat.title}</h3>
-                                <p className="text-sm text-muted-foreground">{cat.description}</p>
+                                <h3 className="font-bold text-foreground group-hover:text-accent mb-1 transition-colors">{cat.title}</h3>
+                                <p className="text-sm text-muted-foreground/90">{cat.description}</p>
                                 <p className="text-xs text-muted-foreground/50 mt-3">{cat.articles.length} articles</p>
                             </button>
                         ))}
@@ -713,7 +717,7 @@ export default function HelpCenter() {
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setActiveCategory(null)}
-                            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                            className="text-sm text-muted-foreground hover:text-foreground transition-colors font-medium"
                         >
                             ← All Categories
                         </button>
@@ -742,13 +746,13 @@ export default function HelpCenter() {
                                         return (
                                             <div
                                                 key={article.id}
-                                                className={`bg-surface/20 backdrop-blur-md border rounded-2xl overflow-hidden transition-all duration-300 ${isOpen ? "border-accent/40 shadow-lg shadow-accent/5" : "border-border/80 hover:border-accent/20"}`}
+                                                className={`bg-surface/40 hover:bg-surface/60 backdrop-blur-md border rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-[1px] ${isOpen ? "border-accent/40 shadow-lg shadow-accent/5 bg-surface/75" : "border-border/60 hover:border-accent/30"}`}
                                             >
                                                 <button
                                                     onClick={() => toggleArticle(article.id)}
                                                     className="w-full flex items-center gap-4 p-5 text-left"
                                                 >
-                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${isOpen ? "bg-accent/10" : "bg-background/40 border border-border/80"}`}>
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${isOpen ? "bg-accent/15 border border-accent/25" : "bg-background/50 border border-border/80"}`}>
                                                         <article.icon className={`w-5 h-5 transition-colors ${isOpen ? "text-accent" : "text-muted-foreground"}`} />
                                                     </div>
                                                     <span className={`flex-1 font-semibold text-sm md:text-base transition-colors ${isOpen ? "text-accent" : "text-foreground"}`}>
@@ -806,7 +810,7 @@ export default function HelpCenter() {
 
                 {/* Bottom Stats + Contact */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                    <div className="bg-surface/30 backdrop-blur-md border border-border/80 rounded-2xl p-6 flex items-center gap-4">
+                    <div className="bg-surface/50 backdrop-blur-md border border-border/60 rounded-2xl p-6 flex items-center gap-4">
                         <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
                             <BookOpen className="w-6 h-6 text-accent" />
                         </div>

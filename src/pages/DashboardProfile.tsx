@@ -307,7 +307,7 @@ export default function DashboardProfile() {
 
       toast.success("Profile saved successfully");
     } catch (err: unknown) {
-      const error = err as { message?: string; response?: { data?: any } };
+      const error = err as { message?: string; response?: { data?: Record<string, unknown> } };
       console.error("[handleSaveProfile] Error:", error);
       
       let detailedError = error?.message || "Unknown error";
@@ -454,24 +454,6 @@ export default function DashboardProfile() {
             </div>
           )}
         </div>
-        {username ? (
-          <a
-            href={`/${username}`}
-            target="_blank"
-            rel="noopener"
-            className="inline-flex items-center gap-2 text-sm text-accent hover:underline px-4 py-2 bg-accent/5 rounded-lg border border-accent/20 transition-all font-medium whitespace-nowrap"
-          >
-            <Globe className="w-4 h-4" /> View Public Profile
-          </a>
-        ) : (
-          <button
-            disabled
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground px-4 py-2 bg-surface rounded-lg border border-border cursor-not-allowed font-medium whitespace-nowrap"
-            title="Please set a username to view your public profile"
-          >
-            <Globe className="w-4 h-4 opacity-50" /> Set username first
-          </button>
-        )}
       </div>
 
 
