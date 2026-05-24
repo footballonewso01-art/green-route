@@ -32,12 +32,12 @@ const plans = [
     description: "Advanced tools for growing creators",
     popular: true,
     features: [
-      { text: "15 Smart Links", icon: "🔗" },
-      { text: "Remove Linktery Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
-      { text: "Deeplink", icon: "⚡", tooltip: "Smart route optimization: Seamless transition from social apps to system browser." },
-      { text: "Advanced Analytics", icon: "📊" },
-      { text: "Link Optimization", icon: "🛡️" },
-      { text: "Geo Targeting", icon: "🌍" }
+      { text: "15 Smart Links", icon: "🔗", tooltip: "Create and manage up to 15 active smart redirect links." },
+      { text: "Remove Linktery Branding", icon: "✨", tooltip: "Completely remove the branding badge from your public profile." },
+      { text: "Deeplink", icon: "⚡", tooltip: "Bypass in-app social browsers to open your links directly in Safari or Chrome." },
+      { text: "Advanced Analytics", icon: "📊", tooltip: "Detailed tracking: clicks over time, countries, referrers, and device types." },
+      { text: "Link Optimization", icon: "🛡️", tooltip: "Hide your destination URLs from bots and competitor scrapers using cloaking." },
+      { text: "Geo Targeting", icon: "🌍", tooltip: "Route visitors to different destination URLs based on their country." }
     ],
     buttonText: "Upgrade to Pro",
   },

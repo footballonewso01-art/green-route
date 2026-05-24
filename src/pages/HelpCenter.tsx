@@ -1,10 +1,20 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
     Search, ChevronDown, ChevronRight, Rocket, Link2, BarChart3, Zap, User,
     CreditCard, HelpCircle, BookOpen, ThumbsUp, ThumbsDown, ExternalLink,
     Globe, Smartphone, Shield, Target, Shuffle, Clock, Palette, Share2,
     ArrowUpRight, Sparkles
 } from "lucide-react";
+
+interface Star {
+    x: number;
+    y: number;
+    size: number;
+    opacity: number;
+    speed: number;
+    blinkDirection: number;
+}
+
 
 interface Article {
     id: string;
@@ -519,6 +529,91 @@ export default function HelpCenter() {
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
     const [openArticles, setOpenArticles] = useState<Set<string>>(new Set());
     const [helpfulArticles, setHelpfulArticles] = useState<Record<string, boolean | null>>({});
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    // Background animated stars canvas
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        let animationId: number;
+        let stars: Star[] = [];
+
+        const resizeCanvas = () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            initStars();
+        };
+
+        const initStars = () => {
+            stars = [];
+            const numStars = Math.floor((canvas.width * canvas.height) / 15000);
+            for (let i = 0; i < numStars; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 1.5 + 0.5,
+                    opacity: Math.random() * 0.4 + 0.1,
+                    speed: Math.random() * 0.04 + 0.01,
+                    blinkDirection: Math.random() > 0.5 ? 1 : -1,
+                });
+            }
+        };
+
+        const draw = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Subtle noise/grain overlay
+            ctx.fillStyle = "rgba(255, 255, 255, 0.005)";
+            for (let i = 0; i < 2000; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                ctx.fillRect(x, y, 1, 1);
+            }
+
+            stars.forEach((star) => {
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                
+                // Blink logic
+                star.opacity += star.blinkDirection * 0.003;
+                if (star.opacity > 0.5) {
+                    star.opacity = 0.5;
+                    star.blinkDirection = -1;
+                } else if (star.opacity < 0.05) {
+                    star.opacity = 0.05;
+                    star.blinkDirection = 1;
+                }
+
+                // Float up slowly
+                star.y -= star.speed * 8;
+                if (star.y < 0) {
+                    star.y = canvas.height;
+                    star.x = Math.random() * canvas.width;
+                }
+
+                ctx.fillStyle = `rgba(34, 197, 94, ${star.opacity * 0.25})`;
+                ctx.shadowBlur = 4;
+                ctx.shadowColor = "rgba(34, 197, 94, 0.3)";
+                ctx.fill();
+                ctx.shadowBlur = 0; // reset
+            });
+
+            animationId = requestAnimationFrame(draw);
+        };
+
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
+        draw();
+
+        return () => {
+            cancelAnimationFrame(animationId);
+            window.removeEventListener("resize", resizeCanvas);
+        };
+    }, []);
 
     const toggleArticle = (id: string) => {
         setOpenArticles((prev) => {
@@ -546,187 +641,193 @@ export default function HelpCenter() {
     const totalArticles = helpCategories.reduce((sum, c) => sum + c.articles.length, 0);
 
     return (
-        <div className="max-w-5xl mx-auto space-y-8 pb-12">
-            {/* Header */}
-            <div className="text-center space-y-4 pt-4">
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-accent text-sm">
-                    <HelpCircle className="w-4 h-4" /> Help Center
-                </div>
-                <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
-                    How can we <span className="bg-gradient-to-r from-accent to-emerald-300 bg-clip-text text-transparent">help?</span>
-                </h1>
-                <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-                    Guides, tutorials, and answers to help you get the most out of Linktery.
-                </p>
-            </div>
+        <div className="relative w-full min-h-full overflow-hidden">
+            {/* Background stars canvas & grid */}
+            <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none w-full h-full opacity-20" />
+            <div className="absolute inset-0 bg-grid-white opacity-[0.02] z-0 pointer-events-none" />
 
-            {/* Search */}
-            <div className="relative max-w-2xl mx-auto">
-                <div className="absolute inset-0 bg-accent/5 blur-2xl rounded-full" />
-                <div className="relative">
-                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => { setSearchQuery(e.target.value); setActiveCategory(null); }}
-                        placeholder="Search articles... (e.g. deeplinks, analytics, pricing)"
-                        className="w-full pl-14 pr-6 py-4 bg-surface border border-border rounded-2xl text-base focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/20 transition-all placeholder:text-muted-foreground/50"
-                    />
+            <div className="relative z-10 max-w-5xl mx-auto space-y-8 pb-12">
+                {/* Header */}
+                <div className="text-center space-y-4 pt-4">
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-accent text-sm">
+                        <HelpCircle className="w-4 h-4" /> Help Center
+                    </div>
+                    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
+                        How can we <span className="bg-gradient-to-r from-accent to-emerald-300 bg-clip-text text-transparent">help?</span>
+                    </h1>
+                    <p className="text-muted-foreground text-lg max-w-xl mx-auto">
+                        Guides, tutorials, and answers to help you get the most out of Linktery.
+                    </p>
+                </div>
+
+                {/* Search */}
+                <div className="relative max-w-2xl mx-auto">
+                    <div className="absolute inset-0 bg-accent/5 blur-2xl rounded-full" />
+                    <div className="relative">
+                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => { setSearchQuery(e.target.value); setActiveCategory(null); }}
+                            placeholder="Search articles... (e.g. deeplinks, analytics, pricing)"
+                            className="w-full pl-14 pr-6 py-4 bg-surface/40 backdrop-blur-xl border border-border/60 rounded-2xl text-base focus:outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/10 transition-all placeholder:text-muted-foreground/50 text-white"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery("")}
+                                className="absolute right-5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
+                            >
+                                Clear
+                            </button>
+                        )}
+                    </div>
                     {searchQuery && (
-                        <button
-                            onClick={() => setSearchQuery("")}
-                            className="absolute right-5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
-                        >
-                            Clear
-                        </button>
+                        <p className="text-xs text-muted-foreground mt-3 text-center">
+                            {filteredCategories.reduce((s, c) => s + c.articles.length, 0)} result(s) found
+                        </p>
                     )}
                 </div>
-                {searchQuery && (
-                    <p className="text-xs text-muted-foreground mt-3 text-center">
-                        {filteredCategories.reduce((s, c) => s + c.articles.length, 0)} result(s) found
-                    </p>
-                )}
-            </div>
 
-            {/* Category Grid */}
-            {!searchQuery && !activeCategory && (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {helpCategories.map((cat) => (
-                        <button
-                            key={cat.id}
-                            onClick={() => setActiveCategory(cat.id)}
-                            className="group p-6 bg-surface border border-border rounded-2xl text-left hover:border-accent/30 hover:shadow-lg hover:shadow-accent/5 transition-all duration-300 hover:-translate-y-1"
-                        >
-                            <div className="w-12 h-12 rounded-xl bg-background border border-border flex items-center justify-center mb-4 group-hover:border-accent/30 transition-colors">
-                                <cat.icon className={`w-6 h-6 ${cat.color} transition-transform group-hover:scale-110`} />
-                            </div>
-                            <h3 className="font-bold text-foreground mb-1">{cat.title}</h3>
-                            <p className="text-sm text-muted-foreground">{cat.description}</p>
-                            <p className="text-xs text-muted-foreground/50 mt-3">{cat.articles.length} articles</p>
-                        </button>
-                    ))}
-                </div>
-            )}
-
-            {/* Category Header (when a category is selected) */}
-            {activeCategory && !searchQuery && (
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => setActiveCategory(null)}
-                        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                        ← All Categories
-                    </button>
-                    <span className="text-border">/</span>
-                    <span className="text-sm font-bold text-foreground">
-                        {helpCategories.find((c) => c.id === activeCategory)?.title}
-                    </span>
-                </div>
-            )}
-
-            {/* Articles */}
-            {(activeCategory || searchQuery) && (
-                <div className="space-y-4">
-                    {filteredCategories
-                        .filter((c) => !activeCategory || c.id === activeCategory)
-                        .map((cat) => (
-                            <div key={cat.id} className="space-y-3">
-                                {searchQuery && (
-                                    <div className="flex items-center gap-2 px-1">
-                                        <cat.icon className={`w-4 h-4 ${cat.color}`} />
-                                        <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{cat.title}</h3>
-                                    </div>
-                                )}
-                                {cat.articles.map((article) => {
-                                    const isOpen = openArticles.has(article.id);
-                                    return (
-                                        <div
-                                            key={article.id}
-                                            className={`bg-surface border rounded-2xl overflow-hidden transition-all duration-300 ${isOpen ? "border-accent/30 shadow-lg shadow-accent/5" : "border-border hover:border-border/80"}`}
-                                        >
-                                            <button
-                                                onClick={() => toggleArticle(article.id)}
-                                                className="w-full flex items-center gap-4 p-5 text-left"
-                                            >
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${isOpen ? "bg-accent/10" : "bg-background border border-border"}`}>
-                                                    <article.icon className={`w-5 h-5 transition-colors ${isOpen ? "text-accent" : "text-muted-foreground"}`} />
-                                                </div>
-                                                <span className={`flex-1 font-semibold text-sm md:text-base transition-colors ${isOpen ? "text-accent" : "text-foreground"}`}>
-                                                    {article.title}
-                                                </span>
-                                                {isOpen ? (
-                                                    <ChevronDown className="w-5 h-5 text-accent shrink-0 transition-transform" />
-                                                ) : (
-                                                    <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0 transition-transform" />
-                                                )}
-                                            </button>
-
-                                            {isOpen && (
-                                                <div className="px-5 pb-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                                                    <div className="ml-14 text-sm text-muted-foreground leading-relaxed">
-                                                        {article.content}
-                                                    </div>
-
-                                                    {/* Helpful feedback */}
-                                                    <div className="ml-14 mt-6 pt-4 border-t border-border/50 flex items-center gap-4">
-                                                        <span className="text-xs text-muted-foreground/60">Was this helpful?</span>
-                                                        <button
-                                                            onClick={() => setHelpfulArticles((p) => ({ ...p, [article.id]: true }))}
-                                                            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all ${helpfulArticles[article.id] === true ? "bg-accent/10 border-accent/30 text-accent" : "border-border text-muted-foreground hover:border-accent/20 hover:text-foreground"}`}
-                                                        >
-                                                            <ThumbsUp className="w-3 h-3" /> Yes
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setHelpfulArticles((p) => ({ ...p, [article.id]: false }))}
-                                                            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all ${helpfulArticles[article.id] === false ? "bg-red-500/10 border-red-500/30 text-red-400" : "border-border text-muted-foreground hover:border-red-500/20 hover:text-foreground"}`}
-                                                        >
-                                                            <ThumbsDown className="w-3 h-3" /> No
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                {/* Category Grid */}
+                {!searchQuery && !activeCategory && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {helpCategories.map((cat) => (
+                            <button
+                                key={cat.id}
+                                onClick={() => setActiveCategory(cat.id)}
+                                className="group p-6 bg-surface/30 backdrop-blur-md border border-border/80 rounded-2xl text-left hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5 transition-all duration-300 hover:-translate-y-1"
+                            >
+                                <div className="w-12 h-12 rounded-xl bg-background/50 border border-border flex items-center justify-center mb-4 group-hover:border-accent/30 transition-colors">
+                                    <cat.icon className={`w-6 h-6 ${cat.color} transition-transform group-hover:scale-110`} />
+                                </div>
+                                <h3 className="font-bold text-foreground mb-1">{cat.title}</h3>
+                                <p className="text-sm text-muted-foreground">{cat.description}</p>
+                                <p className="text-xs text-muted-foreground/50 mt-3">{cat.articles.length} articles</p>
+                            </button>
                         ))}
-                </div>
-            )}
+                    </div>
+                )}
 
-            {/* Empty state */}
-            {searchQuery && filteredCategories.reduce((s, c) => s + c.articles.length, 0) === 0 && (
-                <div className="text-center py-16">
-                    <div className="w-16 h-16 rounded-2xl bg-surface border border-border flex items-center justify-center mx-auto mb-4">
-                        <Search className="w-8 h-8 text-muted-foreground/30" />
+                {/* Category Header (when a category is selected) */}
+                {activeCategory && !searchQuery && (
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setActiveCategory(null)}
+                            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                            ← All Categories
+                        </button>
+                        <span className="text-border">/</span>
+                        <span className="text-sm font-bold text-foreground">
+                            {helpCategories.find((c) => c.id === activeCategory)?.title}
+                        </span>
                     </div>
-                    <h3 className="text-lg font-bold text-foreground mb-2">No articles found</h3>
-                    <p className="text-muted-foreground text-sm">Try searching with different keywords or browse categories.</p>
-                </div>
-            )}
+                )}
 
-            {/* Bottom Stats + Contact */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                <div className="bg-surface border border-border rounded-2xl p-6 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-                        <BookOpen className="w-6 h-6 text-accent" />
+                {/* Articles */}
+                {(activeCategory || searchQuery) && (
+                    <div className="space-y-4">
+                        {filteredCategories
+                            .filter((c) => !activeCategory || c.id === activeCategory)
+                            .map((cat) => (
+                                <div key={cat.id} className="space-y-3">
+                                    {searchQuery && (
+                                        <div className="flex items-center gap-2 px-1">
+                                            <cat.icon className={`w-4 h-4 ${cat.color}`} />
+                                            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{cat.title}</h3>
+                                        </div>
+                                    )}
+                                    {cat.articles.map((article) => {
+                                        const isOpen = openArticles.has(article.id);
+                                        return (
+                                            <div
+                                                key={article.id}
+                                                className={`bg-surface/20 backdrop-blur-md border rounded-2xl overflow-hidden transition-all duration-300 ${isOpen ? "border-accent/40 shadow-lg shadow-accent/5" : "border-border/80 hover:border-accent/20"}`}
+                                            >
+                                                <button
+                                                    onClick={() => toggleArticle(article.id)}
+                                                    className="w-full flex items-center gap-4 p-5 text-left"
+                                                >
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${isOpen ? "bg-accent/10" : "bg-background/40 border border-border/80"}`}>
+                                                        <article.icon className={`w-5 h-5 transition-colors ${isOpen ? "text-accent" : "text-muted-foreground"}`} />
+                                                    </div>
+                                                    <span className={`flex-1 font-semibold text-sm md:text-base transition-colors ${isOpen ? "text-accent" : "text-foreground"}`}>
+                                                        {article.title}
+                                                    </span>
+                                                    {isOpen ? (
+                                                        <ChevronDown className="w-5 h-5 text-accent shrink-0 transition-transform" />
+                                                    ) : (
+                                                        <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0 transition-transform" />
+                                                    )}
+                                                </button>
+
+                                                {isOpen && (
+                                                    <div className="px-5 pb-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                        <div className="ml-14 text-sm text-muted-foreground leading-relaxed">
+                                                            {article.content}
+                                                        </div>
+
+                                                        {/* Helpful feedback */}
+                                                        <div className="ml-14 mt-6 pt-4 border-t border-border/50 flex items-center gap-4">
+                                                            <span className="text-xs text-muted-foreground/60">Was this helpful?</span>
+                                                            <button
+                                                                onClick={() => setHelpfulArticles((p) => ({ ...p, [article.id]: true }))}
+                                                                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all ${helpfulArticles[article.id] === true ? "bg-accent/10 border-accent/30 text-accent" : "border-border text-muted-foreground hover:border-accent/20 hover:text-foreground"}`}
+                                                            >
+                                                                <ThumbsUp className="w-3 h-3" /> Yes
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setHelpfulArticles((p) => ({ ...p, [article.id]: false }))}
+                                                                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all ${helpfulArticles[article.id] === false ? "bg-red-500/10 border-red-500/30 text-red-400" : "border-border text-muted-foreground hover:border-red-500/20 hover:text-foreground"}`}
+                                                            >
+                                                                <ThumbsDown className="w-3 h-3" /> No
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ))}
                     </div>
-                    <div>
-                        <p className="text-2xl font-extrabold text-foreground">{totalArticles}</p>
-                        <p className="text-sm text-muted-foreground">Help articles available</p>
+                )}
+
+                {/* Empty state */}
+                {searchQuery && filteredCategories.reduce((s, c) => s + c.articles.length, 0) === 0 && (
+                    <div className="text-center py-16">
+                        <div className="w-16 h-16 rounded-2xl bg-surface border border-border flex items-center justify-center mx-auto mb-4">
+                            <Search className="w-8 h-8 text-muted-foreground/30" />
+                        </div>
+                        <h3 className="text-lg font-bold text-foreground mb-2">No articles found</h3>
+                        <p className="text-muted-foreground text-sm">Try searching with different keywords or browse categories.</p>
                     </div>
-                </div>
-                <div className="bg-accent/5 border border-accent/20 rounded-2xl p-6 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-                        <HelpCircle className="w-6 h-6 text-accent" />
+                )}
+
+                {/* Bottom Stats + Contact */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                    <div className="bg-surface/30 backdrop-blur-md border border-border/80 rounded-2xl p-6 flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+                            <BookOpen className="w-6 h-6 text-accent" />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-extrabold text-foreground">{totalArticles}</p>
+                            <p className="text-sm text-muted-foreground">Help articles available</p>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-sm font-bold text-foreground mb-0.5">Still need help?</p>
-                        <p className="text-sm text-muted-foreground">
-                            Contact us at Telegram:{" "}
-                            <a href="https://t.me/linkterysupport" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline font-medium">
-                                @linkterysupport
-                            </a>
-                        </p>
+                    <div className="bg-accent/5 backdrop-blur-md border border-accent/20 rounded-2xl p-6 flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+                            <HelpCircle className="w-6 h-6 text-accent" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-foreground mb-0.5">Still need help?</p>
+                            <p className="text-sm text-muted-foreground">
+                                Contact us at Telegram:{" "}
+                                <a href="https://t.me/linkterysupport" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline font-medium">
+                                    @linkterysupport
+                                </a>
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>

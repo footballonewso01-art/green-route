@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Loader2, Camera, Palette, Smartphone, User, Check, Upload, Globe, Plus, GripVertical, Eye, EyeOff, Edit, Trash2, ExternalLink, X, Save, Lock } from "lucide-react";
+import { Loader2, Camera, Palette, Smartphone, User, Check, Upload, Globe, Plus, GripVertical, Eye, EyeOff, Edit, Trash2, ExternalLink, X, Save, Lock, Copy } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { IconPicker } from '@/components/icons/IconPicker';
 import { IconRenderer } from '@/components/icons/IconRenderer';
@@ -52,6 +52,16 @@ interface SocialLink {
 
 export default function DashboardProfile() {
   const { user } = useAuth();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyLink = () => {
+    if (!username) return;
+    const fullUrl = `https://${window.location.hostname === 'localhost' ? 'localhost:5173' : window.location.hostname}/${username}`;
+    navigator.clipboard.writeText(fullUrl);
+    setCopied(true);
+    toast.success("Profile link copied to clipboard!");
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const [profileLoading, setProfileLoading] = useState(false);
   const [name, setName] = useState("");
@@ -418,24 +428,45 @@ export default function DashboardProfile() {
 
   return (
     <div className="space-y-8 pb-10 overflow-visible">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Link-in-Bio Profile</h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage your identity and links in one place</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Link-in-Bio Profile</h1>
+            <p className="text-muted-foreground text-sm mt-1">Manage your identity and links in one place</p>
+          </div>
+          {username && (
+            <div className="md:border-l md:border-border/60 md:pl-6 flex flex-col sm:flex-row sm:items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Public Link:</span>
+              <div className="inline-flex items-center gap-2 bg-surface/50 border border-border/80 px-3 py-1.5 rounded-xl shrink-0">
+                <code className="text-xs font-semibold text-accent">linktery.com/{username}</code>
+                <button
+                  onClick={handleCopyLink}
+                  className="p-1 rounded-lg hover:bg-surface text-muted-foreground hover:text-foreground transition-all focus:outline-none shrink-0"
+                  title="Copy Link"
+                >
+                  {copied ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         {username ? (
           <a
             href={`/${username}`}
             target="_blank"
             rel="noopener"
-            className="inline-flex items-center gap-2 text-sm text-accent hover:underline px-4 py-2 bg-accent/5 rounded-lg border border-accent/20 transition-all font-medium"
+            className="inline-flex items-center gap-2 text-sm text-accent hover:underline px-4 py-2 bg-accent/5 rounded-lg border border-accent/20 transition-all font-medium whitespace-nowrap"
           >
             <Globe className="w-4 h-4" /> View Public Profile
           </a>
         ) : (
           <button
             disabled
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground px-4 py-2 bg-surface rounded-lg border border-border cursor-not-allowed font-medium"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground px-4 py-2 bg-surface rounded-lg border border-border cursor-not-allowed font-medium whitespace-nowrap"
             title="Please set a username to view your public profile"
           >
             <Globe className="w-4 h-4 opacity-50" /> Set username first
