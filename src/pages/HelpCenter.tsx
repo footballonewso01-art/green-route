@@ -543,8 +543,8 @@ export default function HelpCenter() {
         let stars: Star[] = [];
 
         const resizeCanvas = () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            canvas.width = canvas.parentElement ? canvas.parentElement.clientWidth : window.innerWidth;
+            canvas.height = canvas.parentElement ? canvas.parentElement.clientHeight : window.innerHeight;
             initStars();
         };
 
@@ -645,7 +645,7 @@ export default function HelpCenter() {
             {/* Background elements wrapper - extends beyond main padding to prevent clipping at layout borders */}
             <div className="absolute -top-10 -left-6 -right-6 -bottom-12 overflow-hidden pointer-events-none z-0">
                 {/* Background stars canvas & grid */}
-                <canvas ref={canvasRef} className="fixed inset-0 z-[1] pointer-events-none w-full h-full opacity-55" />
+                <canvas ref={canvasRef} className="absolute inset-0 z-[1] pointer-events-none w-full h-full opacity-55" />
                 <div className="absolute inset-0 bg-grid-white opacity-[0.02] z-[1] pointer-events-none" />
 
                 {/* Premium Ambient Background Glows */}
