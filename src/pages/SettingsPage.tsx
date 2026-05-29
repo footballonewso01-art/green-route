@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { Lock, Globe, Key, ChevronRight, Gift, CheckCircle } from "lucide-react";
+import { useState, useRef } from "react";
+import { Lock, Globe, Key, ChevronRight, Gift, CheckCircle, Camera, User, Zap, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { checkPlan } from "@/lib/plans";
+import { checkPlan, PLANS, PlanType } from "@/lib/plans";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { toast } from "sonner";
 import { pb } from "@/lib/pocketbase";
@@ -14,7 +14,7 @@ const tabs = [
 ];
 
 export default function SettingsPage() {
-  const { user, login } = useAuth(); // assuming login or a refresh method is available, if not we can use authRefresh directly
+  const { user, refreshUser } = useAuth();
   const [active, setActive] = useState("account");
   const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; feature: string; description: string; planNeeded?: "pro" | "agency" }>({ open: false, feature: "", description: "" });
 
@@ -26,7 +26,17 @@ export default function SettingsPage() {
   const [promocode, setPromocode] = useState("");
   const [loadingPromocode, setLoadingPromocode] = useState(false);
 
+  // Account profile editing state
+  const [accountName, setAccountName] = useState(user?.name || "");
+  const [accountAvatarPreview, setAccountAvatarPreview] = useState<string | null>(
+    user?.avatar && user?.collectionId ? pb.files.getUrl(user as unknown as Record<string, unknown>, user.avatar) : null
+  );
+  const [accountAvatarFile, setAccountAvatarFile] = useState<File | null>(null);
+  const [savingAccount, setSavingAccount] = useState(false);
+  const accountAvatarRef = useRef<HTMLInputElement>(null);
+
   const userPlan = (user as { plan?: string })?.plan || "creator";
+  const plan = PLANS[userPlan as PlanType];
   const hasUsedPromocode = !!(user as any)?.promocode_used;
 
   const handleTabClick = (tab: typeof tabs[0]) => {
@@ -182,6 +192,114 @@ export default function SettingsPage() {
 
         {active === "account" && (
           <div className="space-y-8 relative z-10">
+            {/* Account Info Section */}
+            <div className="space-y-5 pb-6 border-b border-border/50">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <User className="w-5 h-5 text-accent" />
+                Account Info
+              </h2>
+
+              {/* Plan Badge + Account Meta */}
+              <div className="flex items-center gap-4 p-4 rounded-2xl bg-surface border border-border">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/20">
+                  <Zap className="w-4 h-4 text-accent" />
+                  <span className="text-sm font-bold text-accent uppercase tracking-wide">{plan?.name || 'Creator'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Member since {user?.created ? new Date(user.created as unknown as string).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}</span>
+                </div>
+                <div className="ml-auto text-xs text-muted-foreground">
+                  {user?.email}
+                </div>
+              </div>
+
+              {/* Avatar + Name Editor */}
+              <div className="flex items-start gap-6">
+                {/* Avatar Upload */}
+                <div className="relative group shrink-0">
+                  <div
+                    className="w-20 h-20 rounded-2xl bg-accent/20 border-2 border-accent/20 flex items-center justify-center overflow-hidden cursor-pointer transition-all duration-200 group-hover:border-accent/50 group-hover:shadow-lg group-hover:shadow-accent/10"
+                    onClick={() => accountAvatarRef.current?.click()}
+                  >
+                    {accountAvatarPreview ? (
+                      <img src={accountAvatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-2xl font-bold text-accent">{(user?.name?.[0] || user?.email?.[0] || 'U').toUpperCase()}</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => accountAvatarRef.current?.click()}
+                    className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-accent text-accent-foreground flex items-center justify-center shadow-lg transition-transform hover:scale-110"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                  </button>
+                  <input
+                    ref={accountAvatarRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 5 * 1024 * 1024) {
+                          toast.error('Avatar must be under 5MB');
+                          return;
+                        }
+                        setAccountAvatarFile(file);
+                        setAccountAvatarPreview(URL.createObjectURL(file));
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Name Field */}
+                <div className="flex-1 space-y-2">
+                  <label className="text-sm font-medium text-foreground block">Display Name</label>
+                  <input
+                    type="text"
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
+                    placeholder="Your name"
+                  />
+                  <p className="text-xs text-muted-foreground">This name is shown in your dashboard header.</p>
+                </div>
+              </div>
+
+              {/* Save Account Button */}
+              <button
+                onClick={async () => {
+                  if (!user) return;
+                  setSavingAccount(true);
+                  try {
+                    const updateData: Record<string, unknown> = { name: accountName };
+                    await pb.collection('users').update(user.id, updateData, { requestKey: null });
+
+                    if (accountAvatarFile) {
+                      const fd = new FormData();
+                      fd.append('avatar', accountAvatarFile);
+                      await pb.collection('users').update(user.id, fd, { requestKey: null });
+                      setAccountAvatarFile(null);
+                    }
+
+                    await refreshUser();
+                    toast.success('Account updated successfully');
+                  } catch (err: any) {
+                    console.error('Account update error:', err);
+                    toast.error(err?.response?.message || err?.message || 'Failed to update account');
+                  } finally {
+                    setSavingAccount(false);
+                  }
+                }}
+                disabled={savingAccount}
+                className="btn-primary-glow text-sm !py-2 flex items-center gap-2"
+              >
+                {savingAccount ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
+              </button>
+            </div>
+
             {/* Promocode Section */}
             <div className="space-y-4 pb-6 border-b border-border/50">
               <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">

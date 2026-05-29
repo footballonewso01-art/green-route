@@ -69,8 +69,10 @@ const SOCIAL_PLATFORMS = [
 function OnlineCounter({ cardColor }: { cardColor: string }) {
   const base = useMemo(() => Math.floor(Math.random() * (387 - 318 + 1)) + 318, []);
   const [count, setCount] = useState(base);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const interval = setInterval(() => {
       setCount(prev => {
         const delta = Math.floor(Math.random() * 11) - 5;
@@ -79,6 +81,8 @@ function OnlineCounter({ cardColor }: { cardColor: string }) {
     }, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  if (!mounted) return null;
 
   const light = isLightColor(cardColor);
 
@@ -120,27 +124,32 @@ export default function PublicProfile() {
     const fetchData = async () => {
       if (!username) return;
       try {
-        // Fetch user by username
-        const userRecord = await pb.collection('users').getFirstListItem(`username="${username}"`);
+        const currentDomain = window.location.host;
+        // Fetch profile by slug and domain
+        const profileRecord = await pb.collection('public_profiles').getFirstListItem(
+          `slug="${username}" && (domain="${currentDomain}" || domain="")`,
+          { expand: 'user_id' }
+        );
+
+        const userRecord = profileRecord.expand?.user_id || {};
 
         setProfile({
-          id: userRecord.id,
-          name: userRecord.name || userRecord.username,
-          bio: userRecord.bio || "",
-          theme: userRecord.theme || "minimal-dark",
-          avatar: userRecord.name ? userRecord.name.charAt(0).toUpperCase() : userRecord.username.charAt(0).toUpperCase(),
-          full_avatar_url: userRecord.avatar ? pb.files.getUrl(userRecord, userRecord.avatar) : undefined,
-          custom_theme_bg: userRecord.custom_theme_bg ? pb.files.getUrl(userRecord, userRecord.custom_theme_bg) : undefined,
-          card_color: userRecord.card_color || "#000000",
-          online_counter: !!userRecord.online_counter,
-          social_links: Array.isArray(userRecord.social_links) ? userRecord.social_links : [],
+          id: profileRecord.id,
+          name: profileRecord.name || profileRecord.slug,
+          bio: profileRecord.bio || "",
+          theme: profileRecord.theme || "minimal-dark",
+          avatar: profileRecord.name ? profileRecord.name.charAt(0).toUpperCase() : profileRecord.slug.charAt(0).toUpperCase(),
+          full_avatar_url: profileRecord.avatar ? pb.files.getUrl(profileRecord, profileRecord.avatar) : undefined,
+          custom_theme_bg: profileRecord.custom_theme_bg ? pb.files.getUrl(profileRecord, profileRecord.custom_theme_bg) : undefined,
+          card_color: profileRecord.card_color || "#000000",
+          online_counter: !!profileRecord.online_counter,
+          social_links: Array.isArray(profileRecord.social_links) ? profileRecord.social_links : [],
           plan: userRecord.plan || "creator",
         });
-        // ... (rest of the code update below)
 
-        // Fetch active links for this user, sorted by 'order'
+        // Fetch active links for this profile, sorted by 'order'
         const linkRecords = await pb.collection('links').getList<LinkItem>(1, 100, {
-          filter: `user_id="${userRecord.id}" && active=true && show_on_profile!=false`,
+          filter: `profile_id="${profileRecord.id}" && active=true && show_on_profile!=false`,
           sort: 'order,-created',
         });
         setLinks(linkRecords.items);
@@ -244,7 +253,11 @@ export default function PublicProfile() {
                 {profile.social_links.map((social: { id: string; url: string; icon_type: string; icon_value: string }) => (
                   <a
                     key={social.id}
-                    href={social.url}
+                    href={
+                      social.url && (social.url.startsWith("http://") || social.url.startsWith("https://"))
+                        ? social.url
+                        : "#"
+                    }
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-accent/20 hover:border-accent/40 hover:scale-105 transition-all duration-300 shadow-lg group"

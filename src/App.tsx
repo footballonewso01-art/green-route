@@ -2,40 +2,49 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import LandingPage from "./pages/LandingPage";
-import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
-import DashboardLayout from "./components/DashboardLayout";
-import DashboardHome from "./pages/DashboardHome";
-import LinksManager from "./pages/LinksManager";
-import CreateLink from "./pages/CreateLink";
-import AnalyticsPage from "./pages/AnalyticsPage";
-import DashboardProfile from "./pages/DashboardProfile";
-import SettingsPage from "./pages/SettingsPage";
-import HelpCenter from "./pages/HelpCenter";
-import PublicProfile from "./pages/PublicProfile";
 import PricingPage from "./pages/PricingPage";
-import InterstitialPage from "./pages/InterstitialPage";
-import NotFound from "./pages/NotFound";
-import BillingPage from "./pages/Billing";
-import DashboardPricing from "./pages/DashboardPricing";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsAndConditions from "./pages/TermsAndConditions";
 import LinktreeAlternative from "./pages/LinktreeAlternative";
 import BeaconsAlternative from "./pages/BeaconsAlternative";
 import OnlyFansSolution from "./pages/OnlyFansSolution";
+import TelegramSolution from "./pages/TelegramSolution";
+import AffiliateSolution from "./pages/AffiliateSolution";
+import BioLinkTool from "./pages/BioLinkTool";
+import SmartRedirect from "./pages/SmartRedirect";
+import DeeplinkGenerator from "./pages/DeeplinkGenerator";
+import FitnessCoachSolution from "./pages/FitnessCoachSolution";
 import { AdminRoute } from "./components/AdminRoute";
-import AdminOverview from "./pages/admin/AdminOverview";
-import AdminUsers from "./pages/admin/AdminUsers";
-import AdminUserProfile from "./pages/admin/AdminUserProfile";
-import AdminLinks from "./pages/admin/AdminLinks";
-import AdminPromocodes from "./pages/admin/AdminPromocodes";
-import AdminPromocodeStats from "./pages/admin/AdminPromocodeStats";
 
 import RedirectHandler from "./pages/RedirectHandler";
+
+// Lazy loaded pages (non-prerendered, dynamic, or requiring authentication)
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const RegisterPage = lazy(() => import("./pages/RegisterPage"));
+const DashboardLayout = lazy(() => import("./components/DashboardLayout"));
+const DashboardHome = lazy(() => import("./pages/DashboardHome"));
+const LinksManager = lazy(() => import("./pages/LinksManager"));
+const CreateLink = lazy(() => import("./pages/CreateLink"));
+const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
+const DashboardProfile = lazy(() => import("./pages/DashboardProfile"));
+const ProfileHub = lazy(() => import("./pages/ProfileHub"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const HelpCenter = lazy(() => import("./pages/HelpCenter"));
+const PublicProfile = lazy(() => import("./pages/PublicProfile"));
+const InterstitialPage = lazy(() => import("./pages/InterstitialPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const BillingPage = lazy(() => import("./pages/Billing"));
+const DashboardPricing = lazy(() => import("./pages/DashboardPricing"));
+const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminUserProfile = lazy(() => import("./pages/admin/AdminUserProfile"));
+const AdminLinks = lazy(() => import("./pages/admin/AdminLinks"));
+const AdminPromocodes = lazy(() => import("./pages/admin/AdminPromocodes"));
+const AdminPromocodeStats = lazy(() => import("./pages/admin/AdminPromocodeStats"));
 
 const queryClient = new QueryClient();
 
@@ -121,7 +130,14 @@ const AppRoutes = () => (
     <Route path="/alternatives/linktree" element={<LinktreeAlternative />} />
     <Route path="/alternatives/beacons" element={<BeaconsAlternative />} />
     <Route path="/solutions/onlyfans-link-in-bio" element={<OnlyFansSolution />} />
+    <Route path="/solutions/telegram-bio-link" element={<TelegramSolution />} />
+    <Route path="/solutions/affiliate-smart-link-rotator" element={<AffiliateSolution />} />
+    <Route path="/solutions/bio-link-tool" element={<BioLinkTool />} />
+    <Route path="/solutions/smart-link-redirect" element={<SmartRedirect />} />
+    <Route path="/solutions/deeplink-generator" element={<DeeplinkGenerator />} />
+    <Route path="/solutions/link-in-bio-for-fitness-coaches" element={<FitnessCoachSolution />} />
     <Route path="/auth" element={<Navigate to="/login" replace />} />
+
     <Route path="/open-in-browser" element={<InterstitialPage />} />
     <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
       <Route index element={<DashboardHome />} />
@@ -129,7 +145,8 @@ const AppRoutes = () => (
       <Route path="links/create" element={<CreateLink />} />
       <Route path="links/edit/:id" element={<CreateLink />} />
       <Route path="analytics" element={<AnalyticsPage />} />
-      <Route path="profile" element={<DashboardProfile />} />
+      <Route path="profile" element={<ProfileHub />} />
+      <Route path="profile/:profileId" element={<DashboardProfile />} />
       <Route path="billing" element={<BillingPage />} />
       <Route path="pricing" element={<DashboardPricing />} />
       <Route path="settings" element={<SettingsPage />} />
@@ -161,7 +178,13 @@ export const AppContent = () => (
       <DomainGuard />
       <AmbientBackground />
       <AuthProvider>
-        <AppRoutes />
+        <Suspense fallback={
+          <div className="min-h-screen bg-background flex items-center justify-center relative z-10">
+            <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          </div>
+        }>
+          <AppRoutes />
+        </Suspense>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>

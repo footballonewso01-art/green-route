@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -118,8 +117,8 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
     box-shadow: 0 0 20px -5px hsl(var(--accent) / 0.25);
   }
 
-  .shadow-indigo-glow {
-    box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.2);
+  .shadow-cyan-glow {
+    box-shadow: 0 0 40px -10px rgba(6, 182, 212, 0.2);
   }
 
   .input-glow {

@@ -50,6 +50,7 @@ const plans = [
     description: "Perfect for getting started",
     features: [
       { text: "3 Smart Links", icon: "🔗", tooltip: "Includes 3 Smart Links on Free plan." },
+      { text: "1 Biolink Profile", icon: "👤", tooltip: "Create 1 public Link-in-Bio profile." },
       { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
       { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
       { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." },
@@ -67,6 +68,7 @@ const plans = [
     popular: true,
     features: [
       { text: "15 Smart Links", icon: "🔗", tooltip: "Create and manage up to 15 active smart redirect links." },
+      { text: "3 Biolink Profiles", icon: "👥", tooltip: "Create up to 3 separate Link-in-Bio profiles." },
       { text: "Remove Linktery Branding", icon: "✨", tooltip: "Completely remove the branding badge from your public profile." },
       { text: "Deeplink", icon: "⚡", tooltip: "Bypass in-app social browsers to open your links directly in Safari or Chrome." },
       { text: "Advanced Analytics", icon: "📊", tooltip: "Detailed tracking: clicks over time, countries, referrers, and device types." },
@@ -83,6 +85,7 @@ const plans = [
     description: "For agencies and power users",
     features: [
       { text: "Unlimited Smart Links", icon: "🚀" },
+      { text: "Unlimited Biolink Profiles", icon: "👥", tooltip: "Create unlimited profiles for brands." },
       { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
       { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
       { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
@@ -111,8 +114,10 @@ export default function LandingPage() {
   const sectionRef = useRef<HTMLElement>(null);
 
   const [wordIndex, setWordIndex] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     let interval: NodeJS.Timeout;
     
     const startInterval = () => {
@@ -142,25 +147,50 @@ export default function LandingPage() {
   useSeo(SEO_PAGES.home);
 
   useEffect(() => {
-    // Record pageview event anonymously
-    try {
-      const isTracked = sessionStorage.getItem("landing_viewed");
-      if (!isTracked) {
-        let deviceId = localStorage.getItem("device_id");
-        if (!deviceId) {
-          deviceId = crypto.randomUUID();
-          localStorage.setItem("device_id", deviceId);
+    const recordPageView = () => {
+      try {
+        const isTracked = sessionStorage.getItem("landing_viewed");
+        if (!isTracked) {
+          let deviceId = localStorage.getItem("device_id");
+          if (!deviceId) {
+            deviceId = crypto.randomUUID();
+            localStorage.setItem("device_id", deviceId);
+          }
+          
+          pb.collection("analytics_events").create({
+            event_name: "landing_pageview",
+            metadata: { deviceId, path: "/" }
+          }).catch(() => {});
+          sessionStorage.setItem("landing_viewed", "true");
         }
-        
-        pb.collection("analytics_events").create({
-          event_name: "landing_pageview",
-          metadata: { deviceId, path: "/" }
-        }).catch(() => {});
-        sessionStorage.setItem("landing_viewed", "true");
+      } catch(e) {
+        // Ignored
       }
-    } catch(e) {
-      // Ignored
-    }
+    };
+
+    const triggerAnalytics = () => {
+      cleanup();
+      if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+        window.requestIdleCallback(() => recordPageView());
+      } else {
+        setTimeout(recordPageView, 1000);
+      }
+    };
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      window.removeEventListener("scroll", triggerAnalytics);
+      window.removeEventListener("click", triggerAnalytics);
+      window.removeEventListener("touchstart", triggerAnalytics);
+    };
+
+    // Backup timer: 5 seconds for non-interactive views
+    const timer = window.setTimeout(triggerAnalytics, 5000);
+
+    // Fast trigger on user interaction
+    window.addEventListener("scroll", triggerAnalytics, { passive: true });
+    window.addEventListener("click", triggerAnalytics, { passive: true });
+    window.addEventListener("touchstart", triggerAnalytics, { passive: true });
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -177,9 +207,13 @@ export default function LandingPage() {
       observer.observe(sectionRef.current);
     }
 
-    return () => observer.disconnect();
+    return () => {
+      cleanup();
+      observer.disconnect();
+    };
   }, []);
 
+  const showUser = mounted && !!user;
   const userPlan = (user as { plan?: PlanType })?.plan;
 
   // Helper to get avatar URL
@@ -203,7 +237,7 @@ export default function LandingPage() {
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
             <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
 
-            {user ? (
+            {showUser ? (
               <Link to="/dashboard" className="flex items-center gap-3 group">
                 <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">Dashboard</span>
                 <div className="w-8 h-8 rounded-full border border-accent/30 p-0.5 overflow-hidden group-hover:border-accent transition-colors">
@@ -275,7 +309,7 @@ export default function LandingPage() {
             </p>
             
             <div className="flex flex-col items-start gap-4 mb-8 w-full max-w-md relative z-20">
-              {user ? (
+              {showUser ? (
                 <Link to="/dashboard" className="btn-primary-glow text-base sm:text-[20px] inline-flex items-center justify-center gap-2 px-10 py-4.5 rounded-xl font-bold">
                   Open Dashboard <ArrowRight className="w-4 h-4" />
                 </Link>
@@ -368,12 +402,19 @@ export default function LandingPage() {
           {/* Right Column: Mobile Screenshot */}
           <div className="lg:col-span-6 flex justify-center relative w-full mt-10 lg:mt-0 transform lg:translate-y-[6%]">
             <div className="relative animate-float w-full max-w-none flex justify-center">
-              <img
-                src="/mobila.png"
-                alt="Linktery mobile preview"
-                className="transform rotate-3 scale-[1.75] lg:scale-[2.31] lg:translate-x-[17%] w-full h-auto select-none pointer-events-none origin-center z-10"
-                loading="eager"
-              />
+              <picture>
+                {/* On desktop (lg breakpoint >= 1024px), use the high-quality original PNG */}
+                <source media="(min-width: 1024px)" srcSet="/mobila.png" type="image/png" />
+                {/* On mobile/tablet, use the highly compressed and resized WebP */}
+                <source srcSet="/mobila.webp" type="image/webp" />
+                <img
+                  src="/mobila.webp"
+                  alt="Linktery mobile preview"
+                  className="transform rotate-3 scale-[1.75] lg:scale-[2.31] lg:translate-x-[17%] w-full h-auto select-none pointer-events-none origin-center z-10"
+                  loading="eager"
+                  fetchpriority="high"
+                />
+              </picture>
             </div>
           </div>
         </div>
@@ -481,20 +522,20 @@ export default function LandingPage() {
                     <div className="absolute inset-0 bg-accent/10 rounded-[28px] blur-[30px] -z-10 group-hover:bg-accent/15 transition-all duration-500 pointer-events-none" />
                   )}
                   {isAgency && (
-                    <div className="absolute inset-0 bg-indigo-500/5 rounded-[28px] blur-[30px] -z-10 group-hover:bg-indigo-500/10 transition-all duration-500 pointer-events-none" />
+                    <div className="absolute inset-0 bg-cyan-500/5 rounded-[28px] blur-[30px] -z-10 group-hover:bg-cyan-500/10 transition-all duration-500 pointer-events-none" />
                   )}
-
+ 
                   <div className={`glass-card pt-10 px-8 pb-8 rounded-[28px] relative flex flex-col h-full bg-card/60 backdrop-blur-2xl border transition-all duration-500 ${
                     isPro 
                       ? "border-accent/40 shadow-glow hover:border-accent/60" 
                       : isAgency 
-                        ? "border-indigo-500/20 shadow-indigo-glow hover:border-indigo-500/40" 
+                        ? "border-cyan-500/20 shadow-cyan-glow hover:border-cyan-500/40" 
                         : "border-white/5 hover:border-white/15"
                   }`}>
                     
                     <div className="text-left mb-6">
                       <h3 className={`text-2xl font-extrabold mb-2 tracking-tight ${
-                        isPro ? "text-accent" : isAgency ? "text-indigo-400" : "text-foreground"
+                        isPro ? "text-accent" : isAgency ? "text-cyan-400" : "text-foreground"
                       }`}>{plan.name}</h3>
                       <p className="text-sm text-muted-foreground h-12 leading-relaxed">{plan.description}</p>
                       
@@ -510,12 +551,12 @@ export default function LandingPage() {
                         )}
                       </div>
                     </div>
-
+ 
                     <ul className="space-y-3.5 mb-8 flex-1 text-left">
                       {plan.features.map((f, idx) => (
                         <li key={idx} className="flex items-center gap-3 text-sm text-muted-foreground group/feature">
                           <span className={`w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-sm flex-shrink-0 transition-all duration-300 ${
-                            isPro ? "group-hover/feature:bg-accent/10 group-hover/feature:border-accent/30" : isAgency ? "group-hover/feature:bg-indigo-500/10 group-hover/feature:border-indigo-500/30" : "group-hover/feature:bg-white/10"
+                            isPro ? "group-hover/feature:bg-accent/10 group-hover/feature:border-accent/30" : isAgency ? "group-hover/feature:bg-cyan-500/10 group-hover/feature:border-cyan-500/30" : "group-hover/feature:bg-white/10"
                           }`}>
                             {f.icon}
                           </span>
@@ -536,7 +577,7 @@ export default function LandingPage() {
                       ))}
                     </ul>
 
-                    {user ? (
+                    {showUser ? (
                       isCurrent ? (
                         <button
                           disabled
@@ -558,7 +599,7 @@ export default function LandingPage() {
                             isPro 
                               ? "btn-primary-glow" 
                               : isAgency 
-                                ? "bg-indigo-500 text-white shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:bg-indigo-600 hover:shadow-[0_0_25px_rgba(99,102,241,0.5)]" 
+                                ? "bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:bg-cyan-600 hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]" 
                                 : "border border-border hover:bg-surface-hover text-foreground hover:border-white/20"
                           }`}
                         >
@@ -572,7 +613,7 @@ export default function LandingPage() {
                           isPro 
                             ? "btn-primary-glow" 
                             : isAgency 
-                              ? "bg-indigo-500 text-white shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:bg-indigo-600 hover:shadow-[0_0_25px_rgba(99,102,241,0.5)]" 
+                              ? "bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:bg-cyan-600 hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]" 
                               : "border border-border hover:bg-surface-hover text-foreground hover:border-white/20"
                         }`}
                       >
@@ -588,7 +629,7 @@ export default function LandingPage() {
                   )}
 
                   {isAgency && (
-                    <div className="absolute -top-3.5 left-6 bg-indigo-500 text-white text-xs font-bold uppercase tracking-wider py-1 px-3.5 rounded-full flex items-center gap-1 shadow-lg shadow-indigo-500/20 animate-fade-in">
+                    <div className="absolute -top-3.5 left-6 bg-cyan-500 text-white text-xs font-bold uppercase tracking-wider py-1 px-3.5 rounded-full flex items-center gap-1 shadow-lg shadow-cyan-500/20 animate-fade-in">
                       <Sparkles className="w-3.5 h-3.5 fill-current" /> Power User
                     </div>
                   )}

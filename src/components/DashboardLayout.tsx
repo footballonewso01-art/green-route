@@ -160,7 +160,7 @@ export default function DashboardLayout() {
                 <h3 className="px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/50 mb-1">{group.label}</h3>
                 <div className="space-y-0.5">
                   {filteredItems.map((item) => {
-                    const isActive = location.pathname === item.path;
+                    const isActive = location.pathname === item.path || (item.path === "/dashboard/profile" && location.pathname.startsWith("/dashboard/profile"));
                     return (
                       <Link
                         key={item.path}

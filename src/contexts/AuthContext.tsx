@@ -18,6 +18,7 @@ interface User {
   plan: string;
   online_counter: boolean;
   role?: string;
+  created?: string;
 }
 
 interface AuthContextType {
@@ -67,6 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           online_counter: !!parsed.model.online_counter,
           role: parsed.model.role || 'user',
           promocode_used: parsed.model.promocode_used || '',
+          created: parsed.model.created || '',
         };
       } catch (e) {
         console.error("Failed to parse auth from localStorage:", e);
@@ -121,6 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           online_counter: !!model.online_counter,
           role: model.role || 'user',
           promocode_used: model.promocode_used || '',
+          created: model.created || '',
         };
         setUser(updatedUser);
 

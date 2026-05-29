@@ -56,4 +56,36 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     description: "Learn how to safely share OnlyFans links on Instagram & TikTok without bans or shadowbans. Secure your creator profile with link cloaking and custom domains.",
     canonical: "/solutions/onlyfans-link-in-bio",
   },
+  telegramSolution: {
+    title: "Telegram Link in Bio: Optimize Social Traffic & Conversions | Linktery",
+    description: "Boost your Telegram channel growth. Seamlessly redirect Instagram and TikTok traffic to native applications, preventing drop-offs and optimizing user conversions.",
+    canonical: "/solutions/telegram-bio-link",
+  },
+  affiliateSolution: {
+    title: "Affiliate Link Rotator: Optimize CPA Traffic & A/B Split | Linktery",
+    description: "Maximize your CPA marketing ROI. Set up multi-variant link rotators, distribute traffic by custom weights, and verify visitor quality safely.",
+    canonical: "/solutions/affiliate-smart-link-rotator",
+  },
+  bioLinkTool: {
+    title: "Best Free Link in Bio Tool for Instagram & TikTok (2026) | Linktery",
+    description: "Create a beautiful, custom link-in-bio page for your social media profiles. Organize all your links, build custom templates, and bypass in-app browser jails free.",
+    canonical: "/solutions/bio-link-tool",
+  },
+  smartRedirect: {
+    title: "Smart URL Redirect & Traffic Routing Engine | Linktery",
+    description: "Route campaign clicks dynamically by device OS, geolocation, or A/B split weights. Filter bots, protect ad account compliance, and scale campaign yields.",
+    canonical: "/solutions/smart-link-redirect",
+  },
+  deeplinkGenerator: {
+    title: "Deeplink Generator: Open Links Directly in Apps | Linktery",
+    description: "Bypass Instagram, TikTok, and YouTube in-app browsers. Create mobile deep links (deep links) to route users directly into native apps.",
+    canonical: "/solutions/deeplink-generator",
+  },
+  fitnessCoachSolution: {
+    title: "Link in Bio for Fitness Coaches & Nutritionists | Linktery",
+    description: "Build a beautiful, high-converting link-in-bio profile for your personal training and nutrition coaching business. Sell workout plans and track client signups.",
+    canonical: "/solutions/link-in-bio-for-fitness-coaches",
+  },
 };
+
+

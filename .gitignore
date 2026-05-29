@@ -26,6 +26,7 @@ links_schema_prod.json
 node_modules
 dist
 dist-ssr
+dist-server
 *.local
 
 # Editor directories and files

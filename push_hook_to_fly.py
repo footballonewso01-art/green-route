@@ -18,9 +18,14 @@ print(f"Total size: {len(content)} bytes, base64: {len(b64)} chars, chunks: {len
 def fly_cmd(remote_cmd):
     result = subprocess.run(
         ["flyctl", "ssh", "console", "-a", "greenroute-pb", "-C", remote_cmd],
-        capture_output=True, text=True, timeout=30
+        input="", capture_output=True, text=True, timeout=30
     )
-    return result.returncode, result.stdout.strip(), result.stderr.strip()
+    rc = result.returncode
+    err = result.stderr.strip()
+    if rc != 0 and "The handle is invalid" in err:
+        rc = 0
+    return rc, result.stdout.strip(), err
+
 
 # Write chunks to /tmp/pb_hook.b64
 for i, chunk in enumerate(chunks):
@@ -38,8 +43,9 @@ for i, chunk in enumerate(chunks):
     time.sleep(0.3)
 
 # Decode base64 and write to pb_hooks
-rc, out, err = fly_cmd("base64 -d /tmp/pb_hook.b64 > /pb/pb_hooks/main.pb.js")
+rc, out, err = fly_cmd("/bin/sh -c 'base64 -d /tmp/pb_hook.b64 > /pb/pb_hooks/main.pb.js'")
 print(f"Decode: rc={rc}, out={out}, err={err}")
+
 
 # Verify file size
 rc, out, err = fly_cmd("wc -c /pb/pb_hooks/main.pb.js")

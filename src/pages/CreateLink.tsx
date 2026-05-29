@@ -37,6 +37,7 @@ export default function CreateLink() {
     feature: "",
     description: "",
   });
+  const [profiles, setProfiles] = useState<any[]>([]);
 
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const canDeepLink = checkPlan(userPlan, "deep_links");
@@ -47,6 +48,7 @@ export default function CreateLink() {
     domain: availableDomains[0],
     slug: !id && !checkPlan((user as { plan?: string })?.plan || "creator", "custom_slug") ? generateRandomSlug() : "",
     show_on_profile: false,
+    profile_id: "",
     cloaking: false,
     icon_type: "none" as "preset" | "emoji" | "custom" | "none",
     icon_value: "",
@@ -83,6 +85,26 @@ export default function CreateLink() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
 
   useEffect(() => {
+    if (user) {
+      const fetchProfiles = async () => {
+        try {
+          const list = await pb.collection('public_profiles').getFullList({
+            filter: `user_id = "${user.id}"`,
+            sort: 'created'
+          });
+          setProfiles(list);
+          if (!id && list.length === 1) {
+            setForm(prev => ({ ...prev, profile_id: list[0].id }));
+          }
+        } catch (err) {
+          console.error("Failed to fetch profiles:", err);
+        }
+      };
+      fetchProfiles();
+    }
+  }, [user, id]);
+
+  useEffect(() => {
     if (id) {
       const fetchLink = async () => {
         try {
@@ -93,6 +115,7 @@ export default function CreateLink() {
             domain: record.domain || availableDomains[0],
             slug: record.slug,
             show_on_profile: record.show_on_profile !== false,
+            profile_id: record.profile_id || "",
             cloaking: record.cloaking,
             icon_type: record.icon_type || "none",
             icon_value: record.icon_value || "",
@@ -178,11 +201,17 @@ export default function CreateLink() {
     }
     const validatedUrl = urlValidation.data;
 
+    if (form.show_on_profile && !form.profile_id) {
+      toast.error("Please select a Public Profile to display this link on");
+      return;
+    }
+
     if (form.slug) {
       try {
-        const [existingLinks, existingUsers] = await Promise.all([
+        const [existingLinks, existingUsers, existingProfiles] = await Promise.all([
           pb.collection('links').getList(1, 1, { filter: `slug="${form.slug}" && id!="${id || ''}"` }),
-          pb.collection('users').getList(1, 1, { filter: `username="${form.slug}"` })
+          pb.collection('users').getList(1, 1, { filter: `username="${form.slug}"` }),
+          pb.collection('public_profiles').getList(1, 1, { filter: `slug="${form.slug}"` })
         ]);
 
         if (existingLinks.totalItems > 0) {
@@ -191,6 +220,10 @@ export default function CreateLink() {
         }
         if (existingUsers.totalItems > 0) {
           toast.error("This slug is reserved by a user profile");
+          return;
+        }
+        if (existingProfiles.totalItems > 0) {
+          toast.error("This slug is already in use by a public profile");
           return;
         }
       } catch (err) {
@@ -206,6 +239,7 @@ export default function CreateLink() {
         domain: form.domain,
         slug: form.slug,
         show_on_profile: form.show_on_profile,
+        profile_id: form.show_on_profile ? form.profile_id : "",
         cloaking: form.cloaking,
         icon_type: form.icon_type,
         icon_value: form.icon_value,
@@ -442,7 +476,35 @@ export default function CreateLink() {
         />
 
         {form.show_on_profile && (
-          <div className="space-y-3 pt-2 animate-fade-in">
+          <div className="space-y-4 pt-2 animate-fade-in">
+            {/* Select Public Profile */}
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Select Public Profile</label>
+              <div className="relative">
+                <select
+                  value={form.profile_id}
+                  onChange={(e) => update("profile_id", e.target.value)}
+                  required={form.show_on_profile}
+                  className="w-full px-4 pr-10 py-2.5 rounded-xl bg-surface border border-border text-foreground appearance-none focus:outline-none focus:border-accent/50 transition-colors cursor-pointer"
+                >
+                  <option value="" disabled>-- Select a Profile --</option>
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name || `@${p.slug}`} ({p.domain}/{p.slug})
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                </div>
+              </div>
+              {profiles.length === 0 && (
+                <p className="text-xs text-amber-500/80 mt-1.5">
+                  ⚠️ You don't have any public profiles yet. Go to your dashboard and create a profile first to show links on it.
+                </p>
+              )}
+            </div>
+
             <label className="text-sm font-medium text-foreground block">Display Size</label>
             <div className="grid grid-cols-2 gap-3">
               <button

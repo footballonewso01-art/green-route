@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, ExternalLink, BarChart3, ToggleLeft, ToggleRight, Copy, Trash2, Edit, Loader2, GripVertical, Eye, EyeOff, Globe, QrCode, Download, X, Link2, LayoutGrid, List } from "lucide-react";
+import { Plus, Search, ExternalLink, BarChart3, ToggleLeft, ToggleRight, Copy, Trash2, Edit, Loader2, GripVertical, Eye, EyeOff, Globe, QrCode, Download, X, Link2, LayoutGrid, List, Lock } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { QRCodeCanvas } from 'qrcode.react';
 import { IconRenderer } from '@/components/icons/IconRenderer';
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
+import { PLANS, PlanType } from '@/lib/plans';
 
 interface LinkItem {
   id: string;
@@ -17,6 +18,7 @@ interface LinkItem {
   title?: string;
   order?: number;
   show_on_profile?: boolean;
+  profile_id?: string;
   mode?: string;
   icon_type?: "preset" | "emoji" | "custom" | "none";
   icon_value?: string;
@@ -25,8 +27,17 @@ interface LinkItem {
   domain?: string;
 }
 
+interface ProfileItem {
+  id: string;
+  name?: string;
+  slug: string;
+}
+
 export default function LinksManager() {
   const [links, setLinks] = useState<LinkItem[]>([]);
+  const [profiles, setProfiles] = useState<ProfileItem[]>([]);
+  const [selectedProfileFilter, setSelectedProfileFilter] = useState("all");
+  const [profileSelectorLinkId, setProfileSelectorLinkId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [qrModal, setQrModal] = useState<{ slug: string; title: string; domain?: string } | null>(null);
@@ -88,14 +99,24 @@ export default function LinksManager() {
   const fetchLinks = async () => {
     try {
       const userId = pb.authStore.model?.id;
-      const records = await pb.collection('links').getList<LinkItem>(1, 100, {
-        filter: `user_id="${userId}"`,
-        sort: 'order,-created',
-      });
-      setLinks(records.items);
+      if (!userId) return;
+
+      const [linksRecords, profilesRecords] = await Promise.all([
+        pb.collection('links').getList<LinkItem>(1, 100, {
+          filter: `user_id="${userId}"`,
+          sort: 'order,-created',
+        }),
+        pb.collection('public_profiles').getFullList({
+          filter: `user_id="${userId}"`,
+          sort: 'created',
+        })
+      ]);
+
+      setLinks(linksRecords.items);
+      setProfiles(profilesRecords);
 
       // Load sparklines asynchronously without blocking the main UI
-      fetchSparklines(records.items);
+      fetchSparklines(linksRecords.items);
     } catch (error: unknown) {
       toast.error((error as Error).message || "Failed to fetch links");
     } finally {
@@ -112,7 +133,20 @@ export default function LinksManager() {
     localStorage.setItem("links_view_mode", viewMode);
   }, [viewMode]);
 
-  const filtered = links.filter((l) => l.slug.includes(search) || l.destination_url.includes(search));
+  const userPlan = pb.authStore.model?.plan || "creator";
+  const limit = PLANS[userPlan as PlanType]?.limits?.links ?? 3;
+  const activeLinks = [...links]
+    .filter(l => l.active)
+    .sort((a, b) => new Date(a.created).getTime() - new Date(b.created).getTime());
+
+  const filtered = links.filter((l) => {
+    const matchesSearch = l.slug.includes(search) || l.destination_url.includes(search);
+    if (!matchesSearch) return false;
+
+    if (selectedProfileFilter === "all") return true;
+    if (selectedProfileFilter === "none") return !l.profile_id || l.show_on_profile === false;
+    return l.profile_id === selectedProfileFilter && l.show_on_profile !== false;
+  });
 
   const toggleLink = async (id: string, currentActive: boolean) => {
     try {
@@ -124,10 +158,30 @@ export default function LinksManager() {
     }
   };
 
-  const toggleProfileVisibility = async (id: string, currentStatus: boolean) => {
+  const toggleProfileVisibility = async (id: string, currentStatus: boolean, profileId?: string) => {
     try {
-      await pb.collection('links').update(id, { show_on_profile: !currentStatus });
-      setLinks(links.map((l) => (l.id === id ? { ...l, show_on_profile: !currentStatus } : l)));
+      if (!currentStatus && profiles.length === 0) {
+        toast.error("You must create a public profile first to show links on it");
+        return;
+      }
+
+      const payload: { show_on_profile: boolean; profile_id?: string } = { show_on_profile: !currentStatus };
+      if (!currentStatus) {
+        if (profileId) {
+          payload.profile_id = profileId;
+        } else if (profiles.length === 1) {
+          payload.profile_id = profiles[0].id;
+        } else if (profiles.length > 1) {
+          setProfileSelectorLinkId(id);
+          return;
+        }
+      } else {
+        payload.profile_id = "";
+      }
+
+      await pb.collection('links').update(id, payload);
+      setLinks(links.map((l) => (l.id === id ? { ...l, show_on_profile: !currentStatus, profile_id: payload.profile_id } : l)));
+      setProfileSelectorLinkId(null);
       toast.success(!currentStatus ? "Link will show on profile" : "Link hidden from profile");
     } catch (error: unknown) {
       toast.error((error as { message?: string }).message || "Failed to update visibility");
@@ -265,6 +319,33 @@ export default function LinksManager() {
         </div>
       </div>
 
+      {/* Profile Filters */}
+      {profiles.length >= 1 && (
+        <div className="flex flex-wrap items-center gap-2 bg-surface/30 border border-border/80 p-1.5 rounded-xl">
+          <button
+            onClick={() => setSelectedProfileFilter("all")}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${selectedProfileFilter === "all" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            All Links
+          </button>
+          {profiles.map(p => (
+            <button
+              key={p.id}
+              onClick={() => setSelectedProfileFilter(p.id)}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${selectedProfileFilter === p.id ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {p.name || `@${p.slug}`}
+            </button>
+          ))}
+          <button
+            onClick={() => setSelectedProfileFilter("none")}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${selectedProfileFilter === "none" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Outside Profiles
+          </button>
+        </div>
+      )}
+
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -306,6 +387,8 @@ export default function LinksManager() {
                   {filtered.map((link, index) => {
                     // Force List View for mobile devices regardless of state
                     const effectiveViewMode = (typeof window !== 'undefined' && window.innerWidth < 640) ? 'list' : viewMode;
+                    const activeIndex = link.active ? activeLinks.findIndex(al => al.id === link.id) : -1;
+                    const isFrozen = link.active && limit !== -1 && activeIndex >= limit;
                     
                     return (
                     <Draggable key={link.id} draggableId={link.id} index={index} isDragDisabled={search.length > 0 || filtered.length <= 1}>
@@ -317,8 +400,8 @@ export default function LinksManager() {
                             ...provided.draggableProps.style,
                           }}
                           className={effectiveViewMode === "bento" 
-                            ? `bento-card p-5 flex flex-col justify-between gap-4 transition-all duration-300 min-h-[160px] ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:shadow-glow'}`
-                            : `glass-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-all duration-200 ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:border-accent/20'}`}
+                            ? `bento-card p-5 flex flex-col justify-between gap-4 transition-all duration-300 min-h-[160px] ${isFrozen ? '!border-amber-500/25 !bg-amber-500/[0.01]' : ''} ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:shadow-glow'}`
+                            : `glass-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-all duration-200 ${isFrozen ? '!border-amber-500/25 !bg-amber-500/[0.01]' : ''} ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:border-accent/20'}`}
                         >
                           <div className={`flex items-start justify-between gap-3 ${effectiveViewMode === 'list' ? 'flex-1 min-w-0' : ''}`}>
                             <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -339,9 +422,14 @@ export default function LinksManager() {
                                       }
                                     </span>
                                 {link.title && <span className="text-xs font-medium px-2 py-0.5 rounded bg-surface border border-border">{link.title}</span>}
-                                <button onClick={() => copyToClipboard(link.slug, link.domain)} className="text-muted-foreground hover:text-foreground transition-colors">
+                                <button onClick={() => copyToClipboard(link.slug, link.domain)} className="text-muted-foreground hover:text-foreground transition-colors mr-1">
                                   <Copy className="w-3.5 h-3.5" />
                                 </button>
+                                {isFrozen && (
+                                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] font-bold text-amber-500 uppercase tracking-wider shrink-0" title="This link is frozen because your plan limits are exceeded.">
+                                    <Lock className="w-2.5 h-2.5" /> Frozen
+                                  </span>
+                                )}
                               </div>
                               <div className="flex items-center gap-2 mt-1">
                                 <span className={`text-xs text-muted-foreground flex items-center gap-1 ${effectiveViewMode === 'list' ? 'truncate max-w-[200px]' : 'break-all'}`}>
@@ -357,6 +445,35 @@ export default function LinksManager() {
                             
                             {effectiveViewMode === "bento" && (
                               <div className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+                                <div className="relative">
+                                  {profileSelectorLinkId === link.id ? (
+                                    <select
+                                      onChange={(e) => {
+                                        if (e.target.value) {
+                                          toggleProfileVisibility(link.id, false, e.target.value);
+                                        } else {
+                                          setProfileSelectorLinkId(null);
+                                        }
+                                      }}
+                                      onBlur={() => setProfileSelectorLinkId(null)}
+                                      autoFocus
+                                      className="px-2 py-1 bg-surface border border-accent/40 rounded text-[10px] text-white focus:outline-none max-w-[100px]"
+                                    >
+                                      <option value="">Profile...</option>
+                                      {profiles.map(p => (
+                                        <option key={p.id} value={p.id}>{p.name || `@${p.slug}`}</option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <button
+                                      onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
+                                      className={`p-2 rounded-xl transition-colors ${link.show_on_profile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground hover:text-foreground hover:bg-surface-hover'}`}
+                                      title={link.show_on_profile ? "Visible on profile" : "Hidden from profile"}
+                                    >
+                                      {link.show_on_profile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                    </button>
+                                  )}
+                                </div>
                                 <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
                                   <QrCode className="w-4 h-4" />
                                 </button>
@@ -399,7 +516,9 @@ export default function LinksManager() {
   
                               <div className="flex items-center gap-2">
                                 <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors scale-90" title="Toggle active status">
-                                  {link.active ? (
+                                  {isFrozen ? (
+                                    <ToggleRight className="w-8 h-8 text-amber-500" />
+                                  ) : link.active ? (
                                     <ToggleRight className="w-8 h-8 text-accent" />
                                   ) : (
                                     <ToggleLeft className="w-8 h-8 text-muted-foreground" />
@@ -419,16 +538,40 @@ export default function LinksManager() {
                                 <div className="text-xs text-muted-foreground">clicks</div>
                               </div>
   
-                              <button
-                                onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
-                                className={`p-2 rounded-lg transition-colors ${link.show_on_profile !== false ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground bg-surface hover:bg-surface-hover'}`}
-                                title={link.show_on_profile !== false ? "Visible on profile" : "Hidden from profile"}
-                              >
-                                {link.show_on_profile !== false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                              </button>
+                              <div className="relative">
+                                {profileSelectorLinkId === link.id ? (
+                                  <select
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        toggleProfileVisibility(link.id, false, e.target.value);
+                                      } else {
+                                        setProfileSelectorLinkId(null);
+                                      }
+                                    }}
+                                    onBlur={() => setProfileSelectorLinkId(null)}
+                                    autoFocus
+                                    className="px-2 py-1 bg-surface border border-accent/40 rounded text-xs text-white focus:outline-none"
+                                  >
+                                    <option value="">Select Profile...</option>
+                                    {profiles.map(p => (
+                                      <option key={p.id} value={p.id}>{p.name || `@${p.slug}`}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <button
+                                    onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
+                                    className={`p-2 rounded-lg transition-colors ${link.show_on_profile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground bg-surface hover:bg-surface-hover'}`}
+                                    title={link.show_on_profile ? "Visible on profile" : "Hidden from profile"}
+                                  >
+                                    {link.show_on_profile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                  </button>
+                                )}
+                              </div>
   
                               <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors" title="Toggle active status">
-                                {link.active ? (
+                                {isFrozen ? (
+                                  <ToggleRight className="w-8 h-8 text-amber-500" />
+                                ) : link.active ? (
                                   <ToggleRight className="w-8 h-8 text-accent" />
                                 ) : (
                                   <ToggleLeft className="w-8 h-8 text-muted-foreground" />

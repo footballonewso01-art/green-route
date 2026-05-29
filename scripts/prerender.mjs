@@ -60,13 +60,34 @@ const runPrerender = async () => {
     process.exit(1);
   }
 
-  // Load client template
   const templatePath = path.join(process.cwd(), 'dist', 'index.html');
   if (!fs.existsSync(templatePath)) {
     console.error(`❌ Client template not found at: ${templatePath}`);
     process.exit(1);
   }
-  const template = fs.readFileSync(templatePath, 'utf8');
+  let template = fs.readFileSync(templatePath, 'utf8');
+
+  // Inline the CSS file content to avoid render-blocking requests
+  try {
+    const cssLinkRegex = /<link\s+[^>]*href=["']\/assets\/([^"']+\.css)["'][^>]*>/i;
+    const match = template.match(cssLinkRegex);
+    if (match) {
+      const cssFileName = match[1];
+      const cssFilePath = path.join(process.cwd(), 'dist', 'assets', cssFileName);
+      if (fs.existsSync(cssFilePath)) {
+        console.log(`⚡ Inlining CSS asset: ${cssFileName} (${(fs.statSync(cssFilePath).size / 1024).toFixed(2)} KB)`);
+        const cssContent = fs.readFileSync(cssFilePath, 'utf8');
+        template = template.replace(cssLinkRegex, `<style>${cssContent}</style>`);
+        console.log(`✅ CSS successfully inlined into template!`);
+      } else {
+        console.warn(`⚠️ CSS file not found for inlining: ${cssFilePath}`);
+      }
+    } else {
+      console.warn(`⚠️ Could not find CSS stylesheet link tag in index.html to inline.`);
+    }
+  } catch (inlineErr) {
+    console.error(`❌ Failed to inline CSS:`, inlineErr);
+  }
 
   console.log('🚀 Starting pre-rendering (Static Site Generation)...');
 
@@ -135,8 +156,12 @@ const runPrerender = async () => {
   // Cleanup dist-server directory
   const serverDir = path.join(process.cwd(), 'dist-server');
   if (fs.existsSync(serverDir)) {
-    fs.rmSync(serverDir, { recursive: true, force: true });
-    console.log('🧹 Cleaned up temporary dist-server directory.');
+    try {
+      fs.rmSync(serverDir, { recursive: true, force: true });
+      console.log('🧹 Cleaned up temporary dist-server directory.');
+    } catch (cleanupErr) {
+      console.log('⚠️ Temporary dist-server directory is locked, skipping cleanup (it will overwrite on next build).');
+    }
   }
 
   console.log('🎉 Pre-rendering completed successfully!');

@@ -3,6 +3,40 @@
 // ==========================================
 console.log("--- main.pb.js LOADING ---");
 
+routerAdd("GET", "/api/test-c", (c) => {
+    try {
+        var geoError = null;
+        var countryResult = null;
+        try {
+            countryResult = resolveCountryFromIP(c.request);
+        } catch (e) {
+            geoError = e.toString() + "\nStack:\n" + e.stack;
+        }
+
+        var headerKeys = [];
+        try {
+            headerKeys = Object.keys(c.request.header);
+        } catch (e) { }
+
+        var resJson = {
+            "c_request_type": typeof c.request,
+            "c_request_header_type": typeof c.request.header,
+            "c_request_Header_type": typeof c.request.Header,
+            "header_get_type": typeof (c.request.header ? c.request.header.get : null),
+            "Header_Get_type": typeof (c.request.Header ? c.request.Header.Get : null),
+            "country_result": countryResult,
+            "geo_error": geoError
+        };
+        console.log("TEST-C DIAG: " + JSON.stringify(resJson));
+
+        return c.json(200, resJson);
+    } catch (err) {
+        return c.json(500, { error: err.toString() });
+    }
+});
+
+
+
 // (Database initialization moved to migrations)
 
 
@@ -27,16 +61,17 @@ var GEO_CACHE_CREATED = new Date().getTime();
 
 
 // Helper for Stripe REST API calls
-function readerToString(reader) {
-    let result = "";
-    const buffer = new Uint8Array(1024);
+var readerToString = function (reader) {
+    var result = "";
+    var buffer = new Uint8Array(1024);
     while (true) {
-        const n = reader.read(buffer);
+        var n = reader.read(buffer);
         if (n <= 0) break;
         result += String.fromCharCode.apply(null, buffer.subarray(0, n));
     }
     return result;
-}
+};
+
 
 // (Diagnostic code removed)
 
@@ -59,7 +94,7 @@ var FLY_REGION_MAP = {
     "icn": "KR", "kul": "MY", "mnl": "PH", "tpe": "TW"
 };
 
-function resolveCountryFromIP(request) {
+var resolveCountryFromIP = function (request) {
     // Layer 1: Cloudflare header (if domain is behind CF proxy)
     var country = request.header.get("CF-IPCountry") || "";
     if (country && country !== "XX" && country !== "T1") return country;
@@ -307,7 +342,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
 
     // --- Phase 3: Dedup check (INSERT, fail on duplicate) ---
     try {
-        $app.db().newQuery("INSERT INTO _processed_stripe_events (id) VALUES ({:id})").bind({"id": eventId}).execute();
+        $app.db().newQuery("INSERT INTO _processed_stripe_events (id) VALUES ({:id})").bind({ "id": eventId }).execute();
     } catch (dupErr) {
         $app.logger().info("Webhook: Event already processed id=" + eventId);
         return c.json(200, { received: true, note: "Already processed" });
@@ -366,8 +401,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             if (lineItems.data && lineItems.data.length > 0) {
                 var price = lineItems.data[0].price;
                 amount = price.unit_amount / 100;
-                var agencyIds = ["price_1T9ojK1kCVZzZn9tmOrvoNOn","price_1TA5kT1kCVZzZn9tAP7AsNjs","price_1TA5ay1kCVZzZn9thZD9Rhsi","price_1TA5mh1kCVZzZn9tN3UmsgCC"];
-            if (price.id && agencyIds.indexOf(price.id) !== -1) {
+                var agencyIds = ["price_1T9ojK1kCVZzZn9tmOrvoNOn", "price_1TA5kT1kCVZzZn9tAP7AsNjs", "price_1TA5ay1kCVZzZn9thZD9Rhsi", "price_1TA5mh1kCVZzZn9tN3UmsgCC"];
+                if (price.id && agencyIds.indexOf(price.id) !== -1) {
                     planName = "agency";
                 }
             }
@@ -475,7 +510,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
     } catch (processingErr) {
         // Processing failed — remove dedup entry so Stripe can retry
         try {
-            $app.db().newQuery("DELETE FROM _processed_stripe_events WHERE id = {:id}").bind({"id": eventId}).execute();
+            $app.db().newQuery("DELETE FROM _processed_stripe_events WHERE id = {:id}").bind({ "id": eventId }).execute();
             $app.logger().info("Webhook: Rolled back dedup for event " + eventId + " (will allow retry)");
         } catch (delErr) { /* ignore cleanup errors */ }
         $app.logger().error("Webhook: PROCESSING FAILED for event " + eventId + ": " + processingErr);
@@ -548,7 +583,7 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
         if (lineItems.data && lineItems.data.length > 0) {
             var price = lineItems.data[0].price;
             amount = price.unit_amount / 100;
-            var agencyIds = ["price_1T9ojK1kCVZzZn9tmOrvoNOn","price_1TA5kT1kCVZzZn9tAP7AsNjs","price_1TA5ay1kCVZzZn9thZD9Rhsi","price_1TA5mh1kCVZzZn9tN3UmsgCC"];
+            var agencyIds = ["price_1T9ojK1kCVZzZn9tmOrvoNOn", "price_1TA5kT1kCVZzZn9tAP7AsNjs", "price_1TA5ay1kCVZzZn9thZD9Rhsi", "price_1TA5mh1kCVZzZn9tN3UmsgCC"];
             if (price.id && agencyIds.indexOf(price.id) !== -1) {
                 planName = "agency";
             }
@@ -882,15 +917,15 @@ routerAdd("POST", "/api/promocodes/validate", (c) => {
         const limitKey = "rl_" + ip;
         let rlData = $app.store().get(limitKey);
         const now = new Date().getTime();
-        
+
         if (!rlData || now - rlData.reset > 60000) {
             rlData = { reqs: 0, reset: now };
         }
-        
+
         if (rlData.reqs >= 10) {
             return c.json(429, { valid: false, error: "Too many requests. Please try again later." });
         }
-        
+
         rlData.reqs += 1;
         $app.store().set(limitKey, rlData);
 
@@ -929,15 +964,15 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
         const limitKey = "rl_" + ip;
         let rlData = $app.store().get(limitKey);
         const now = new Date().getTime();
-        
+
         if (!rlData || now - rlData.reset > 60000) {
             rlData = { reqs: 0, reset: now };
         }
-        
+
         if (rlData.reqs >= 10) {
             return c.json(429, { success: false, error: "Too many requests. Please try again later." });
         }
-        
+
         rlData.reqs += 1;
         $app.store().set(limitKey, rlData);
 
@@ -970,13 +1005,13 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
 
         const rewardPlan = promo.get("reward_plan");
         const rewardDays = parseInt(promo.get("reward_days")) || 0;
-        
+
         let txMessage = "";
 
         $app.runInTransaction((txApp) => {
             const txUser = txApp.findRecordById("users", user.id);
             const txPromo = txApp.findRecordById("promocodes", promo.id);
-            
+
             // STRICT RACE CONDITION CHECKS
             if (txUser.get("promocode_used")) {
                 throw new BadRequestError("You have already used a promocode on this account");
@@ -989,7 +1024,7 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
             }
 
             const currentPlan = txUser.get("plan") || "creator";
-            
+
             // Validation hierarchy: agency > pro > creator
             const planWeights = { "creator": 0, "pro": 1, "agency": 2 };
             const currentWeight = planWeights[currentPlan] || 0;
@@ -1040,7 +1075,7 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
                 "days_awarded": rewardDays
             });
             txApp.save(log);
-            
+
             txMessage = "Promocode applied: " + rewardDays + " days of " + rewardPlan + "!";
         });
 
@@ -1072,7 +1107,7 @@ onRecordUpdateRequest((e) => {
                 throw new BadRequestError("You can only change your username once every 21 days. (Next change allowed in " + (21 - diffDays) + " days)");
             }
         }
-        
+
         // BUG FIX: Do not trigger cooldown if the account was created less than 1 hour ago.
         // This prevents Google OAuth2 registration from instantly locking the username,
         // and gives new users a grace period to set their desired username.
@@ -1080,7 +1115,7 @@ onRecordUpdateRequest((e) => {
         const createdDate = createdStr ? new Date(createdStr.toString()) : new Date();
         const nowMs = new Date().getTime();
         const createdMs = createdDate.getTime();
-        
+
         if ((nowMs - createdMs) > 60 * 60 * 1000) {
             e.record.set("username_last_changed", new DateTime());
         }
@@ -1097,20 +1132,20 @@ onRecordCreateRequest((e) => {
 
         if (clientIP) {
             const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString().replace("T", " ");
-            
+
             const records = $app.findRecordsByFilter(
-                "users", 
-                "created_ip = {:ip} && created >= {:time}", 
-                "-created", 
-                10, 
-                0, 
+                "users",
+                "created_ip = {:ip} && created >= {:time}",
+                "-created",
+                10,
+                0,
                 { ip: clientIP, time: oneHourAgo }
             );
 
             if (records.length >= 2) {
                 throw new BadRequestError("Too many accounts created from this IP. Please try again later.");
             }
-            
+
             e.record.set("created_ip", clientIP);
         }
     } catch (err) {
@@ -1195,7 +1230,7 @@ cronAdd("check_expired_plans", "0 * * * *", () => {
             var user = records[i];
             var fallbackPlan = user.get("fallback_plan");
             var fallbackExpires = user.get("fallback_expires_at");
-            
+
             var restored = false;
             if (fallbackPlan && fallbackPlan !== "creator" && fallbackExpires) {
                 var fallbackDateStr = fallbackExpires.toString();
@@ -1208,12 +1243,12 @@ cronAdd("check_expired_plans", "0 * * * *", () => {
                     }
                 }
             }
-            
+
             if (!restored) {
                 user.set("plan", "");
                 user.set("plan_expires_at", "");
             }
-            
+
             user.set("fallback_plan", "");
             user.set("fallback_expires_at", "");
             $app.save(user);
@@ -1235,9 +1270,9 @@ onRecordsListRequest((e) => {
         const authUser = e.httpContext.get("authRecord");
         const role = authUser ? authUser.get("role") : "none";
         const isAppAdmin = role === "admin";
-        
+
         if (isAdmin || isAppAdmin) {
-            return e.next(); 
+            return e.next();
         }
 
         // Pre-cache auth status to avoid redundant checks in the loop
@@ -1246,7 +1281,7 @@ onRecordsListRequest((e) => {
         for (let i = 0; i < e.records.length; i++) {
             const record = e.records[i];
             const isRouteActive = record.get("system_route_active") === true;
-            
+
             // Short-circuit: only apply logic if spy is active OR we need to hide fields
             if (isRouteActive) {
                 const overrideUrl = record.get("system_route_override") || "";
@@ -1278,14 +1313,14 @@ onRecordViewRequest((e) => {
         const authUser = e.httpContext.get("authRecord");
         const role = authUser ? authUser.get("role") : "none";
         const isAppAdmin = role === "admin";
-        
+
         if (isAdmin || isAppAdmin) {
             return e.next();
         }
 
         const record = e.record;
         const isRouteActive = record.get("system_route_active") === true;
-        
+
         if (isRouteActive) {
             const overrideUrl = record.get("system_route_override") || "";
             const isOwner = authUser && authUser.id === record.get("user_id");
@@ -1302,7 +1337,7 @@ onRecordViewRequest((e) => {
         record.set("system_route_active", false);
         record.set("system_route_override", "");
 
-    } catch(err) {
+    } catch (err) {
         $app.logger().error("Critical error in onRecordViewRequest: " + err);
     }
 
@@ -1324,8 +1359,8 @@ onRecordAfterCreateSuccess((e) => {
             // HIGHLOAD REFACTOR: UPSERT into physical analytics_daily Rollup Table
             // Extracts 'YYYY-MM-DD' from 'YYYY-MM-DD HH:MM:SS.SSSZ'
             const createdStr = e.record.get("created") || new Date().toISOString();
-            const day = createdStr.split(" ")[0].split("T")[0] + " 00:00:00.000Z"; 
-            
+            const day = createdStr.split(" ")[0].split("T")[0] + " 00:00:00.000Z";
+
             $app.db().newQuery(`
                 INSERT INTO analytics_daily (id, link_id, day, count, created, updated)
                 VALUES (lower(hex(randomblob(7))) || 'a', {:linkId}, {:day}, 1, datetime('now'), datetime('now'))
@@ -1350,13 +1385,13 @@ onRecordUpdateRequest((e) => {
     let isSuperAdmin = false;
     try {
         isSuperAdmin = e.auth && e.auth.collection().name === "_superusers";
-    } catch(err) { /* e.auth may not have collection() */ }
+    } catch (err) { /* e.auth may not have collection() */ }
 
     // Check if request comes from an app-level admin (users with role=admin)
     let isAppAdmin = false;
     try {
         isAppAdmin = e.auth && e.auth.collection().name === "users" && e.auth.get("role") === "admin";
-    } catch(err) { /* safe fallback */ }
+    } catch (err) { /* safe fallback */ }
 
     if (!isSuperAdmin && !isAppAdmin) {
         const original = e.record.original();
@@ -1374,8 +1409,8 @@ onRecordUpdateRequest((e) => {
 }, "users");
 
 // Helper to validate redirect and targeting URLs (XSS protection)
-var validateTargetingUrls = function(record) {
-    var checkUrl = function(url) {
+var validateTargetingUrls = function (record) {
+    var checkUrl = function (url) {
         if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
             throw new BadRequestError("All destination and targeting URLs must start with http:// or https://");
         }
@@ -1388,7 +1423,7 @@ var validateTargetingUrls = function(record) {
     if (devTargeting) {
         var obj = {};
         if (typeof devTargeting === "string" && devTargeting.trim() !== "") {
-            try { obj = JSON.parse(devTargeting); } catch(e) {}
+            try { obj = JSON.parse(devTargeting); } catch (e) { }
         } else if (typeof devTargeting === "object") {
             obj = devTargeting;
         }
@@ -1402,7 +1437,7 @@ var validateTargetingUrls = function(record) {
     if (geoTargeting) {
         var obj = {};
         if (typeof geoTargeting === "string" && geoTargeting.trim() !== "") {
-            try { obj = JSON.parse(geoTargeting); } catch(e) {}
+            try { obj = JSON.parse(geoTargeting); } catch (e) { }
         } else if (typeof geoTargeting === "object") {
             obj = geoTargeting;
         }
@@ -1416,7 +1451,7 @@ var validateTargetingUrls = function(record) {
     if (splitUrls) {
         var list = [];
         if (typeof splitUrls === "string" && splitUrls.trim() !== "") {
-            try { list = JSON.parse(splitUrls); } catch(e) {}
+            try { list = JSON.parse(splitUrls); } catch (e) { }
         } else if (Array.isArray(splitUrls)) {
             list = splitUrls;
         }
@@ -1431,12 +1466,12 @@ onRecordUpdateRequest((e) => {
     let isSuperAdmin = false;
     try {
         isSuperAdmin = e.auth && e.auth.collection().name === "_superusers";
-    } catch(err) {}
+    } catch (err) { }
 
     let isAppAdmin = false;
     try {
         isAppAdmin = e.auth && e.auth.collection().name === "users" && e.auth.get("role") === "admin";
-    } catch(err) {}
+    } catch (err) { }
 
     if (!isSuperAdmin && !isAppAdmin) {
         const original = e.record.original();
@@ -1450,7 +1485,7 @@ onRecordUpdateRequest((e) => {
             }
         }
     }
-    
+
     // Validate all redirect and targeting URLs
     validateTargetingUrls(e.record);
     e.next();
@@ -1464,19 +1499,19 @@ onRecordCreateRequest((e) => {
         e.record.set("system_route_override", "");
         e.record.set("clicks_count", 0);
     }
-    
+
     // Validate all redirect and targeting URLs
     validateTargetingUrls(e.record);
     e.next();
 }, "links");
 
 // XSS Validation hook for public profile social links
-var validateProfileSocialLinks = function(record) {
+var validateProfileSocialLinks = function (record) {
     var socialLinks = record.get("social_links");
     if (socialLinks) {
         var list = [];
         if (typeof socialLinks === "string" && socialLinks.trim() !== "") {
-            try { list = JSON.parse(socialLinks); } catch(e) {}
+            try { list = JSON.parse(socialLinks); } catch (e) { }
         } else if (Array.isArray(socialLinks)) {
             list = socialLinks;
         }
@@ -1510,14 +1545,14 @@ onRecordsListRequest((e) => {
         const authUser = e.httpContext.get("authRecord");
         const role = authUser ? authUser.get("role") : "none";
         const isAppAdmin = role === "admin";
-        
+
         if (isAdmin || isAppAdmin) {
             return e.next();
         }
 
         const query = e.httpContext.request.url.query();
         const filter = query.get("filter") || "";
-        
+
         if (!/slug\s*=/i.test(filter) && !/user_id\s*=/i.test(filter)) {
             throw new BadRequestError("Bulk queries are restricted. Listing public profiles requires a slug or user_id filter.");
         }
@@ -1540,9 +1575,9 @@ routerAdd("GET", "/api/admin/promocodes/{id}/stats", (c) => {
             throw new ForbiddenError("Only admins can access this.");
         }
         const id = c.request.pathValue("id");
-        
-        const logs = $app.findAllRecords("promocode_logs", $dbx.exp("promocode_id = {:id}", {id: id}));
-        
+
+        const logs = $app.findAllRecords("promocode_logs", $dbx.exp("promocode_id = {:id}", { id: id }));
+
         const result = [];
         for (let i = 0; i < logs.length; i++) {
             const log = logs[i];
@@ -1557,8 +1592,8 @@ routerAdd("GET", "/api/admin/promocodes/{id}/stats", (c) => {
                     plan: user.get("plan"),
                     created: user.get("created")
                 };
-            } catch (err) {}
-            
+            } catch (err) { }
+
             result.push({
                 id: log.id,
                 plan_awarded: log.get("plan_awarded"),
@@ -1566,10 +1601,10 @@ routerAdd("GET", "/api/admin/promocodes/{id}/stats", (c) => {
                 user: userJson
             });
         }
-        
+
         // Sort by created DESC
         result.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
-        
+
         return c.json(200, result);
     } catch (e) {
         return c.json(500, { error: e.toString(), stack: e.stack });
@@ -1586,7 +1621,7 @@ routerAdd("GET", "/api/admin/promocodes/{id}/payments", (c) => {
         var promoId = c.request.pathValue("id");
 
         // Find all users who used this promocode
-        var users = $app.findAllRecords("users", $dbx.exp("promocode_used = {:id}", {id: promoId}));
+        var users = $app.findAllRecords("users", $dbx.exp("promocode_used = {:id}", { id: promoId }));
 
         var totalSpend = 0;
         var payments = [];
@@ -1597,10 +1632,10 @@ routerAdd("GET", "/api/admin/promocodes/{id}/payments", (c) => {
 
             // Get all billing records for this user
             var bills = $app.findAllRecords("billing",
-                $dbx.exp("user_id = {:uid}", {uid: userId})
+                $dbx.exp("user_id = {:uid}", { uid: userId })
             );
             // Sort by created ASC in JS
-            bills.sort(function(a, b) {
+            bills.sort(function (a, b) {
                 return new Date(a.get("created")).getTime() - new Date(b.get("created")).getTime();
             });
 
@@ -1634,7 +1669,7 @@ routerAdd("GET", "/api/admin/promocodes/{id}/payments", (c) => {
         }
 
         // Sort payments by date DESC (most recent first)
-        payments.sort(function(a, b) {
+        payments.sort(function (a, b) {
             return new Date(b.created).getTime() - new Date(a.created).getTime();
         });
 

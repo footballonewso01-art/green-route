@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Zap, X, Shield, BarChart3, Lock, CheckCircle2 } from "lucide-react";
 
@@ -11,15 +13,20 @@ interface UpgradeModalProps {
 
 export function UpgradeModal({ isOpen, onClose, featureName, description, planNeeded = "pro" }: UpgradeModalProps) {
     const navigate = useNavigate();
+    const [mounted, setMounted] = useState(false);
 
-    if (!isOpen) return null;
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    if (!isOpen || !mounted) return null;
 
     const handleUpgrade = () => {
         navigate("/dashboard/pricing");
         onClose();
     };
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             {/* Overlay */}
             <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
@@ -86,6 +93,7 @@ export function UpgradeModal({ isOpen, onClose, featureName, description, planNe
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

@@ -17,6 +17,7 @@ export interface PlanLimits {
     ab_testing: boolean;
     multi_accounts?: boolean; // Agency only
     social_links: number;
+    public_profiles: number;
 }
 
 export interface PlanDetails {
@@ -54,6 +55,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         buttonText: "Current Plan",
         features: [
             { text: "3 Smart Links", icon: "🔗", tooltip: "Includes 3 Smart Links on Free plan." },
+            { text: "1 Biolink Profile", icon: "👤", tooltip: "Create 1 public Link-in-Bio profile." },
             { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
             { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
             { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." },
@@ -74,7 +76,8 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             custom_slug: false,
             pixels: false,
             ab_testing: false,
-            social_links: 3
+            social_links: 3,
+            public_profiles: 1
         }
     },
     pro: {
@@ -86,7 +89,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         buttonText: "Upgrade to Pro",
         features: [
             { text: "15 Smart Links", icon: "🔗" },
-
+            { text: "3 Biolink Profiles", icon: "👥", tooltip: "Create up to 3 separate Link-in-Bio profiles." },
             { text: "Remove Linktery Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
             { text: "Deeplink", icon: "⚡", tooltip: "Smart route optimization for social app traffic." },
             { text: "Advanced Analytics", icon: "📊" },
@@ -108,7 +111,8 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             custom_slug: false,
             pixels: false,
             ab_testing: false,
-            social_links: 3
+            social_links: 3,
+            public_profiles: 3
         }
     },
     agency: {
@@ -119,9 +123,10 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         buttonText: "Upgrade to Agency",
         features: [
             { text: "Unlimited Links", icon: "🚀" },
+            { text: "Unlimited Biolink Profiles", icon: "👥", tooltip: "Create unlimited public profiles for different brands." },
             { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
             { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
-            { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Create your own short link handles." },
+            { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
             { text: "Everything in Pro", icon: "✅" }
         ],
         limits: {
@@ -140,7 +145,8 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             pixels: true,
             ab_testing: true,
             multi_accounts: true,
-            social_links: 3
+            social_links: 3,
+            public_profiles: 25
         }
     }
 };

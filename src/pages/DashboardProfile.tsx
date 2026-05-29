@@ -1,16 +1,17 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { pb } from "@/lib/pocketbase";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Loader2, Camera, Palette, Smartphone, User, Check, Upload, Globe, Plus, GripVertical, Eye, EyeOff, Edit, Trash2, ExternalLink, X, Save, Lock, Copy } from "lucide-react";
+import { Loader2, Camera, Palette, Smartphone, User, Check, Upload, Globe, Plus, GripVertical, Eye, EyeOff, Edit, Trash2, ExternalLink, X, Save, Lock, Copy, ChevronDown } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { IconPicker } from '@/components/icons/IconPicker';
 import { IconRenderer } from '@/components/icons/IconRenderer';
 import { detectIconFromUrl } from '@/components/icons/detector';
-import { checkPlan, canUseResource } from '@/lib/plans';
+import { checkPlan, canUseResource, PLANS, PlanType } from '@/lib/plans';
 import { UpgradeModal } from "@/components/UpgradeModal";
 import Cropper, { Area, Point } from 'react-easy-crop';
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useParams, useNavigate } from "react-router-dom";
 import { getCroppedImg } from '@/lib/cropImage';
 import { LinkItemCard } from "@/components/LinkItemCard";
 import { urlSchema } from "@/lib/validations";
@@ -50,13 +51,35 @@ interface SocialLink {
   label?: string;
 }
 
+interface ProfileRecord {
+  id: string;
+  user_id: string;
+  slug: string;
+  domain: string;
+  name?: string;
+  bio?: string;
+  theme: string;
+  card_color?: string;
+  avatar?: string;
+  online_counter?: boolean;
+  custom_theme_bg?: string;
+  social_links?: SocialLink[];
+}
+
 export default function DashboardProfile() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { profileId } = useParams<{ profileId: string }>();
   const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleCopyLink = () => {
     if (!username) return;
-    const fullUrl = `https://${window.location.hostname === 'localhost' ? 'localhost:5173' : window.location.hostname}/${username}`;
+    const fullUrl = `https://${window.location.hostname === 'localhost' ? 'localhost:5173' : (domain || window.location.hostname)}/${username}`;
     navigator.clipboard.writeText(fullUrl);
     setCopied(true);
     toast.success("Profile link copied to clipboard!");
@@ -108,29 +131,223 @@ export default function DashboardProfile() {
   const [pendingBgImages, setPendingBgImages] = useState<Record<string, { file: File | null; remove: boolean }>>({});
 
 
+  const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
+  const [domain, setDomain] = useState("");
+  const availableDomains = import.meta.env.VITE_AVAILABLE_DOMAINS?.split(",").map((d: string) => d.trim()).filter(Boolean) || [window.location.host];
+  
+  // Create Profile Modal State
+  const [showCreateProfileModal, setShowCreateProfileModal] = useState(false);
+  const [newProfileSlug, setNewProfileSlug] = useState("");
+  const [newProfileDomain, setNewProfileDomain] = useState(availableDomains[0]);
+  const [newProfileName, setNewProfileName] = useState("");
+
+  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; feature: string; description: string; planNeeded?: "pro" | "agency" }>({
+    open: false,
+    feature: "",
+    description: "",
+  });
+
+  const fetchProfiles = async (selectProfileId?: string) => {
+    if (!user || !profileId) return;
+    try {
+      const records = await pb.collection('public_profiles').getFullList({
+        filter: `user_id = "${user.id}"`,
+        sort: 'created',
+        requestKey: null,
+      });
+
+      setProfiles(records);
+
+      // Select active profile based on the URL parameter
+      const targetId = selectProfileId || profileId;
+      const active = records.find(r => r.id === targetId);
+      
+      if (!active) {
+        toast.error("Profile not found");
+        navigate("/dashboard/profile");
+        return;
+      }
+      
+      setActiveProfileId(active.id);
+      setName(active.name || "");
+      setUsername(active.slug || "");
+      setDomain(active.domain || availableDomains[0]);
+      setBio(active.bio || "");
+      setTheme(active.theme || "minimal-dark");
+      setCardColor(active.card_color || "#000000");
+      setOnlineCounter(!!active.online_counter);
+      
+      if (active.avatar) {
+        setAvatarPreview(pb.files.getUrl(active, active.avatar));
+      } else {
+        setAvatarPreview(null);
+      }
+      
+      if (active.custom_theme_bg) {
+        setCustomBgPreview(pb.files.getUrl(active, active.custom_theme_bg));
+      } else {
+        setCustomBgPreview(null);
+      }
+      
+      setSocialLinks(Array.isArray(active.social_links) ? active.social_links : []);
+    } catch (e) {
+      console.error("Failed to load profiles:", e);
+      toast.error("Failed to load profiles");
+      navigate("/dashboard/profile");
+    }
+  };
+
   useEffect(() => {
-    if (user) {
-      // Load user profile
-      setName(user.name || "");
-      setUsername(user.username || "");
-      setBio(user.bio || "");
-      if (user.card_color) setCardColor(user.card_color);
-      setOnlineCounter(!!user.online_counter);
-      // theme is initialized directly in useState to prevent flashing
-      if (user.avatar && user.collectionId) {
-        setAvatarPreview(pb.files.getUrl(user as unknown as Record<string, unknown>, user.avatar));
+    if (user && profileId) {
+      fetchProfiles();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, profileId]);
+
+  const handleSwitchProfile = (profileId: string) => {
+    const p = profiles.find(pr => pr.id === profileId);
+    if (!p) return;
+    
+    // Clear pending changes state
+    setAvatarFile(null);
+    setCustomBgFile(null);
+    setPendingBgImages({});
+    
+    setActiveProfileId(profileId);
+    setName(p.name || "");
+    setUsername(p.slug || "");
+    setDomain(p.domain || availableDomains[0]);
+    setBio(p.bio || "");
+    setTheme(p.theme || "minimal-dark");
+    setCardColor(p.card_color || "#000000");
+    setOnlineCounter(!!p.online_counter);
+    
+    if (p.avatar) {
+      setAvatarPreview(pb.files.getUrl(p, p.avatar));
+    } else {
+      setAvatarPreview(null);
+    }
+    
+    if (p.custom_theme_bg) {
+      setCustomBgPreview(pb.files.getUrl(p, p.custom_theme_bg));
+    } else {
+      setCustomBgPreview(null);
+    }
+    
+    setSocialLinks(Array.isArray(p.social_links) ? p.social_links : []);
+    setLinksLoading(true);
+  };
+
+  const handleCreateProfile = async () => {
+    if (!newProfileSlug.trim()) {
+      toast.error("Profile slug is required");
+      return;
+    }
+
+    const cleanSlug = newProfileSlug.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (!cleanSlug) {
+      toast.error("Slug must contain only alphanumeric characters, underscores or dashes");
+      return;
+    }
+
+    // Check plan limits
+    const maxProfiles = PLANS[userPlan as PlanType]?.limits?.public_profiles || 1;
+    if (profiles.length >= maxProfiles) {
+      setUpgradeModal({
+        open: true,
+        feature: "Multiple Biolink Profiles",
+        description: `Your plan limits profile creation to ${maxProfiles} profile(s). Upgrade to create more pages.`,
+        planNeeded: maxProfiles < 3 ? "pro" : "agency"
+      });
+      return;
+    }
+
+    setProfileLoading(true);
+    try {
+      // Validate uniqueness globally across all profiles and links
+      const [existingProfiles, existingLinks] = await Promise.all([
+        pb.collection('public_profiles').getList(1, 1, { filter: `slug="${cleanSlug}"` }),
+        pb.collection('links').getList(1, 1, { filter: `slug="${cleanSlug}"` })
+      ]);
+
+      if (existingProfiles.totalItems > 0) {
+        toast.error("This handle is already in use by another public profile.");
+        setProfileLoading(false);
+        return;
       }
-      if (user.custom_theme_bg && user.collectionId) {
-        setCustomBgPreview(pb.files.getUrl(user as unknown as Record<string, unknown>, user.custom_theme_bg));
+      if (existingLinks.totalItems > 0) {
+        toast.error("This handle is already in use by a short link.");
+        setProfileLoading(false);
+        return;
       }
-      if (user.social_links) {
-        setSocialLinks(Array.isArray(user.social_links) ? (user.social_links as unknown as SocialLink[]) : []);
+
+      const created = await pb.collection('public_profiles').create({
+        user_id: user?.id,
+        slug: cleanSlug,
+        domain: newProfileDomain,
+        name: newProfileName || cleanSlug,
+        theme: "minimal-dark",
+        card_color: "#000000",
+      });
+
+      toast.success("Profile created successfully!");
+      setShowCreateProfileModal(false);
+      setNewProfileSlug("");
+      setNewProfileName("");
+      
+      await fetchProfiles(created.id);
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      toast.error(err.message || "Failed to create profile");
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const handleDeleteProfile = async () => {
+    if (!profileId || !user) return;
+
+    if (!confirm(`Are you absolutely sure you want to delete profile @${username}? All visual customizations, links, and styling inside it will be permanently deleted.`)) {
+      return;
+    }
+
+    setProfileLoading(true);
+    try {
+      // 1. Fetch links belonging to this profile
+      const linksToUnlink = await pb.collection('links').getFullList({
+        filter: `profile_id = "${profileId}"`,
+        requestKey: null
+      });
+
+      // 2. Safely unlink associated links instead of deleting them
+      for (const link of linksToUnlink) {
+        await pb.collection('links').update(link.id, {
+          profile_id: "",
+          show_on_profile: false
+        }, { requestKey: null });
       }
-      // Load links
+
+      // 3. Delete profile
+      await pb.collection('public_profiles').delete(profileId, { requestKey: null });
+
+      toast.success("Profile deleted successfully. Associated links were unlinked.");
+      navigate("/dashboard/profile");
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      console.error("Failed to delete profile:", e);
+      toast.error("Failed to delete profile: " + (err.message || "Unknown error"));
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeProfileId) {
       fetchLinks();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [activeProfileId]);
 
   // Auto-detect icon based on URL input
   useEffect(() => {
@@ -141,13 +358,13 @@ export default function DashboardProfile() {
         setCreateIconValue(detected);
       }
     }
-  }, [createUrl, createIconType]); // Added createIconType to dependencies to re-evaluate if type changes
+  }, [createUrl, createIconType]);
 
   const fetchLinks = async () => {
-    if (!user) return;
+    if (!activeProfileId) return;
     try {
       const records = await pb.collection('links').getList<LinkItem>(1, 100, {
-        filter: `user_id = "${user.id}" && show_on_profile=true`,
+        filter: `profile_id = "${activeProfileId}" && show_on_profile=true`,
         sort: 'order,-created',
         requestKey: null,
       });
@@ -198,21 +415,43 @@ export default function DashboardProfile() {
   };
 
   const handleSaveProfile = async () => {
-    if (!user) return;
+    if (!user || !activeProfileId) return;
     setProfileLoading(true);
 
     try {
-      // Step 0: Handle username change restriction notice
-      if (username !== user.username && isUsernameLocked) {
-        toast.error("You cannot change your username yet. Please wait for the 21-day period to pass.");
+      const cleanSlug = username.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+      if (!cleanSlug) {
+        toast.error("Profile slug is required");
         setProfileLoading(false);
         return;
       }
 
-      // Step 1: Update text fields + social_links via JSON
-      const updateData: Record<string, unknown> = {
+      // Check unique constraints if slug or domain changed
+      // Check unique constraints if slug changed
+      const currentProfile = profiles.find(p => p.id === activeProfileId);
+      if (cleanSlug !== currentProfile?.slug) {
+        const [existingProfiles, existingLinks] = await Promise.all([
+          pb.collection('public_profiles').getList(1, 1, { filter: `slug="${cleanSlug}" && id != "${activeProfileId}"` }),
+          pb.collection('links').getList(1, 1, { filter: `slug="${cleanSlug}"` })
+        ]);
+
+        if (existingProfiles.totalItems > 0) {
+          toast.error("This handle is already in use by another public profile.");
+          setProfileLoading(false);
+          return;
+        }
+        if (existingLinks.totalItems > 0) {
+          toast.error("This handle is already in use by a short link.");
+          setProfileLoading(false);
+          return;
+        }
+      }
+
+      // Step 1: Update profile metadata
+      const updateData = {
         name,
-        username,
+        slug: cleanSlug,
+        domain,
         bio,
         theme,
         card_color: cardColor,
@@ -220,29 +459,26 @@ export default function DashboardProfile() {
         social_links: socialLinks,
       };
 
-      console.log("[handleSaveProfile] Updating user metadata...", updateData);
-      await pb.collection("users").update(user.id, updateData, { requestKey: null });
+      console.log("[handleSaveProfile] Updating profile metadata...", updateData);
+      await pb.collection("public_profiles").update(activeProfileId, updateData, { requestKey: null });
 
-      // Step 2: Upload files separately
+      // Step 2: Upload files
       if (avatarFile || customBgFile) {
         const fileData = new FormData();
         if (avatarFile) fileData.append("avatar", avatarFile);
         if (customBgFile) fileData.append("custom_theme_bg", customBgFile);
-        await pb.collection("users").update(user.id, fileData, { requestKey: null });
+        await pb.collection("public_profiles").update(activeProfileId, fileData, { requestKey: null });
       }
 
-      // Step 3: Synchronize Regular Links (ONLY profile links, not all links)
-      console.log("[handleSaveProfile] Syncing profile links...");
-      // CRITICAL: Only fetch show_on_profile=true links to compare against local state
-      // Local state 'links' only contains show_on_profile=true links (from fetchLinks)
-      // Fetching ALL links here would cause non-profile links to be deleted!
+      // Step 3: Synchronize Regular Links for this profile
+      console.log("[handleSaveProfile] Syncing profile links for active profile...");
       const dbLinksResult = await pb.collection('links').getList<LinkItem>(1, 100, {
-        filter: `user_id = "${user.id}" && show_on_profile=true`,
+        filter: `profile_id = "${activeProfileId}" && show_on_profile=true`,
         requestKey: null,
       });
       const dbLinks = dbLinksResult.items;
 
-      // A. Identify links to DELETE (in DB but not in our current state 'links')
+      // A. Identify links to DELETE
       const linksToDelete = dbLinks.filter(dbl => !links.find(l => l.id === dbl.id));
       for (const link of linksToDelete) {
         await pb.collection('links').delete(link.id, { requestKey: null });
@@ -254,6 +490,7 @@ export default function DashboardProfile() {
 
         const payload = {
           user_id: user.id,
+          profile_id: activeProfileId,
           title: link.title,
           destination_url: link.destination_url,
           slug: link.slug,
@@ -269,18 +506,15 @@ export default function DashboardProfile() {
         if (isNew) {
           await pb.collection('links').create(payload, { requestKey: null });
         } else {
-          // Check if changed
           const original = dbLinks.find(dbl => dbl.id === link.id);
           if (original) {
-            // Check if any visible field changed
             const fieldsToCompare = ['title', 'destination_url', 'slug', 'order', 'active', 'show_on_profile', 'icon_type', 'icon_value', 'mode', 'size'];
-            const hasChanged = fieldsToCompare.some(key => (payload as unknown as Record<string, unknown>)[key] !== (original as unknown as Record<string, unknown>)[key]);
+            const hasChanged = fieldsToCompare.some(key => (payload as Record<string, unknown>)[key] !== (original as Record<string, unknown>)[key]);
             if (hasChanged) {
               await pb.collection('links').update(link.id, payload, { requestKey: null });
             }
           }
 
-          // Handle bg_image file upload/removal for this link
           const pendingBg = pendingBgImages[link.id];
           if (pendingBg) {
             const bgFormData = new FormData();
@@ -294,17 +528,11 @@ export default function DashboardProfile() {
         }
       }
       setPendingBgImages({});
-
       setAvatarFile(null);
       setCustomBgFile(null);
 
-      // Step 4: Refresh Auth Store to guarantee local context perfectly matches DB
-      try {
-        await pb.collection("users").authRefresh();
-      } catch (e) {
-        console.warn("Failed to refresh auth store after update", e);
-      }
-
+      // Step 4: Refresh profiles state
+      await fetchProfiles(activeProfileId);
       toast.success("Profile saved successfully");
     } catch (err: unknown) {
       const error = err as { message?: string; response?: { data?: Record<string, unknown> } };
@@ -319,10 +547,10 @@ export default function DashboardProfile() {
               if (firstKey && responseData.data[firstKey].message) {
                   detailedError = responseData.data[firstKey].message;
               } else {
-                  detailedError = responseData.message || JSON.stringify(responseData.data);
+                  detailedError = (responseData.message as string) || JSON.stringify(responseData.data);
               }
           } else {
-              detailedError = responseData.message || JSON.stringify(responseData);
+              detailedError = (responseData.message as string) || JSON.stringify(responseData);
           }
       }
 
@@ -428,17 +656,28 @@ export default function DashboardProfile() {
 
   return (
     <div className="space-y-8 pb-10 overflow-visible">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <RouterLink
+          to="/dashboard/profile"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-accent uppercase tracking-widest hover:text-accent/80 transition-colors"
+        >
+          ← Back to Profiles
+        </RouterLink>
+      </div>
+
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border pb-6">
         <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Link-in-Bio Profile</h1>
-            <p className="text-muted-foreground text-sm mt-1">Manage your identity and links in one place</p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-white">
+              Edit: {name || username || "Biolink Profile"}
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">Customize visual themes, links, and profile details</p>
           </div>
           {username && (
             <div className="md:border-l md:border-border/60 md:pl-6 flex flex-col sm:flex-row sm:items-center gap-2">
               <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Public Link:</span>
               <div className="inline-flex items-center gap-2 bg-surface/50 border border-border/80 px-3 py-1.5 rounded-xl shrink-0">
-                <code className="text-xs font-semibold text-accent">linktery.com/{username}</code>
+                <code className="text-xs font-semibold text-accent">{domain}/{username}</code>
                 <button
                   onClick={handleCopyLink}
                   className="p-1 rounded-lg hover:bg-surface text-muted-foreground hover:text-foreground transition-all focus:outline-none shrink-0"
@@ -453,6 +692,17 @@ export default function DashboardProfile() {
               </div>
             </div>
           )}
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleDeleteProfile}
+            disabled={profileLoading}
+            className="flex items-center gap-1.5 text-sm font-semibold text-red-500/80 hover:text-red-400 bg-red-500/5 hover:bg-red-500/10 border border-red-500/20 px-4 py-2.5 rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none"
+            title="Delete this profile"
+          >
+            <Trash2 className="w-4 h-4" /> Delete Profile
+          </button>
         </div>
       </div>
 
@@ -632,31 +882,33 @@ export default function DashboardProfile() {
             <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
               <User className="w-5 h-5 text-accent" /> Identity
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium text-muted-foreground mb-1 block">Display Name</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} disabled={!canCustomize} placeholder="Your Name" className="w-full px-4 py-2 rounded-xl bg-surface border border-border focus:outline-none input-glow focus:border-accent/50 transition-colors disabled:opacity-50" />
+                <input value={name} onChange={(e) => setName(e.target.value)} disabled={!canCustomize} placeholder="Your Name" className="w-full px-4 py-2 rounded-xl bg-surface border border-border focus:outline-none input-glow focus:border-accent/50 transition-colors disabled:opacity-50 text-white" />
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground mb-1 block">Username</label>
-                <div className="space-y-1.5">
-                  <input
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
-                    disabled={!canCustomize || isUsernameLocked}
-                    placeholder="username"
-                    className={`w-full px-4 py-2 rounded-xl bg-surface border border-border focus:outline-none input-glow focus:border-accent/50 transition-colors disabled:opacity-50 ${isUsernameLocked ? 'cursor-not-allowed grayscale-[0.5]' : ''}`}
-                  />
-                  {isUsernameLocked && (
-                    <div className="flex items-center gap-1.5 text-[10px] text-amber-500 font-medium px-1">
-                      <Lock className="w-3 h-3" />
-                      Username can be changed once every 21 days
-                    </div>
-                  )}
-                  {!isUsernameLocked && (
-                    <p className="text-[10px] text-muted-foreground px-1">You can change your username once every 21 days.</p>
-                  )}
-                </div>
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Choose Domain</label>
+                <select
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value)}
+                  disabled={!canCustomize}
+                  className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-white focus:outline-none focus:border-accent/50 cursor-pointer disabled:opacity-50"
+                >
+                  {availableDomains.map((d: string) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Profile Slug</label>
+                <input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+                  disabled={!canCustomize}
+                  placeholder="username"
+                  className="w-full px-4 py-2 rounded-xl bg-surface border border-border focus:outline-none input-glow focus:border-accent/50 transition-colors disabled:opacity-50 text-white"
+                />
               </div>
             </div>
             <div>
@@ -1064,8 +1316,104 @@ export default function DashboardProfile() {
               </div>
             </div>
           </div>
-        )
-      }
+        )}
+      {/* Create Profile Modal */}
+      {showCreateProfileModal && mounted && createPortal(
+        <div className="fixed inset-0 z-[100] bg-background/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div 
+            className="relative overflow-hidden w-full max-w-md rounded-[24px] border border-white/[0.08] backdrop-blur-2xl p-7 text-white shadow-[0_20px_50px_rgba(0,0,0,0.5)] space-y-6"
+            style={{
+              background: 'linear-gradient(135deg, rgba(25, 45, 35, 0.4) 0%, rgba(10, 20, 15, 0.95) 100%)',
+              borderTop: '3px solid #22C55E'
+            }}
+          >
+            {/* Ambient background glow orb */}
+            <div className="absolute -right-20 -top-20 w-44 h-44 rounded-full bg-accent/10 blur-[50px] pointer-events-none" />
+
+            <div className="relative z-10 flex items-center justify-between">
+              <h3 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-accent animate-pulse" /> Create Biolink Profile
+              </h3>
+              <button 
+                onClick={() => setShowCreateProfileModal(false)} 
+                className="p-1.5 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.15] text-white/60 hover:text-white transition-all duration-300 hover:scale-105 active:scale-95"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="relative z-10 space-y-5">
+              <div>
+                <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Domain</label>
+                <div className="relative">
+                  <select
+                    value={newProfileDomain}
+                    onChange={(e) => setNewProfileDomain(e.target.value)}
+                    className="w-full appearance-none px-4 py-3 rounded-xl bg-black/40 border border-border text-sm text-white focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/50 transition-all pr-10"
+                  >
+                    {availableDomains.map((d: string) => (
+                      <option key={d} value={d} className="bg-neutral-900">{d}</option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
+                    <ChevronDown className="w-4 h-4 text-white/50" />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Profile Slug / Username</label>
+                <input
+                  type="text"
+                  value={newProfileSlug}
+                  onChange={(e) => setNewProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+                  placeholder="e.g. business-card"
+                  className="w-full px-4 py-3 rounded-xl bg-black/40 border border-border text-sm text-white focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/50 transition-all placeholder:text-white/20"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Display Name (optional)</label>
+                <input
+                  type="text"
+                  value={newProfileName}
+                  onChange={(e) => setNewProfileName(e.target.value)}
+                  placeholder="e.g. John Doe / Brand"
+                  className="w-full px-4 py-3 rounded-xl bg-black/40 border border-border text-sm text-white focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/50 transition-all placeholder:text-white/20"
+                />
+              </div>
+            </div>
+
+            <div className="relative z-10 flex gap-3 w-full pt-2">
+              <button
+                onClick={() => setShowCreateProfileModal(false)}
+                className="flex-1 py-3 rounded-xl text-sm text-white/60 font-semibold bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.15] hover:text-white transition-all duration-300 active:scale-95"
+                disabled={profileLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateProfile}
+                disabled={profileLoading || !newProfileSlug}
+                className="flex-1 py-3 btn-primary-glow text-sm font-bold flex items-center justify-center gap-2 active:scale-95"
+              >
+                {profileLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Create Profile
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Upgrade Plan Modal */}
+      <UpgradeModal
+        isOpen={upgradeModal.open}
+        onClose={() => setUpgradeModal(prev => ({ ...prev, open: false }))}
+        featureName={upgradeModal.feature}
+        description={upgradeModal.description}
+        planNeeded={upgradeModal.planNeeded}
+      />
     </div >
   );
 }

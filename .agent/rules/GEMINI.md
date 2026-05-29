@@ -95,11 +95,6 @@ When auto-applying an agent, inform the user:
 
 ## TIER 0: UNIVERSAL RULES (Always Active)
 
-### 🌐 Primary Project Domain
-- The primary production domain of this project is **linktery.com**.
-- All canonical URLs, sitemap generators, dynamic redirection handlers, metadata configs, and production URLs MUST default to using **linktery.com** as the main root domain.
-- Do NOT use temporary or staging domains in production configurations or core business logic.
-
 ### 🌐 Language Handling
 
 When user's prompt is NOT in English:
