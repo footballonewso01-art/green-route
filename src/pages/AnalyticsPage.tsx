@@ -7,6 +7,13 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { checkPlan } from "@/lib/plans";
 
+// Convert 2-letter country codes (e.g. "US") to display names (e.g. "United States")
+const countryDisplayNames = new Intl.DisplayNames(['en'], { type: 'region' });
+function countryName(code: string): string {
+  if (!code || code === "Unknown" || code.length !== 2) return code;
+  try { return countryDisplayNames.of(code) || code; } catch { return code; }
+}
+
 interface ClickRecord {
   id: string;
   country: string;
@@ -55,8 +62,10 @@ export default function AnalyticsPage() {
         setClicksCount(stats.total || 0);
         setUniqueCount(stats.unique || 0);
 
-        // 2. Countries (already sorted + with pct from server)
-        setCountries(stats.countries || []);
+        // 2. Countries (already sorted + with pct from server) — convert codes to names
+        setCountries((stats.countries || []).map((c: { name: string; clicks: number; pct: number }) => ({
+          ...c, name: countryName(c.name)
+        })));
 
         // 3. Referrers (already sorted + with pct from server)
         setReferrers(stats.referrers || []);
@@ -444,7 +453,7 @@ export default function AnalyticsPage() {
                   <td className="px-6 py-4 font-medium text-accent truncate max-w-[150px]" title={r.expand?.link_id?.title || r.expand?.link_id?.slug || '—'}>
                     {r.expand?.link_id?.title || r.expand?.link_id?.slug || '—'}
                   </td>
-                  <td className="px-6 py-4 font-medium text-foreground">{r.country}</td>
+                  <td className="px-6 py-4 font-medium text-foreground">{countryName(r.country)}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <span className="text-foreground">{r.device}</span>

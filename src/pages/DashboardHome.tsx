@@ -50,7 +50,11 @@ export default function DashboardHome() {
         // Recent clicks (from bounded result)
         setRecentClicks(clicks.slice(0, 5).map(c => ({
           slug: links.find(l => l.id === c.link_id)?.slug || "unknown",
-          country: c.country || "Unknown",
+          country: (() => {
+            const raw = c.country || "Unknown";
+            if (raw === "Unknown" || raw.length !== 2) return raw;
+            try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(raw) || raw; } catch { return raw; }
+          })(),
           device: c.device || "Other",
           time: new Date(c.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         })));
@@ -140,7 +144,7 @@ export default function DashboardHome() {
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+    show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
   };
 
   return (

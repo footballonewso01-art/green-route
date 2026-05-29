@@ -13,6 +13,12 @@ import { useNavigate } from "react-router-dom";
 import { format, subDays, isAfter, subHours, differenceInDays } from "date-fns";
 import { toast } from "sonner";
 
+const countryDisplayNames = new Intl.DisplayNames(['en'], { type: 'region' });
+function countryName(code: string): string {
+  if (!code || code === "Unknown" || code.length !== 2) return code;
+  try { return countryDisplayNames.of(code) || code; } catch { return code; }
+}
+
 interface DashboardStats {
     totalUsers: number;
     newUsers24h: number;
@@ -300,7 +306,7 @@ export default function AdminOverview() {
                 });
                 const countries: Record<string, number> = {};
                 trafficSample.items.forEach((c: any) => {
-                    const key = c.country?.trim() || 'Unknown';
+                    const key = countryName(c.country?.trim() || 'Unknown');
                     countries[key] = (countries[key] || 0) + 1;
                 });
                 setTrafficData(Object.entries(countries).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5));

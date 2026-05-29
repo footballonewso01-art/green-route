@@ -1,8 +1,9 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, lazy, Suspense } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { pb } from "@/lib/pocketbase";
-import { Loader2, AlertTriangle, Smartphone, ExternalLink, MoreVertical, Share2, Compass } from "lucide-react";
-import PublicProfile from "./PublicProfile";
+import { Loader2, AlertTriangle, Smartphone, ExternalLink, MoreVertical, Share2, Compass, Lock } from "lucide-react";
+const PublicProfile = lazy(() => import("./PublicProfile"));
+import { PLANS, PlanType } from "@/lib/plans";
 
 // Utility to inject tracking pixels and allow them 400ms to fire before the page is destroyed by a redirect
 /* eslint-disable @typescript-eslint/no-explicit-any, prefer-rest-params, prefer-spread, no-var, @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-expressions */
@@ -176,17 +177,24 @@ export default function RedirectHandler() {
 
         let country = "Unknown";
         try {
-            const geoRes = await fetch("https://cloudflare.com/cdn-cgi/trace", { signal: AbortSignal.timeout(1000) });
+            const geoRes = await fetch("https://cloudflare.com/cdn-cgi/trace", { signal: AbortSignal.timeout(3000) });
             const geoText = await geoRes.text();
             const locMatch = geoText.match(/loc=([A-Z]{2})/);
             if (locMatch && locMatch[1]) {
-                try {
-                    country = new Intl.DisplayNames(['en'], { type: 'region' }).of(locMatch[1]) || locMatch[1];
-                } catch {
-                    country = locMatch[1];
-                }
+                country = locMatch[1];
             }
-        } catch { /* Suppress geo fetch errors */ }
+        } catch { /* Cloudflare trace failed */ }
+
+        // Fallback: ask our own PocketBase geo endpoint (uses server-side IP resolution)
+        if (country === "Unknown") {
+            try {
+                const geoFallback = await fetch(`${pb.baseUrl}/api/geo`, { signal: AbortSignal.timeout(2000) });
+                const geoData = await geoFallback.json();
+                if (geoData.country && geoData.country !== "Unknown") {
+                    country = geoData.country;
+                }
+            } catch { /* Both geo methods failed */ }
+        }
 
         const clickData = {
             link_id: link.id,
@@ -220,24 +228,17 @@ export default function RedirectHandler() {
 
             try {
                 const currentDomain = window.location.host;
-                // Step 1: PARALLEL resolution — link AND user at once (halves latency)
-                const [linkResult, userResult] = await Promise.allSettled([
-                    pb.collection('links').getFirstListItem(`slug="${username}" && (domain="${currentDomain}" || domain="")`),
-                    pb.collection('users').getFirstListItem(`username="${username}"`)
+                // Step 1: PARALLEL resolution — link AND public profile at once (halves latency)
+                const [linkResult, profileResult] = await Promise.allSettled([
+                    pb.collection('links').getFirstListItem(`slug="${username}" && (domain="${currentDomain}" || domain="")`, { expand: 'user_id' }),
+                    pb.collection('public_profiles').getFirstListItem(`slug="${username}" && (domain="${currentDomain}" || domain="")`, { expand: 'user_id' })
                 ]);
 
                 const link = linkResult.status === 'fulfilled' ? linkResult.value : null;
-                const userProfile = userResult.status === 'fulfilled' ? userResult.value : null;
+                const userProfile = profileResult.status === 'fulfilled' ? profileResult.value : null;
 
                 // Profile takes priority if no active link found
                 if (!link && userProfile) {
-                    // If accessed from an alternate domain, redirect to main domain
-                    const MAIN_DOMAIN = "linktery.com";
-                    const hostname = window.location.hostname;
-                    if (hostname !== MAIN_DOMAIN && hostname !== 'localhost' && !hostname.includes('vercel.app')) {
-                        window.location.replace(`https://${MAIN_DOMAIN}/${username}`);
-                        return;
-                    }
                     setStatus("profile");
                     return;
                 }
@@ -252,6 +253,23 @@ export default function RedirectHandler() {
                     setStatus("error");
                     setError("Link not found or inactive");
                     return;
+                }
+
+                // Check plan limits & freezing
+                const ownerPlan = (link.expand?.user_id as Record<string, unknown>)?.plan as string || "creator";
+                const limit = PLANS[ownerPlan as PlanType]?.limits?.links ?? 3;
+                if (limit !== -1) {
+                    const activeLinks = await pb.collection('links').getFullList({
+                        filter: `user_id = "${link.user_id}" && active = true`,
+                        sort: 'created',
+                        requestKey: null
+                    });
+                    const linkIndex = activeLinks.findIndex(l => l.id === link.id);
+                    if (linkIndex === -1 || linkIndex >= limit) {
+                        setStatus("error");
+                        setError("LINK_FROZEN");
+                        return;
+                    }
                 }
 
                 // Check scheduling
@@ -337,6 +355,12 @@ export default function RedirectHandler() {
                     } catch (e) {
                         console.error("Invalid destination URL for UTM tags", e);
                     }
+                }
+
+                // ----- SANITIZE URL TO PREVENT XSS (Zero Trust Validation) -----
+                if (finalDestination && !finalDestination.startsWith("http://") && !finalDestination.startsWith("https://")) {
+                    console.error("Blocked unsafe redirect scheme:", finalDestination);
+                    finalDestination = "https://linktery.com"; // Safe fallback
                 }
 
                 setDestination(finalDestination);
@@ -444,7 +468,15 @@ export default function RedirectHandler() {
     }, [username, navigate, status, trackClick]);
 
     if (status === "profile") {
-        return <PublicProfile />;
+        return (
+            <Suspense fallback={
+                <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
+                    <Loader2 className="w-12 h-12 text-accent animate-spin mb-4" />
+                </div>
+            }>
+                <PublicProfile />
+            </Suspense>
+        );
     }
 
     if (status === "loading") {
@@ -568,17 +600,26 @@ export default function RedirectHandler() {
     }
 
     if (status === "error") {
+        const isFrozen = error === "LINK_FROZEN";
         return (
             <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center animate-fade-in">
                 <div className="relative mb-8">
-                    <div className="absolute inset-0 bg-red-500/20 blur-3xl rounded-full" />
-                    <div className="relative w-24 h-24 rounded-3xl bg-surface border border-red-500/30 flex items-center justify-center">
-                        <AlertTriangle className="w-10 h-10 text-red-500" />
+                    <div className={`absolute inset-0 ${isFrozen ? 'bg-amber-500/20' : 'bg-red-500/20'} blur-3xl rounded-full`} />
+                    <div className={`relative w-24 h-24 rounded-3xl bg-surface border ${isFrozen ? 'border-amber-500/30' : 'border-red-500/30'} flex items-center justify-center`}>
+                        {isFrozen ? (
+                            <Lock className="w-10 h-10 text-amber-500" />
+                        ) : (
+                            <AlertTriangle className="w-10 h-10 text-red-500" />
+                        )}
                     </div>
                 </div>
-                <h1 className="text-2xl font-bold text-foreground mb-3">Link Not Found</h1>
+                <h1 className="text-2xl font-bold text-foreground mb-3">
+                    {isFrozen ? "Link Suspended" : "Link Not Found"}
+                </h1>
                 <p className="text-muted-foreground mb-8 max-w-xs mx-auto">
-                    {error || "The link you're looking for doesn't exist or is no longer active."}
+                    {isFrozen 
+                        ? "This link is temporarily frozen because the owner has exceeded their plan limits." 
+                        : (error || "The link you're looking for doesn't exist or is no longer active.")}
                 </p>
                 <a
                     href="/"

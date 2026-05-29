@@ -19,6 +19,12 @@ var AGENCY_PRICE_IDS = [
 var RATE_LIMIT_STORE = {};
 var RATE_LIMIT_LAST_RESET = new Date().getTime();
 
+// Geo-IP Resolution Cache (persists in PB JSVM between requests)
+var GEO_CACHE = {};
+var GEO_CACHE_SIZE = 0;
+var GEO_CACHE_MAX = 10000;
+var GEO_CACHE_CREATED = new Date().getTime();
+
 
 // Helper for Stripe REST API calls
 function readerToString(reader) {
@@ -33,6 +39,95 @@ function readerToString(reader) {
 }
 
 // (Diagnostic code removed)
+
+// ── Geo-IP Resolution ──
+// Multi-layer country detection: Headers → IP API (cached) → Fly-Region → Unknown
+var FLY_REGION_MAP = {
+    "ams": "NL", "arn": "SE", "atl": "US", "bog": "CO",
+    "bom": "IN", "bos": "US", "cdg": "FR", "den": "US",
+    "dfw": "US", "ewr": "US", "eze": "AR", "fra": "DE",
+    "gdl": "MX", "gig": "BR", "gru": "BR", "hkg": "HK",
+    "iad": "US", "jnb": "ZA", "lax": "US", "lhr": "GB",
+    "maa": "IN", "mad": "ES", "mia": "US", "nrt": "JP",
+    "ord": "US", "otp": "RO", "phx": "US", "qro": "MX",
+    "scl": "CL", "sea": "US", "sin": "SG", "sjc": "US",
+    "syd": "AU", "waw": "PL", "yul": "CA", "yyz": "CA",
+    "bkk": "TH", "del": "IN", "dxb": "AE", "fco": "IT",
+    "gua": "GT", "hel": "FI", "lis": "PT", "mel": "AU",
+    "mxp": "IT", "per": "AU", "prg": "CZ", "sto": "SE",
+    "vie": "AT", "zrh": "CH", "cpt": "ZA", "doh": "QA",
+    "icn": "KR", "kul": "MY", "mnl": "PH", "tpe": "TW"
+};
+
+function resolveCountryFromIP(request) {
+    // Layer 1: Cloudflare header (if domain is behind CF proxy)
+    var country = request.header.get("CF-IPCountry") || "";
+    if (country && country !== "XX" && country !== "T1") return country;
+
+    // Layer 2: Custom proxy header
+    country = request.header.get("X-Country-Code") || "";
+    if (country) return country;
+
+    // Layer 3: IP Geolocation API with in-memory cache
+    var xff = request.header.get("X-Forwarded-For") || "";
+    var clientIP = request.header.get("Fly-Client-IP")
+        || request.header.get("CF-Connecting-IP")
+        || (xff ? xff.split(",")[0].replace(/^\s+|\s+$/g, "") : "")
+        || "";
+
+    // Strip port from IPv4 (e.g. 1.2.3.4:5678)
+    if (clientIP.indexOf(":") !== -1 && clientIP.indexOf(".") !== -1 && clientIP.split(":").length === 2) {
+        clientIP = clientIP.split(":")[0];
+    }
+
+    // Skip private/loopback IPs
+    var isPrivate = !clientIP
+        || clientIP === "127.0.0.1"
+        || clientIP === "::1"
+        || clientIP.indexOf("10.") === 0
+        || clientIP.indexOf("192.168.") === 0
+        || clientIP.indexOf("172.") === 0;
+
+    if (!isPrivate) {
+        // Evict cache every 6 hours or when too large
+        var nowGeo = new Date().getTime();
+        if (GEO_CACHE_SIZE >= GEO_CACHE_MAX || (nowGeo - GEO_CACHE_CREATED) > 21600000) {
+            GEO_CACHE = {};
+            GEO_CACHE_SIZE = 0;
+            GEO_CACHE_CREATED = nowGeo;
+        }
+
+        // Check cache
+        var cached = GEO_CACHE[clientIP];
+        if (cached) return cached;
+
+        // Call ip-api.com (free tier: 45 req/min, HTTP only)
+        try {
+            var geoRes = $http.send({
+                url: "http://ip-api.com/json/" + encodeURIComponent(clientIP) + "?fields=status,countryCode",
+                method: "GET",
+                timeout: 2
+            });
+            if (geoRes.statusCode === 200 && geoRes.json && geoRes.json.status === "success" && geoRes.json.countryCode) {
+                var cc = geoRes.json.countryCode;
+                GEO_CACHE[clientIP] = cc;
+                GEO_CACHE_SIZE++;
+                return cc;
+            }
+        } catch (geoErr) {
+            // Swallow — fall through to Fly-Region
+        }
+    }
+
+    // Layer 4: Fly.io edge region as rough geo fallback
+    var flyRegion = request.header.get("Fly-Region") || "";
+    if (flyRegion) {
+        var mapped = FLY_REGION_MAP[flyRegion.toLowerCase()];
+        if (mapped) return mapped;
+    }
+
+    return "Unknown";
+}
 
 
 // (Inlined stripeRequest due to PocketBase Engine Scope restrictions)
@@ -173,7 +268,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
         const rawBody = readerToString(c.request.body);
         const body = JSON.parse(rawBody);
         eventId = body.id;
-        if (!eventId || !String(eventId).startsWith('evt_')) {
+        if (!eventId || !/^evt_[a-zA-Z0-9_]+$/.test(String(eventId))) {
             $app.logger().error("Webhook: invalid event id: " + JSON.stringify(eventId));
             return c.json(400, { error: "Invalid event id" });
         }
@@ -612,26 +707,8 @@ routerAdd("GET", "/{slug}", (c) => {
                         }
                     }
 
-                    // BUG-05 FIX: Check multiple geo headers with Fly-Region fallback
-                    let country = request.header.get("CF-IPCountry")
-                        || request.header.get("X-Country-Code")
-                        || "";
-                    if (!country) {
-                        // Fly.io edge region as rough geo fallback
-                        const flyRegion = request.header.get("Fly-Region") || "";
-                        const regionMap = {
-                            "ams": "NL", "arn": "SE", "atl": "US", "bog": "CO",
-                            "bom": "IN", "bos": "US", "cdg": "FR", "den": "US",
-                            "dfw": "US", "ewr": "US", "eze": "AR", "fra": "DE",
-                            "gdl": "MX", "gig": "BR", "gru": "BR", "hkg": "HK",
-                            "iad": "US", "jnb": "ZA", "lax": "US", "lhr": "GB",
-                            "maa": "IN", "mad": "ES", "mia": "US", "nrt": "JP",
-                            "ord": "US", "otp": "RO", "phx": "US", "qro": "MX",
-                            "scl": "CL", "sea": "US", "sin": "SG", "sjc": "US",
-                            "syd": "AU", "waw": "PL", "yul": "CA", "yyz": "CA"
-                        };
-                        country = regionMap[flyRegion.toLowerCase()] || "Unknown";
-                    }
+                    // GEO-FIX: Use centralized multi-layer geo resolution
+                    let country = resolveCountryFromIP(request);
 
                     const cookieHeader = request.header.get("Cookie") || "";
                     const cookieName = "gr_visit_" + link.id;
@@ -703,6 +780,12 @@ routerAdd("GET", "/{slug}", (c) => {
     }
 
     return c.next();
+});
+
+// Geo-IP Resolution Endpoint (client-side fallback for RedirectHandler)
+routerAdd("GET", "/api/geo", (c) => {
+    var country = resolveCountryFromIP(c.request);
+    return c.json(200, { country: country });
 });
 
 // Admin: Update Plan
@@ -1290,6 +1373,59 @@ onRecordUpdateRequest((e) => {
     e.next();
 }, "users");
 
+// Helper to validate redirect and targeting URLs (XSS protection)
+var validateTargetingUrls = function(record) {
+    var checkUrl = function(url) {
+        if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+            throw new BadRequestError("All destination and targeting URLs must start with http:// or https://");
+        }
+    };
+
+    checkUrl(record.get("destination_url"));
+
+    // Validate device targeting URLs
+    var devTargeting = record.get("device_targeting");
+    if (devTargeting) {
+        var obj = {};
+        if (typeof devTargeting === "string" && devTargeting.trim() !== "") {
+            try { obj = JSON.parse(devTargeting); } catch(e) {}
+        } else if (typeof devTargeting === "object") {
+            obj = devTargeting;
+        }
+        for (var key in obj) {
+            checkUrl(obj[key]);
+        }
+    }
+
+    // Validate geo targeting URLs
+    var geoTargeting = record.get("geo_targeting");
+    if (geoTargeting) {
+        var obj = {};
+        if (typeof geoTargeting === "string" && geoTargeting.trim() !== "") {
+            try { obj = JSON.parse(geoTargeting); } catch(e) {}
+        } else if (typeof geoTargeting === "object") {
+            obj = geoTargeting;
+        }
+        for (var key in obj) {
+            checkUrl(obj[key]);
+        }
+    }
+
+    // Validate split URLs
+    var splitUrls = record.get("split_urls");
+    if (splitUrls) {
+        var list = [];
+        if (typeof splitUrls === "string" && splitUrls.trim() !== "") {
+            try { list = JSON.parse(splitUrls); } catch(e) {}
+        } else if (Array.isArray(splitUrls)) {
+            list = splitUrls;
+        }
+        for (var i = 0; i < list.length; i++) {
+            checkUrl(list[i]);
+        }
+    }
+};
+
 // Parasite Patch: Prevent non-admins from changing system link fields
 onRecordUpdateRequest((e) => {
     let isSuperAdmin = false;
@@ -1315,11 +1451,8 @@ onRecordUpdateRequest((e) => {
         }
     }
     
-    // XSS Patch: Validate destination URL
-    const destUrl = e.record.get("destination_url");
-    if (destUrl && !destUrl.startsWith("http://") && !destUrl.startsWith("https://")) {
-        throw new BadRequestError("destination_url must start with http:// or https://");
-    }
+    // Validate all redirect and targeting URLs
+    validateTargetingUrls(e.record);
     e.next();
 }, "links");
 
@@ -1332,13 +1465,71 @@ onRecordCreateRequest((e) => {
         e.record.set("clicks_count", 0);
     }
     
-    // XSS Patch: Validate destination URL
-    const destUrl = e.record.get("destination_url");
-    if (destUrl && !destUrl.startsWith("http://") && !destUrl.startsWith("https://")) {
-        throw new BadRequestError("destination_url must start with http:// or https://");
-    }
+    // Validate all redirect and targeting URLs
+    validateTargetingUrls(e.record);
     e.next();
 }, "links");
+
+// XSS Validation hook for public profile social links
+var validateProfileSocialLinks = function(record) {
+    var socialLinks = record.get("social_links");
+    if (socialLinks) {
+        var list = [];
+        if (typeof socialLinks === "string" && socialLinks.trim() !== "") {
+            try { list = JSON.parse(socialLinks); } catch(e) {}
+        } else if (Array.isArray(socialLinks)) {
+            list = socialLinks;
+        }
+        for (var i = 0; i < list.length; i++) {
+            var item = list[i];
+            if (item && item.url && !item.url.startsWith("http://") && !item.url.startsWith("https://")) {
+                throw new BadRequestError("All social links must start with http:// or https://");
+            }
+        }
+    }
+};
+
+onRecordCreateRequest((e) => {
+    validateProfileSocialLinks(e.record);
+    e.next();
+}, "public_profiles");
+
+onRecordUpdateRequest((e) => {
+    validateProfileSocialLinks(e.record);
+    e.next();
+}, "public_profiles");
+
+// Restrict public list queries on public_profiles to lookups by slug or user_id only (prevent bulk scraping)
+onRecordsListRequest((e) => {
+    try {
+        if (!e.httpContext) {
+            return e.next();
+        }
+
+        const isAdmin = e.httpContext.get("admin") !== null;
+        const authUser = e.httpContext.get("authRecord");
+        const role = authUser ? authUser.get("role") : "none";
+        const isAppAdmin = role === "admin";
+        
+        if (isAdmin || isAppAdmin) {
+            return e.next();
+        }
+
+        const query = e.httpContext.request.url.query();
+        const filter = query.get("filter") || "";
+        
+        if (!/slug\s*=/i.test(filter) && !/user_id\s*=/i.test(filter)) {
+            throw new BadRequestError("Bulk queries are restricted. Listing public profiles requires a slug or user_id filter.");
+        }
+    } catch (err) {
+        if (err instanceof BadRequestError) {
+            throw err;
+        }
+        $app.logger().error("Error in public_profiles list hook: " + err);
+        throw new BadRequestError("Invalid request");
+    }
+    return e.next();
+}, "public_profiles");
 
 console.log("--- main.pb.js LOADED SUCCESSFULLY ---");
 
