@@ -86,6 +86,11 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     description: "Build a beautiful, high-converting link-in-bio profile for your personal training and nutrition coaching business. Sell workout plans and track client signups.",
     canonical: "/solutions/link-in-bio-for-fitness-coaches",
   },
+  youtubeSmartLinks: {
+    title: "YouTube Description Smart Links: Bypass In-App Browser | Linktery",
+    description: "Bypass the YouTube in-app browser jail. Route your description link clicks directly into native apps (Instagram, Telegram, Spotify) to boost subscriber conversions.",
+    canonical: "/solutions/youtube-smart-links",
+  },
 };
 
 

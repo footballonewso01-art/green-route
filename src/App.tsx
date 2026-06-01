@@ -18,6 +18,7 @@ import BioLinkTool from "./pages/BioLinkTool";
 import SmartRedirect from "./pages/SmartRedirect";
 import DeeplinkGenerator from "./pages/DeeplinkGenerator";
 import FitnessCoachSolution from "./pages/FitnessCoachSolution";
+import YoutubeSmartLinks from "./pages/YoutubeSmartLinks";
 import { AdminRoute } from "./components/AdminRoute";
 
 import RedirectHandler from "./pages/RedirectHandler";
@@ -136,6 +137,7 @@ const AppRoutes = () => (
     <Route path="/solutions/smart-link-redirect" element={<SmartRedirect />} />
     <Route path="/solutions/deeplink-generator" element={<DeeplinkGenerator />} />
     <Route path="/solutions/link-in-bio-for-fitness-coaches" element={<FitnessCoachSolution />} />
+    <Route path="/solutions/youtube-smart-links" element={<YoutubeSmartLinks />} />
     <Route path="/auth" element={<Navigate to="/login" replace />} />
 
     <Route path="/open-in-browser" element={<InterstitialPage />} />
