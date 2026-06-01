@@ -195,26 +195,29 @@ export default function YoutubeSmartLinks() {
       {/* Interactive Mobile Simulator Section */}
       <section id="simulator" className="py-12 px-6 max-w-7xl mx-auto relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
         
-        {/* Left Side: Text explaining the Webview Jail problem */}
+        {/* Left Side: Text explaining the Webview Jail problem in simple terms */}
         <div className="lg:col-span-5 space-y-6 text-left">
           <div className="space-y-2">
-            <span className="text-accent text-xs font-bold uppercase tracking-widest block">The Webview Jail</span>
-            <h2 className="text-3xl font-extrabold tracking-tight text-white leading-tight">
-              Why Users Drop Off When Clicking Links on YouTube
+            <span className="text-red-500 text-xs font-bold uppercase tracking-widest block">The Hidden Conversion Killer</span>
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
+              Why 80% of YouTube Description Clicks Never Convert
             </h2>
           </div>
           <div className="space-y-4 text-muted-foreground text-sm md:text-base leading-relaxed">
             <p>
-              When a subscriber clicks your link in a YouTube video description, the app opens it in a **built-in browser container (webview)**.
+              Have you noticed your YouTube views are high, but barely anyone joins your Telegram channel, follows your Instagram, or buys your products?
             </p>
             <p>
-              In this container, the user is **not logged in** to Instagram, Telegram, Spotify, Patreon, or their email. If they try to subscribe, comment, or buy, they must manually enter their credentials.
+              Here is why: When a mobile user clicks any link in your YouTube description, YouTube **forces it to open inside a basic in-app browser window** instead of launching Safari or Chrome.
             </p>
-            <p className="border-l-2 border-red-500 pl-4 py-1.5 text-white font-medium bg-red-500/5">
-              Over **80% of users bounce** immediately instead of entering their passwords on a webview.
+            <p className="border-l-2 border-red-500 pl-4 py-2 text-slate-100 font-medium bg-red-500/5 rounded-r-lg">
+              <strong>The Password Trap:</strong> In this gray window, the user is completely logged out of Instagram, Telegram, Spotify, or Patreon. If they want to follow or buy, they must type their passwords from memory.
             </p>
             <p>
-              Linktery's **Deep Link engine** detects client platforms in &lt;10ms and redirects the browser request directly to the target app's native URL protocol (e.g. `tg://` or `instagram://`), bypassing the webview completely.
+              Almost nobody does that on a phone. They get annoyed and close the page. 
+            </p>
+            <p>
+              Linktery fixes this instantly. It detects if the user has the target app on their phone and automatically **jumps the traffic directly into the native app**, logged in and ready to subscribe!
             </p>
           </div>
         </div>
@@ -420,6 +423,78 @@ export default function YoutubeSmartLinks() {
           </div>
         </div>
 
+      </section>
+
+      {/* Simple Step-by-Step Setup & Profit Section */}
+      <section className="py-16 px-6 max-w-7xl mx-auto relative z-10 border-t border-border/40">
+        <div className="text-center max-w-2xl mx-auto mb-16">
+          <span className="text-accent text-xs font-bold uppercase tracking-widest">Setup Guide</span>
+          <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white mt-2 mb-4">
+            Zero Coding. Active in 60 Seconds.
+          </h2>
+          <p className="text-sm md:text-base text-muted-foreground">
+            You don't need any technical skills or developers. Making a YouTube description smart link is as simple as copy-paste.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="glass-card p-6 md:p-8 rounded-2xl border border-border/60 bg-surface/30 relative">
+            <div className="absolute -top-5 left-6 w-10 h-10 rounded-xl bg-red-600/20 border border-red-500/30 flex items-center justify-center font-bold text-red-400">
+              1
+            </div>
+            <h3 className="text-lg font-bold text-white mt-2 mb-3">Copy Your Link</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Grab the URL of your destination page: your Telegram channel, Instagram account, Spotify link, or online store.
+            </p>
+          </div>
+
+          <div className="glass-card p-6 md:p-8 rounded-2xl border border-border/60 bg-surface/30 relative">
+            <div className="absolute -top-5 left-6 w-10 h-10 rounded-xl bg-accent/20 border border-accent/30 flex items-center justify-center font-bold text-accent">
+              2
+            </div>
+            <h3 className="text-lg font-bold text-white mt-2 mb-3">Generate Smart Link</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Paste it into the Linktery Dashboard. Turn on "App Deep Linking" with one click. We generate a custom short link for you.
+            </p>
+          </div>
+
+          <div className="glass-card p-6 md:p-8 rounded-2xl border border-border/60 bg-surface/30 relative">
+            <div className="absolute -top-5 left-6 w-10 h-10 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center font-bold text-emerald-400">
+              3
+            </div>
+            <h3 className="text-lg font-bold text-white mt-2 mb-3">Replace in Description</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Paste the new Linktery link into your YouTube video description or pinned comments. Watch your conversion rate double instantly!
+            </p>
+          </div>
+        </div>
+
+        {/* Dynamic Calculator Section */}
+        <div className="mt-16 glass-card p-6 md:p-10 rounded-3xl border border-border/60 bg-gradient-to-br from-surface/40 to-transparent flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="space-y-4 max-w-xl text-left">
+            <h3 className="text-2xl font-bold text-white">How much revenue are you losing?</h3>
+            <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
+              If your video description link sells a product or offers a subscription, losing 80% of clicks to the "password log-in prompt" directly drains your wallet. Let's look at the average numbers:
+            </p>
+            <div className="grid grid-cols-2 gap-4 pt-2">
+              <div className="bg-red-500/5 border border-red-500/20 p-4 rounded-xl">
+                <span className="text-[11px] text-red-400 font-bold uppercase tracking-wider block">Standard Link</span>
+                <span className="text-2xl font-black text-white">~200</span>
+                <span className="text-xs text-muted-foreground block">Actual leads per 1,000 clicks</span>
+              </div>
+              <div className="bg-emerald-500/5 border border-emerald-500/20 p-4 rounded-xl">
+                <span className="text-[11px] text-emerald-400 font-bold uppercase tracking-wider block">Linktery Smart Link</span>
+                <span className="text-2xl font-black text-white">~950</span>
+                <span className="text-xs text-muted-foreground block">Actual leads per 1,000 clicks</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex-shrink-0 text-center md:text-right space-y-3">
+            <div className="text-xs font-bold text-accent uppercase tracking-widest">Instant ROI Improvement</div>
+            <div className="text-4xl md:text-5xl font-black text-white">+475%</div>
+            <div className="text-sm text-muted-foreground">More active follows, subs, and sales</div>
+          </div>
+        </div>
       </section>
 
       {/* Comparison Matrix Section */}
