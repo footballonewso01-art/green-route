@@ -1,4 +1,16 @@
 User-agent: *
 Allow: /
 
+# Allow AI Search Engine crawlers to discover solutions and comparative content for citations
+User-agent: GPTBot
+Allow: /solutions/
+Allow: /alternatives/
+Disallow: /api/
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
 Sitemap: https://linktery.com/sitemap.xml

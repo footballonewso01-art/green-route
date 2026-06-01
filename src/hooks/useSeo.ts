@@ -1,5 +1,10 @@
 import { useEffect } from "react";
 
+export interface FAQItem {
+  question: string;
+  answer: string;
+}
+
 interface SeoOptions {
   title?: string;
   description?: string;
@@ -7,9 +12,11 @@ interface SeoOptions {
   noIndex?: boolean;
   ogImage?: string;
   twitterCard?: "summary" | "summary_large_image" | "app" | "player";
+  faq?: FAQItem[];
+  structuredData?: Record<string, any>;
 }
 
-export function useSeo({ title, description, canonical, noIndex, ogImage, twitterCard }: SeoOptions) {
+export function useSeo({ title, description, canonical, noIndex, ogImage, twitterCard, faq, structuredData }: SeoOptions) {
   useEffect(() => {
     // 1. Helper function for meta updates
     const updateMeta = (name: string, content: string, isProperty = false) => {
@@ -79,6 +86,49 @@ export function useSeo({ title, description, canonical, noIndex, ogImage, twitte
         robotsMeta.setAttribute("content", "index, follow");
       }
     }
-  }, [title, description, canonical, noIndex, ogImage, twitterCard]);
+
+    // 8. JSON-LD Structured Data Injection
+    const jsonLdElements: HTMLScriptElement[] = [];
+
+    if (faq && faq.length > 0) {
+      const faqSchema = {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": faq.map((item) => ({
+          "@type": "Question",
+          "name": item.question,
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": item.answer
+          }
+        }))
+      };
+
+      const faqScript = document.createElement("script");
+      faqScript.type = "application/ld+json";
+      faqScript.id = "jsonld-faq";
+      faqScript.text = JSON.stringify(faqSchema);
+      document.head.appendChild(faqScript);
+      jsonLdElements.push(faqScript);
+    }
+
+    if (structuredData) {
+      const genericScript = document.createElement("script");
+      genericScript.type = "application/ld+json";
+      genericScript.id = "jsonld-structured";
+      genericScript.text = JSON.stringify(structuredData);
+      document.head.appendChild(genericScript);
+      jsonLdElements.push(genericScript);
+    }
+
+    // Cleanup added schemas on unmount
+    return () => {
+      jsonLdElements.forEach((element) => {
+        if (element && element.parentNode) {
+          element.parentNode.removeChild(element);
+        }
+      });
+    };
+  }, [title, description, canonical, noIndex, ogImage, twitterCard, faq, structuredData]);
 }
 

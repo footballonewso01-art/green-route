@@ -20,9 +20,6 @@ interface FaqItem {
 export default function OnlyFansSolution() {
   const { user } = useAuth();
   
-  // Call the SEO hook with the registered configuration
-  useSeo(SEO_PAGES.onlyfansSolution);
-
   // FAQ State
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
@@ -85,7 +82,7 @@ export default function OnlyFansSolution() {
     },
     {
       question: "How does the Instagram in-app browser affect OnlyFans sales?",
-      answer: "Instagram's built-in webview keeps users logged out of native apps. If they click to subscribe to your OnlyFans, they must manually enter their passwords and billing data on the web browser. Linktery's Deep Linking bypasses this by forcing the native safari/chrome application to launch on the user's phone, preserving active cookies and boosting subscribe rates."
+      answer: "Instagram's built-in webview keeps users logged out of native apps. If they click to subscribe to your OnlyFans, they must manually enter their passwords and billing data on the web browser. Linktery's Deep Linking bypasses this by forcing the native safari/chrome application to launch on the user's phone, preserving active cookies and user logins to boost subscribe rates."
     },
     {
       question: "Can I use multiple OnlyFans or fans links on my profile?",
@@ -127,13 +124,14 @@ export default function OnlyFansSolution() {
     ]
   };
 
+  // Call the SEO hook with the registered configuration and dynamic structured data
+  useSeo({
+    ...SEO_PAGES.onlyfansSolution,
+    structuredData
+  });
+
   return (
     <div className="min-h-screen bg-background relative overflow-hidden text-foreground">
-      {/* Dynamic Schema Injection */}
-      <script 
-        type="application/ld+json" 
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} 
-      />
 
       {/* Navbar */}
       <nav className="fixed top-0 w-full z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">

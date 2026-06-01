@@ -22,9 +22,6 @@ export default function SmartRedirect() {
   const { user } = useAuth();
   const navigate = useNavigate();
   
-  // Call the SEO hook with the registered configuration
-  useSeo(SEO_PAGES.smartRedirect);
-
   // FAQ State
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
@@ -128,13 +125,14 @@ export default function SmartRedirect() {
     ]
   };
 
+  // Call the SEO hook with the registered configuration and dynamic structured data
+  useSeo({
+    ...SEO_PAGES.smartRedirect,
+    structuredData
+  });
+
   return (
     <div className="min-h-screen bg-[#06080c] text-[#f1f3f7] font-sans antialiased relative overflow-hidden">
-      {/* Dynamic Schema Injection */}
-      <script 
-        type="application/ld+json" 
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} 
-      />
 
       {/* Bauhaus Grid Layout Lines */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#161e2b_1px,transparent_1px),linear-gradient(to_bottom,#161e2b_1px,transparent_1px)] bg-[size:5rem_5rem] opacity-25 pointer-events-none z-0" />
