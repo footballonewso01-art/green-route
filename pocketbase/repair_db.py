@@ -113,10 +113,8 @@ def repair():
             conn.commit()
             col_type = None # Proceed to create physical table
             
-        # FORCE RECREATE to fix 17-char field ID bug
-        cursor.execute("DROP TABLE IF EXISTS analytics_daily")
-        cursor.execute("DELETE FROM _collections WHERE name='analytics_daily'")
-        conn.commit()
+        # Only create analytics_daily if it doesn't already exist as a table
+        # (Previously, this was force-dropped on every restart, corrupting PB's collection registry)
 
         cursor.execute("SELECT id FROM _collections WHERE name='analytics_daily'")
         coll_exists = cursor.fetchone()
@@ -137,14 +135,10 @@ def repair():
                     "type": "relation",
                     "required": True,
                     "presentable": False,
-                    "unique": False,
-                    "options": {
-                        "collectionId": links_id,
-                        "cascadeDelete": True,
-                        "minSelect": None,
-                        "maxSelect": 1,
-                        "displayFields": None
-                    }
+                    "collectionId": links_id,
+                    "cascadeDelete": True,
+                    "minSelect": 0,
+                    "maxSelect": 1
                 },
                 {
                     "system": False,
@@ -155,8 +149,8 @@ def repair():
                     "type": "date",
                     "required": True,
                     "presentable": False,
-                    "unique": False,
-                    "options": {"min": "", "max": ""}
+                    "min": "",
+                    "max": ""
                 },
                 {
                     "system": False,
@@ -167,8 +161,9 @@ def repair():
                     "type": "number",
                     "required": True,
                     "presentable": False,
-                    "unique": False,
-                    "options": {"min": 0, "max": None, "noDecimal": True}
+                    "min": 0,
+                    "max": None,
+                    "onlyInt": True
                 }
             ]
             
@@ -222,40 +217,8 @@ def repair():
         else:
             print("analytics_daily table exists and is healthy.")
 
-        # --- BUG-11 FIX: Conditional sync — only fix drifted records, report drift ---
-        print("Checking clicks_count drift...")
-        cursor.execute("""
-            SELECT l.id, l.clicks_count, COUNT(c.id) as actual_count
-            FROM links l
-            LEFT JOIN clicks c ON c.link_id = l.id
-            GROUP BY l.id
-            HAVING l.clicks_count != COUNT(c.id)
-        """)
-        drifted = cursor.fetchall()
-        
-        if drifted:
-            print(f"WARNING: Found {len(drifted)} links with drifted clicks_count:")
-            for row in drifted[:10]:  # Show first 10
-                print(f"  Link {row[0]}: stored={row[1]}, actual={row[2]}, drift={row[1] - row[2]}")
-            
-            cursor.execute("""
-                UPDATE links
-                SET clicks_count = (
-                    SELECT COUNT(*)
-                    FROM clicks
-                    WHERE clicks.link_id = links.id
-                )
-                WHERE id IN (
-                    SELECT l.id FROM links l
-                    LEFT JOIN clicks c ON c.link_id = l.id
-                    GROUP BY l.id
-                    HAVING l.clicks_count != COUNT(c.id)
-                )
-            """)
-            conn.commit()
-            print(f"Fixed {len(drifted)} drifted records.")
-        else:
-            print("All clicks_count values are in sync. No repair needed.")
+        # --- BUG-11 FIX: Skip clicks_count drift check on container startup to prevent hang ---
+        print("Skipping clicks_count drift check to prevent startup timeout.")
 
         conn.close()
     except Exception as e:

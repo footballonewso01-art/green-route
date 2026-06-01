@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { pb } from "@/lib/pocketbase";
 import { Loader2, AlertTriangle, Smartphone, ExternalLink, MoreVertical, Share2, Compass, Lock } from "lucide-react";
 const PublicProfile = lazy(() => import("./PublicProfile"));
-import { PLANS, PlanType } from "@/lib/plans";
 
 // Utility to inject tracking pixels and allow them 400ms to fire before the page is destroyed by a redirect
 /* eslint-disable @typescript-eslint/no-explicit-any, prefer-rest-params, prefer-spread, no-var, @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-expressions */
@@ -78,7 +77,10 @@ const fireTrackingPixels = (link: Record<string, any>): Promise<void> => {
  * 4. HISTORY CLEAN — Use `window.location.replace()` to keep history stack clean.
  */
 export default function RedirectHandler() {
-    const { username } = useParams();
+    let { username } = useParams();
+    if (username) {
+        username = username.split('?')[0].split('%3F')[0];
+    }
     const navigate = useNavigate();
     const [status, setStatus] = useState<"loading" | "verifying" | "error" | "deeplink" | "profile" | "blocked">("loading");
     const [error, setError] = useState<string | null>(null);
@@ -234,8 +236,16 @@ export default function RedirectHandler() {
                     pb.collection('public_profiles').getFirstListItem(`slug="${username}" && (domain="${currentDomain}" || domain="")`, { expand: 'user_id' })
                 ]);
 
-                const link = linkResult.status === 'fulfilled' ? linkResult.value : null;
+                let link = linkResult.status === 'fulfilled' ? linkResult.value : null;
                 const userProfile = profileResult.status === 'fulfilled' ? profileResult.value : null;
+
+                // Fallback: if no link found with domain filter, try slug-only lookup.
+                // This handles cross-domain access (e.g., link has domain="linktery.bio" but accessed via "linktery.com")
+                if (!link) {
+                    try {
+                        link = await pb.collection('links').getFirstListItem(`slug="${username}" && active=true`, { expand: 'user_id' });
+                    } catch { /* no fallback match either */ }
+                }
 
                 // Profile takes priority if no active link found
                 if (!link && userProfile) {
@@ -255,22 +265,6 @@ export default function RedirectHandler() {
                     return;
                 }
 
-                // Check plan limits & freezing
-                const ownerPlan = (link.expand?.user_id as Record<string, unknown>)?.plan as string || "creator";
-                const limit = PLANS[ownerPlan as PlanType]?.limits?.links ?? 3;
-                if (limit !== -1) {
-                    const activeLinks = await pb.collection('links').getFullList({
-                        filter: `user_id = "${link.user_id}" && active = true`,
-                        sort: 'created',
-                        requestKey: null
-                    });
-                    const linkIndex = activeLinks.findIndex(l => l.id === link.id);
-                    if (linkIndex === -1 || linkIndex >= limit) {
-                        setStatus("error");
-                        setError("LINK_FROZEN");
-                        return;
-                    }
-                }
 
                 // Check scheduling
                 const now = new Date();
@@ -323,11 +317,27 @@ export default function RedirectHandler() {
                     // 2. Geo Targeting (Priority 2)
                     if (link.geo_targeting && typeof link.geo_targeting === 'object' && Object.keys(link.geo_targeting).length > 0) {
                         try {
-                            const geoRes = await fetch("https://cloudflare.com/cdn-cgi/trace", { signal: AbortSignal.timeout(1000) });
-                            const geoText = await geoRes.text();
-                            const locMatch = geoText.match(/loc=([A-Z]{2})/);
-                            if (locMatch && locMatch[1]) {
-                                const countryCode = locMatch[1];
+                            let countryCode = "";
+                            try {
+                                const geoRes = await fetch("https://cloudflare.com/cdn-cgi/trace", { signal: AbortSignal.timeout(1000) });
+                                const geoText = await geoRes.text();
+                                const locMatch = geoText.match(/loc=([A-Z]{2})/);
+                                if (locMatch && locMatch[1]) {
+                                    countryCode = locMatch[1];
+                                }
+                            } catch { /* Cloudflare trace failed */ }
+
+                            if (!countryCode || countryCode === "Unknown") {
+                                try {
+                                    const geoFallback = await fetch(`${pb.baseUrl}/api/geo`, { signal: AbortSignal.timeout(1500) });
+                                    const geoData = await geoFallback.json();
+                                    if (geoData.country && geoData.country !== "Unknown") {
+                                        countryCode = geoData.country;
+                                    }
+                                } catch { /* Both geo methods failed */ }
+                            }
+
+                            if (countryCode) {
                                 const rules = link.geo_targeting as Record<string, string>;
                                 if (rules[countryCode]) {
                                     finalDestination = rules[countryCode];
@@ -373,8 +383,29 @@ export default function RedirectHandler() {
                 }
                 sessionStorage.setItem(attemptKey, (attempts + 1).toString());
 
+                // Determine if destination is local or points to our own profile / domains
+                const isLocalDestination = finalDestination.includes(window.location.hostname) || 
+                                          finalDestination.includes("hotme.online") || 
+                                          finalDestination.includes("linktery.com") || 
+                                          /^[./]/.test(finalDestination);
+
+                // Detect if the destination redirects to the current page itself to prevent loop
+                let isSamePage = false;
+                try {
+                    const destUrlObj = new URL(finalDestination, window.location.href);
+                    isSamePage = destUrlObj.pathname.toLowerCase() === window.location.pathname.toLowerCase();
+                } catch (e) {
+                    console.error("Error parsing destination URL for loop check:", e);
+                }
+
+                if (isSamePage) {
+                    console.warn("Detected self-referencing redirect loop, rendering profile instead.");
+                    setStatus("profile");
+                    return;
+                }
+
                 // Step 3: Track click, then redirect
-                if (link.mode === 'direct' && isInApp) {
+                if (link.mode === 'direct' && isInApp && !isLocalDestination) {
                     setStatus("deeplink");
                     await trackClick(link);
                     await fireTrackingPixels(link);
@@ -394,17 +425,18 @@ export default function RedirectHandler() {
                                 const scheme = finalDestination.replace(/^https?:\/\//, "");
                                 window.location.href = `intent://${scheme}#Intent;scheme=https;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(finalDestination)};end`;
                             }, 800);
-                            // Final fallback: plain navigation
+                            // Final fallback: show manual open screen instead of infinite reload/loop
                             setTimeout(() => {
-                                window.location.href = finalDestination;
-                            }, 1600);
+                                setStatus("blocked");
+                            }, 2000);
                         } else {
                             // Other Android in-app browsers: intent with fallback
                             const scheme = finalDestination.replace(/^https?:\/\//, "");
                             window.location.href = `intent://${scheme}#Intent;scheme=https;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(finalDestination)};end`;
+                            // Final fallback: show manual open screen
                             setTimeout(() => {
-                                window.location.href = finalDestination;
-                            }, 1000);
+                                setStatus("blocked");
+                            }, 1500);
                         }
                     } else if (isIOS) {
                         if (isInstagram || isTikTok) {
@@ -416,10 +448,10 @@ export default function RedirectHandler() {
                                 const chromeUrl = finalDestination.replace(/^https:\/\//, "googlechromes://").replace(/^http:\/\//, "googlechrome://");
                                 window.location.href = chromeUrl;
                             }, 600);
-                            // Fallback 2: Direct navigation if nothing else worked
+                            // Final fallback: show manual open screen
                             setTimeout(() => {
-                                window.location.href = finalDestination;
-                            }, 1200);
+                                setStatus("blocked");
+                            }, 1800);
                         } else {
                             // Other iOS in-app browsers: just navigate directly
                             window.location.href = finalDestination;

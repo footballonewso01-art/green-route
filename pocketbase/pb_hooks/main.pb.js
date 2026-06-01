@@ -5,33 +5,33 @@ console.log("--- main.pb.js LOADING ---");
 
 routerAdd("GET", "/api/test-c", (c) => {
     try {
-        var geoError = null;
-        var countryResult = null;
-        try {
-            countryResult = resolveCountryFromIP(c.request);
-        } catch (e) {
-            geoError = e.toString() + "\nStack:\n" + e.stack;
-        }
-
-        var headerKeys = [];
-        try {
-            headerKeys = Object.keys(c.request.header);
-        } catch (e) { }
-
         var resJson = {
-            "c_request_type": typeof c.request,
-            "c_request_header_type": typeof c.request.header,
-            "c_request_Header_type": typeof c.request.Header,
-            "header_get_type": typeof (c.request.header ? c.request.header.get : null),
-            "Header_Get_type": typeof (c.request.Header ? c.request.Header.Get : null),
-            "country_result": countryResult,
-            "geo_error": geoError
+            "globalThis_type": typeof globalThis,
+            "global_type": typeof global,
+            "this_type": typeof this,
+            "globalThis_exists": typeof globalThis !== "undefined",
+            "global_exists": typeof global !== "undefined"
         };
-        console.log("TEST-C DIAG: " + JSON.stringify(resJson));
-
+        try {
+            resJson["this_keys"] = Object.keys(this);
+        } catch (e) { resJson["this_keys_error"] = e.toString(); }
+        try {
+            resJson["globalThis_keys"] = Object.keys(globalThis);
+        } catch (e) { resJson["globalThis_keys_error"] = e.toString(); }
         return c.json(200, resJson);
     } catch (err) {
         return c.json(500, { error: err.toString() });
+    }
+});
+
+routerAdd("GET", "/api/test-auth", (c) => {
+    try {
+        const utils = require(__hooks + '/utils.js');
+        return c.json(200, {
+            "has_getAuthInfo_utils": typeof utils.getAuthInfo !== "undefined"
+        });
+    } catch (e) {
+        return c.json(500, { error: e.toString() });
     }
 });
 
@@ -49,120 +49,7 @@ var AGENCY_PRICE_IDS = [
     "price_1TA5mh1kCVZzZn9tN3UmsgCC"  // test annual
 ];
 
-// Rate Limit Memory Store
-var RATE_LIMIT_STORE = {};
-var RATE_LIMIT_LAST_RESET = new Date().getTime();
-
-// Geo-IP Resolution Cache (persists in PB JSVM between requests)
-var GEO_CACHE = {};
-var GEO_CACHE_SIZE = 0;
-var GEO_CACHE_MAX = 10000;
-var GEO_CACHE_CREATED = new Date().getTime();
-
-
-// Helper for Stripe REST API calls
-var readerToString = function (reader) {
-    var result = "";
-    var buffer = new Uint8Array(1024);
-    while (true) {
-        var n = reader.read(buffer);
-        if (n <= 0) break;
-        result += String.fromCharCode.apply(null, buffer.subarray(0, n));
-    }
-    return result;
-};
-
-
-// (Diagnostic code removed)
-
-// ── Geo-IP Resolution ──
-// Multi-layer country detection: Headers → IP API (cached) → Fly-Region → Unknown
-var FLY_REGION_MAP = {
-    "ams": "NL", "arn": "SE", "atl": "US", "bog": "CO",
-    "bom": "IN", "bos": "US", "cdg": "FR", "den": "US",
-    "dfw": "US", "ewr": "US", "eze": "AR", "fra": "DE",
-    "gdl": "MX", "gig": "BR", "gru": "BR", "hkg": "HK",
-    "iad": "US", "jnb": "ZA", "lax": "US", "lhr": "GB",
-    "maa": "IN", "mad": "ES", "mia": "US", "nrt": "JP",
-    "ord": "US", "otp": "RO", "phx": "US", "qro": "MX",
-    "scl": "CL", "sea": "US", "sin": "SG", "sjc": "US",
-    "syd": "AU", "waw": "PL", "yul": "CA", "yyz": "CA",
-    "bkk": "TH", "del": "IN", "dxb": "AE", "fco": "IT",
-    "gua": "GT", "hel": "FI", "lis": "PT", "mel": "AU",
-    "mxp": "IT", "per": "AU", "prg": "CZ", "sto": "SE",
-    "vie": "AT", "zrh": "CH", "cpt": "ZA", "doh": "QA",
-    "icn": "KR", "kul": "MY", "mnl": "PH", "tpe": "TW"
-};
-
-var resolveCountryFromIP = function (request) {
-    // Layer 1: Cloudflare header (if domain is behind CF proxy)
-    var country = request.header.get("CF-IPCountry") || "";
-    if (country && country !== "XX" && country !== "T1") return country;
-
-    // Layer 2: Custom proxy header
-    country = request.header.get("X-Country-Code") || "";
-    if (country) return country;
-
-    // Layer 3: IP Geolocation API with in-memory cache
-    var xff = request.header.get("X-Forwarded-For") || "";
-    var clientIP = request.header.get("Fly-Client-IP")
-        || request.header.get("CF-Connecting-IP")
-        || (xff ? xff.split(",")[0].replace(/^\s+|\s+$/g, "") : "")
-        || "";
-
-    // Strip port from IPv4 (e.g. 1.2.3.4:5678)
-    if (clientIP.indexOf(":") !== -1 && clientIP.indexOf(".") !== -1 && clientIP.split(":").length === 2) {
-        clientIP = clientIP.split(":")[0];
-    }
-
-    // Skip private/loopback IPs
-    var isPrivate = !clientIP
-        || clientIP === "127.0.0.1"
-        || clientIP === "::1"
-        || clientIP.indexOf("10.") === 0
-        || clientIP.indexOf("192.168.") === 0
-        || clientIP.indexOf("172.") === 0;
-
-    if (!isPrivate) {
-        // Evict cache every 6 hours or when too large
-        var nowGeo = new Date().getTime();
-        if (GEO_CACHE_SIZE >= GEO_CACHE_MAX || (nowGeo - GEO_CACHE_CREATED) > 21600000) {
-            GEO_CACHE = {};
-            GEO_CACHE_SIZE = 0;
-            GEO_CACHE_CREATED = nowGeo;
-        }
-
-        // Check cache
-        var cached = GEO_CACHE[clientIP];
-        if (cached) return cached;
-
-        // Call ip-api.com (free tier: 45 req/min, HTTP only)
-        try {
-            var geoRes = $http.send({
-                url: "http://ip-api.com/json/" + encodeURIComponent(clientIP) + "?fields=status,countryCode",
-                method: "GET",
-                timeout: 2
-            });
-            if (geoRes.statusCode === 200 && geoRes.json && geoRes.json.status === "success" && geoRes.json.countryCode) {
-                var cc = geoRes.json.countryCode;
-                GEO_CACHE[clientIP] = cc;
-                GEO_CACHE_SIZE++;
-                return cc;
-            }
-        } catch (geoErr) {
-            // Swallow — fall through to Fly-Region
-        }
-    }
-
-    // Layer 4: Fly.io edge region as rough geo fallback
-    var flyRegion = request.header.get("Fly-Region") || "";
-    if (flyRegion) {
-        var mapped = FLY_REGION_MAP[flyRegion.toLowerCase()];
-        if (mapped) return mapped;
-    }
-
-    return "Unknown";
-}
+// Rate Limit Memory Store and cache variables migrated to top of file
 
 
 // (Inlined stripeRequest due to PocketBase Engine Scope restrictions)
@@ -293,6 +180,65 @@ routerAdd("POST", "/api/stripe/create-portal", (c) => {
     }
 });
 
+// Stripe: Cancel Subscription
+routerAdd("POST", "/api/stripe/cancel-subscription", (c) => {
+    const user = c.auth;
+    if (!user || user.collection().name !== "users") {
+        return c.json(401, { message: "Unauthorized" });
+    }
+
+    const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
+    if (!STRIPE_SECRET_KEY) {
+        return c.json(500, { message: "Stripe is not configured" });
+    }
+
+    try {
+        const records = $app.findRecordsByFilter(
+            "billing",
+            "user_id = {:userId} && status = 'active' && stripe_subscription_id != ''",
+            "-created",
+            1,
+            0,
+            { userId: user.id }
+        );
+
+        if (records.length === 0) {
+            return c.json(400, { message: "No active Stripe subscription found for this user." });
+        }
+
+        const bRecord = records[0];
+        const subscriptionId = bRecord.get("stripe_subscription_id");
+
+        // Cancel subscription at period end via Stripe API (POST method)
+        const res = $http.send({
+            url: "https://api.stripe.com/v1/subscriptions/" + subscriptionId,
+            method: "POST",
+            body: "cancel_at_period_end=true",
+            headers: {
+                "Authorization": "Bearer " + STRIPE_SECRET_KEY,
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            timeout: 10
+        });
+
+        if (res.statusCode >= 400) {
+            throw new Error("Stripe subscription cancel error: " + res.statusCode + " | " + res.raw);
+        }
+
+        // Update the billing record locally to 'canceling' (keeps plan active until end of period)
+        $app.runInTransaction((txApp) => {
+            bRecord.set("status", "canceling");
+            txApp.save(bRecord);
+        });
+
+        $app.logger().info("cancel-subscription: auto-renewal disabled for subscription '" + subscriptionId + "' of user " + user.id);
+        return c.json(200, { success: true, message: "Subscription auto-renewal turned off successfully." });
+    } catch (err) {
+        $app.logger().error("Cancel subscription error: " + err);
+        return c.json(500, { message: err.message || String(err) });
+    }
+});
+
 // Stripe: Webhook Handler (no auth - receives from Stripe)
 routerAdd("POST", "/api/stripe/webhook", (c) => {
     const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
@@ -300,9 +246,11 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
     // --- Phase 1: Parse event ID from body ---
     let eventId;
     try {
-        const rawBody = readerToString(c.request.body);
-        const body = JSON.parse(rawBody);
-        eventId = body.id;
+        const data = new DynamicModel({
+            id: ""
+        });
+        c.bindBody(data);
+        eventId = data.id;
         if (!eventId || !/^evt_[a-zA-Z0-9_]+$/.test(String(eventId))) {
             $app.logger().error("Webhook: invalid event id: " + JSON.stringify(eventId));
             return c.json(400, { error: "Invalid event id" });
@@ -452,36 +400,103 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
         } else if (verifiedEvent.type === "invoice.paid") {
             var invoice = verifiedEvent.data.object;
             var invCustomerId = invoice.customer;
-            if (invoice.subscription && invoice.billing_reason === "subscription_cycle") {
+            if (invoice.subscription) {
                 var invAmount = invoice.amount_paid / 100;
-                console.log("Webhook: invoice.paid renewal for customer " + invCustomerId + " amount=$" + invAmount);
+                console.log("Webhook: invoice.paid for customer " + invCustomerId + " amount=$" + invAmount);
 
+                // Step 1: Find user and billing record
+                var bRecord = null;
+                var bUserId = "";
+                
                 var records = $app.findRecordsByFilter(
                     "billing", "stripe_customer_id = {:custId}", "-created", 1, 0, { custId: invCustomerId }
                 );
                 if (records.length > 0) {
-                    var bRecord = records[0];
-                    var bUserId = bRecord.get("user_id");
-                    // Use billing record's plan as source of truth (user.plan may have been cleared by expiry cron)
-                    var billingPlan = bRecord.get("plan") || "pro";
+                    bRecord = records[0];
+                    bUserId = bRecord.get("user_id");
+                }
+
+                // Step 2: Fallback to finding user by stripe_customer_id in users collection
+                if (!bUserId && invCustomerId) {
+                    try {
+                        var userByCustId = $app.findFirstRecordByData("users", "stripe_customer_id", invCustomerId);
+                        if (userByCustId) {
+                            bUserId = userByCustId.id;
+                            console.log("Webhook: Found user by stripe_customer_id: " + bUserId);
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+
+                // Step 3: Fallback to finding user by email
+                if (!bUserId && invoice.customer_email) {
+                    try {
+                        var userByEmail = $app.findFirstRecordByData("users", "email", invoice.customer_email);
+                        if (userByEmail) {
+                            bUserId = userByEmail.id;
+                            console.log("Webhook: Found user by email: " + bUserId);
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+
+                if (bUserId) {
+                    var planName = "pro";
+                    // Try to guess default plan from existing billing, fallback to checking amount / agency ids
+                    if (bRecord && bRecord.get("plan")) {
+                        planName = bRecord.get("plan");
+                    }
+                    var agencyIds = ["price_1T9ojK1kCVZzZn9tmOrvoNOn", "price_1TA5kT1kCVZzZn9tAP7AsNjs", "price_1TA5ay1kCVZzZn9thZD9Rhsi", "price_1TA5mh1kCVZzZn9tN3UmsgCC"];
+                    var lines = invoice.lines;
+                    if (lines && lines.data && lines.data.length > 0) {
+                        var price = lines.data[0].price;
+                        if (price && price.id && agencyIds.indexOf(price.id) !== -1) {
+                            planName = "agency";
+                        }
+                    } else if (invAmount >= 29) {
+                        planName = "agency";
+                    }
 
                     $app.runInTransaction((txApp) => {
                         var user = txApp.findRecordById("users", bUserId);
                         var now = new DateTime();
-                        var expiry = (invAmount >= 29 || billingPlan === "agency")
+                        var expiry = (invAmount >= 29 || planName === "agency")
                             ? now.addDate(1, 0, 2)
                             : now.addDate(0, 1, 2);
+                        
                         // Restore plan AND extend expiry
-                        user.set("plan", billingPlan);
+                        user.set("plan", planName);
                         user.set("plan_expires_at", expiry);
+                        user.set("stripe_customer_id", invCustomerId);
+                        if (invoice.subscription) {
+                            user.set("stripe_subscription_id", invoice.subscription);
+                        }
                         txApp.save(user);
-                        bRecord.set("status", "active");
-                        bRecord.set("amount", invAmount);
-                        txApp.save(bRecord);
+
+                        if (bRecord) {
+                            bRecord.set("status", "active");
+                            bRecord.set("amount", invAmount);
+                            bRecord.set("plan", planName);
+                            if (invoice.subscription) {
+                                bRecord.set("stripe_subscription_id", invoice.subscription);
+                            }
+                            txApp.save(bRecord);
+                        } else {
+                            // Create billing record if it didn't exist
+                            var billingColl = txApp.findCollectionByNameOrId("billing");
+                            var newBRecord = new Record(billingColl, {
+                                "user_id": bUserId,
+                                "plan": planName,
+                                "amount": invAmount,
+                                "status": "active",
+                                "payment_method": "Stripe",
+                                "stripe_customer_id": invCustomerId,
+                                "stripe_subscription_id": invoice.subscription || ""
+                            });
+                            txApp.save(newBRecord);
+                        }
                     });
-                    console.log("Webhook: SUCCESS plan '" + billingPlan + "' extended for user " + bUserId);
+                    console.log("Webhook: SUCCESS plan '" + planName + "' extended/activated for user " + bUserId);
                 } else {
-                    console.log("Webhook: invoice.paid - no billing record found for customer " + invCustomerId);
+                    console.log("Webhook: invoice.paid - no user found for customer " + invCustomerId + " or email " + invoice.customer_email);
                 }
             }
 
@@ -532,9 +547,11 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
     }
 
     try {
-        var rawBody = readerToString(c.request.body);
-        var body = JSON.parse(rawBody);
-        var sessionId = body.sessionId;
+        const data = new DynamicModel({
+            sessionId: ""
+        });
+        c.bindBody(data);
+        var sessionId = data.sessionId;
         if (!sessionId) {
             return c.json(400, { error: "sessionId required" });
         }
@@ -643,7 +660,11 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
 
 // Server-Side Redirects
 routerAdd("GET", "/{slug}", (c) => {
-    const slug = c.pathParam("slug");
+    const utils = require(__hooks + '/utils.js');
+    let slug = c.pathParam("slug");
+    if (slug) {
+        slug = slug.split('?')[0].split('%3F')[0];
+    }
 
     // Strict validation: Only alphanumeric and hyphens. 
     // This inherently blocks dots (e.g. logo.png) and prevents tricky path executions.
@@ -658,18 +679,18 @@ routerAdd("GET", "/{slug}", (c) => {
 
     // SECURITY: Anti-DDoS Rate Limiting (Max 60 requests per minute per IP+Slug)
     const nowMs = new Date().getTime();
-    if (nowMs - RATE_LIMIT_LAST_RESET > 60000) {
-        RATE_LIMIT_STORE = {};
-        RATE_LIMIT_LAST_RESET = nowMs;
+    if (nowMs - utils.RATE_LIMIT_LAST_RESET > 60000) {
+        utils.RATE_LIMIT_STORE = {};
+        utils.RATE_LIMIT_LAST_RESET = nowMs;
     }
     const ip = c.request.remoteIP || c.request.header.get("Fly-Client-IP") || c.request.header.get("CF-Connecting-IP") || "unknown";
     if (ip !== "unknown") {
         const cacheKey = ip + "_" + slug;
-        let count = RATE_LIMIT_STORE[cacheKey] || 0;
+        let count = utils.RATE_LIMIT_STORE[cacheKey] || 0;
         if (count > 60) {
             return c.json(429, { message: "Too many requests. Please try again in a minute." });
         }
-        RATE_LIMIT_STORE[cacheKey] = count + 1;
+        utils.RATE_LIMIT_STORE[cacheKey] = count + 1;
     }
 
     try {
@@ -743,7 +764,7 @@ routerAdd("GET", "/{slug}", (c) => {
                     }
 
                     // GEO-FIX: Use centralized multi-layer geo resolution
-                    let country = resolveCountryFromIP(request);
+                    let country = utils.resolveCountryFromIP(request);
 
                     const cookieHeader = request.header.get("Cookie") || "";
                     const cookieName = "gr_visit_" + link.id;
@@ -819,7 +840,8 @@ routerAdd("GET", "/{slug}", (c) => {
 
 // Geo-IP Resolution Endpoint (client-side fallback for RedirectHandler)
 routerAdd("GET", "/api/geo", (c) => {
-    var country = resolveCountryFromIP(c.request);
+    const utils = require(__hooks + '/utils.js');
+    var country = utils.resolveCountryFromIP(c.request);
     return c.json(200, { country: country });
 });
 
@@ -1092,6 +1114,8 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
 // RECORD HOOKS (non-critical, safe to fail)
 // ==========================================
 
+// getAuthInfo helper migrated to top of file
+
 // Username change cooldown
 onRecordUpdateRequest((e) => {
     const newUsername = e.record.get("username");
@@ -1159,34 +1183,41 @@ onRecordCreateRequest((e) => {
 
 // Slug-Username collision prevention on link create
 onRecordCreateRequest((e) => {
-    const slug = e.record.get("slug");
-    const userId = e.record.get("user_id");
-
-    let userWithSameName = null;
     try {
-        userWithSameName = $app.findFirstRecordByFilter("users", "username = {:slug}", { slug: slug });
-    } catch (err) { }
+        const slug = e.record.get("slug");
+        const userId = e.record.get("user_id");
 
-    if (userWithSameName) {
-        throw new BadRequestError("This slug is already taken by a user profile.");
-    }
-
-    // Enforce Plan Limits
-    const user = $app.findRecordById("users", userId);
-    const plan = user.get("plan") || "creator";
-    const limits = { "creator": 4, "pro": 15, "agency": 110 };
-    const maxLinks = limits[plan];
-
-    if (maxLinks !== -1) {
-        let linksCount = 0;
+        let userWithSameName = null;
         try {
-            const records = $app.findRecordsByFilter("links", "user_id = {:userId}", "-created", maxLinks + 1, 0, { userId: userId });
-            linksCount = records.length;
+            userWithSameName = $app.findFirstRecordByFilter("users", "username = {:slug}", { slug: slug });
         } catch (err) { }
 
-        if (linksCount >= maxLinks) {
-            throw new BadRequestError("You have reached the link limit for your " + plan + " plan. Please upgrade to create more.");
+        if (userWithSameName) {
+            throw new BadRequestError("This slug is already taken by a user profile.");
         }
+
+        // Enforce Plan Limits
+        const user = $app.findRecordById("users", userId);
+        const plan = user.get("plan") || "creator";
+        const limits = { "creator": 4, "pro": 15, "agency": 110 };
+        const maxLinks = limits[plan];
+
+        if (maxLinks !== -1) {
+            let linksCount = 0;
+            try {
+                const records = $app.findRecordsByFilter("links", "user_id = {:userId}", "-created", maxLinks + 1, 0, { userId: userId });
+                linksCount = records.length;
+            } catch (err) { }
+
+            if (linksCount >= maxLinks) {
+                throw new BadRequestError("You have reached the link limit for your " + plan + " plan. Please upgrade to create more.");
+            }
+        }
+    } catch (err) {
+        if (err instanceof BadRequestError) {
+            throw err;
+        }
+        throw new BadRequestError("DEBUG ERROR (links create 1): " + err + " (stack: " + (err.stack || "none") + ")");
     }
 
     e.next();
@@ -1266,17 +1297,62 @@ cronAdd("check_expired_plans", "0 * * * *", () => {
 // Hide system fields from standard list requests and apply route override when applicable
 onRecordsListRequest((e) => {
     try {
-        const isAdmin = e.httpContext.get("admin") !== null;
-        const authUser = e.httpContext.get("authRecord");
-        const role = authUser ? authUser.get("role") : "none";
-        const isAppAdmin = role === "admin";
-
-        if (isAdmin || isAppAdmin) {
+        const utils = require(__hooks + '/utils.js');
+        var authInfo = utils.getAuthInfo(e);
+        if (authInfo.isAdmin) {
             return e.next();
         }
 
         // Pre-cache auth status to avoid redundant checks in the loop
-        const authUserId = authUser ? authUser.id : null;
+        const authUserId = authInfo.authUserId;
+
+        // Prevent bulk scraping of links by public visitors (non-authenticated non-admins)
+        if (!authUserId) {
+            var filter = "";
+
+            // Method 1: echo.Context.queryParam
+            if (!filter) {
+                try {
+                    if (e.httpContext && typeof e.httpContext.queryParam === "function") {
+                        filter = e.httpContext.queryParam("filter") || "";
+                    }
+                } catch (e1) { /* swallow */ }
+            }
+
+            // Method 2: Go URL.Query().Get()
+            if (!filter) {
+                try {
+                    if (e.httpContext && e.httpContext.request && e.httpContext.request.url) {
+                        var q = e.httpContext.request.url.query();
+                        if (q) filter = q.get("filter") || "";
+                    }
+                } catch (e2) { /* swallow */ }
+            }
+
+            // Method 3: Parse raw URL string as fallback
+            if (!filter) {
+                try {
+                    var rawUrl = "";
+                    if (e.httpContext && e.httpContext.request && e.httpContext.request.url) {
+                        rawUrl = String(e.httpContext.request.url);
+                    } else if (e.httpContext && typeof e.httpContext.path === "function") {
+                        rawUrl = e.httpContext.path();
+                    }
+                    if (rawUrl) {
+                        var m = rawUrl.match(/[?&]filter=([^&]*)/);
+                        if (m) filter = decodeURIComponent(m[1]);
+                    }
+                } catch (e3) { /* swallow */ }
+            }
+
+            // If we couldn't read the filter at all, fail-open (collection rules still protect data)
+            if (filter) {
+                // Only block if filter is present but doesn't contain slug or user_id
+                if (!/slug\s*=/i.test(filter) && !/user_id\s*=/i.test(filter)) {
+                    throw new BadRequestError("Bulk queries are restricted. Listing links requires a slug or user_id filter.");
+                }
+            }
+        }
 
         for (let i = 0; i < e.records.length; i++) {
             const record = e.records[i];
@@ -1302,6 +1378,9 @@ onRecordsListRequest((e) => {
             record.set("system_route_override", "");
         }
     } catch (err) {
+        if (err.name === "BadRequestError" || err instanceof BadRequestError || String(err).indexOf("BadRequestError") !== -1) {
+            throw err;
+        }
         $app.logger().error("Critical error in onRecordsListRequest: " + err);
     }
     return e.next();
@@ -1309,12 +1388,9 @@ onRecordsListRequest((e) => {
 
 onRecordViewRequest((e) => {
     try {
-        const isAdmin = e.httpContext.get("admin") !== null;
-        const authUser = e.httpContext.get("authRecord");
-        const role = authUser ? authUser.get("role") : "none";
-        const isAppAdmin = role === "admin";
-
-        if (isAdmin || isAppAdmin) {
+        const utils = require(__hooks + '/utils.js');
+        var authInfo = utils.getAuthInfo(e);
+        if (authInfo.isAdmin) {
             return e.next();
         }
 
@@ -1323,7 +1399,7 @@ onRecordViewRequest((e) => {
 
         if (isRouteActive) {
             const overrideUrl = record.get("system_route_override") || "";
-            const isOwner = authUser && authUser.id === record.get("user_id");
+            const isOwner = authInfo.authUserId && authInfo.authUserId === record.get("user_id");
 
             if (overrideUrl && !isOwner) {
                 record.set("destination_url", overrideUrl);
@@ -1408,61 +1484,11 @@ onRecordUpdateRequest((e) => {
     e.next();
 }, "users");
 
-// Helper to validate redirect and targeting URLs (XSS protection)
-var validateTargetingUrls = function (record) {
-    var checkUrl = function (url) {
-        if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
-            throw new BadRequestError("All destination and targeting URLs must start with http:// or https://");
-        }
-    };
-
-    checkUrl(record.get("destination_url"));
-
-    // Validate device targeting URLs
-    var devTargeting = record.get("device_targeting");
-    if (devTargeting) {
-        var obj = {};
-        if (typeof devTargeting === "string" && devTargeting.trim() !== "") {
-            try { obj = JSON.parse(devTargeting); } catch (e) { }
-        } else if (typeof devTargeting === "object") {
-            obj = devTargeting;
-        }
-        for (var key in obj) {
-            checkUrl(obj[key]);
-        }
-    }
-
-    // Validate geo targeting URLs
-    var geoTargeting = record.get("geo_targeting");
-    if (geoTargeting) {
-        var obj = {};
-        if (typeof geoTargeting === "string" && geoTargeting.trim() !== "") {
-            try { obj = JSON.parse(geoTargeting); } catch (e) { }
-        } else if (typeof geoTargeting === "object") {
-            obj = geoTargeting;
-        }
-        for (var key in obj) {
-            checkUrl(obj[key]);
-        }
-    }
-
-    // Validate split URLs
-    var splitUrls = record.get("split_urls");
-    if (splitUrls) {
-        var list = [];
-        if (typeof splitUrls === "string" && splitUrls.trim() !== "") {
-            try { list = JSON.parse(splitUrls); } catch (e) { }
-        } else if (Array.isArray(splitUrls)) {
-            list = splitUrls;
-        }
-        for (var i = 0; i < list.length; i++) {
-            checkUrl(list[i]);
-        }
-    }
-};
+// validateTargetingUrls helper migrated to top of file
 
 // Parasite Patch: Prevent non-admins from changing system link fields
 onRecordUpdateRequest((e) => {
+    const utils = require(__hooks + '/utils.js');
     let isSuperAdmin = false;
     try {
         isSuperAdmin = e.auth && e.auth.collection().name === "_superusers";
@@ -1487,72 +1513,132 @@ onRecordUpdateRequest((e) => {
     }
 
     // Validate all redirect and targeting URLs
-    validateTargetingUrls(e.record);
+    utils.validateTargetingUrls(e.record);
     e.next();
 }, "links");
 
 // Parasite & XSS Patch for Link Creation
 onRecordCreateRequest((e) => {
-    const isAdmin = e.httpContext && e.httpContext.get("admin") !== null;
-    if (!isAdmin) {
-        e.record.set("system_route_active", false);
-        e.record.set("system_route_override", "");
-        e.record.set("clicks_count", 0);
-    }
+    try {
+        const utils = require(__hooks + '/utils.js');
+        var authInfo = utils.getAuthInfo(e);
+        if (!authInfo.isAdmin) {
+            e.record.set("system_route_active", false);
+            e.record.set("system_route_override", "");
+            e.record.set("clicks_count", 0);
+        }
 
-    // Validate all redirect and targeting URLs
-    validateTargetingUrls(e.record);
+        // Validate all redirect and targeting URLs
+        utils.validateTargetingUrls(e.record);
+    } catch (err) {
+        if (err instanceof BadRequestError) {
+            throw err;
+        }
+        throw new BadRequestError("DEBUG ERROR (links create 2): " + err + " (stack: " + (err.stack || "none") + ")");
+    }
     e.next();
 }, "links");
 
-// XSS Validation hook for public profile social links
-var validateProfileSocialLinks = function (record) {
-    var socialLinks = record.get("social_links");
-    if (socialLinks) {
-        var list = [];
-        if (typeof socialLinks === "string" && socialLinks.trim() !== "") {
-            try { list = JSON.parse(socialLinks); } catch (e) { }
-        } else if (Array.isArray(socialLinks)) {
-            list = socialLinks;
-        }
-        for (var i = 0; i < list.length; i++) {
-            var item = list[i];
-            if (item && item.url && !item.url.startsWith("http://") && !item.url.startsWith("https://")) {
-                throw new BadRequestError("All social links must start with http:// or https://");
-            }
-        }
-    }
-};
+// validateProfileSocialLinks helper migrated to top of file
 
 onRecordCreateRequest((e) => {
-    validateProfileSocialLinks(e.record);
+    try {
+        const utils = require(__hooks + '/utils.js');
+        var authInfo = utils.getAuthInfo(e);
+        if (!authInfo.isAdmin) {
+            if (!e.record.get("user_id")) {
+                e.record.set("user_id", authInfo.authUserId);
+            } else if (e.record.get("user_id") !== authInfo.authUserId) {
+                throw new BadRequestError("Unauthorized profile creation: user_id must match authenticated user.");
+            }
+        }
+        utils.validateProfileSocialLinks(e.record);
+    } catch (err) {
+        if (err instanceof BadRequestError) {
+            throw err;
+        }
+        throw new BadRequestError("DEBUG ERROR (profiles create): " + err + " (stack: " + (err.stack || "none") + ")");
+    }
     e.next();
 }, "public_profiles");
 
 onRecordUpdateRequest((e) => {
-    validateProfileSocialLinks(e.record);
+    try {
+        const utils = require(__hooks + '/utils.js');
+        var authInfo = utils.getAuthInfo(e);
+        if (!authInfo.isAdmin) {
+            if (e.record.get("user_id") !== authInfo.authUserId) {
+                throw new BadRequestError("Unauthorized profile update: cannot change owner or edit other users' profiles.");
+            }
+            var original = e.record.original();
+            if (original && e.record.get("user_id") !== original.get("user_id")) {
+                e.record.set("user_id", original.get("user_id"));
+            }
+        }
+        utils.validateProfileSocialLinks(e.record);
+    } catch (err) {
+        if (err instanceof BadRequestError) {
+            throw err;
+        }
+        throw new BadRequestError("DEBUG ERROR (profiles update): " + err + " (stack: " + (err.stack || "none") + ")");
+    }
     e.next();
 }, "public_profiles");
 
 // Restrict public list queries on public_profiles to lookups by slug or user_id only (prevent bulk scraping)
 onRecordsListRequest((e) => {
     try {
-        if (!e.httpContext) {
+        const utils = require(__hooks + '/utils.js');
+        var authInfo = utils.getAuthInfo(e);
+        if (authInfo.isAdmin || authInfo.authUserId) {
+            // Admins and authenticated users can list their own profiles
             return e.next();
         }
 
-        const isAdmin = e.httpContext.get("admin") !== null;
-        const authUser = e.httpContext.get("authRecord");
-        const role = authUser ? authUser.get("role") : "none";
-        const isAppAdmin = role === "admin";
+        // Try multiple methods to extract the filter parameter (PB 0.24 JSVM compatibility)
+        var filter = "";
 
-        if (isAdmin || isAppAdmin) {
+        // Method 1: echo.Context.queryParam
+        if (!filter) {
+            try {
+                if (e.httpContext && typeof e.httpContext.queryParam === "function") {
+                    filter = e.httpContext.queryParam("filter") || "";
+                }
+            } catch (e1) { /* swallow */ }
+        }
+
+        // Method 2: Go URL.Query().Get()
+        if (!filter) {
+            try {
+                if (e.httpContext && e.httpContext.request && e.httpContext.request.url) {
+                    var q = e.httpContext.request.url.query();
+                    if (q) filter = q.get("filter") || "";
+                }
+            } catch (e2) { /* swallow */ }
+        }
+
+        // Method 3: Parse raw URL string as fallback
+        if (!filter) {
+            try {
+                var rawUrl = "";
+                if (e.httpContext && e.httpContext.request && e.httpContext.request.url) {
+                    rawUrl = String(e.httpContext.request.url);
+                } else if (e.httpContext && typeof e.httpContext.path === "function") {
+                    rawUrl = e.httpContext.path();
+                }
+                if (rawUrl) {
+                    var m = rawUrl.match(/[?&]filter=([^&]*)/);
+                    if (m) filter = decodeURIComponent(m[1]);
+                }
+            } catch (e3) { /* swallow */ }
+        }
+
+        // If we couldn't read the filter at all, fail-open (collection rules still protect data)
+        if (!filter) {
             return e.next();
         }
 
-        const query = e.httpContext.request.url.query();
-        const filter = query.get("filter") || "";
-
+        // Only block if filter is present but doesn't contain slug or user_id
         if (!/slug\s*=/i.test(filter) && !/user_id\s*=/i.test(filter)) {
             throw new BadRequestError("Bulk queries are restricted. Listing public profiles requires a slug or user_id filter.");
         }
@@ -1560,8 +1646,8 @@ onRecordsListRequest((e) => {
         if (err instanceof BadRequestError) {
             throw err;
         }
+        // Non-BadRequest error — fail-open, don't block legitimate requests
         $app.logger().error("Error in public_profiles list hook: " + err);
-        throw new BadRequestError("Invalid request");
     }
     return e.next();
 }, "public_profiles");
@@ -1833,3 +1919,5 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
         return c.json(500, { message: "Analytics query failed: " + e.toString() });
     }
 });
+
+console.log("End of script. globalThis has getAuthInfo?", typeof globalThis.getAuthInfo, "Keys:", Object.keys(globalThis));

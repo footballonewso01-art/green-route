@@ -264,10 +264,14 @@ export default function CreateLink() {
       };
 
       const formData = new FormData();
+      // JSON fields that need "null" string instead of empty string to properly clear in PocketBase
+      const jsonFields = new Set(['geo_targeting', 'device_targeting', 'split_urls']);
+      
       Object.entries(data).forEach(([key, value]) => {
-        // Essential fix: Allow null/undefined to pass through as empty string to clear fields in PocketBase
         if (value === null || value === undefined) {
-          formData.append(key, '');
+          // For JSON fields, send "null" so PocketBase clears the field properly
+          // instead of storing empty string which causes validation issues
+          formData.append(key, jsonFields.has(key) ? 'null' : '');
           return;
         }
 

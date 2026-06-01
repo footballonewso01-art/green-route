@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Lock, Globe, Key, ChevronRight, Gift, CheckCircle, Camera, User, Zap, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { checkPlan, PLANS, PlanType } from "@/lib/plans";
@@ -25,6 +25,7 @@ export default function SettingsPage() {
 
   const [promocode, setPromocode] = useState("");
   const [loadingPromocode, setLoadingPromocode] = useState(false);
+  const [loadingCancel, setLoadingCancel] = useState(false);
 
   // Account profile editing state
   const [accountName, setAccountName] = useState(user?.name || "");
@@ -38,6 +39,24 @@ export default function SettingsPage() {
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const plan = PLANS[userPlan as PlanType];
   const hasUsedPromocode = !!(user as any)?.promocode_used;
+
+  const [hasActiveSub, setHasActiveSub] = useState(false);
+
+  useEffect(() => {
+    const checkActiveSub = async () => {
+      if (!user) return;
+      try {
+        const result = await pb.collection("billing").getList(1, 1, {
+          filter: `user_id="${user.id}" && status="active" && payment_method="Stripe"`,
+          requestKey: null
+        });
+        setHasActiveSub(result.totalItems > 0);
+      } catch (err) {
+        console.error("Failed to check active subscription", err);
+      }
+    };
+    checkActiveSub();
+  }, [user, loadingCancel]);
 
   const handleTabClick = (tab: typeof tabs[0]) => {
     if (tab.comingSoon) {
@@ -147,6 +166,33 @@ export default function SettingsPage() {
       }
     } finally {
       setLoadingPassword(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!confirm("Are you sure you want to turn off auto-renewal for your subscription? Your premium plan will remain active until the end of your billing cycle.")) {
+      return;
+    }
+
+    setLoadingCancel(true);
+    try {
+      const res = await pb.send("/api/stripe/cancel-subscription", {
+        method: "POST"
+      });
+
+      if (res.success) {
+        toast.success(res.message || "Subscription canceled successfully");
+        if (refreshUser) {
+          await refreshUser();
+        }
+      } else {
+        toast.error(res.message || "Failed to cancel subscription");
+      }
+    } catch (err: any) {
+      console.error("Cancel subscription error:", err);
+      toast.error(err?.response?.message || err?.response?.error || err?.message || "Failed to cancel subscription");
+    } finally {
+      setLoadingCancel(false);
     }
   };
 
@@ -380,6 +426,23 @@ export default function SettingsPage() {
                 {loadingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : "Update Password"}
               </button>
             </div>
+
+            {/* Cancel Subscription Section */}
+            {(userPlan === "pro" || userPlan === "agency") && hasActiveSub && (
+              <div className="space-y-4 pt-6 border-t border-border/50">
+                <h2 className="text-lg font-semibold text-foreground">Subscription Management</h2>
+                <p className="text-sm text-muted-foreground">
+                  Turn off auto-renewal for your subscription. Your premium features will remain active until the end of the current billing period.
+                </p>
+                <button
+                  onClick={handleCancelSubscription}
+                  disabled={loadingCancel}
+                  className="px-6 py-2.5 rounded-xl border border-red-500/30 hover:border-red-500/50 hover:bg-red-500/10 text-red-400 font-medium transition-all flex items-center gap-2 text-sm disabled:opacity-50"
+                >
+                  {loadingCancel ? <Loader2 className="w-4 h-4 animate-spin" /> : "Turn Off Auto-Renewal"}
+                </button>
+              </div>
+            )}
           </div>
         )}
 

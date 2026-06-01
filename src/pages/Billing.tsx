@@ -205,9 +205,11 @@ export default function BillingPage() {
                                         <td className="px-6 py-4">
                                             <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${log.status === "active"
                                                 ? "bg-green-500/10 text-green-500"
-                                                : "bg-red-500/10 text-red-500"
+                                                : log.status === "canceling"
+                                                    ? "bg-amber-500/10 text-amber-500"
+                                                    : "bg-red-500/10 text-red-500"
                                                 }`}>
-                                                {log.status === "active" ? "Активная" : "Не активная"}
+                                                {log.status === "active" ? "Active" : (log.status === "canceling" ? "Canceling" : "Inactive")}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-muted-foreground">${log.amount}</td>
@@ -223,7 +225,7 @@ export default function BillingPage() {
                             ) : (
                                 <tr>
                                     <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground italic">
-                                        Пока нет истории платежей.
+                                        No payment logs yet.
                                     </td>
                                 </tr>
                             )}

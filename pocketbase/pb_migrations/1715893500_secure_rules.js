@@ -17,10 +17,10 @@ migrate((app) => {
   app.save(billing);
 
   // SECURE LINKS
-  // listRule: only owners can list their own links (prevents bulk scraping)
+  // listRule: public — required for RedirectHandler to resolve slugs for unauthenticated visitors
   // viewRule: public — required for RedirectHandler to resolve slugs for unauthenticated visitors
   const links = app.findCollectionByNameOrId("links");
-  links.listRule = "@request.auth.id = user_id";
+  links.listRule = "";
   links.viewRule = "";
   app.save(links);
 }, (app) => {
