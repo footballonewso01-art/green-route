@@ -51,6 +51,11 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     description: "Compare Linktery vs Beacons. Analyze premium customization capabilities, device & location targeting features, pricing structures, and analytics to select the best tool.",
     canonical: "/alternatives/beacons",
   },
+  lnkBioAlternative: {
+    title: "Best Lnk.Bio Alternative: Fastest Bio Link for Creators (2026) | Linktery",
+    description: "Compare Lnk.Bio vs Linktery. Discover the fastest pre-rendered (SSG) link-in-bio tool with built-in app deep linking, unlimited links, and advanced rotator split testing.",
+    canonical: "/alternatives/lnk-bio",
+  },
   onlyfansSolution: {
     title: "OnlyFans Link in Bio: Safe Sharing on Instagram & TikTok | Linktery",
     description: "Learn how to safely share OnlyFans links on Instagram & TikTok without bans or shadowbans. Secure your creator profile with link cloaking and custom domains.",
@@ -90,6 +95,36 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     title: "YouTube Description Smart Links: Bypass In-App Browser | Linktery",
     description: "Bypass the YouTube in-app browser jail. Route your description link clicks directly into native apps (Instagram, Telegram, Spotify) to boost subscriber conversions.",
     canonical: "/solutions/youtube-smart-links",
+  },
+  musicSmartLinks: {
+    title: "Music Smart Links: Spotify Pre-Save & App Deep Linking | Linktery",
+    description: "Create beautiful music smart links. Redirect listeners directly to Spotify, Apple Music, and YouTube Music native apps to double your streams and pre-saves.",
+    canonical: "/solutions/music-smart-links",
+  },
+  digitalProductsSmartLinks: {
+    title: "Gumroad & Lemon Squeezy Smart Links: Maximize Sales | Linktery",
+    description: "Bypass conversion-killing in-app browsers. Redirect buyers directly to Safari or Chrome with active Apple/Google Pay sessions to double your digital product sales.",
+    canonical: "/solutions/digital-product-smart-links",
+  },
+  podcastSmartLinks: {
+    title: "Podcast Smart Links: Apple & Spotify Podcasts Redirection | Linktery",
+    description: "Maximize your podcast subscribers. Generate universal smart links that open directly in Apple Podcasts and Spotify native apps, bypassing webview login walls.",
+    canonical: "/solutions/podcast-smart-links",
+  },
+  shopifySmartLinks: {
+    title: "Shopify & E-commerce Smart Links: Bypass Webview Checkout Frictions | Linktery",
+    description: "Maximize your mobile sales conversions. Redirect Instagram and TikTok bio traffic directly to Safari or Chrome native browsers with active Apple Pay, Google Pay, and Shop Pay sessions.",
+    canonical: "/solutions/shopify-smart-links",
+  },
+  fanvueSmartLinks: {
+    title: "Fanvue & AI Influencer Smart Links: Link Rotators & Ban Shield | Linktery",
+    description: "Protect your AI model profiles from bans. Use advanced link cloaking, rotate traffic across multiple Fanvue/Fansly destinations, and bypass in-app browser login blocks.",
+    canonical: "/solutions/fanvue-ai-models",
+  },
+  geoTargetedRedirect: {
+    title: "Geo-Targeting & Multilingual Redirect: Smart Link Localization | Linktery",
+    description: "Route global clicks dynamically. Automatically detect visitor country or browser language to redirect traffic to localized stores, currency checkout pages, or translation links.",
+    canonical: "/solutions/geo-targeted-redirect",
   },
 };
 

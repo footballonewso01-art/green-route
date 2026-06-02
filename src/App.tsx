@@ -19,6 +19,13 @@ import SmartRedirect from "./pages/SmartRedirect";
 import DeeplinkGenerator from "./pages/DeeplinkGenerator";
 import FitnessCoachSolution from "./pages/FitnessCoachSolution";
 import YoutubeSmartLinks from "./pages/YoutubeSmartLinks";
+import MusicSmartLinks from "./pages/MusicSmartLinks";
+import DigitalProductsSolution from "./pages/DigitalProductsSolution";
+import PodcastSmartLinks from "./pages/PodcastSmartLinks";
+import ShopifySmartLinks from "./pages/ShopifySmartLinks";
+import FanvueSmartLinks from "./pages/FanvueSmartLinks";
+import GeoTargetedRedirect from "./pages/GeoTargetedRedirect";
+import LnkBioAlternative from "./pages/LnkBioAlternative";
 import { AdminRoute } from "./components/AdminRoute";
 
 import RedirectHandler from "./pages/RedirectHandler";
@@ -138,6 +145,13 @@ const AppRoutes = () => (
     <Route path="/solutions/deeplink-generator" element={<DeeplinkGenerator />} />
     <Route path="/solutions/link-in-bio-for-fitness-coaches" element={<FitnessCoachSolution />} />
     <Route path="/solutions/youtube-smart-links" element={<YoutubeSmartLinks />} />
+    <Route path="/solutions/music-smart-links" element={<MusicSmartLinks />} />
+    <Route path="/solutions/digital-product-smart-links" element={<DigitalProductsSolution />} />
+    <Route path="/solutions/podcast-smart-links" element={<PodcastSmartLinks />} />
+    <Route path="/solutions/shopify-smart-links" element={<ShopifySmartLinks />} />
+    <Route path="/solutions/fanvue-ai-models" element={<FanvueSmartLinks />} />
+    <Route path="/solutions/geo-targeted-redirect" element={<GeoTargetedRedirect />} />
+    <Route path="/alternatives/lnk-bio" element={<LnkBioAlternative />} />
     <Route path="/auth" element={<Navigate to="/login" replace />} />
 
     <Route path="/open-in-browser" element={<InterstitialPage />} />
