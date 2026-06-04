@@ -59,7 +59,7 @@ export default function UgcPortfolio() {
       tagline: "High-engagement cosmetic transitions & routines",
       videos: [
         { id: 1, title: "Morning Dewy Skincare Routine", thumbnail: "bg-gradient-to-br from-rose-500/20 to-orange-500/20", views: "84.3K", er: "6.4%", ctr: "3.4%", watchTime: "12.8s" },
-        { id: 2, title: "Waterproof Mascara Rain Test", thumbnail: "bg-gradient-to-br from-pink-500/20 to-violet-500/20", views: "142.1K", er: "8.2%", ctr: "4.8%", watchTime: "14.5s" },
+        { id: 2, title: "Waterproof Mascara Rain Test", thumbnail: "bg-gradient-to-br from-pink-500/20 to-emerald-500/20", views: "142.1K", er: "8.2%", ctr: "4.8%", watchTime: "14.5s" },
         { id: 3, title: "Vanity Space Organization Hacks", thumbnail: "bg-gradient-to-br from-teal-500/20 to-rose-500/20", views: "62.5K", er: "5.9%", ctr: "2.9%", watchTime: "11.2s" }
       ]
     },

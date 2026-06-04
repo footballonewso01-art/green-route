@@ -1,0 +1,530 @@
+[
+  {
+    "slug": "real-estate-agents",
+    "name": "Real Estate Agents",
+    "headline": "Link in Bio for Real Estate Agents",
+    "subheadline": "Showcase current listings, schedule property viewings, and capture hot buyer leads directly from your social media bio.",
+    "cta": "Build My Real Estate Portfolio",
+    "theme": "bg-slate-900 border-slate-800",
+    "accent": "bg-emerald-500/20 border-emerald-500/40 text-emerald-400",
+    "avatar": "🏢",
+    "handle": "@sterling_homes",
+    "links": [
+      { "title": "📅 Schedule a Private Viewing", "icon": "🗓️", "clicks": "2.4k" },
+      { "title": "🏡 Browse Active Listings", "icon": "🔍", "clicks": "5.8k" },
+      { "title": "📄 Download Home Buyers Guide", "icon": "📥", "clicks": "1.1k" }
+    ],
+    "stats": [
+      { "label": "Avg Leads", "value": "120/mo" },
+      { "label": "Click Rate", "value": "4.2%" },
+      { "label": "Guide Downloads", "value": "350" }
+    ],
+    "problemTitle": "The Outdated PDF Flyer",
+    "problemDesc": "Sending prospect buyers static links or heavy attachments to look at listings creates huge drop-offs. If a listing sells, your prints and social bio links are instantly outdated.",
+    "solutionTitle": "The Live Listing Command Center",
+    "solutionDesc": "Linktery gives realtors a single bio link to connect active custom listing subdomains, track visitor geolocation data, and swap links in 1 click as properties sell.",
+    "bullet1": "Zero-friction viewing scheduling forms embedded natively.",
+    "bullet2": "Dynamic redirections to updated MLS listing pages.",
+    "bullet3": "Location-based routing to show local listings to local buyers.",
+    "faqs": [
+      {
+        "question": "Can I connect my real estate brokerage subdomain?",
+        "answer": "Yes. You can connect subdomains like listings.yourname.com or homes.yourbrand.com to your Linktery bio-link page dynamically."
+      },
+      {
+        "question": "Is it easy to update listings when a house is sold?",
+        "answer": "Yes. You can swap links, toggle listing status, or redirect traffic to new properties in 5 seconds from your master dashboard."
+      },
+      {
+        "question": "Can I track which social platform generates the most buyer leads?",
+        "answer": "Absolutely. By setting custom UTM parameters on your Instagram, YouTube, and Facebook bios, Linktery shows exactly where your leads come from."
+      }
+    ],
+    "seoTitle": "Free Link in Bio Tool for Real Estate Agents (2026) | Linktery",
+    "seoDescription": "Build a professional real estate bio link. Showcase active MLS listings, schedule home viewings, connect brokerage custom subdomains, and track hot buyer leads."
+  },
+  {
+    "slug": "onlyfans-creators",
+    "name": "OnlyFans Creators",
+    "headline": "OnlyFans Link in Bio & Ban Shield",
+    "subheadline": "Share your premium content links safely. Bypass social media censorship, protect your profiles, and optimize subscriber traffic.",
+    "cta": "Secure My Creator Bio Link",
+    "theme": "bg-neutral-900 border-neutral-800",
+    "accent": "bg-sky-500/20 border-sky-500/40 text-sky-400",
+    "avatar": "🦋",
+    "handle": "@ruby_exclusive",
+    "links": [
+      { "title": "🔒 Join My OnlyFans (50% Off)", "icon": "💋", "clicks": "12.8k" },
+      { "title": "🛍️ Shop My Merch Store", "icon": "👗", "clicks": "4.2k" },
+      { "title": "💬 Chat with Me on Telegram", "icon": "✉️", "clicks": "6.5k" }
+    ],
+    "stats": [
+      { "label": "Clicks Tracked", "value": "24.5K" },
+      { "label": "Conversion Rate", "value": "11.2%" },
+      { "label": "Bans Shielded", "value": "100%" }
+    ],
+    "problemTitle": "Social Media Bans & Webview Blocks",
+    "problemDesc": "Instagram and TikTok actively shadowban or block direct OnlyFans link clicks. In-app webviews also force users to log in again, killing up to 50% of subscriber conversions.",
+    "solutionTitle": "The Safe Link Cloaking Shield",
+    "solutionDesc": "Linktery wraps your links in secure redirect scripts, bypassing in-app browser blocks and launching the native Safari/Chrome browsers where users are already logged in.",
+    "bullet1": "Advanced link cloaking preventing shadowbans.",
+    "bullet2": "Direct app launching bypassing webview jails.",
+    "bullet3": "Traffic split rotators to distribute subscribers across pages.",
+    "faqs": [
+      {
+        "question": "Will this protect my Instagram profile from getting banned?",
+        "answer": "Yes. Linktery uses cloaked redirection routing which prevents Instagram bots from crawling and flag-blocking adult platform domains directly."
+      },
+      {
+        "question": "How does it bypass the in-app browser login wall?",
+        "answer": "We use mobile deep links that redirect clicks out of the Instagram/TikTok app directly into the native browser, where users have active sessions."
+      },
+      {
+        "question": "Can I rotate traffic across multiple backup profiles?",
+        "answer": "Absolutely. You can set up link rotators with weight parameters to distribute incoming traffic across backup accounts."
+      }
+    ],
+    "seoTitle": "OnlyFans Link in Bio: Safe Redirection & Ban Shield | Linktery",
+    "seoDescription": "Protect your OnlyFans link from Instagram and TikTok bans. Bypass in-app browser checkout blocks, route traffic safely, and double your subscriber conversions."
+  },
+  {
+    "slug": "musicians",
+    "name": "Musicians & Bands",
+    "headline": "Music Smart Links & Spotify Pre-Save",
+    "subheadline": "Connect all streaming platforms, launch Spotify pre-saves, and direct fans straight to ticket hubs from a single link.",
+    "cta": "Build My Music Link",
+    "theme": "bg-zinc-950 border-zinc-900",
+    "accent": "bg-cyan-500/20 border-cyan-500/40 text-cyan-400",
+    "avatar": "🎵",
+    "handle": "@sound_wave",
+    "links": [
+      { "title": "🎧 Listen on Spotify", "icon": "🟢", "clicks": "18.4k" },
+      { "title": "💿 Pre-Save New Album 'Echoes'", "icon": "📀", "clicks": "9.2k" },
+      { "title": "🎫 Tour Dates & Tickets", "icon": "🎸", "clicks": "5.6k" }
+    ],
+    "stats": [
+      { "label": "Pre-Saves", "value": "3.4K" },
+      { "label": "Streams Guided", "value": "45.2K" },
+      { "label": "Ticket Clicks", "value": "1.8K" }
+    ],
+    "problemTitle": "Platform Fragmentation",
+    "problemDesc": "Fans stream music on different platforms (Spotify, Apple Music, YouTube). Linking only one platform isolates users, and forcing multiple web links creates huge click drop-offs.",
+    "solutionTitle": "The Universal Music Smart Link",
+    "solutionDesc": "Linktery creates a beautiful, edge-rendered music smart page that dynamically detects user devices and routes fans directly into their native music applications.",
+    "bullet1": "Spotify and Apple Music native app openers.",
+    "bullet2": "Built-in dynamic pre-save modules.",
+    "bullet3": "Zero-friction tour ticket routing.",
+    "faqs": [
+      {
+        "question": "Does it open Spotify directly in the Spotify app?",
+        "answer": "Yes. Our deep links bypass in-app browsers, launching the Spotify native mobile app directly, allowing fans to follow or play tracks instantly."
+      },
+      {
+        "question": "How do Album Pre-saves work on Linktery?",
+        "answer": "You can connect your pre-save API. Fans click to pre-save, authorizing Spotify to automatically save your album to their library on release day."
+      },
+      {
+        "question": "Can I track which city has the most listening fans?",
+        "answer": "Yes. Linktery analytics track geolocation data down to the city level, helping you plan tour routing and target ads."
+      }
+    ],
+    "seoTitle": "Music Smart Links: Spotify Pre-Save & App Opener | Linktery",
+    "seoDescription": "Create dynamic music smart links. Direct fans to Spotify, Apple Music, and tour tickets natively, bypassing in-app webviews to boost streams."
+  },
+  {
+    "slug": "fitness-coaches",
+    "name": "Fitness Coaches",
+    "headline": "Link in Bio for Fitness Coaches & Trainers",
+    "subheadline": "Sell workout guides, capture client intake questionnaires, and direct traffic to your coaching program from one dashboard.",
+    "cta": "Build My Coaching Link",
+    "theme": "bg-neutral-900 border-neutral-800",
+    "accent": "bg-orange-500/20 border-orange-500/40 text-orange-400",
+    "avatar": "💪",
+    "handle": "@sterling_fitness",
+    "links": [
+      { "title": "🔥 Apply for 1-on-1 Online Coaching", "icon": "📋", "clicks": "1.8k" },
+      { "title": "💪 Download My 12-Week Workout Plan", "icon": "🏋️", "clicks": "4.2k" },
+      { "title": "🛍️ Shop Gymshark Merch (10% Off)", "icon": "👟", "clicks": "2.1k" }
+    ],
+    "stats": [
+      { "label": "Client Leads", "value": "95/mo" },
+      { "label": "Guide Sales", "value": "$4.5K" },
+      { "label": "Link Click Rate", "value": "5.6%" }
+    ],
+    "problemTitle": "High Intake Friction",
+    "problemDesc": "Coaches lose potential clients when onboarding forms are slow or buried. Sending users to generic website pages ruins conversions on mobile social traffic.",
+    "solutionTitle": "The Fast Track Coaching Funnel",
+    "solutionDesc": "Linktery creates an instant-loading, mobile-optimized landing page with direct form redirects, custom domain mapping, and pixel retargeting to capture every lead.",
+    "bullet1": "Instant-loading digital guides delivery.",
+    "bullet2": "Direct app integration for client questionnaires.",
+    "bullet3": "Retargeting pixel tracking to capture visitors.",
+    "faqs": [
+      {
+        "question": "Can I connect my Typeform or Google Forms intake links?",
+        "answer": "Yes. You can link any form or scheduler dynamically and track exactly how many users click through to apply."
+      },
+      {
+        "question": "Can I sell PDF workout guides directly?",
+        "answer": "Yes. You can link to checkout providers like Gumroad or Lemon Squeezy, and Linktery will redirect users directly to Safari/Chrome with active Apple Pay for 1-click buying."
+      },
+      {
+        "question": "Can I retarget clients who visited but didn't fill out the form?",
+        "answer": "Absolutely. Add your Facebook or TikTok Pixel ID in the Linktery dashboard to run retargeting ads to prospects."
+      }
+    ],
+    "seoTitle": "Link in Bio for Fitness Coaches: Onboard Clients & Sell Guides | Linktery",
+    "seoDescription": "Build a custom fitness coach bio link. Onboard online training clients, sell PDF workout guides, connect custom domains, and track social conversions."
+  },
+  {
+    "slug": "ugc-creators",
+    "name": "UGC Creators",
+    "headline": "UGC Creator Portfolio & Rate Card",
+    "subheadline": "Showcase your vertical video clips, display real-time engagement metrics, and let brands build pricing quotes directly.",
+    "cta": "Build My UGC Portfolio",
+    "theme": "bg-stone-900 border-stone-800",
+    "accent": "bg-emerald-500/20 border-emerald-500/40 text-emerald-400",
+    "avatar": "🤳",
+    "handle": "@alex_ugc",
+    "links": [
+      { "title": " Morning Dewy Skincare Routine", "icon": "🧴", "clicks": "8.4k" },
+      { "title": " Mechanical Keyboard ASMR Review", "icon": "⌨️", "clicks": "12.1k" },
+      { "title": " Get Custom Video Quote", "icon": "✉️", "clicks": "1.5k" }
+    ],
+    "stats": [
+      { "label": "Avg Views", "value": "124.5K" },
+      { "label": "Engagement", "value": "7.4%" },
+      { "label": "Click Rate", "value": "3.9%" }
+    ],
+    "problemTitle": "Static PDF Pitching",
+    "problemDesc": "Sending brand managers outdated PDF attachments that don't play videos natively creates friction. Brands can't see dynamic engagement data, causing missed contracts.",
+    "solutionTitle": "The Interactive Video Portfolio",
+    "solutionDesc": "Linktery pre-renders video showcases at edge nodes for instant mobile playback, integrates dynamic rate card quote calculators, and tracks email pitch clicks.",
+    "bullet1": "Edge CDN pre-rendered instant video grids.",
+    "bullet2": "Interactive rate cards with usage rights toggles.",
+    "bullet3": "Facebook/TikTok tracker pixel integrations.",
+    "faqs": [
+      {
+        "question": "How do I embed my TikTok or Reels video clips?",
+        "answer": "Simply paste the link in your dashboard. Linktery optimizes the viewport player to ensure the page loads in under 150ms without lagging."
+      },
+      {
+        "question": "How does the dynamic Rate Card Calculator work?",
+        "answer": "You configure base rates and multipliers. Brands toggle number of videos, media licenses, and Spark Ads to get an estimated total price quote."
+      },
+      {
+        "question": "Can I track when a specific brand opens my portfolio?",
+        "answer": "Yes. Set custom UTM parameters in your pitch emails to see exactly when and where the brand manager reviews your videos."
+      }
+    ],
+    "seoTitle": "Free UGC Creator Portfolio & Link in Bio Tool | Linktery",
+    "seoDescription": "Create an interactive UGC creator portfolio. Host high-speed video clips, build dynamic rate cards, connect custom subdomains, and track brand clicks."
+  },
+  {
+    "slug": "streamers",
+    "name": "Gamers & Streamers",
+    "headline": "Link in Bio for Streamers & Gamers",
+    "subheadline": "Direct fans to Kick, Twitch, and Discord. Promote sponsor affiliate discount codes, and showcase gaming clips natively.",
+    "cta": "Build My Streamer Page",
+    "theme": "bg-slate-950 border-slate-900",
+    "accent": "bg-green-500/20 border-green-500/40 text-green-400",
+    "avatar": "🎮",
+    "handle": "@ninja_vibe",
+    "links": [
+      { "title": "🟣 Watch Live on Twitch", "icon": "👾", "clicks": "22.4k" },
+      { "title": "💬 Join My Discord Server", "icon": "🚀", "clicks": "8.1k" },
+      { "title": "🖥️ Shop My Setup & Gear", "icon": "🖱️", "clicks": "4.5k" }
+    ],
+    "stats": [
+      { "label": "Twitch Clicks", "value": "12.4K" },
+      { "label": "Discord Joins", "value": "4.2K" },
+      { "label": "Affiliate CTR", "value": "6.8%" }
+    ],
+    "problemTitle": "Social Link Leaks",
+    "problemDesc": "Sponsor links get buried in streams and descriptions. Relying on basic links doesn't track click attribution, leading to lower affiliate payouts.",
+    "solutionTitle": "The Stream Command Center",
+    "solutionDesc": "Linktery creates a high-speed, dynamic bio link that hosts sponsor rotators, splits traffic, and tracks click conversions to maximize sponsor payouts.",
+    "bullet1": "A/B split testing for affiliate rotators.",
+    "bullet2": "Kick & Twitch native deep links.",
+    "bullet3": "Dynamic discount promo code callouts.",
+    "faqs": [
+      {
+        "question": "Can I track which social platform redirects the most fans to my stream?",
+        "answer": "Yes. Add UTM tracking links to your Twitter, TikTok, and YouTube bio links to see which platform converts best."
+      },
+      {
+        "question": "Can I distribute sponsor links randomly?",
+        "answer": "Yes. Our link rotator lets you split traffic by weights across different sponsor landing pages."
+      },
+      {
+        "question": "Is it mobile optimized?",
+        "answer": "Absolutely. Over 80% of fans view streamer links on mobile, and Linktery compiles pages to load instantly on 3G/4G."
+      }
+    ],
+    "seoTitle": "Link in Bio for Gamers & Streamers: Twitch, Kick & Discord | Linktery",
+    "seoDescription": "Create a custom streamer bio link. Route fans to Twitch, Kick, and Discord natively, split-test sponsor codes, and track audience analytics."
+  },
+  {
+    "slug": "photographers",
+    "name": "Photographers",
+    "headline": "Link in Bio for Photographers & Videographers",
+    "subheadline": "Showcase high-resolution gallery highlights, sell presets, and accept client booking requests from a single page.",
+    "cta": "Build My Photography Page",
+    "theme": "bg-neutral-900 border-neutral-800",
+    "accent": "bg-amber-500/20 border-amber-500/40 text-amber-400",
+    "avatar": "📸",
+    "handle": "@sterling_focus",
+    "links": [
+      { "title": "📸 View Full Portfolio Gallery", "icon": "🖼️", "clicks": "3.2k" },
+      { "title": "🎨 Buy Lightroom Presets Pack", "icon": "✨", "clicks": "1.8k" },
+      { "title": "📅 Book a Session (Schedule)", "icon": "🗓️", "clicks": "950" }
+    ],
+    "stats": [
+      { "label": "Preset Sales", "value": "$2.8K" },
+      { "label": "Bookings", "value": "42/mo" },
+      { "label": "Gallery Views", "value": "6.8K" }
+    ],
+    "problemTitle": "High Image Latency",
+    "problemDesc": "Heavy photo portfolio sites load slowly on mobile connections, causing potential clients to bounce before seeing your gallery.",
+    "solutionTitle": "The Fast Portfolio Redirect",
+    "solutionDesc": "Linktery hosts a lightweight page template that loads dynamic highlights instantly, routes bookings, and directs preset buyers to Chrome/Safari with Apple Pay.",
+    "bullet1": "Edge SSG loading under 150ms.",
+    "bullet2": "Direct payment redirection for Lightroom presets.",
+    "bullet3": "Connected scheduling calendar integrations.",
+    "faqs": [
+      {
+        "question": "How do I embed my high-resolution photos?",
+        "answer": "Upload photo previews to your Linktery page. We automatically optimize, compress, and serve them via globally distributed CDN servers."
+      },
+      {
+        "question": "Can I connect my Pixieset or SmugMug galleries?",
+        "answer": "Yes. Direct users dynamically to your external galleries and track client click metrics."
+      },
+      {
+        "question": "Can I sell digital assets like presets directly?",
+        "answer": "Yes. Linktery routes checkout links directly to active mobile payment sessions, boosting your e-commerce conversions."
+      }
+    ],
+    "seoTitle": "Link in Bio for Photographers & Videographers | Linktery",
+    "seoDescription": "Build a custom photography portfolio bio link. Showcase photo galleries, sell presets, connect custom domains, and capture client bookings."
+  },
+  {
+    "slug": "podcasters",
+    "name": "Podcasters",
+    "headline": "Podcast Smart Links & App Opener",
+    "subheadline": "Route listeners directly into native Apple and Spotify Podcast apps, preventing webview bounce rates.",
+    "cta": "Build My Podcast Link",
+    "theme": "bg-slate-900 border-slate-800",
+    "accent": "bg-emerald-500/20 border-emerald-500/40 text-emerald-400",
+    "avatar": "🎙️",
+    "handle": "@weekly_tech",
+    "links": [
+      { "title": "🎙️ Listen on Apple Podcasts", "icon": "🟣", "clicks": "8.9k" },
+      { "title": "🟢 Listen on Spotify Podcasts", "icon": "🔊", "clicks": "12.4k" },
+      { "title": "🧡 Support Us on Patreon", "icon": "🤝", "clicks": "1.5k" }
+    ],
+    "stats": [
+      { "label": "Listen Clicks", "value": "21.3K" },
+      { "label": "Patreon joins", "value": "120" },
+      { "label": "CTR Growth", "value": "45%" }
+    ],
+    "problemTitle": "The Webview Login Wall",
+    "problemDesc": "Clicking podcast links inside Instagram or Twitter opens a web view. Users must log in to follow or listen, causing up to 60% of subscribers to drop off.",
+    "solutionTitle": "Direct Native App Redirections",
+    "solutionDesc": "Linktery bypasses mobile webview containers, launching Apple Podcasts or Spotify native apps directly where listeners are already logged in.",
+    "bullet1": "Bypasses in-app browser containers.",
+    "bullet2": "Direct native app subscriber route.",
+    "bullet3": "UTM parameter tracking for audience source.",
+    "faqs": [
+      {
+        "question": "Will this increase my subscriber counts on Apple Podcasts?",
+        "answer": "Yes. Bypassing the browser wall allows users to click 'Subscribe' immediately inside the Apple Podcasts app."
+      },
+      {
+        "question": "Can I dynamically route listeners by device OS?",
+        "answer": "Yes. Linktery automatically routes iOS users to Apple Podcasts and Android users to Spotify or Google Podcasts."
+      },
+      {
+        "question": "Can I promote sponsorships and merch?",
+        "answer": "Absolutely. You can add dynamic affiliate codes and split-test links for sponsor campaigns."
+      }
+    ],
+    "seoTitle": "Podcast Smart Links: Apple & Spotify Podcasts Redirection | Linktery",
+    "seoDescription": "Create dynamic podcast smart links. Direct listeners into native Apple Podcasts and Spotify apps, bypassing browser login walls to boost subscribers."
+  },
+  {
+    "slug": "authors",
+    "name": "Authors & Writers",
+    "headline": "Link in Bio for Authors & Writers",
+    "subheadline": "Direct readers to Amazon, Goodreads, and digital stores. Promote book pre-orders and host newsletter signup forms.",
+    "cta": "Build My Author Page",
+    "theme": "bg-stone-900 border-stone-800",
+    "accent": "bg-amber-500/20 border-amber-500/40 text-amber-400",
+    "avatar": "✍️",
+    "handle": "@sterling_writes",
+    "links": [
+      { "title": "📖 Buy My Book on Amazon", "icon": "🛒", "clicks": "5.6k" },
+      { "title": "✍️ Subscribe to My Substack", "icon": "✉️", "clicks": "3.4k" },
+      { "title": "✨ Review My Book on Goodreads", "icon": "⭐", "clicks": "1.8k" }
+    ],
+    "stats": [
+      { "label": "Book Clicks", "value": "10.8K" },
+      { "label": "Substack Joins", "value": "1.2K" },
+      { "label": "Goodreads reviews", "value": "450" }
+    ],
+    "problemTitle": "High Book-Buying Friction",
+    "problemDesc": "Linking directly to Amazon or bookstores inside social bios trapped readers in webviews, forcing login verification and preventing Prime 1-click purchases.",
+    "solutionTitle": "Dynamic Book App Launcher",
+    "solutionDesc": "Linktery's smart redirection bypasses webviews, opening the native Amazon shopping app directly on mobile to preserve active logins and Prime conversions.",
+    "bullet1": "Deep links to Amazon Shopping app.",
+    "bullet2": "Goodreads review redirections.",
+    "bullet3": "Substack/Newsletter integrated signups.",
+    "faqs": [
+      {
+        "question": "Does it open the Amazon app directly?",
+        "answer": "Yes. Linktery bypasses the browser container, launching the Amazon native app to ensure readers can buy in 1 click."
+      },
+      {
+        "question": "Can I connect my dynamic Substack domain?",
+        "answer": "Yes, you can configure your Substack landing page directly and track exactly how many subscribers click through."
+      },
+      {
+        "question": "Can I track which books generate the most royalty revenue?",
+        "answer": "Yes, we integrate with affiliate UTM tags to track and attribute every book click."
+      }
+    ],
+    "seoTitle": "Link in Bio for Authors & Writers: Sell Books on Amazon | Linktery",
+    "seoDescription": "Build a custom author bio link. Direct readers to Amazon app directly, manage Substack signups, link Goodreads, and track book conversions."
+  },
+  {
+    "slug": "artists",
+    "name": "Artists & Illustrators",
+    "headline": "Link in Bio for Artists & Designers",
+    "subheadline": "Showcase your portfolio designs, sell digital commissions, and link to Patreon or store shops from one landing page.",
+    "cta": "Build My Art Page",
+    "theme": "bg-neutral-900 border-neutral-800",
+    "accent": "bg-emerald-500/20 border-emerald-500/40 text-emerald-400",
+    "avatar": "🎨",
+    "handle": "@ruby_illustrates",
+    "links": [
+      { "title": "🎨 Commission Price List & Slots", "icon": "📝", "clicks": "1.2k" },
+      { "title": "🛍️ Shop Art Prints & Merch Store", "icon": "🛒", "clicks": "3.8k" },
+      { "title": "🧡 Join My Patreon Club", "icon": "🤝", "clicks": "1.1k" }
+    ],
+    "stats": [
+      { "label": "Commissions", "value": "24/mo" },
+      { "label": "Store Clicks", "value": "4.9K" },
+      { "label": "Patreon Club", "value": "180" }
+    ],
+    "problemTitle": "Portfolio Load Delays",
+    "problemDesc": "Heavy digital galleries load slowly on mobile data, causing art directors or buyers to bounce before seeing your illustrations.",
+    "solutionTitle": "Dynamic Art Redirect Hub",
+    "solutionDesc": "Linktery creates a lightweight, Edge-rendered page to host showcase links, connect custom domains, and route shop buyers directly to payment options.",
+    "bullet1": "Static HTML rendering under 150ms.",
+    "bullet2": "Dynamic redirections to Etsy/Shopify stores.",
+    "bullet3": "Patreon app openers to boost subscriptions.",
+    "faqs": [
+      {
+        "question": "Can I connect my ArtStation or Behance portfolio?",
+        "answer": "Yes, you can route art directors directly to your external portfolios and monitor client click rates."
+      },
+      {
+        "question": "Can I sell commission packages directly?",
+        "answer": "Yes, you can link to Stripe, Gumroad, or Ko-fi directly, bypassing in-app browser checkout blocks."
+      },
+      {
+        "question": "Can I connect a custom domain?",
+        "answer": "Yes. Bind your personal domain or subdomain (e.g. art.myname.com) to your Linktery bio link."
+      }
+    ],
+    "seoTitle": "Link in Bio for Artists & Illustrators: Showcase Portfolio | Linktery",
+    "seoDescription": "Build a custom art bio link. Showcase digital portfolios, sell commissions, connect custom subdomains, and track Patreon signups."
+  },
+  {
+    "slug": "beauty-influencers",
+    "name": "Beauty & Fashion",
+    "headline": "Link in Bio for Beauty & Fashion Creators",
+    "subheadline": "Direct fans to outfit affiliate codes, promote beauty brand sponsorships, and host outfit links from a single page.",
+    "cta": "Build My Beauty Page",
+    "theme": "bg-neutral-900 border-neutral-800",
+    "accent": "bg-pink-500/20 border-pink-500/40 text-pink-400",
+    "avatar": "💅",
+    "handle": "@alex_style",
+    "links": [
+      { "title": "🛍️ Shop My Outfit on LTK (LiketoKnowit)", "icon": "👗", "clicks": "12.4k" },
+      { "title": "🧴 Skincare Routine Product Links", "icon": "💄", "clicks": "8.9k" },
+      { "title": "🎥 Watch My Makeup Tutorial (YouTube)", "icon": "🍿", "clicks": "4.5k" }
+    ],
+    "stats": [
+      { "label": "LTK Clicks", "value": "18.3K" },
+      { "label": "Product Clicks", "value": "12.5K" },
+      { "label": "YouTube Views", "value": "5.6K" }
+    ],
+    "problemTitle": "Lost Affiliate Conversions",
+    "problemDesc": "Sharing affiliate links in Instagram stories or bios locks users in in-app browsers, breaking cookie tracking and leading to lost sales commissions.",
+    "solutionTitle": "Dynamic Affiliate Redirections",
+    "solutionDesc": "Linktery bypasses webviews, directing clicks to native Safari/Chrome browsers or the Amazon Shopping app to secure active cookies and commissions.",
+    "bullet1": "Bypasses Instagram story browser blocks.",
+    "bullet2": "Dynamic A/B rotators for beauty brand codes.",
+    "bullet3": "Direct LTK/Amazon app redirections.",
+    "faqs": [
+      {
+        "question": "Does it track which products get the most clicks?",
+        "answer": "Yes. Our dashboard provides real-time click metrics for every single product link."
+      },
+      {
+        "question": "Can I rotate sponsor promo codes dynamically?",
+        "answer": "Yes. Set up a link rotator to balance and distribute clicks across active sponsor codes."
+      },
+      {
+        "question": "Will it open LiketoKnow.it or Amazon directly in the app?",
+        "answer": "Yes. Our deep links bypass in-app browsers to open native shopping applications immediately."
+      }
+    ],
+    "seoTitle": "Link in Bio for Beauty & Fashion Influencers | Linktery",
+    "seoDescription": "Build a custom fashion bio link. Manage outfit affiliate codes, direct users to Amazon shopping app, and track product conversion rates."
+  },
+  {
+    "slug": "e-commerce-brands",
+    "name": "E-commerce Brands",
+    "headline": "Shopify & E-commerce Smart Links",
+    "subheadline": "Bypass social in-app browser friction. Redirect traffic directly to Safari or Chrome with Apple Pay and Google Pay active.",
+    "cta": "Build My Storefront Link",
+    "theme": "bg-slate-900 border-slate-800",
+    "accent": "bg-emerald-500/20 border-emerald-500/40 text-emerald-400",
+    "avatar": "🛒",
+    "handle": "@sterling_shop",
+    "links": [
+      { "title": "🛍️ Shop Premium Headphones (20% Off)", "icon": "🎧", "clicks": "8.9k" },
+      { "title": "🔌 Buy Wireless Charging Pad", "icon": "🔋", "clicks": "5.4k" },
+      { "title": "🛒 View Shopify Storefront Home", "icon": "🛍️", "clicks": "3.2k" }
+    ],
+    "stats": [
+      { "label": "Store Sales", "value": "+35% Lift" },
+      { "label": "Scans Tracked", "value": "14.2K" },
+      { "label": "Checkout CR", "value": "8.4%" }
+    ],
+    "problemTitle": "In-App Browser Checkout Friction",
+    "problemDesc": "Social media webviews block auto-fills and break Apple/Google Pay sessions, forcing users to type credit card info manually and causing 70% checkout drops.",
+    "solutionTitle": "Direct Safari & Chrome Launcher",
+    "solutionDesc": "Linktery redirects mobile shopping traffic out of webviews and directly into Chrome/Safari, maintaining active Google/Apple Pay sessions for 1-click buyouts.",
+    "bullet1": "Launches native iOS/Android browsers directly.",
+    "bullet2": "Preserves active Apple Pay & Shop Pay sessions.",
+    "bullet3": "Integrates tracking pixels for checkout conversions.",
+    "faqs": [
+      {
+        "question": "How does it increase checkout conversion rates?",
+        "answer": "By forcing the link to open in Safari or Chrome, we preserve the user's active Apple Pay, Google Pay, and Shop Pay sessions, reducing checkout to 1-click."
+      },
+      {
+        "question": "Can I connect my Facebook and TikTok Pixels?",
+        "answer": "Yes. Add your pixel tracker tags in the Linktery dashboard to gather clean e-commerce retargeting metrics."
+      },
+      {
+        "question": "Is it compatible with Shopify, WooCommerce, and Magento?",
+        "answer": "Yes. Linktery works as a universal traffic router. Simply paste your store links, and we handle the browser redirections."
+      }
+    ],
+    "seoTitle": "Shopify & E-commerce Smart Links: Bypass Webviews | Linktery",
+    "seoDescription": "Increase storefront checkout conversion rates. Redirect social traffic directly to Safari or Chrome with active Apple Pay, Google Pay, and Shop Pay."
+  }
+]

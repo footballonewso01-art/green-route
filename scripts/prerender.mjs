@@ -38,6 +38,28 @@ const getSeoPagesConfig = () => {
     }
   }
 
+  // Load programmatic SEO pages from professions.json
+  try {
+    const professionsPath = path.join(process.cwd(), 'src/data/professions.json');
+    if (fs.existsSync(professionsPath)) {
+      const professions = JSON.parse(fs.readFileSync(professionsPath, 'utf8'));
+      console.log(`🤖 Loaded ${professions.length} professions for pre-rendering.`);
+      for (const prof of professions) {
+        configs.push({
+          key: `profession_${prof.slug.replace(/-/g, '_')}`,
+          route: `/solutions/link-in-bio-for-${prof.slug}`,
+          title: prof.seoTitle,
+          description: prof.seoDescription,
+          noIndex: false,
+        });
+      }
+    } else {
+      console.warn(`⚠️ Professions data file not found at: ${professionsPath}`);
+    }
+  } catch (err) {
+    console.error('❌ Failed to load professions data in prerender.mjs:', err);
+  }
+
   return configs;
 };
 
