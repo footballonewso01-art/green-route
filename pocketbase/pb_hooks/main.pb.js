@@ -201,9 +201,9 @@ routerAdd("POST", "/api/stripe/cancel-subscription", (c) => {
             0,
             { userId: user.id }
         );
-
         if (records.length === 0) {
-            return c.json(400, { message: "No active Stripe subscription found for this user." });
+            // User is Pro/Agency but has no active recurring Stripe subscription in our database (e.g. promocode, manual gift)
+            return c.json(200, { success: true, message: "Your plan is non-recurring (activated via promocode or gift) and will expire automatically without any charges." });
         }
 
         const bRecord = records[0];

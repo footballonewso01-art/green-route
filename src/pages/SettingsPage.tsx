@@ -38,21 +38,28 @@ export default function SettingsPage() {
 
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const plan = PLANS[userPlan as PlanType];
-  const hasUsedPromocode = !!(user as any)?.promocode_used;
+  const hasUsedPromocode = !!(user as Record<string, unknown>)?.promocode_used;
 
-  const [hasActiveSub, setHasActiveSub] = useState(false);
+  const [subStatus, setSubStatus] = useState<"active" | "canceling" | "none">("none");
 
   useEffect(() => {
     const checkActiveSub = async () => {
       if (!user) return;
       try {
         const result = await pb.collection("billing").getList(1, 1, {
-          filter: `user_id="${user.id}" && status="active" && payment_method="Stripe"`,
+          filter: `user_id="${user.id}" && (status="active" || status="canceling")`,
+          sort: "-created",
           requestKey: null
         });
-        setHasActiveSub(result.totalItems > 0);
+        if (result.totalItems > 0) {
+          const status = result.items[0].status; // "active" or "canceling"
+          setSubStatus(status as "active" | "canceling");
+        } else {
+          setSubStatus("none");
+        }
       } catch (err) {
         console.error("Failed to check active subscription", err);
+        setSubStatus("none");
       }
     };
     checkActiveSub();
@@ -108,9 +115,10 @@ export default function SettingsPage() {
       } else {
         toast.error(res.message || "Failed to apply promocode");
       }
-    } catch (err: any) {
-      console.error("Promocode apply error:", err);
-      toast.error(err?.response?.message || err?.response?.error || err?.message || "Failed to apply promocode");
+    } catch (err) {
+      const error = err as { response?: { message?: string; error?: string }; message?: string };
+      console.error("Promocode apply error:", error);
+      toast.error(error?.response?.message || error?.response?.error || error?.message || "Failed to apply promocode");
     } finally {
       setLoadingPromocode(false);
     }
@@ -188,9 +196,10 @@ export default function SettingsPage() {
       } else {
         toast.error(res.message || "Failed to cancel subscription");
       }
-    } catch (err: any) {
-      console.error("Cancel subscription error:", err);
-      toast.error(err?.response?.message || err?.response?.error || err?.message || "Failed to cancel subscription");
+    } catch (err) {
+      const error = err as { response?: { message?: string; error?: string }; message?: string };
+      console.error("Cancel subscription error:", error);
+      toast.error(error?.response?.message || error?.response?.error || error?.message || "Failed to cancel subscription");
     } finally {
       setLoadingCancel(false);
     }
@@ -332,9 +341,10 @@ export default function SettingsPage() {
 
                     await refreshUser();
                     toast.success('Account updated successfully');
-                  } catch (err: any) {
-                    console.error('Account update error:', err);
-                    toast.error(err?.response?.message || err?.message || 'Failed to update account');
+                  } catch (err) {
+                    const error = err as { response?: { message?: string }; message?: string };
+                    console.error('Account update error:', error);
+                    toast.error(error?.response?.message || error?.message || 'Failed to update account');
                   } finally {
                     setSavingAccount(false);
                   }
@@ -428,19 +438,27 @@ export default function SettingsPage() {
             </div>
 
             {/* Cancel Subscription Section */}
-            {(userPlan === "pro" || userPlan === "agency") && hasActiveSub && (
+            {(userPlan === "pro" || userPlan === "agency") && (
               <div className="space-y-4 pt-6 border-t border-border/50">
                 <h2 className="text-lg font-semibold text-foreground">Subscription Management</h2>
-                <p className="text-sm text-muted-foreground">
-                  Turn off auto-renewal for your subscription. Your premium features will remain active until the end of the current billing period.
-                </p>
-                <button
-                  onClick={handleCancelSubscription}
-                  disabled={loadingCancel}
-                  className="px-6 py-2.5 rounded-xl border border-red-500/30 hover:border-red-500/50 hover:bg-red-500/10 text-red-400 font-medium transition-all flex items-center gap-2 text-sm disabled:opacity-50"
-                >
-                  {loadingCancel ? <Loader2 className="w-4 h-4 animate-spin" /> : "Turn Off Auto-Renewal"}
-                </button>
+                {subStatus === "canceling" ? (
+                  <p className="text-sm text-amber-500 font-medium bg-amber-500/5 border border-amber-500/10 p-4 rounded-xl">
+                    Auto-renewal is turned off. Your premium features will remain active until the end of your billing cycle.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Turn off auto-renewal for your subscription. Your premium features will remain active until the end of the current billing period.
+                    </p>
+                    <button
+                      onClick={handleCancelSubscription}
+                      disabled={loadingCancel}
+                      className="px-6 py-2.5 rounded-xl border border-red-500/30 hover:border-red-500/50 hover:bg-red-500/10 text-red-400 font-medium transition-all flex items-center gap-2 text-sm disabled:opacity-50"
+                    >
+                      {loadingCancel ? <Loader2 className="w-4 h-4 animate-spin" /> : "Turn Off Auto-Renewal"}
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>

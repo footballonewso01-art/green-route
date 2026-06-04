@@ -126,6 +126,26 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     description: "Route global clicks dynamically. Automatically detect visitor country or browser language to redirect traffic to localized stores, currency checkout pages, or translation links.",
     canonical: "/solutions/geo-targeted-redirect",
   },
+  amazonSmartLinks: {
+    title: "Amazon Affiliate Smart Links: Open Amazon App Directly | Linktery",
+    description: "Generate Amazon Associate smart links. Bypass in-app webviews to redirect mobile clicks directly to the native Amazon shopping app, doubling your affiliate conversions.",
+    canonical: "/solutions/amazon-smart-links",
+  },
+  linkMeAlternative: {
+    title: "Best Link.me Alternative: Manage Multiple Profiles (2026) | Linktery",
+    description: "Compare Link.me vs Linktery. Unlock multi-profile management to run separate bio-link pages for different brands under one account, with instant SSG loading and deep links.",
+    canonical: "/alternatives/link-me",
+  },
+  ugcPortfolio: {
+    title: "Free UGC Creator Portfolio & Link in Bio Tool (2026) | Linktery",
+    description: "Build a stunning UGC creator portfolio in minutes. Embed TikTok & Reels mockups, display video engagement metrics, integrate rate cards, and share your landing page with brands.",
+    canonical: "/solutions/ugc-portfolio",
+  },
+  qrCodeBiolink: {
+    title: "Free Dynamic QR Code Generator for Business Cards & Retail (2026) | Linktery",
+    description: "Generate dynamic QR codes for business cards, retail menus, and storefronts. Link directly to your custom bio-link, track scan analytics, and update destinations instantly without reprinting.",
+    canonical: "/solutions/qr-code-biolink",
+  },
 };
 
 

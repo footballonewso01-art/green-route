@@ -26,6 +26,10 @@ import ShopifySmartLinks from "./pages/ShopifySmartLinks";
 import FanvueSmartLinks from "./pages/FanvueSmartLinks";
 import GeoTargetedRedirect from "./pages/GeoTargetedRedirect";
 import LnkBioAlternative from "./pages/LnkBioAlternative";
+import AmazonSmartLinks from "./pages/AmazonSmartLinks";
+import LinkMeAlternative from "./pages/LinkMeAlternative";
+import UgcPortfolio from "./pages/UgcPortfolio";
+import QrCodeBiolink from "./pages/QrCodeBiolink";
 import { AdminRoute } from "./components/AdminRoute";
 
 import RedirectHandler from "./pages/RedirectHandler";
@@ -151,7 +155,11 @@ const AppRoutes = () => (
     <Route path="/solutions/shopify-smart-links" element={<ShopifySmartLinks />} />
     <Route path="/solutions/fanvue-ai-models" element={<FanvueSmartLinks />} />
     <Route path="/solutions/geo-targeted-redirect" element={<GeoTargetedRedirect />} />
+    <Route path="/solutions/amazon-smart-links" element={<AmazonSmartLinks />} />
     <Route path="/alternatives/lnk-bio" element={<LnkBioAlternative />} />
+    <Route path="/alternatives/link-me" element={<LinkMeAlternative />} />
+    <Route path="/solutions/ugc-portfolio" element={<UgcPortfolio />} />
+    <Route path="/solutions/qr-code-biolink" element={<QrCodeBiolink />} />
     <Route path="/auth" element={<Navigate to="/login" replace />} />
 
     <Route path="/open-in-browser" element={<InterstitialPage />} />
