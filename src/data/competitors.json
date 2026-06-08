@@ -190,5 +190,261 @@
     "faqAnswer": "Taplink provides custom layouts at low costs but lacks speed optimization and deep linking. Linktery pre-renders your pages into lightweight static HTML (SSG) at edge nodes, loading in under 150ms, with native app launching to maximize conversions.",
     "alternativeSeoTitle": "Best Taplink Alternative: Fast SSG Bio Link Tool (2026) | Linktery",
     "alternativeSeoDescription": "Compare Taplink vs Linktery. Get the fastest edge-rendered micro landing page builder with app deep linking, custom subdomains, and zero transaction fees."
+  },
+  {
+    "slug": "shorby",
+    "name": "Shorby",
+    "emoji": "⚡",
+    "description": "Shorby is a specialized link management tool built for Instagram marketers, featuring retargeting link rotators.",
+    "pricing": {
+      "free": "N/A (No Free Tier)",
+      "pro": "$15/mo to $29/mo",
+      "customDomains": "$29/mo (Pro)",
+      "watermarkRemoval": "$15/mo (Start)",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "⚠️ Basic visual click metrics",
+      "customDomains": "⚠️ Restricted to Pro plan ($29/mo)"
+    },
+    "pros": [
+      "Easy custom messenger blocks (WhatsApp/Telegram clicks)",
+      "Built-in simple link rotators for tracking links",
+      "Quick layout setup with visual elements"
+    ],
+    "cons": [
+      "Absolutely no free plan available (costs start at $15/mo)",
+      "Interface is dated and lacks advanced design widgets",
+      "No geolocation or smart device OS redirect criteria rules"
+    ],
+    "faqAnswer": "Shorby lacks a free plan and locks custom domain mappings behind a high $29/mo Pro plan. Linktery offers a completely free Creator plan and integrates smart edge-level device redirections at much more competitive rates.",
+    "alternativeSeoTitle": "Best Shorby Alternative: Performance Smart Link Router (2026) | Linktery",
+    "alternativeSeoDescription": "Compare Shorby vs Linktery. Unlock custom domain mapping, smart geolocation redirects, native app deep linking, and a free tier with 0% platform fees."
+  },
+  {
+    "slug": "campsite",
+    "name": "Campsite.bio",
+    "emoji": "🏕️",
+    "description": "Campsite.bio is a highly customizable link tool known for visual carousels and brand integration controls.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$7/mo to $24/mo",
+      "customDomains": "$24/mo (Pro+)",
+      "watermarkRemoval": "$7/mo (Pro)",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "⚠️ Medium metrics telemetry",
+      "customDomains": "⚠️ Restricted to Pro+ plan ($24/mo)"
+    },
+    "pros": [
+      "Supports image carousels and visual slide components",
+      "Good customization options for colors and buttons",
+      "Easy social media integration setup"
+    ],
+    "cons": [
+      "Custom domains are heavily paywalled at the Pro+ ($24/mo) level",
+      "Lacks native app launching protocols (visitors remain in webviews)",
+      "No geographic or browser language routing systems"
+    ],
+    "faqAnswer": "Campsite.bio is useful for carousels but charges $24/mo for custom domains. Linktery provides custom domain verification, advanced geotargeting, and deep links at less than half that cost.",
+    "alternativeSeoTitle": "Best Campsite.bio Alternative: Custom Domains & Deep Links | Linktery",
+    "alternativeSeoDescription": "Compare Campsite vs Linktery. Learn how to map custom domains, bypass Instagram/TikTok webviews, and track real-time analytics with zero transaction cuts."
+  },
+  {
+    "slug": "milkshake",
+    "name": "Milkshake.app",
+    "emoji": "🥤",
+    "description": "Milkshake is a mobile-only card website builder app for Instagram, managed strictly from smartphones.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$2.99/mo (Subscription)",
+      "customDomains": "❌ Not Supported",
+      "watermarkRemoval": "$2.99/mo",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "❌ Basic visual views counter",
+      "customDomains": "❌ Not Supported"
+    },
+    "pros": [
+      "Fun visual cards that users swipe through on mobile devices",
+      "Managed completely on iOS or Android smartphone applications",
+      "Very easy to set up for casual social media creators"
+    ],
+    "cons": [
+      "No desktop browser dashboard editor exists (must edit on phone)",
+      "Does not support custom domains or custom subdomain mapping",
+      "Zero advanced marketing pixels or automated link rotation rules"
+    ],
+    "faqAnswer": "Milkshake is a simple card builder app with no custom domain or desktop editing capabilities. Linktery provides a complete web marketing dashboard with custom domain integration for brands and creators.",
+    "alternativeSeoTitle": "Best Milkshake App Alternative: Desktop & Custom Domain Support | Linktery",
+    "alternativeSeoDescription": "Compare Milkshake vs Linktery. Unlock desktop editor support, custom domain mappings, Facebook/TikTok tracking pixels, and split test links with zero platform cuts."
+  },
+  {
+    "slug": "bio-link",
+    "name": "Bio.link",
+    "emoji": "⚡",
+    "description": "Bio.link is an ultra-fast, minimal link list builder designed by the team behind BuyMeACoffee.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$3.99/mo to $9.99/mo",
+      "customDomains": "$3.99/mo (Pro)",
+      "watermarkRemoval": "$3.99/mo (Pro)",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "⚠️ Basic telemetry views metrics",
+      "customDomains": "⚠️ Restricted to Pro plan ($3.99/mo)"
+    },
+    "pros": [
+      "Highly clean, minimal design patterns that load quickly",
+      "Native widget integration for BuyMeACoffee supporters",
+      "Simple and easy drag-and-drop link configuration"
+    ],
+    "cons": [
+      "Layout configurations are very rigid and look identical",
+      "No advanced tracking parameters or A/B rotator splits",
+      "No smart geolocation country redirections or OS splits"
+    ],
+    "faqAnswer": "Bio.link is clean but lacks advanced targeting. Linktery supports dynamic link rotation, device-specific rules, and geolocation redirects to route traffic dynamically.",
+    "alternativeSeoTitle": "Best Bio.link Alternative: Advanced Targeting & Rotator Links | Linktery",
+    "alternativeSeoDescription": "Compare Bio.link vs Linktery. Discover the fastest link-in-bio tool with advanced A/B split rotators, device targeting rules, and 0% payment commissions."
+  },
+  {
+    "slug": "direct-me",
+    "name": "Direct.me",
+    "emoji": "🌐",
+    "description": "Direct.me is a link aggregator that connects content creators, actors, and artists with their audience using custom social profiles.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$4/mo",
+      "customDomains": "$4/mo (Pro)",
+      "watermarkRemoval": "$4/mo (Pro)",
+      "transactionFee": "5% on Free"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "⚠️ Basic telemetry clicks",
+      "customDomains": "⚠️ Requires Pro subscription ($4/mo)"
+    },
+    "pros": [
+      "Quick visual setup with customizable buttons and background templates",
+      "Very affordable paid subscription option",
+      "Good integrations with streaming platforms and media widgets"
+    ],
+    "cons": [
+      "Takes a 5% commission on store transactions under the free tier",
+      "Outdated panel dashboard UI and editor page navigation",
+      "No advanced link rotators or smart device redirection filters"
+    ],
+    "faqAnswer": "Direct.me is a budget alternative but restricts custom domain mapping and takes a 5% platform cut. Linktery charges 0% transaction fees and routes traffic dynamically via fast edge servers.",
+    "alternativeSeoTitle": "Best Direct.me Alternative: High Conversion Bio Link | Linktery",
+    "alternativeSeoDescription": "Compare Direct.me vs Linktery. Choose a faster, modern link-in-bio tool with zero platform transaction fees, custom subdomains, and deep linking."
+  },
+  {
+    "slug": "flowpage",
+    "name": "Flowpage",
+    "emoji": "🎴",
+    "description": "Flowpage is a mobile landing page builder created by Flowcode, focusing on QR code scans and offline-to-online marketing attribution.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$9/mo to $35/mo",
+      "customDomains": "$35/mo (Flowpage Pro)",
+      "watermarkRemoval": "$9/mo (Flowpage Plus)",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "⚠️ Basic QR scan metrics & views only",
+      "customDomains": "⚠️ Restricted to High-tier Pro plan ($35/mo)"
+    },
+    "pros": [
+      "Deep, native integration with Flowcode QR generator system",
+      "Clean, professional templates matching corporate branding requirements",
+      "Includes custom contacts collection forms and CRM integration"
+    ],
+    "cons": [
+      "Custom domains are heavily paywalled at the $35/mo subscription tier",
+      "No native deep-linking to launch mobile apps directly",
+      "Lacks advanced link rotators or smart geo-redirection routing rules"
+    ],
+    "faqAnswer": "Flowpage is great for offline QR code scans but locks custom domains behind a high $35/mo tier. Linktery provides custom domain mapping on more affordable terms, featuring advanced edge targeting rules.",
+    "alternativeSeoTitle": "Best Flowpage Alternative: Advanced Bio Link for Brands (2026) | Linktery",
+    "alternativeSeoDescription": "Compare Flowpage vs Linktery. Unlock custom domain mappings, Facebook/TikTok tracking pixels, geolocation redirects, and direct app launching for less."
+  },
+  {
+    "slug": "koji",
+    "name": "Koji",
+    "emoji": "🎨",
+    "description": "Koji was a highly interactive app store builder for link-in-bio pages, allowing users to embed games, web-apps, and mini-stores. Note: Koji has discontinued its services, leaving creators searching for modern alternatives.",
+    "pricing": {
+      "free": "N/A (Discontinued)",
+      "pro": "N/A",
+      "customDomains": "N/A",
+      "watermarkRemoval": "N/A",
+      "transactionFee": "N/A"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "❌ Discontinued",
+      "customDomains": "❌ Discontinued"
+    },
+    "pros": [
+      "Innovative app-based bio link concept with interactive mini-games and tools",
+      "Rich selection of third-party widgets and customization tools",
+      "High freedom in visual layout designing and digital sales integration"
+    ],
+    "cons": [
+      "Discontinued operations in early 2024, service is no longer active",
+      "Apps were slow to load on older devices due to iframe embedding",
+      "Complex and confusing dashboard UI structure"
+    ],
+    "faqAnswer": "Since Koji shut down, creators need a stable platform. Linktery offers an ultra-fast, pre-rendered alternative with advanced redirection rules, custom domains, and zero commission cuts.",
+    "alternativeSeoTitle": "Best Koji Alternative: Interactive & Fast Bio Link (2026) | Linktery",
+    "alternativeSeoDescription": "Searching for the best Koji alternative since their shutdown? Compare Koji vs Linktery and transition to a fast, reliable, and highly customizable link router."
+  },
+  {
+    "slug": "carrd",
+    "name": "Carrd",
+    "emoji": "🃏",
+    "description": "Carrd is a highly popular one-page website builder, widely used for portfolios, landing pages, and bio links.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$9/yr to $49/yr",
+      "customDomains": "$19/yr (Pro Standard)",
+      "watermarkRemoval": "$19/yr (Pro Standard)",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "⚠️ Requires Google Analytics/tracking integrations on Pro",
+      "customDomains": "⚠️ Restricted to Pro Standard ($19/yr)"
+    },
+    "pros": [
+      "Incredibly customizable layout designs, sections, and positioning",
+      "Highly cost-effective pricing structure ($19/year)",
+      "Allows embedding custom HTML, CSS, and third-party widgets"
+    ],
+    "cons": [
+      "Steeper learning curve compared to simple list link-in-bio builders",
+      "No native deep-linking to open social apps directly",
+      "No smart dynamic geolocation or referrer redirection routing rules"
+    ],
+    "faqAnswer": "Carrd is a fantastic single-page builder but lacks dynamic traffic routing, A/B rotators, and native mobile-app deep linking. Linktery is optimized specifically for routing and converting mobile social traffic.",
+    "alternativeSeoTitle": "Best Carrd Alternative: Dynamic Traffic Routing & Bio Links | Linktery",
+    "alternativeSeoDescription": "Compare Carrd vs Linktery. If you need a fast mobile-optimized bio page with smart geolocation redirection, link rotators, and deep-linking, choose Linktery."
   }
 ]
