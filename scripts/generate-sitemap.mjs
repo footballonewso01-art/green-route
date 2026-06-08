@@ -61,12 +61,14 @@ const getRoutesFromConfig = () => {
     console.error('❌ Failed to load professions data in generate-sitemap.mjs:', err);
   }
 
-  // Load programmatic SEO competitor comparison pages from competitors.json
+  // Load programmatic SEO competitor comparison & alternative pages from competitors.json
   try {
     const competitorsPath = path.join(process.cwd(), 'src/data/competitors.json');
     if (fs.existsSync(competitorsPath)) {
       const competitors = JSON.parse(fs.readFileSync(competitorsPath, 'utf8'));
-      console.log(`🤖 Loaded ${competitors.length} competitors for sitemap comparison pages.`);
+      console.log(`🤖 Loaded ${competitors.length} competitors for sitemap.`);
+      
+      // 1. Generate competitor comparison pages
       let pairsCount = 0;
       for (let i = 0; i < competitors.length; i++) {
         for (let j = i + 1; j < competitors.length; j++) {
@@ -80,6 +82,12 @@ const getRoutesFromConfig = () => {
         }
       }
       console.log(`🤖 Generated ${pairsCount} competitor comparison pairs for sitemap.`);
+
+      // 2. Generate competitor alternative pages
+      for (const comp of competitors) {
+        routes.push(`alternatives/${comp.slug}`);
+      }
+      console.log(`🤖 Generated ${competitors.length} competitor alternative pages for sitemap.`);
     } else {
       console.warn(`⚠️ Competitors data file not found at: ${competitorsPath}`);
     }

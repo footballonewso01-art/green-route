@@ -41,21 +41,7 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     canonical: "/terms",
   },
   // Reusable placeholders for upcoming landing/alternative pages
-  linktreeAlternative: {
-    title: "Best Link-in-Bio Tools & Linktree Alternatives (2026) | Linktery",
-    description: "Compare the best link-in-bio tools for Instagram and TikTok. Discover features, pricing, analytics, and choose the right platform for creators and businesses.",
-    canonical: "/alternatives/linktree",
-  },
-  beaconsAlternative: {
-    title: "Linktery vs Beacons: Best Bio-Link Comparison | Linktery",
-    description: "Compare Linktery vs Beacons. Analyze premium customization capabilities, device & location targeting features, pricing structures, and analytics to select the best tool.",
-    canonical: "/alternatives/beacons",
-  },
-  lnkBioAlternative: {
-    title: "Best Lnk.Bio Alternative: Fastest Bio Link for Creators (2026) | Linktery",
-    description: "Compare Lnk.Bio vs Linktery. Discover the fastest pre-rendered (SSG) link-in-bio tool with built-in app deep linking, unlimited links, and advanced rotator split testing.",
-    canonical: "/alternatives/lnk-bio",
-  },
+
   onlyfansSolution: {
     title: "OnlyFans Link in Bio: Safe Sharing on Instagram & TikTok | Linktery",
     description: "Learn how to safely share OnlyFans links on Instagram & TikTok without bans or shadowbans. Secure your creator profile with link cloaking and custom domains.",
@@ -131,11 +117,7 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     description: "Generate Amazon Associate smart links. Bypass in-app webviews to redirect mobile clicks directly to the native Amazon shopping app, doubling your affiliate conversions.",
     canonical: "/solutions/amazon-smart-links",
   },
-  linkMeAlternative: {
-    title: "Best Link.me Alternative: Manage Multiple Profiles (2026) | Linktery",
-    description: "Compare Link.me vs Linktery. Unlock multi-profile management to run separate bio-link pages for different brands under one account, with instant SSG loading and deep links.",
-    canonical: "/alternatives/link-me",
-  },
+
   ugcPortfolio: {
     title: "Free UGC Creator Portfolio & Link in Bio Tool (2026) | Linktery",
     description: "Build a stunning UGC creator portfolio in minutes. Embed TikTok & Reels mockups, display video engagement metrics, integrate rate cards, and share your landing page with brands.",

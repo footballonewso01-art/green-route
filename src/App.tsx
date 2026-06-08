@@ -9,8 +9,6 @@ import LandingPage from "./pages/LandingPage";
 import PricingPage from "./pages/PricingPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsAndConditions from "./pages/TermsAndConditions";
-import LinktreeAlternative from "./pages/LinktreeAlternative";
-import BeaconsAlternative from "./pages/BeaconsAlternative";
 import OnlyFansSolution from "./pages/OnlyFansSolution";
 import TelegramSolution from "./pages/TelegramSolution";
 import AffiliateSolution from "./pages/AffiliateSolution";
@@ -25,13 +23,12 @@ import PodcastSmartLinks from "./pages/PodcastSmartLinks";
 import ShopifySmartLinks from "./pages/ShopifySmartLinks";
 import FanvueSmartLinks from "./pages/FanvueSmartLinks";
 import GeoTargetedRedirect from "./pages/GeoTargetedRedirect";
-import LnkBioAlternative from "./pages/LnkBioAlternative";
 import AmazonSmartLinks from "./pages/AmazonSmartLinks";
-import LinkMeAlternative from "./pages/LinkMeAlternative";
 import UgcPortfolio from "./pages/UgcPortfolio";
 import QrCodeBiolink from "./pages/QrCodeBiolink";
 import ProfessionSolutions from "./pages/ProfessionSolutions";
 import CompetitorComparison from "./pages/CompetitorComparison";
+import CompetitorAlternative from "./pages/CompetitorAlternative";
 import { AdminRoute } from "./components/AdminRoute";
 
 import RedirectHandler from "./pages/RedirectHandler";
@@ -141,8 +138,6 @@ const AppRoutes = () => (
     <Route path="/pricing" element={<PricingPage />} />
     <Route path="/privacy" element={<PrivacyPolicy />} />
     <Route path="/terms" element={<TermsAndConditions />} />
-    <Route path="/alternatives/linktree" element={<LinktreeAlternative />} />
-    <Route path="/alternatives/beacons" element={<BeaconsAlternative />} />
     <Route path="/solutions/onlyfans-link-in-bio" element={<OnlyFansSolution />} />
     <Route path="/solutions/telegram-bio-link" element={<TelegramSolution />} />
     <Route path="/solutions/affiliate-smart-link-rotator" element={<AffiliateSolution />} />
@@ -158,8 +153,7 @@ const AppRoutes = () => (
     <Route path="/solutions/fanvue-ai-models" element={<FanvueSmartLinks />} />
     <Route path="/solutions/geo-targeted-redirect" element={<GeoTargetedRedirect />} />
     <Route path="/solutions/amazon-smart-links" element={<AmazonSmartLinks />} />
-    <Route path="/alternatives/lnk-bio" element={<LnkBioAlternative />} />
-    <Route path="/alternatives/link-me" element={<LinkMeAlternative />} />
+    <Route path="/alternatives/:competitorSlug" element={<CompetitorAlternative />} />
     <Route path="/solutions/ugc-portfolio" element={<UgcPortfolio />} />
     <Route path="/solutions/qr-code-biolink" element={<QrCodeBiolink />} />
     <Route path="/solutions/link-in-bio-for-:professionSlug" element={<ProfessionSolutions />} />

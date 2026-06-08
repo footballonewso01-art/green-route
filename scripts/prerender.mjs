@@ -60,12 +60,14 @@ const getSeoPagesConfig = () => {
     console.error('❌ Failed to load professions data in prerender.mjs:', err);
   }
 
-  // Load programmatic SEO competitor comparison pages from competitors.json
+  // Load programmatic SEO competitor comparison & alternative pages from competitors.json
   try {
     const competitorsPath = path.join(process.cwd(), 'src/data/competitors.json');
     if (fs.existsSync(competitorsPath)) {
       const competitors = JSON.parse(fs.readFileSync(competitorsPath, 'utf8'));
-      console.log(`🤖 Loaded ${competitors.length} competitors for pre-rendering comparison pages.`);
+      console.log(`🤖 Loaded ${competitors.length} competitors for pre-rendering.`);
+      
+      // 1. Generate competitor comparison pages
       let pairsCount = 0;
       for (let i = 0; i < competitors.length; i++) {
         for (let j = i + 1; j < competitors.length; j++) {
@@ -85,6 +87,18 @@ const getSeoPagesConfig = () => {
         }
       }
       console.log(`🤖 Generated ${pairsCount} competitor comparison pairs for pre-rendering.`);
+
+      // 2. Generate competitor alternative pages
+      for (const comp of competitors) {
+        configs.push({
+          key: `alternative_${comp.slug.replace(/-/g, '_')}`,
+          route: `/alternatives/${comp.slug}`,
+          title: comp.alternativeSeoTitle,
+          description: comp.alternativeSeoDescription,
+          noIndex: false,
+        });
+      }
+      console.log(`🤖 Generated ${competitors.length} competitor alternative pages for pre-rendering.`);
     } else {
       console.warn(`⚠️ Competitors data file not found at: ${competitorsPath}`);
     }
