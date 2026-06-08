@@ -31,6 +31,7 @@ import LinkMeAlternative from "./pages/LinkMeAlternative";
 import UgcPortfolio from "./pages/UgcPortfolio";
 import QrCodeBiolink from "./pages/QrCodeBiolink";
 import ProfessionSolutions from "./pages/ProfessionSolutions";
+import CompetitorComparison from "./pages/CompetitorComparison";
 import { AdminRoute } from "./components/AdminRoute";
 
 import RedirectHandler from "./pages/RedirectHandler";
@@ -162,6 +163,7 @@ const AppRoutes = () => (
     <Route path="/solutions/ugc-portfolio" element={<UgcPortfolio />} />
     <Route path="/solutions/qr-code-biolink" element={<QrCodeBiolink />} />
     <Route path="/solutions/link-in-bio-for-:professionSlug" element={<ProfessionSolutions />} />
+    <Route path="/compare/:comparisonSlug" element={<CompetitorComparison />} />
     <Route path="/auth" element={<Navigate to="/login" replace />} />
 
     <Route path="/open-in-browser" element={<InterstitialPage />} />

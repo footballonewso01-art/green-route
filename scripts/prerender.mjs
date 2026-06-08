@@ -60,6 +60,38 @@ const getSeoPagesConfig = () => {
     console.error('❌ Failed to load professions data in prerender.mjs:', err);
   }
 
+  // Load programmatic SEO competitor comparison pages from competitors.json
+  try {
+    const competitorsPath = path.join(process.cwd(), 'src/data/competitors.json');
+    if (fs.existsSync(competitorsPath)) {
+      const competitors = JSON.parse(fs.readFileSync(competitorsPath, 'utf8'));
+      console.log(`🤖 Loaded ${competitors.length} competitors for pre-rendering comparison pages.`);
+      let pairsCount = 0;
+      for (let i = 0; i < competitors.length; i++) {
+        for (let j = i + 1; j < competitors.length; j++) {
+          const compA = competitors[i];
+          const compB = competitors[j];
+          const sortedSlugs = [compA.slug, compB.slug].sort();
+          const routeSlug = `${sortedSlugs[0]}-vs-${sortedSlugs[1]}`;
+          
+          configs.push({
+            key: `compare_${sortedSlugs[0].replace(/-/g, '_')}_vs_${sortedSlugs[1].replace(/-/g, '_')}`,
+            route: `/compare/${routeSlug}`,
+            title: `${compA.name} vs ${compB.name}: Which is Better? (2026) | Linktery`,
+            description: `Compare ${compA.name} vs ${compB.name} side-by-side. Analyze pricing, deep linking features, custom domain mapping, transaction fees, and pixel integrations.`,
+            noIndex: false,
+          });
+          pairsCount++;
+        }
+      }
+      console.log(`🤖 Generated ${pairsCount} competitor comparison pairs for pre-rendering.`);
+    } else {
+      console.warn(`⚠️ Competitors data file not found at: ${competitorsPath}`);
+    }
+  } catch (err) {
+    console.error('❌ Failed to load competitors data in prerender.mjs:', err);
+  }
+
   return configs;
 };
 

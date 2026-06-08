@@ -1,0 +1,182 @@
+[
+  {
+    "slug": "linktree",
+    "name": "Linktree",
+    "emoji": "🌴",
+    "description": "Linktree is the pioneer of the link-in-bio category, known for its simple linear list of link buttons.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$10/mo",
+      "customDomains": "$10/mo (Pro)",
+      "watermarkRemoval": "$5/mo (Starter)",
+      "transactionFee": "0.5% - 1.75%"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "⚠️ Basic clicks only on free tier",
+      "customDomains": "⚠️ Restricted to Pro plan ($10/mo)"
+    },
+    "pros": [
+      "Extremely simple onboarding and editor",
+      "Highly recognizable brand name and trusted by users",
+      "Wide integration selection with third-party software"
+    ],
+    "cons": [
+      "Very rigid design customization and simple layout templates",
+      "Platform watermarks locked behind paid tiers",
+      "No native deep-linking (users get stuck in app webviews)"
+    ],
+    "faqAnswer": "Linktree forces users to sign up for expensive plans to remove their branding watermark or connect a custom domain. Linktery offers beautiful custom styling free, and mapping a custom domain is transparently priced, with zero commission cuts."
+  },
+  {
+    "slug": "beacons",
+    "name": "Beacons.ai",
+    "emoji": "🎛️",
+    "description": "Beacons is an AI-powered bio-link tool built for creator monetization, with an integrated digital storefront.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$10/mo",
+      "customDomains": "$10/mo (Creator+)",
+      "watermarkRemoval": "$10/mo (Creator+)",
+      "transactionFee": "9% on Free tier"
+    },
+    "features": {
+      "deepLinking": "⚠️ Limited native application redirections",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "⚠️ Medium metrics, focused on store conversions",
+      "customDomains": "⚠️ Restricted to Creator+ plan ($10/mo)"
+    },
+    "pros": [
+      "Built-in digital store for direct file/template downloads",
+      "AI-onboarding builder that imports from social handles",
+      "Integrated email collection forms and newsletter cards"
+    ],
+    "cons": [
+      "Extremely high 9% transaction fees on free accounts",
+      "Mobile layouts can feel cluttered and slow to load",
+      "No smart geographical or locale-based URL redirect rules"
+    ],
+    "faqAnswer": "Beacons charges a high 9% cut on digital store sales unless you pay $10/mo. Linktery acts as a performance router, directing users directly to your external optimized Stripe, Shopify, or Gumroad checkouts with 0% platform transaction fees."
+  },
+  {
+    "slug": "lnk-bio",
+    "name": "Lnk.Bio",
+    "emoji": "🔗",
+    "description": "Lnk.Bio is a simple, budget-focused tool offering lifetime pay-once plans for basic link indexing.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$0.99/mo or $9.99 lifetime",
+      "customDomains": "$24.99 lifetime (Unique)",
+      "watermarkRemoval": "$9.99 lifetime (Mini)",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "⚠️ Basic telemetry data and click tracking",
+      "customDomains": "⚠️ Restricted to Unique lifetime plan ($24.99)"
+    },
+    "pros": [
+      "Highly affordable lifetime payment option ($9.99 - $24.99)",
+      "Simple grid layout options that are clean on mobile",
+      "Allows adding custom icons for custom links"
+    ],
+    "cons": [
+      "Aesthetics look outdated and lack premium layouts",
+      "Lacks advanced tracking integrations and pixels support",
+      "No deep-linking or automated country-based redirection rules"
+    ],
+    "faqAnswer": "While Lnk.Bio offers affordable lifetime plans, it lacks the technical capabilities needed for performance marketing. Linktery provides advanced traffic rules (geo-targeting, device splits, app deep links) built on an ultra-fast edge CDN."
+  },
+  {
+    "slug": "bento",
+    "name": "Bento.me",
+    "emoji": "🍱",
+    "description": "Bento is a visual tile-grid link tool owned by Linktree, designed for portfolio displays.",
+    "pricing": {
+      "free": "$0",
+      "pro": "N/A (Completely Free)",
+      "customDomains": "❌ Not Supported",
+      "watermarkRemoval": "✅ Yes (No watermark)",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "❌ Basic visual views count only",
+      "customDomains": "❌ Not Supported"
+    },
+    "pros": [
+      "Stunning grid layouts with custom widgets and media embed frames",
+      "100% free with no branding watermark",
+      "Clean visual design that acts as a visual portfolio"
+    ],
+    "cons": [
+      "Strictly hosted on bento.me/username with no custom domain mapping",
+      "Zero marketing capabilities (no pixels, tracking, A/B rotators)",
+      "No targeting or custom redirect rules"
+    ],
+    "faqAnswer": "Bento is a gorgeous visual portfolio but lacks custom domain mapping, Facebook pixels, and traffic redirection rules. Linktery is engineered as a traffic router for conversion optimization under your own brand's custom domain."
+  },
+  {
+    "slug": "link-me",
+    "name": "Link.me",
+    "emoji": "📲",
+    "description": "Link.me is a mobile-first link sharing app designed for social network profiles.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$5/mo or $12/mo",
+      "customDomains": "$12/mo (Elite)",
+      "watermarkRemoval": "$5/mo (Pro)",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "⚠️ Basic visitor numbers only",
+      "customDomains": "⚠️ Restricted to Elite plan ($12/mo)"
+    },
+    "pros": [
+      "Highly optimized for smartphone display sizes",
+      "Integrates cleanly with social media handles",
+      "Sleek and modern dark layouts out-of-the-box"
+    ],
+    "cons": [
+      "Lacks multi-profile workspace routing from a single account",
+      "No advanced link rotator or split testing configurations",
+      "No deep-linking capability to bypass in-app social browsers"
+    ],
+    "faqAnswer": "Link.me is sleek on mobile but does not allow running separate brand profiles with custom domains under a single login. Linktery enables full agency workspace management, connecting multiple domains to different profiles on a single dashboard."
+  },
+  {
+    "slug": "taplink",
+    "name": "Taplink.at",
+    "emoji": "📱",
+    "description": "Taplink is a micro-landing page builder offering custom blocks, messaging buttons, and lead forms.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$3/mo to $6/mo",
+      "customDomains": "$6/mo (Business)",
+      "watermarkRemoval": "$6/mo (Business)",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "⚠️ Standard visual click metrics",
+      "customDomains": "⚠️ Restricted to Business plan ($6/mo)"
+    },
+    "pros": [
+      "Allows building fully custom landing page structures with custom blocks",
+      "Very cost-effective paid plans ($3/mo - $6/mo)",
+      "Direct chat redirect widgets for WhatsApp/Telegram support"
+    ],
+    "cons": [
+      "Editor interface feels complicated and outdated to navigate",
+      "Server loading speed (LCP) can be sluggish due to legacy hosting",
+      "No native deep linking to launch installed apps directly"
+    ],
+    "faqAnswer": "Taplink provides custom layouts at low costs but lacks speed optimization and deep linking. Linktery pre-renders your pages into lightweight static HTML (SSG) at edge nodes, loading in under 150ms, with native app launching to maximize conversions."
+  }
+]

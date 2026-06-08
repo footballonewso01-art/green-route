@@ -61,6 +61,32 @@ const getRoutesFromConfig = () => {
     console.error('❌ Failed to load professions data in generate-sitemap.mjs:', err);
   }
 
+  // Load programmatic SEO competitor comparison pages from competitors.json
+  try {
+    const competitorsPath = path.join(process.cwd(), 'src/data/competitors.json');
+    if (fs.existsSync(competitorsPath)) {
+      const competitors = JSON.parse(fs.readFileSync(competitorsPath, 'utf8'));
+      console.log(`🤖 Loaded ${competitors.length} competitors for sitemap comparison pages.`);
+      let pairsCount = 0;
+      for (let i = 0; i < competitors.length; i++) {
+        for (let j = i + 1; j < competitors.length; j++) {
+          const compA = competitors[i];
+          const compB = competitors[j];
+          const sortedSlugs = [compA.slug, compB.slug].sort();
+          const routeSlug = `${sortedSlugs[0]}-vs-${sortedSlugs[1]}`;
+          
+          routes.push(`compare/${routeSlug}`);
+          pairsCount++;
+        }
+      }
+      console.log(`🤖 Generated ${pairsCount} competitor comparison pairs for sitemap.`);
+    } else {
+      console.warn(`⚠️ Competitors data file not found at: ${competitorsPath}`);
+    }
+  } catch (err) {
+    console.error('❌ Failed to load competitors data in generate-sitemap.mjs:', err);
+  }
+
   return routes;
 };
 
