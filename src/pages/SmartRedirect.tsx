@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import Footer from "@/components/Footer";
 import { Link, useNavigate } from "react-router-dom";
 import { 
   ArrowRight, Shield, Zap, Globe, 
@@ -770,19 +771,7 @@ export default function SmartRedirect() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t-2 border-slate-950 py-12 px-6 relative z-10">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <Link to="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
-            <img src="/logo.webp" alt="Linktery Logo" className="h-10 w-auto mix-blend-screen grayscale" />
-            <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Linktery</span>
-          </Link>
-          <div className="flex flex-wrap justify-center items-center gap-6">
-            <Link to="/privacy" className="text-xs text-slate-500 hover:text-[#06b6d4] transition-colors font-bold uppercase">Privacy Policy</Link>
-            <Link to="/terms" className="text-xs text-slate-500 hover:text-[#06b6d4] transition-colors font-bold uppercase">Terms & Conditions</Link>
-            <p className="text-xs text-slate-600 font-mono">© 2026 Linktery. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
 
       {/* Option B: Modal Popup requesting registration */}
       {showRegisterModal && (

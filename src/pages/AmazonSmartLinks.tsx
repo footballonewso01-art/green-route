@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
+import Footer from "@/components/Footer";
 
 interface FaqItem {
   question: string;
@@ -732,6 +733,7 @@ export default function AmazonSmartLinks() {
           </div>
         </div>
       </section>
+      <Footer />
     </div>
   );
 }
