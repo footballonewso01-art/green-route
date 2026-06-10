@@ -67,6 +67,29 @@ const fireTrackingPixels = (link: Record<string, any>): Promise<void> => {
 };
 /* eslint-enable @typescript-eslint/no-explicit-any, prefer-rest-params, prefer-spread, no-var, @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-expressions */
 
+const fetchCountryCode = async (): Promise<string> => {
+    // 1. Try our first-party geo endpoint first (respects privacy, fast, cached)
+    try {
+        const geoRes = await fetch(`${pb.baseUrl}/api/geo`, { signal: AbortSignal.timeout(1200) });
+        const geoData = await geoRes.json();
+        if (geoData.country && geoData.country !== "Unknown") {
+            return geoData.country;
+        }
+    } catch { /* First-party geo failed */ }
+
+    // 2. Fallback to Cloudflare trace if our own API fails
+    try {
+        const geoRes = await fetch("https://cloudflare.com/cdn-cgi/trace", { signal: AbortSignal.timeout(1200) });
+        const geoText = await geoRes.text();
+        const locMatch = geoText.match(/loc=([A-Z]{2})/);
+        if (locMatch && locMatch[1]) {
+            return locMatch[1];
+        }
+    } catch { /* Fallback failed */ }
+
+    return "Unknown";
+};
+
 /**
  * RedirectHandler — Ultra-fast redirect engine.
  *
@@ -177,26 +200,7 @@ export default function RedirectHandler() {
             document.cookie = `${cookieName}=1; path=/; max-age=86400`;
         }
 
-        let country = "Unknown";
-        try {
-            const geoRes = await fetch("https://cloudflare.com/cdn-cgi/trace", { signal: AbortSignal.timeout(3000) });
-            const geoText = await geoRes.text();
-            const locMatch = geoText.match(/loc=([A-Z]{2})/);
-            if (locMatch && locMatch[1]) {
-                country = locMatch[1];
-            }
-        } catch { /* Cloudflare trace failed */ }
-
-        // Fallback: ask our own PocketBase geo endpoint (uses server-side IP resolution)
-        if (country === "Unknown") {
-            try {
-                const geoFallback = await fetch(`${pb.baseUrl}/api/geo`, { signal: AbortSignal.timeout(2000) });
-                const geoData = await geoFallback.json();
-                if (geoData.country && geoData.country !== "Unknown") {
-                    country = geoData.country;
-                }
-            } catch { /* Both geo methods failed */ }
-        }
+        const country = await fetchCountryCode();
 
         const clickData = {
             link_id: link.id,
@@ -207,12 +211,20 @@ export default function RedirectHandler() {
             user_agent: ua.slice(0, 200)
         };
 
-        // Save click BEFORE redirecting — await with 1.5s timeout
-        const clickPromise = pb.collection('clicks').create(clickData).catch(() => { });
-        const timeout = new Promise(resolve => setTimeout(resolve, 1500));
-        await Promise.race([clickPromise, timeout]);
-
-        // clicks_count increment is handled server-side via onRecordAfterCreateSuccess hook
+        // Send non-blocking beacon/fetch request that persists after page unload
+        try {
+            fetch(`${pb.baseUrl}/api/collections/clicks/records`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(clickData),
+                keepalive: true
+            }).catch(() => {});
+        } catch (e) {
+            // fallback to fire-and-forget promise if keepalive is somehow blocked
+            pb.collection('clicks').create(clickData).catch(() => {});
+        }
     }, []);
 
     // ── Main redirect logic ──
@@ -317,27 +329,8 @@ export default function RedirectHandler() {
                     // 2. Geo Targeting (Priority 2)
                     if (link.geo_targeting && typeof link.geo_targeting === 'object' && Object.keys(link.geo_targeting).length > 0) {
                         try {
-                            let countryCode = "";
-                            try {
-                                const geoRes = await fetch("https://cloudflare.com/cdn-cgi/trace", { signal: AbortSignal.timeout(1000) });
-                                const geoText = await geoRes.text();
-                                const locMatch = geoText.match(/loc=([A-Z]{2})/);
-                                if (locMatch && locMatch[1]) {
-                                    countryCode = locMatch[1];
-                                }
-                            } catch { /* Cloudflare trace failed */ }
-
-                            if (!countryCode || countryCode === "Unknown") {
-                                try {
-                                    const geoFallback = await fetch(`${pb.baseUrl}/api/geo`, { signal: AbortSignal.timeout(1500) });
-                                    const geoData = await geoFallback.json();
-                                    if (geoData.country && geoData.country !== "Unknown") {
-                                        countryCode = geoData.country;
-                                    }
-                                } catch { /* Both geo methods failed */ }
-                            }
-
-                            if (countryCode) {
+                            const countryCode = await fetchCountryCode();
+                            if (countryCode && countryCode !== "Unknown") {
                                 const rules = link.geo_targeting as Record<string, string>;
                                 if (rules[countryCode]) {
                                     finalDestination = rules[countryCode];
@@ -384,16 +377,33 @@ export default function RedirectHandler() {
                 sessionStorage.setItem(attemptKey, (attempts + 1).toString());
 
                 // Determine if destination is local or points to our own profile / domains
-                const isLocalDestination = finalDestination.includes(window.location.hostname) || 
-                                          finalDestination.includes("hotme.online") || 
-                                          finalDestination.includes("linktery.com") || 
-                                          /^[./]/.test(finalDestination);
+                let isLocalDestination = false;
+                try {
+                    const destUrlObj = new URL(finalDestination, window.location.href);
+                    isLocalDestination = destUrlObj.hostname === window.location.hostname || 
+                                         destUrlObj.hostname === "hotme.online" || 
+                                         destUrlObj.hostname === "www.hotme.online" || 
+                                         destUrlObj.hostname === "linktery.com" || 
+                                         destUrlObj.hostname === "www.linktery.com" || 
+                                         /^[./]/.test(finalDestination);
+                } catch {
+                    isLocalDestination = finalDestination.includes(window.location.hostname) || 
+                                         finalDestination.includes("hotme.online") || 
+                                         finalDestination.includes("linktery.com") || 
+                                         /^[./]/.test(finalDestination);
+                }
 
                 // Detect if the destination redirects to the current page itself to prevent loop
                 let isSamePage = false;
                 try {
                     const destUrlObj = new URL(finalDestination, window.location.href);
-                    isSamePage = destUrlObj.pathname.toLowerCase() === window.location.pathname.toLowerCase();
+                    const isOurDomain = destUrlObj.hostname === window.location.hostname ||
+                                         destUrlObj.hostname === "hotme.online" ||
+                                         destUrlObj.hostname === "www.hotme.online" ||
+                                         destUrlObj.hostname === "linktery.com" ||
+                                         destUrlObj.hostname === "www.linktery.com";
+                    
+                    isSamePage = isOurDomain && destUrlObj.pathname.toLowerCase().replace(/\/$/, "") === window.location.pathname.toLowerCase().replace(/\/$/, "");
                 } catch (e) {
                     console.error("Error parsing destination URL for loop check:", e);
                 }

@@ -707,7 +707,6 @@ routerAdd("GET", "/{slug}", (c) => {
             link.get("ab_split") ||
             link.get("cloaking") ||
             link.get("interstitial_enabled") ||
-            link.get("mode") === "direct" ||
             link.get("mode") === "landing" ||
             link.get("mode") === "smart" ||
             link.get("fb_pixel") ||
