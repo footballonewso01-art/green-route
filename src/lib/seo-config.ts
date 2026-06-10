@@ -128,6 +128,16 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     description: "Generate dynamic QR codes for business cards, retail menus, and storefronts. Link directly to your custom bio-link, track scan analytics, and update destinations instantly without reprinting.",
     canonical: "/solutions/qr-code-biolink",
   },
+  solutionsIndex: {
+    title: "Traffic Routing & Conversion Solutions | Linktery",
+    description: "Explore Linktery solutions for creators, brands, and marketers. Optimize link-in-bio pages, deep link directly into native apps, set up geo-routing, and configure CPA link rotators.",
+    canonical: "/solutions",
+  },
+  alternativesIndex: {
+    title: "Best Link-in-Bio Alternatives & Comparisons (2026) | Linktery",
+    description: "Compare the best link-in-bio tools side-by-side. Analyze pricing, features, watermark removal costs, and deep-linking support across 14 leading creator platforms.",
+    canonical: "/alternatives",
+  },
 };
 
 

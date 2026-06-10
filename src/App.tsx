@@ -29,6 +29,8 @@ import QrCodeBiolink from "./pages/QrCodeBiolink";
 import ProfessionSolutions from "./pages/ProfessionSolutions";
 import CompetitorComparison from "./pages/CompetitorComparison";
 import CompetitorAlternative from "./pages/CompetitorAlternative";
+import SolutionsIndex from "./pages/SolutionsIndex";
+import AlternativesIndex from "./pages/AlternativesIndex";
 import { AdminRoute } from "./components/AdminRoute";
 
 import RedirectHandler from "./pages/RedirectHandler";
@@ -153,6 +155,8 @@ const AppRoutes = () => (
     <Route path="/solutions/fanvue-ai-models" element={<FanvueSmartLinks />} />
     <Route path="/solutions/geo-targeted-redirect" element={<GeoTargetedRedirect />} />
     <Route path="/solutions/amazon-smart-links" element={<AmazonSmartLinks />} />
+    <Route path="/solutions" element={<SolutionsIndex />} />
+    <Route path="/alternatives" element={<AlternativesIndex />} />
     <Route path="/alternatives/:competitorSlug" element={<CompetitorAlternative />} />
     <Route path="/solutions/ugc-portfolio" element={<UgcPortfolio />} />
     <Route path="/solutions/qr-code-biolink" element={<QrCodeBiolink />} />

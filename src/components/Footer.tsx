@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -15,68 +16,30 @@ export default function Footer() {
           </p>
         </div>
 
-        {/* Column 2: Solutions */}
+        {/* Column 2: Solutions Index */}
         <div className="flex flex-col gap-3.5 text-left">
-          <h4 className="text-xs font-bold text-foreground tracking-widest uppercase font-mono">Solutions</h4>
-          <ul className="flex flex-col gap-2.5">
-            <li>
-              <Link to="/solutions/shopify-smart-links" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Shopify Smart Links
-              </Link>
-            </li>
-            <li>
-              <Link to="/solutions/music-smart-links" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Music Smart Links
-              </Link>
-            </li>
-            <li>
-              <Link to="/solutions/digital-product-smart-links" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Digital Products
-              </Link>
-            </li>
-            <li>
-              <Link to="/solutions/smart-link-redirect" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Smart URL Redirection
-              </Link>
-            </li>
-            <li>
-              <Link to="/solutions/deeplink-generator" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Deeplink Generator
-              </Link>
-            </li>
-          </ul>
+          <Link to="/solutions" className="text-xs font-bold text-foreground tracking-widest uppercase font-mono hover:text-accent transition-colors w-fit">
+            Solutions
+          </Link>
+          <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
+            Bypass webview jails. Explore our index of link routing, deep-linking, rotators, and custom solutions for creators and e-commerce.
+          </p>
+          <Link to="/solutions" className="text-xs text-accent font-semibold hover:underline flex items-center gap-1 mt-1 font-mono uppercase">
+            Browse Solutions <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
 
-        {/* Column 3: Alternatives */}
+        {/* Column 3: Alternatives Index */}
         <div className="flex flex-col gap-3.5 text-left">
-          <h4 className="text-xs font-bold text-foreground tracking-widest uppercase font-mono">Alternatives</h4>
-          <ul className="flex flex-col gap-2.5">
-            <li>
-              <Link to="/alternatives/linktree" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Linktree Alternative
-              </Link>
-            </li>
-            <li>
-              <Link to="/alternatives/beacons" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Beacons Alternative
-              </Link>
-            </li>
-            <li>
-              <Link to="/alternatives/lnk-bio" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Lnk.Bio Alternative
-              </Link>
-            </li>
-            <li>
-              <Link to="/alternatives/taplink" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Taplink Alternative
-              </Link>
-            </li>
-            <li>
-              <Link to="/alternatives/carrd" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Carrd Alternative
-              </Link>
-            </li>
-          </ul>
+          <Link to="/alternatives" className="text-xs font-bold text-foreground tracking-widest uppercase font-mono hover:text-accent transition-colors w-fit">
+            Alternatives
+          </Link>
+          <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
+            Compare 14 biolink platforms side-by-side. Analyze pricing, platform watermarks, and transaction commission fees.
+          </p>
+          <Link to="/alternatives" className="text-xs text-accent font-semibold hover:underline flex items-center gap-1 mt-1 font-mono uppercase">
+            Compare Platforms <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
 
         {/* Column 4: Platform */}

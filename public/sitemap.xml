@@ -127,6 +127,18 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://linktery.com/solutions</loc>
+    <lastmod>2026-06-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://linktery.com/alternatives</loc>
+    <lastmod>2026-06-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://linktery.com/solutions/link-in-bio-for-real-estate-agents</loc>
     <lastmod>2026-06-10</lastmod>
     <changefreq>weekly</changefreq>
