@@ -1198,7 +1198,7 @@ onRecordCreateRequest((e) => {
         // Enforce Plan Limits
         const user = $app.findRecordById("users", userId);
         const plan = user.get("plan") || "creator";
-        const limits = { "creator": 4, "pro": 15, "agency": 110 };
+        const limits = { "creator": 4, "pro": 15, "agency": 250 };
         const maxLinks = limits[plan];
 
         if (maxLinks !== -1) {
