@@ -379,6 +379,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                     bRecord.set("payment_method", "Stripe");
                     bRecord.set("stripe_customer_id", customerId);
                     bRecord.set("stripe_subscription_id", subscriptionId);
+                    bRecord.set("end_date", expiry);
                     txApp.save(bRecord);
                 } else {
                     var billingColl = txApp.findCollectionByNameOrId("billing");
@@ -389,7 +390,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                         "status": "active",
                         "payment_method": "Stripe",
                         "stripe_customer_id": customerId,
-                        "stripe_subscription_id": subscriptionId
+                        "stripe_subscription_id": subscriptionId,
+                        "end_date": expiry
                     });
                     txApp.save(billingRecord);
                 }
@@ -478,6 +480,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                             if (invoice.subscription) {
                                 bRecord.set("stripe_subscription_id", invoice.subscription);
                             }
+                            bRecord.set("end_date", expiry);
                             txApp.save(bRecord);
                         } else {
                             // Create billing record if it didn't exist
@@ -489,7 +492,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                                 "status": "active",
                                 "payment_method": "Stripe",
                                 "stripe_customer_id": invCustomerId,
-                                "stripe_subscription_id": invoice.subscription || ""
+                                "stripe_subscription_id": invoice.subscription || "",
+                                "end_date": expiry
                             });
                             txApp.save(newBRecord);
                         }
@@ -877,7 +881,8 @@ routerAdd("POST", "/api/admin/update-plan", (c) => {
                 "plan": newPlan,
                 "amount": newPlan === "pro" ? 11 : 29,
                 "status": "active",
-                "payment_method": "Given"
+                "payment_method": "Given",
+                "end_date": new DateTime(expires)
             });
             $app.save(billingRecord);
         } else {
@@ -1079,7 +1084,8 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
                 "plan": rewardPlan,
                 "amount": 0,
                 "status": "active",
-                "payment_method": "Free Trial"
+                "payment_method": "Free Trial",
+                "end_date": expiry
             });
             txApp.save(b);
 

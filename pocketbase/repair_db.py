@@ -99,6 +99,34 @@ def repair():
                     print(f"Column created_ip likely exists: {e}")
                 conn.commit()
 
+        # Add end_date to billing
+        cursor.execute(f"SELECT id, {col_name} FROM _collections WHERE name='billing'")
+        billing_row = cursor.fetchone()
+        if billing_row:
+            billing_id = billing_row[0]
+            billing_fields = json.loads(billing_row[1])
+            if not any(f.get('name') == 'end_date' for f in billing_fields):
+                print("Adding 'end_date' field to 'billing' schema...")
+                billing_fields.append({
+                    "system": False,
+                    "hidden": False,
+                    "primaryKey": False,
+                    "id": "end_date_id_gen",
+                    "name": "end_date",
+                    "type": "date",
+                    "required": False,
+                    "presentable": False,
+                    "min": "",
+                    "max": ""
+                })
+                cursor.execute(f"UPDATE _collections SET {col_name} = ? WHERE id = ?", (json.dumps(billing_fields, separators=(',', ':')), billing_id))
+                try:
+                    cursor.execute("ALTER TABLE billing ADD COLUMN end_date TEXT DEFAULT '' NOT NULL")
+                    print("Added column 'end_date' to SQLite table 'billing'.")
+                except Exception as e:
+                    print(f"Column end_date likely exists: {e}")
+                conn.commit()
+
         # --- HIGHLOAD REFACTOR: Replace analytics_daily view with physical Rollup Table ---
         cursor.execute("SELECT name, type FROM sqlite_master WHERE name='analytics_daily'")
         col_type = cursor.fetchone()
