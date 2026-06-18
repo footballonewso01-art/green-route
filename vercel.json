@@ -28,7 +28,7 @@
   ],
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!compare|alternatives|solutions|pricing|privacy|terms|assets|.*\\.).*)",
       "destination": "/index.html"
     }
   ]
