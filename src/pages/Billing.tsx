@@ -103,8 +103,24 @@ export default function BillingPage() {
     const handleManageSubscription = async () => {
         setPortalLoading(true);
         try {
+            // Pre-flight: refresh auth token to ensure it's valid server-side
+            try {
+                await pb.collection('users').authRefresh();
+            } catch (refreshErr) {
+                const status = (refreshErr as { status?: number })?.status;
+                if (status === 401 || status === 403) {
+                    toast.error("Your session has expired. Please log in again.");
+                    pb.authStore.clear();
+                    localStorage.removeItem("pocketbase_auth");
+                    window.location.href = "/login";
+                    return;
+                }
+            }
+
             if (!pb.authStore.isValid || !pb.authStore.token) {
-                throw new Error("You must be logged in to manage subscription");
+                toast.error("Your session has expired. Please log in again.");
+                window.location.href = "/login";
+                return;
             }
 
             const data = await pb.send("/api/stripe/create-portal", {
@@ -115,7 +131,15 @@ export default function BillingPage() {
             window.location.assign(data.url);
         } catch (e: unknown) {
             console.error("Portal error:", e);
-            toast.error((e as Error).message || "Failed to open billing portal");
+            const status = (e as { status?: number })?.status;
+            if (status === 401 || status === 403) {
+                toast.error("Your session has expired. Please log in again.");
+                pb.authStore.clear();
+                localStorage.removeItem("pocketbase_auth");
+                window.location.href = "/login";
+            } else {
+                toast.error((e as Error).message || "Failed to open billing portal");
+            }
         } finally {
             setPortalLoading(false);
         }

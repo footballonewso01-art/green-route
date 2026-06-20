@@ -98,8 +98,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             model: result.record
           }));
         }
-      }).catch(() => {
-        // Silent fail — stale data is acceptable as fallback
+      }).catch((err) => {
+        // If server explicitly rejects our token (expired/invalid), force logout
+        // instead of keeping stale auth state that causes "Unauthorized" on API calls
+        const status = (err as { status?: number })?.status;
+        if (status === 401 || status === 403) {
+          console.warn("[Auth] Server rejected token during refresh, forcing logout.");
+          pb.authStore.clear();
+          localStorage.removeItem("pocketbase_auth");
+          setUser(null);
+          window.location.href = "/login";
+        }
+        // For network errors / timeouts — silent fail, stale data is acceptable
       });
     }
 

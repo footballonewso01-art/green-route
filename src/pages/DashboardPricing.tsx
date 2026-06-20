@@ -89,9 +89,27 @@ export default function DashboardPricing() {
 
             if (!priceId) throw new Error("Invalid plan selection");
 
+            // Pre-flight: refresh auth token to ensure it's valid server-side
+            // This catches expired tokens BEFORE the Stripe call instead of after
+            try {
+                await pb.collection('users').authRefresh();
+            } catch (refreshErr) {
+                const status = (refreshErr as { status?: number })?.status;
+                if (status === 401 || status === 403) {
+                    toast.error("Your session has expired. Please log in again.");
+                    pb.authStore.clear();
+                    localStorage.removeItem("pocketbase_auth");
+                    window.location.href = "/login";
+                    return;
+                }
+                // Network errors — proceed anyway, the main request will fail with a clearer error
+            }
+
             // Ensure Auth is fully propagated
             if (!pb.authStore.isValid || !pb.authStore.token) {
-                throw new Error("You must be logged in to upgrade");
+                toast.error("Your session has expired. Please log in again.");
+                window.location.href = "/login";
+                return;
             }
 
             // Call our new custom PocketBase backend route
@@ -104,7 +122,15 @@ export default function DashboardPricing() {
             window.location.assign(data.url);
         } catch (e: unknown) {
             console.error("Upgrade error:", e);
-            toast.error((e as Error).message || "Failed to initiate upgrade");
+            const status = (e as { status?: number })?.status;
+            if (status === 401 || status === 403) {
+                toast.error("Your session has expired. Please log in again.");
+                pb.authStore.clear();
+                localStorage.removeItem("pocketbase_auth");
+                window.location.href = "/login";
+            } else {
+                toast.error((e as Error).message || "Failed to initiate upgrade. Please try again.");
+            }
         } finally {
             setLoading(false);
         }
