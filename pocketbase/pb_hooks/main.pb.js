@@ -404,46 +404,77 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             var invCustomerId = invoice.customer;
             if (invoice.subscription) {
                 var invAmount = invoice.amount_paid / 100;
-                console.log("Webhook: invoice.paid for customer " + invCustomerId + " amount=$" + invAmount);
+                $app.logger().info("Webhook: invoice.paid for customer " + invCustomerId + " amount=$" + invAmount + " sub=" + invoice.subscription + " email=" + (invoice.customer_email || "none"));
 
-                // Step 1: Find user and billing record
+                // Step 1: Find user and billing record by stripe_customer_id
                 var bRecord = null;
                 var bUserId = "";
+                var lookupMethod = "none";
                 
-                var records = $app.findRecordsByFilter(
-                    "billing", "stripe_customer_id = {:custId}", "-created", 1, 0, { custId: invCustomerId }
-                );
-                if (records.length > 0) {
-                    bRecord = records[0];
-                    bUserId = bRecord.get("user_id");
+                try {
+                    var records = $app.findRecordsByFilter(
+                        "billing", "stripe_customer_id = {:custId}", "-created", 1, 0, { custId: invCustomerId }
+                    );
+                    if (records.length > 0) {
+                        bRecord = records[0];
+                        bUserId = bRecord.get("user_id");
+                        lookupMethod = "billing.stripe_customer_id";
+                        $app.logger().info("Webhook: Found user " + bUserId + " via billing.stripe_customer_id");
+                    } else {
+                        $app.logger().info("Webhook: No billing record found for stripe_customer_id=" + invCustomerId);
+                    }
+                } catch (billingErr) {
+                    $app.logger().error("Webhook: billing lookup error: " + String(billingErr));
                 }
 
-                // Step 2: Fallback to finding user by stripe_customer_id in users collection
+                // Step 2: Fallback - find by stripe_subscription_id in billing
+                if (!bUserId && invoice.subscription) {
+                    try {
+                        var subRecords = $app.findRecordsByFilter(
+                            "billing", "stripe_subscription_id = {:subId}", "-created", 1, 0, { subId: invoice.subscription }
+                        );
+                        if (subRecords.length > 0) {
+                            bRecord = subRecords[0];
+                            bUserId = bRecord.get("user_id");
+                            lookupMethod = "billing.stripe_subscription_id";
+                            $app.logger().info("Webhook: Found user " + bUserId + " via billing.stripe_subscription_id");
+                        }
+                    } catch (subErr) {
+                        $app.logger().error("Webhook: subscription_id lookup error: " + String(subErr));
+                    }
+                }
+
+                // Step 3: Fallback to finding user by stripe_customer_id in users collection
                 if (!bUserId && invCustomerId) {
                     try {
                         var userByCustId = $app.findFirstRecordByData("users", "stripe_customer_id", invCustomerId);
                         if (userByCustId) {
                             bUserId = userByCustId.id;
-                            console.log("Webhook: Found user by stripe_customer_id: " + bUserId);
+                            lookupMethod = "users.stripe_customer_id";
+                            $app.logger().info("Webhook: Found user " + bUserId + " via users.stripe_customer_id");
                         }
-                    } catch (e) { /* ignore */ }
+                    } catch (e) {
+                        $app.logger().info("Webhook: users.stripe_customer_id lookup failed: " + String(e));
+                    }
                 }
 
-                // Step 3: Fallback to finding user by email
+                // Step 4: Fallback to finding user by email
                 if (!bUserId && invoice.customer_email) {
                     try {
                         var userByEmail = $app.findFirstRecordByData("users", "email", invoice.customer_email);
                         if (userByEmail) {
                             bUserId = userByEmail.id;
-                            console.log("Webhook: Found user by email: " + bUserId);
+                            lookupMethod = "users.email";
+                            $app.logger().info("Webhook: Found user " + bUserId + " via email " + invoice.customer_email);
                         }
-                    } catch (e) { /* ignore */ }
+                    } catch (e) {
+                        $app.logger().info("Webhook: email lookup failed: " + String(e));
+                    }
                 }
 
                 if (bUserId) {
                     var planName = "pro";
                     var billingInterval = "month"; // default to monthly
-                    // Try to guess default plan from existing billing, fallback to checking amount / agency ids
                     if (bRecord && bRecord.get("plan")) {
                         planName = bRecord.get("plan");
                     }
@@ -455,7 +486,6 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                         if (price && price.id && agencyIds.indexOf(price.id) !== -1) {
                             planName = "agency";
                         }
-                        // Determine billing cycle from Stripe price interval
                         if (price && price.recurring && price.recurring.interval === "year") {
                             billingInterval = "year";
                         } else if (price && price.id && annualPriceIds.indexOf(price.id) !== -1) {
@@ -465,17 +495,15 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                         planName = "agency";
                     }
 
-                    $app.logger().info("Webhook: invoice.paid - plan=" + planName + " interval=" + billingInterval + " amount=$" + invAmount + " user=" + bUserId);
+                    $app.logger().info("Webhook: invoice.paid - plan=" + planName + " interval=" + billingInterval + " amount=$" + invAmount + " user=" + bUserId + " via=" + lookupMethod);
 
                     $app.runInTransaction((txApp) => {
                         var user = txApp.findRecordById("users", bUserId);
                         var now = new DateTime();
-                        // Use actual billing interval from Stripe, not amount-based guessing
                         var expiry = billingInterval === "year"
                             ? now.addDate(1, 0, 2)
                             : now.addDate(0, 1, 2);
                         
-                        // Restore plan AND extend expiry
                         user.set("plan", planName);
                         user.set("plan_expires_at", expiry);
                         user.set("stripe_customer_id", invCustomerId);
@@ -494,7 +522,6 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                             bRecord.set("end_date", expiry);
                             txApp.save(bRecord);
                         } else {
-                            // Create billing record if it didn't exist
                             var billingColl = txApp.findCollectionByNameOrId("billing");
                             var newBRecord = new Record(billingColl, {
                                 "user_id": bUserId,
@@ -511,7 +538,9 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                     });
                     $app.logger().info("Webhook: SUCCESS plan '" + planName + "' extended (interval=" + billingInterval + ") for user " + bUserId);
                 } else {
-                    $app.logger().error("Webhook: invoice.paid - no user found for customer " + invCustomerId + " or email " + invoice.customer_email);
+                    $app.logger().error("Webhook: invoice.paid - NO USER FOUND. customer=" + invCustomerId + " email=" + (invoice.customer_email || "none") + " sub=" + invoice.subscription);
+                    // Return detailed info so we can debug via Stripe Event Deliveries response
+                    return c.json(200, { received: true, warning: "no_user_found", customer: invCustomerId, email: invoice.customer_email || "none" });
                 }
             }
 
