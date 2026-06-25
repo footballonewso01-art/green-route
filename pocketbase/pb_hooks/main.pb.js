@@ -580,6 +580,23 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
     }
 });
 
+// TEMP: Admin endpoint to clear webhook dedup entry (for event resend debugging)
+routerAdd("POST", "/api/admin/clear-dedup", (c) => {
+    try {
+        const data = new DynamicModel({ "eventId": "" });
+        c.bindBody(data);
+        const eventId = data.eventId;
+        if (!eventId) {
+            return c.json(400, { error: "eventId required" });
+        }
+        $app.db().newQuery("DELETE FROM _processed_stripe_events WHERE id = {:id}").bind({ "id": eventId }).execute();
+        $app.logger().info("Admin: Cleared dedup for event " + eventId);
+        return c.json(200, { success: true, cleared: eventId });
+    } catch (err) {
+        return c.json(500, { error: String(err) });
+    }
+}, $apis.requireSuperuserAuth());
+
 // Stripe: Verify Session & Activate Plan (Fallback for when webhook doesn't fire)
 // Called from frontend success page with ?session_id=cs_xxx
 routerAdd("POST", "/api/stripe/verify-session", (c) => {
