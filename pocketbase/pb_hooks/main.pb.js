@@ -442,25 +442,36 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
 
                 if (bUserId) {
                     var planName = "pro";
+                    var billingInterval = "month"; // default to monthly
                     // Try to guess default plan from existing billing, fallback to checking amount / agency ids
                     if (bRecord && bRecord.get("plan")) {
                         planName = bRecord.get("plan");
                     }
                     var agencyIds = ["price_1T9ojK1kCVZzZn9tmOrvoNOn", "price_1TA5kT1kCVZzZn9tAP7AsNjs", "price_1TA5ay1kCVZzZn9thZD9Rhsi", "price_1TA5mh1kCVZzZn9tN3UmsgCC"];
+                    var annualPriceIds = ["price_1TA5k11kCVZzZn9tvsRkAGHW", "price_1TA5kT1kCVZzZn9tAP7AsNjs", "price_1TA5mP1kCVZzZn9toW9b7xcU", "price_1TA5mh1kCVZzZn9tN3UmsgCC"];
                     var lines = invoice.lines;
                     if (lines && lines.data && lines.data.length > 0) {
                         var price = lines.data[0].price;
                         if (price && price.id && agencyIds.indexOf(price.id) !== -1) {
                             planName = "agency";
                         }
+                        // Determine billing cycle from Stripe price interval
+                        if (price && price.recurring && price.recurring.interval === "year") {
+                            billingInterval = "year";
+                        } else if (price && price.id && annualPriceIds.indexOf(price.id) !== -1) {
+                            billingInterval = "year";
+                        }
                     } else if (invAmount >= 29) {
                         planName = "agency";
                     }
 
+                    $app.logger().info("Webhook: invoice.paid - plan=" + planName + " interval=" + billingInterval + " amount=$" + invAmount + " user=" + bUserId);
+
                     $app.runInTransaction((txApp) => {
                         var user = txApp.findRecordById("users", bUserId);
                         var now = new DateTime();
-                        var expiry = (invAmount >= 29 || planName === "agency")
+                        // Use actual billing interval from Stripe, not amount-based guessing
+                        var expiry = billingInterval === "year"
                             ? now.addDate(1, 0, 2)
                             : now.addDate(0, 1, 2);
                         
@@ -498,9 +509,9 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                             txApp.save(newBRecord);
                         }
                     });
-                    console.log("Webhook: SUCCESS plan '" + planName + "' extended/activated for user " + bUserId);
+                    $app.logger().info("Webhook: SUCCESS plan '" + planName + "' extended (interval=" + billingInterval + ") for user " + bUserId);
                 } else {
-                    console.log("Webhook: invoice.paid - no user found for customer " + invCustomerId + " or email " + invoice.customer_email);
+                    $app.logger().error("Webhook: invoice.paid - no user found for customer " + invCustomerId + " or email " + invoice.customer_email);
                 }
             }
 
@@ -519,8 +530,11 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 subUser.set("plan", "");
                 subUser.set("plan_expires_at", "");
                 $app.save(subUser);
-                console.log("Webhook: subscription.deleted - plan removed for user " + subUserId);
+                $app.logger().info("Webhook: subscription.deleted - plan removed for user " + subUserId);
             }
+        } else {
+            // Log unhandled event types for debugging
+            $app.logger().info("Webhook: UNHANDLED event type '" + verifiedEvent.type + "' id=" + eventId);
         }
 
         // All processing succeeded
