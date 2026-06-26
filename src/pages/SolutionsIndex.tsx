@@ -2,13 +2,30 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { 
   ArrowRight, Zap, Globe, Smartphone, RefreshCw, BarChart3, 
-  ShoppingBag, Music, Play, Radio, Shield, Award, Sparkles, User
+  ShoppingBag, Music, Play, Radio, Shield, Award, Sparkles, User, ShieldAlert
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
+import competitorsData from "@/data/competitors.json";
 import Footer from "@/components/Footer";
+
+interface CompetitorPricing {
+  free: string;
+  pro: string;
+  customDomains: string;
+  watermarkRemoval: string;
+  transactionFee: string;
+}
+
+interface Competitor {
+  slug: string;
+  name: string;
+  emoji: string;
+  description: string;
+  pricing: CompetitorPricing;
+}
 
 export default function SolutionsIndex() {
   const { user } = useAuth();
@@ -285,6 +302,57 @@ export default function SolutionsIndex() {
               </div>
             </Link>
           ))}
+        </div>
+      </section>
+
+      {/* Platform Comparisons / Alternatives */}
+      <section className="py-12 px-6 max-w-6xl mx-auto z-10 relative mb-16">
+        <div className="text-left mb-8 border-b border-border/40 pb-4">
+          <h2 className="text-2xl font-extrabold text-white uppercase tracking-tight flex items-center gap-2">
+            <Award className="w-6 h-6 text-accent" /> Platform Alternatives
+          </h2>
+          <p className="text-xs text-muted-foreground">Compare side-by-side specs, pricing tiers, and custom domain options for major competitor platforms vs Linktery.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {(competitorsData as Competitor[]).slice(0, 3).map((comp, index) => (
+            <Link 
+              key={index} 
+              to={`/alternatives/${comp.slug}`}
+              className="glass-card p-6 border border-border bg-surface/20 hover:border-accent/40 hover:bg-surface-hover/10 transition-all duration-300 rounded-2xl flex flex-col justify-between text-left group"
+            >
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="w-12 h-12 rounded-xl bg-slate-900 border border-border flex items-center justify-center text-3xl">
+                    {comp.emoji}
+                  </div>
+                  <div className="text-right text-[10px] font-mono uppercase text-slate-500 space-y-0.5">
+                    <div>Free: <span className="text-white font-bold">{comp.pricing.free}</span></div>
+                    <div>Pro: <span className="text-accent font-bold">{comp.pricing.pro}</span></div>
+                  </div>
+                </div>
+
+                <h3 className="text-lg font-bold text-white tracking-tight uppercase group-hover:text-accent transition-colors">
+                  {comp.name} Alternative
+                </h3>
+                <p className="text-sm text-slate-400 leading-relaxed font-sans font-medium line-clamp-2">
+                  {comp.description}
+                </p>
+              </div>
+
+              <div className="pt-4 border-t border-border/40 mt-4 flex justify-between items-center text-xs">
+                <span className="font-bold text-accent group-hover:text-white flex items-center gap-1 font-mono uppercase transition-colors">
+                  Compare <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+        
+        <div className="mt-8 flex justify-center">
+          <Link to="/alternatives" className="btn-primary-glow text-sm inline-flex items-center gap-2">
+            View All 14 Alternatives <ArrowRight className="w-4 h-4" />
+          </Link>
         </div>
       </section>
 

@@ -322,23 +322,25 @@ export default function LandingPage() {
                       navigate(`/register?username=${usernameInput.trim().toLowerCase()}`);
                     }
                   }}
-                  className="w-full flex items-center bg-surface/40 backdrop-blur-xl border border-border/60 hover:border-border/80 focus-within:border-accent/40 rounded-full p-1.5 transition-all duration-300 shadow-glow/5 focus-within:shadow-glow/15"
+                  className="w-full flex flex-col sm:flex-row items-center bg-transparent sm:bg-surface/40 backdrop-blur-xl border-0 sm:border border-border/60 hover:border-border/80 focus-within:border-accent/40 rounded-3xl sm:rounded-full p-0 sm:p-1.5 transition-all duration-300 shadow-glow/5 focus-within:shadow-glow/15 gap-3 sm:gap-0"
                 >
-                  <div className="flex items-center pl-1 pr-0 text-zinc-300 select-none font-medium text-[14.7px] sm:text-[16.6px] flex-shrink-0">
-                    <img src="/logo.webp" alt="Logo" className="h-10 w-auto mix-blend-screen mr-1 flex-shrink-0" />
-                    <span>linktery.com/</span>
+                  <div className="w-full flex items-center bg-surface/40 sm:bg-transparent border border-border/60 sm:border-0 rounded-full p-1.5 sm:p-0">
+                    <div className="flex items-center pl-2 sm:pl-1 pr-0 text-zinc-300 select-none font-medium text-[14px] sm:text-[16.6px] flex-shrink-0">
+                      <img src="/logo.webp" alt="Logo" className="h-8 sm:h-10 w-auto mix-blend-screen mr-1 flex-shrink-0" />
+                      <span>linktery.com/</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={usernameInput}
+                      onChange={(e) => setUsernameInput(e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_.]/g, "").slice(0, 22))}
+                      maxLength={22}
+                      placeholder="yourname"
+                      className="bg-transparent border-0 p-0 m-0 outline-none focus:ring-0 text-white placeholder:text-white/30 w-full min-w-0 py-2 pl-[1px] text-[14px] sm:text-[16.6px] pr-2"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={usernameInput}
-                    onChange={(e) => setUsernameInput(e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_.]/g, "").slice(0, 22))}
-                    maxLength={22}
-                    placeholder="yourname"
-                    className="bg-transparent border-0 p-0 m-0 outline-none focus:ring-0 text-white placeholder:text-white/30 w-full min-w-0 py-2 pl-[1px] text-[14.7px] sm:text-[16.6px] pr-2"
-                  />
                   <button
                     type="submit"
-                    className="btn-primary-glow !rounded-full !py-2.5 !px-5 sm:!px-6 whitespace-nowrap text-sm font-bold active:scale-95 transition-transform"
+                    className="w-full sm:w-auto btn-primary-glow !rounded-full !py-3 sm:!py-2.5 !px-5 sm:!px-6 whitespace-nowrap text-sm font-bold active:scale-95 transition-transform"
                   >
                     Start for free
                   </button>
