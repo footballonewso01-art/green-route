@@ -173,22 +173,16 @@ export default function DashboardHome() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center shrink-0">
             <Link to="/dashboard/profile">
-              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="btn-primary-glow flex items-center gap-2 px-6 py-2.5 text-sm shadow-xl shadow-accent/20">
+              <motion.button 
+                whileHover={{ scale: 1.02 }} 
+                whileTap={{ scale: 0.98 }} 
+                className="btn-primary-glow flex items-center gap-2 px-6 py-2.5 text-sm shadow-xl shadow-accent/20"
+              >
                 <Plus className="w-4 h-4" /> Create Link
               </motion.button>
             </Link>
-            <button
-              onClick={() => {
-                const url = `${window.location.origin}/${pb.authStore.model?.username}`;
-                navigator.clipboard.writeText(url);
-                toast.success("Profile URL copied to clipboard!");
-              }}
-              className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold rounded-xl bg-surface border border-border text-foreground hover:bg-surface-hover hover:border-accent/30 transition-all"
-            >
-              <Share2 className="w-4 h-4 text-muted-foreground" /> Share Profile
-            </button>
           </div>
         </div>
       </motion.div>
