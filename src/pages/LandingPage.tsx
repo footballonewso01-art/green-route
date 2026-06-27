@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, BarChart3, Shield, Zap, Globe, MousePointer, ExternalLink, User as UserIcon, Sparkles } from "lucide-react";
+import { BarChart3, Shield, Zap, Globe, User as UserIcon } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";

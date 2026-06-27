@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, ExternalLink, BarChart3, ToggleLeft, ToggleRight, Copy, Trash2, Edit, Loader2, GripVertical, Eye, EyeOff, Globe, QrCode, Download, X, Link2, LayoutGrid, List, Lock } from "lucide-react";
-import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { Plus, Search, BarChart3, Copy, Trash2, Edit, Loader2, GripVertical, Eye, EyeOff, Globe } from "lucide-react";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { QRCodeCanvas } from 'qrcode.react';
 import { IconRenderer } from '@/components/icons/IconRenderer';
 import { pb } from "@/lib/pocketbase";
