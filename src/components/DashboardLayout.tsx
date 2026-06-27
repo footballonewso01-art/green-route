@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Link2, BarChart3, User, Settings, Zap, Menu, X, LogOut, CreditCard, Info, Search, Tag, ShieldCheck, HelpCircle, Bell, Share2, ShieldAlert, Users, Link as LinkIcon } from "lucide-react";
+import { LayoutDashboard, Link2, BarChart3, User, Settings, Zap, Menu, X, LogOut, Info, Search, Tag, ShieldCheck, HelpCircle, Bell, Share2, ShieldAlert, Users, Link as LinkIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { PLANS, PlanType } from "@/lib/plans";
 import { pb } from "@/lib/pocketbase";
@@ -34,7 +34,6 @@ const navGroups: NavGroup[] = [
   {
     label: "Account",
     items: [
-      { title: "Billing", path: "/dashboard/billing", icon: CreditCard },
       { title: "Pricing", path: "/dashboard/pricing", icon: Tag },
       { title: "Settings", path: "/dashboard/settings", icon: Settings },
     ]
