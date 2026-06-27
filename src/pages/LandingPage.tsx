@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BarChart3, Shield, Zap, Globe, User as UserIcon } from "lucide-react";
+import { ArrowRight, BarChart3, Shield, Zap, Globe, MousePointer, ExternalLink, User as UserIcon, Sparkles } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
@@ -120,7 +120,7 @@ export default function LandingPage() {
   useEffect(() => {
     setMounted(true);
     let interval: NodeJS.Timeout;
-    
+
     const startInterval = () => {
       interval = setInterval(() => {
         setWordIndex((prev) => (prev + 1) % words.length);
@@ -157,14 +157,14 @@ export default function LandingPage() {
             deviceId = crypto.randomUUID();
             localStorage.setItem("device_id", deviceId);
           }
-          
+
           pb.collection("analytics_events").create({
             event_name: "landing_pageview",
             metadata: { deviceId, path: "/" }
-          }).catch(() => {});
+          }).catch(() => { });
           sessionStorage.setItem("landing_viewed", "true");
         }
-      } catch(e) {
+      } catch (e) {
         // Ignored
       }
     };
@@ -286,7 +286,7 @@ export default function LandingPage() {
               <Zap className="w-3.5 h-3.5" />
               Traffic Management Platform
             </div>
-            
+
             <h1 className="text-4xl sm:text-5xl lg:text-[70px] font-extrabold tracking-tight mb-7 leading-[1.15] text-foreground w-full">
               <span className="relative block overflow-hidden h-[1.15em] w-full">
                 <AnimatePresence mode="popLayout">
@@ -304,11 +304,11 @@ export default function LandingPage() {
               </span>
               <span className="gradient-text block mt-1">Built to Convert.</span>
             </h1>
-            
+
             <p className="text-base md:text-[20px] text-muted-foreground mb-8 max-w-xl leading-relaxed">
               Advanced link management with smart routing. Designed for creators, affiliates, and marketers.
             </p>
-            
+
             <div className="flex flex-col items-start gap-4 mb-8 w-full max-w-md relative z-20">
               {showUser ? (
                 <Link to="/dashboard" className="btn-primary-glow text-base sm:text-[20px] inline-flex items-center justify-center gap-2 px-10 py-4.5 rounded-xl font-bold">
@@ -322,25 +322,23 @@ export default function LandingPage() {
                       navigate(`/register?username=${usernameInput.trim().toLowerCase()}`);
                     }
                   }}
-                  className="w-full flex flex-col sm:flex-row items-center bg-transparent sm:bg-surface/40 backdrop-blur-xl border-0 sm:border border-border/60 hover:border-border/80 focus-within:border-accent/40 rounded-3xl sm:rounded-full p-0 sm:p-1.5 transition-all duration-300 shadow-glow/5 focus-within:shadow-glow/15 gap-3 sm:gap-0"
+                  className="w-full flex items-center bg-surface/40 backdrop-blur-xl border border-border/60 hover:border-border/80 focus-within:border-accent/40 rounded-full p-1.5 transition-all duration-300 shadow-glow/5 focus-within:shadow-glow/15"
                 >
-                  <div className="w-full flex items-center bg-surface/40 sm:bg-transparent border border-border/60 sm:border-0 rounded-full p-1.5 sm:p-0">
-                    <div className="flex items-center pl-2 sm:pl-1 pr-0 text-zinc-300 select-none font-medium text-[14px] sm:text-[16.6px] flex-shrink-0">
-                      <img src="/logo.webp" alt="Logo" className="h-8 sm:h-10 w-auto mix-blend-screen mr-1 flex-shrink-0" />
-                      <span>linktery.com/</span>
-                    </div>
-                    <input
-                      type="text"
-                      value={usernameInput}
-                      onChange={(e) => setUsernameInput(e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_.]/g, "").slice(0, 22))}
-                      maxLength={22}
-                      placeholder="yourname"
-                      className="bg-transparent border-0 p-0 m-0 outline-none focus:ring-0 text-white placeholder:text-white/30 w-full min-w-0 py-2 pl-[1px] text-[14px] sm:text-[16.6px] pr-2"
-                    />
+                  <div className="flex items-center pl-1 pr-0 text-zinc-300 select-none font-medium text-[14.7px] sm:text-[16.6px] flex-shrink-0">
+                    <img src="/logo.webp" alt="Logo" className="h-10 w-auto mix-blend-screen mr-1 flex-shrink-0" />
+                    <span>linktery.com/</span>
                   </div>
+                  <input
+                    type="text"
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_.]/g, "").slice(0, 22))}
+                    maxLength={22}
+                    placeholder="yourname"
+                    className="bg-transparent border-0 p-0 m-0 outline-none focus:ring-0 text-white placeholder:text-white/30 w-full min-w-0 py-2 pl-[1px] text-[14.7px] sm:text-[16.6px] pr-2"
+                  />
                   <button
                     type="submit"
-                    className="w-full sm:w-auto btn-primary-glow !rounded-full !py-3 sm:!py-2.5 !px-5 sm:!px-6 whitespace-nowrap text-sm font-bold active:scale-95 transition-transform"
+                    className="btn-primary-glow !rounded-full !py-2.5 !px-5 sm:!px-6 whitespace-nowrap text-sm font-bold active:scale-95 transition-transform"
                   >
                     Start for free
                   </button>
@@ -415,7 +413,7 @@ export default function LandingPage() {
                   alt="Linktery mobile preview"
                   className="transform rotate-3 scale-[1.75] lg:scale-[2.31] lg:translate-x-[17%] w-full h-auto select-none pointer-events-none origin-center z-10"
                   loading="eager"
-                  fetchpriority="high"
+                  fetchPriority="high"
                 />
               </picture>
             </div>
@@ -527,21 +525,19 @@ export default function LandingPage() {
                   {isAgency && (
                     <div className="absolute inset-0 bg-cyan-500/5 rounded-[28px] blur-[30px] -z-10 group-hover:bg-cyan-500/10 transition-all duration-500 pointer-events-none" />
                   )}
- 
-                  <div className={`glass-card pt-10 px-8 pb-8 rounded-[28px] relative flex flex-col h-full bg-card/60 backdrop-blur-2xl border transition-all duration-500 ${
-                    isPro 
-                      ? "border-accent/40 shadow-glow hover:border-accent/60" 
-                      : isAgency 
-                        ? "border-cyan-500/20 shadow-cyan-glow hover:border-cyan-500/40" 
+
+                  <div className={`glass-card pt-10 px-8 pb-8 rounded-[28px] relative flex flex-col h-full bg-card/60 backdrop-blur-2xl border transition-all duration-500 ${isPro
+                      ? "border-accent/40 shadow-glow hover:border-accent/60"
+                      : isAgency
+                        ? "border-cyan-500/20 shadow-cyan-glow hover:border-cyan-500/40"
                         : "border-white/5 hover:border-white/15"
-                  }`}>
-                    
+                    }`}>
+
                     <div className="text-left mb-6">
-                      <h3 className={`text-2xl font-extrabold mb-2 tracking-tight ${
-                        isPro ? "text-accent" : isAgency ? "text-cyan-400" : "text-foreground"
-                      }`}>{plan.name}</h3>
+                      <h3 className={`text-2xl font-extrabold mb-2 tracking-tight ${isPro ? "text-accent" : isAgency ? "text-cyan-400" : "text-foreground"
+                        }`}>{plan.name}</h3>
                       <p className="text-sm text-muted-foreground h-12 leading-relaxed">{plan.description}</p>
-                      
+
                       <div className="flex items-baseline mt-5 mb-2 gap-1.5">
                         <span className="text-5xl font-black text-white tracking-tight">
                           ${billingCycle === "annual" && plan.annualPrice ? plan.annualPrice : plan.price}
@@ -554,13 +550,12 @@ export default function LandingPage() {
                         )}
                       </div>
                     </div>
- 
+
                     <ul className="space-y-3.5 mb-8 flex-1 text-left">
                       {plan.features.map((f, idx) => (
                         <li key={idx} className="flex items-center gap-3 text-sm text-muted-foreground group/feature">
-                          <span className={`w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-sm flex-shrink-0 transition-all duration-300 ${
-                            isPro ? "group-hover/feature:bg-accent/10 group-hover/feature:border-accent/30" : isAgency ? "group-hover/feature:bg-cyan-500/10 group-hover/feature:border-cyan-500/30" : "group-hover/feature:bg-white/10"
-                          }`}>
+                          <span className={`w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-sm flex-shrink-0 transition-all duration-300 ${isPro ? "group-hover/feature:bg-accent/10 group-hover/feature:border-accent/30" : isAgency ? "group-hover/feature:bg-cyan-500/10 group-hover/feature:border-cyan-500/30" : "group-hover/feature:bg-white/10"
+                            }`}>
                             {f.icon}
                           </span>
                           <span className="flex-1 truncate">{f.text}</span>
@@ -598,13 +593,12 @@ export default function LandingPage() {
                       ) : (
                         <Link
                           to="/dashboard/pricing"
-                          className={`w-full text-center py-3.5 rounded-xl font-bold transition-all duration-300 block text-sm transform active:scale-95 ${
-                            isPro 
-                              ? "btn-primary-glow" 
-                              : isAgency 
-                                ? "bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:bg-cyan-600 hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]" 
+                          className={`w-full text-center py-3.5 rounded-xl font-bold transition-all duration-300 block text-sm transform active:scale-95 ${isPro
+                              ? "btn-primary-glow"
+                              : isAgency
+                                ? "bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:bg-cyan-600 hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]"
                                 : "border border-border hover:bg-surface-hover text-foreground hover:border-white/20"
-                          }`}
+                            }`}
                         >
                           {plan.buttonText}
                         </Link>
@@ -612,19 +606,18 @@ export default function LandingPage() {
                     ) : (
                       <Link
                         to="/register"
-                        className={`w-full text-center py-3.5 rounded-xl font-bold transition-all duration-300 block text-sm transform active:scale-95 ${
-                          isPro 
-                            ? "btn-primary-glow" 
-                            : isAgency 
-                              ? "bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:bg-cyan-600 hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]" 
+                        className={`w-full text-center py-3.5 rounded-xl font-bold transition-all duration-300 block text-sm transform active:scale-95 ${isPro
+                            ? "btn-primary-glow"
+                            : isAgency
+                              ? "bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:bg-cyan-600 hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]"
                               : "border border-border hover:bg-surface-hover text-foreground hover:border-white/20"
-                        }`}
+                          }`}
                       >
                         {plan.id === "creator" ? "Get Started" : plan.buttonText}
                       </Link>
                     )}
                   </div>
-                  
+
                   {showPopularBadge && (
                     <div className="absolute -top-3.5 left-6 bg-accent text-accent-foreground text-xs font-bold uppercase tracking-wider py-1 px-3.5 rounded-full flex items-center gap-1 shadow-lg shadow-accent/20">
                       <Zap className="w-3.5 h-3.5 fill-current" /> Most Popular

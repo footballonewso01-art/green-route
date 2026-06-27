@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, BarChart3, Copy, Trash2, Edit, Loader2, GripVertical, Eye, EyeOff, Globe } from "lucide-react";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import { Plus, Search, ExternalLink, BarChart3, ToggleLeft, ToggleRight, Copy, Trash2, Edit, Loader2, GripVertical, Eye, EyeOff, Globe, QrCode, Download, X, Link2, LayoutGrid, List, Lock } from "lucide-react";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { QRCodeCanvas } from 'qrcode.react';
 import { IconRenderer } from '@/components/icons/IconRenderer';
 import { pb } from "@/lib/pocketbase";
@@ -75,7 +75,7 @@ export default function LinksManager() {
       }
 
       const sparks: Record<string, number[]> = {};
-      linksList.forEach(link => { sparks[link.id] = [0,0,0,0,0,0,0]; });
+      linksList.forEach(link => { sparks[link.id] = [0, 0, 0, 0, 0, 0, 0]; });
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -113,7 +113,7 @@ export default function LinksManager() {
       ]);
 
       setLinks(linksRecords.items);
-      setProfiles(profilesRecords);
+      setProfiles(profilesRecords as unknown as ProfileItem[]);
 
       // Load sparklines asynchronously without blocking the main UI
       fetchSparklines(linksRecords.items);
@@ -298,15 +298,15 @@ export default function LinksManager() {
         <div className="flex items-center gap-3">
           {/* View Toggle - Hidden on Mobile, only Desktop/Tablet can switch */}
           <div className="hidden sm:flex items-center bg-surface border border-border p-1 rounded-xl">
-            <button 
-              onClick={() => setViewMode("bento")} 
+            <button
+              onClick={() => setViewMode("bento")}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === "bento" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"}`}
               title="Bento View"
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
-            <button 
-              onClick={() => setViewMode("list")} 
+            <button
+              onClick={() => setViewMode("list")}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === "list" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"}`}
               title="List View"
             >
@@ -379,9 +379,9 @@ export default function LinksManager() {
           <DragDropContext onDragEnd={handleDragEnd}>
             <Droppable droppableId="links-list" isDropDisabled={filtered.length <= 1}>
               {(provided) => (
-                <div 
-                  {...provided.droppableProps} 
-                  ref={provided.innerRef} 
+                <div
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
                   className={viewMode === "bento" ? "grid grid-cols-1 xl:grid-cols-2 gap-4" : "space-y-3"}
                 >
                   {filtered.map((link, index) => {
@@ -389,62 +389,155 @@ export default function LinksManager() {
                     const effectiveViewMode = (typeof window !== 'undefined' && window.innerWidth < 640) ? 'list' : viewMode;
                     const activeIndex = link.active ? activeLinks.findIndex(al => al.id === link.id) : -1;
                     const isFrozen = link.active && limit !== -1 && activeIndex >= limit;
-                    
+
                     return (
-                    <Draggable key={link.id} draggableId={link.id} index={index} isDragDisabled={search.length > 0 || filtered.length <= 1}>
-                      {(provided, snapshot) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          style={{
-                            ...provided.draggableProps.style,
-                          }}
-                          className={effectiveViewMode === "bento" 
-                            ? `bento-card p-5 flex flex-col justify-between gap-4 transition-all duration-300 min-h-[160px] ${isFrozen ? '!border-amber-500/25 !bg-amber-500/[0.01]' : ''} ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:shadow-glow'}`
-                            : `glass-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-all duration-200 ${isFrozen ? '!border-amber-500/25 !bg-amber-500/[0.01]' : ''} ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:border-accent/20'}`}
-                        >
-                          <div className={`flex items-start justify-between gap-3 ${effectiveViewMode === 'list' ? 'flex-1 min-w-0' : ''}`}>
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div {...provided.dragHandleProps} className="text-muted-foreground/50 hover:text-foreground cursor-grab active:cursor-grabbing p-1 -ml-2 -mt-2">
-                                <GripVertical className="w-4 h-4" />
-                              </div>
-                              <div className={`w-12 h-12 bg-background border border-border rounded-2xl flex items-center justify-center shrink-0 overflow-hidden ${link.size === 'large' ? 'ring-2 ring-accent/30 shadow-lg shadow-accent/5' : ''}`}>
-                                <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className="w-7 h-7 text-accent" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
+                      <Draggable key={link.id} draggableId={link.id} index={index} isDragDisabled={search.length > 0 || filtered.length <= 1}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            style={{
+                              ...provided.draggableProps.style,
+                            }}
+                            className={effectiveViewMode === "bento"
+                              ? `bento-card p-5 flex flex-col justify-between gap-4 transition-all duration-300 min-h-[160px] ${isFrozen ? '!border-amber-500/25 !bg-amber-500/[0.01]' : ''} ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:shadow-glow'}`
+                              : `glass-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-all duration-200 ${isFrozen ? '!border-amber-500/25 !bg-amber-500/[0.01]' : ''} ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:border-accent/20'}`}
+                          >
+                            <div className={`flex items-start justify-between gap-3 ${effectiveViewMode === 'list' ? 'flex-1 min-w-0' : ''}`}>
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div {...provided.dragHandleProps} className="text-muted-foreground/50 hover:text-foreground cursor-grab active:cursor-grabbing p-1 -ml-2 -mt-2">
+                                  <GripVertical className="w-4 h-4" />
+                                </div>
+                                <div className={`w-12 h-12 bg-background border border-border rounded-2xl flex items-center justify-center shrink-0 overflow-hidden ${link.size === 'large' ? 'ring-2 ring-accent/30 shadow-lg shadow-accent/5' : ''}`}>
+                                  <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className="w-7 h-7 text-accent" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
                                     <span className={`text-sm font-semibold text-accent ${effectiveViewMode === 'list' ? 'truncate max-w-[200px]' : 'break-all'}`}>
-                                      {effectiveViewMode === 'bento' 
-                                        ? (`${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`.length > 35 
-                                            ? `${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`.substring(0, 35) + "..." 
-                                            : `${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`)
+                                      {effectiveViewMode === 'bento'
+                                        ? (`${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`.length > 35
+                                          ? `${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`.substring(0, 35) + "..."
+                                          : `${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`)
                                         : `${link.domain ? link.domain.replace('https://', '') : window.location.host}/${link.slug}`
                                       }
                                     </span>
-                                {link.title && <span className="text-xs font-medium px-2 py-0.5 rounded bg-surface border border-border">{link.title}</span>}
-                                <button onClick={() => copyToClipboard(link.slug, link.domain)} className="text-muted-foreground hover:text-foreground transition-colors mr-1">
-                                  <Copy className="w-3.5 h-3.5" />
-                                </button>
-                                {isFrozen && (
-                                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] font-bold text-amber-500 uppercase tracking-wider shrink-0" title="This link is frozen because your plan limits are exceeded.">
-                                    <Lock className="w-2.5 h-2.5" /> Frozen
-                                  </span>
-                                )}
+                                    {link.title && <span className="text-xs font-medium px-2 py-0.5 rounded bg-surface border border-border">{link.title}</span>}
+                                    <button onClick={() => copyToClipboard(link.slug, link.domain)} className="text-muted-foreground hover:text-foreground transition-colors mr-1">
+                                      <Copy className="w-3.5 h-3.5" />
+                                    </button>
+                                    {isFrozen && (
+                                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] font-bold text-amber-500 uppercase tracking-wider shrink-0" title="This link is frozen because your plan limits are exceeded.">
+                                        <Lock className="w-2.5 h-2.5" /> Frozen
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className={`text-xs text-muted-foreground flex items-center gap-1 ${effectiveViewMode === 'list' ? 'truncate max-w-[200px]' : 'break-all'}`}>
+                                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                      {effectiveViewMode === 'bento'
+                                        ? (link.destination_url.length > 35 ? link.destination_url.substring(0, 35) + "..." : link.destination_url)
+                                        : link.destination_url
+                                      }
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className={`text-xs text-muted-foreground flex items-center gap-1 ${effectiveViewMode === 'list' ? 'truncate max-w-[200px]' : 'break-all'}`}>
-                                  <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                                  {effectiveViewMode === 'bento'
-                                    ? (link.destination_url.length > 35 ? link.destination_url.substring(0, 35) + "..." : link.destination_url)
-                                    : link.destination_url
-                                  }
-                                </span>
-                              </div>
-                              </div>
+
+                              {effectiveViewMode === "bento" && (
+                                <div className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+                                  <div className="relative">
+                                    {profileSelectorLinkId === link.id ? (
+                                      <select
+                                        onChange={(e) => {
+                                          if (e.target.value) {
+                                            toggleProfileVisibility(link.id, false, e.target.value);
+                                          } else {
+                                            setProfileSelectorLinkId(null);
+                                          }
+                                        }}
+                                        onBlur={() => setProfileSelectorLinkId(null)}
+                                        autoFocus
+                                        className="px-2 py-1 bg-surface border border-accent/40 rounded text-[10px] text-white focus:outline-none max-w-[100px]"
+                                      >
+                                        <option value="">Profile...</option>
+                                        {profiles.map(p => (
+                                          <option key={p.id} value={p.id}>{p.name || `@${p.slug}`}</option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <button
+                                        onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
+                                        className={`p-2 rounded-xl transition-colors ${link.show_on_profile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground hover:text-foreground hover:bg-surface-hover'}`}
+                                        title={link.show_on_profile ? "Visible on profile" : "Hidden from profile"}
+                                      >
+                                        {link.show_on_profile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                      </button>
+                                    )}
+                                  </div>
+                                  <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
+                                    <QrCode className="w-4 h-4" />
+                                  </button>
+                                  <Link to={`/dashboard/links/edit/${link.id}`} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="Edit Full Settings">
+                                    <Edit className="w-4 h-4" />
+                                  </Link>
+                                  <button onClick={() => deleteLink(link.id)} className="p-2 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors" title="Delete">
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                            
-                            {effectiveViewMode === "bento" && (
-                              <div className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+
+                            {effectiveViewMode === "bento" ? (
+                              /* Bento Grid Bottom Section */
+                              <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
+                                <div className="flex items-center gap-6 ml-2">
+                                  <div className="flex items-center gap-3">
+                                    <div>
+                                      <div className="text-lg font-bold text-foreground">{(link.clicks_count || 0).toLocaleString()}</div>
+                                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Clicks</div>
+                                    </div>
+                                    <div className="w-14 h-8 flex items-end gap-0.5 opacity-50" title="Clicks over last 7 days">
+                                      {(sparklines[link.id] || [0, 0, 0, 0, 0, 0, 0]).map((val, i) => {
+                                        const maxVal = Math.max(...(sparklines[link.id] || [0, 0, 0, 0, 0, 0, 0]), 1);
+                                        return (
+                                          <div key={i} className="w-1 bg-accent/50 rounded-t-sm transition-all" style={{ height: `${(val / maxVal) * 100}%`, minHeight: '2px' }} />
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-3">
+                                    <div>
+                                      <div className="text-lg font-bold text-foreground">{((sparklines[link.id] || []).reduce((a, b) => a + b, 0) / 7).toFixed(1)}</div>
+                                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Avg.Daily</div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors scale-90" title="Toggle active status">
+                                    {isFrozen ? (
+                                      <ToggleRight className="w-8 h-8 text-amber-500" />
+                                    ) : link.active ? (
+                                      <ToggleRight className="w-8 h-8 text-accent" />
+                                    ) : (
+                                      <ToggleLeft className="w-8 h-8 text-muted-foreground" />
+                                    )}
+                                  </button>
+
+                                  <Link to={`/dashboard/analytics?link=${link.id}`} className="p-2.5 rounded-xl bg-surface border border-border hover:border-accent/50 text-foreground transition-all tactile-btn" title="View Analytics">
+                                    <BarChart3 className="w-4 h-4 text-accent" />
+                                  </Link>
+                                </div>
+                              </div>
+                            ) : (
+                              /* List View Right Side Actions */
+                              <div className="flex items-center gap-6">
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-foreground">{(link.clicks_count || 0).toLocaleString()}</div>
+                                  <div className="text-xs text-muted-foreground">clicks</div>
+                                </div>
+
                                 <div className="relative">
                                   {profileSelectorLinkId === link.id ? (
                                     <select
@@ -457,9 +550,9 @@ export default function LinksManager() {
                                       }}
                                       onBlur={() => setProfileSelectorLinkId(null)}
                                       autoFocus
-                                      className="px-2 py-1 bg-surface border border-accent/40 rounded text-[10px] text-white focus:outline-none max-w-[100px]"
+                                      className="px-2 py-1 bg-surface border border-accent/40 rounded text-xs text-white focus:outline-none"
                                     >
-                                      <option value="">Profile...</option>
+                                      <option value="">Select Profile...</option>
                                       {profiles.map(p => (
                                         <option key={p.id} value={p.id}>{p.name || `@${p.slug}`}</option>
                                       ))}
@@ -467,55 +560,15 @@ export default function LinksManager() {
                                   ) : (
                                     <button
                                       onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
-                                      className={`p-2 rounded-xl transition-colors ${link.show_on_profile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground hover:text-foreground hover:bg-surface-hover'}`}
+                                      className={`p-2 rounded-lg transition-colors ${link.show_on_profile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground bg-surface hover:bg-surface-hover'}`}
                                       title={link.show_on_profile ? "Visible on profile" : "Hidden from profile"}
                                     >
                                       {link.show_on_profile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                     </button>
                                   )}
                                 </div>
-                                <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
-                                  <QrCode className="w-4 h-4" />
-                                </button>
-                                <Link to={`/dashboard/links/edit/${link.id}`} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="Edit Full Settings">
-                                  <Edit className="w-4 h-4" />
-                                </Link>
-                                <button onClick={() => deleteLink(link.id)} className="p-2 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors" title="Delete">
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
- 
-                          {effectiveViewMode === "bento" ? (
-                            /* Bento Grid Bottom Section */
-                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
-                              <div className="flex items-center gap-6 ml-2">
-                                <div className="flex items-center gap-3">
-                                  <div>
-                                    <div className="text-lg font-bold text-foreground">{(link.clicks_count || 0).toLocaleString()}</div>
-                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Clicks</div>
-                                  </div>
-                                  <div className="w-14 h-8 flex items-end gap-0.5 opacity-50" title="Clicks over last 7 days">
-                                    {(sparklines[link.id] || [0,0,0,0,0,0,0]).map((val, i) => {
-                                      const maxVal = Math.max(...(sparklines[link.id] || [0,0,0,0,0,0,0]), 1);
-                                      return (
-                                        <div key={i} className="w-1 bg-accent/50 rounded-t-sm transition-all" style={{ height: `${(val / maxVal) * 100}%`, minHeight: '2px' }} />
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                                
-                                <div className="flex items-center gap-3">
-                                  <div>
-                                    <div className="text-lg font-bold text-foreground">{((sparklines[link.id] || []).reduce((a,b)=>a+b,0)/7).toFixed(1)}</div>
-                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Avg.Daily</div>
-                                  </div>
-                                </div>
-                              </div>
-  
-                              <div className="flex items-center gap-2">
-                                <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors scale-90" title="Toggle active status">
+
+                                <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors" title="Toggle active status">
                                   {isFrozen ? (
                                     <ToggleRight className="w-8 h-8 text-amber-500" />
                                   ) : link.active ? (
@@ -524,80 +577,28 @@ export default function LinksManager() {
                                     <ToggleLeft className="w-8 h-8 text-muted-foreground" />
                                   )}
                                 </button>
-                                
-                                <Link to={`/dashboard/analytics?link=${link.id}`} className="p-2.5 rounded-xl bg-surface border border-border hover:border-accent/50 text-foreground transition-all tactile-btn" title="View Analytics">
-                                  <BarChart3 className="w-4 h-4 text-accent" />
-                                </Link>
-                              </div>
-                            </div>
-                          ) : (
-                            /* List View Right Side Actions */
-                            <div className="flex items-center gap-6">
-                              <div className="text-center">
-                                <div className="text-lg font-bold text-foreground">{(link.clicks_count || 0).toLocaleString()}</div>
-                                <div className="text-xs text-muted-foreground">clicks</div>
-                              </div>
-  
-                              <div className="relative">
-                                {profileSelectorLinkId === link.id ? (
-                                  <select
-                                    onChange={(e) => {
-                                      if (e.target.value) {
-                                        toggleProfileVisibility(link.id, false, e.target.value);
-                                      } else {
-                                        setProfileSelectorLinkId(null);
-                                      }
-                                    }}
-                                    onBlur={() => setProfileSelectorLinkId(null)}
-                                    autoFocus
-                                    className="px-2 py-1 bg-surface border border-accent/40 rounded text-xs text-white focus:outline-none"
-                                  >
-                                    <option value="">Select Profile...</option>
-                                    {profiles.map(p => (
-                                      <option key={p.id} value={p.id}>{p.name || `@${p.slug}`}</option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  <button
-                                    onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
-                                    className={`p-2 rounded-lg transition-colors ${link.show_on_profile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground bg-surface hover:bg-surface-hover'}`}
-                                    title={link.show_on_profile ? "Visible on profile" : "Hidden from profile"}
-                                  >
-                                    {link.show_on_profile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
+                                    <QrCode className="w-4 h-4" />
                                   </button>
-                                )}
+                                  <Link to={`/dashboard/analytics?link=${link.id}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
+                                    <BarChart3 className="w-4 h-4" />
+                                  </Link>
+                                  <Link to={`/dashboard/links/edit/${link.id}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
+                                    <Edit className="w-4 h-4" />
+                                  </Link>
+                                  <button onClick={() => deleteLink(link.id)} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
-  
-                              <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors" title="Toggle active status">
-                                {isFrozen ? (
-                                  <ToggleRight className="w-8 h-8 text-amber-500" />
-                                ) : link.active ? (
-                                  <ToggleRight className="w-8 h-8 text-accent" />
-                                ) : (
-                                  <ToggleLeft className="w-8 h-8 text-muted-foreground" />
-                                )}
-                              </button>
- 
-                              <div className="flex items-center gap-1">
-                                <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
-                                  <QrCode className="w-4 h-4" />
-                                </button>
-                                <Link to={`/dashboard/analytics?link=${link.id}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
-                                  <BarChart3 className="w-4 h-4" />
-                                </Link>
-                                <Link to={`/dashboard/links/edit/${link.id}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
-                                  <Edit className="w-4 h-4" />
-                                </Link>
-                                <button onClick={() => deleteLink(link.id)} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </Draggable>
-                  )})}
+                            )}
+                          </div>
+                        )}
+                      </Draggable>
+                    )
+                  })}
                   {provided.placeholder}
                 </div>
               )}
