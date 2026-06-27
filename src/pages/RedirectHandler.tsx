@@ -381,14 +381,11 @@ export default function RedirectHandler() {
                 try {
                     const destUrlObj = new URL(finalDestination, window.location.href);
                     isLocalDestination = destUrlObj.hostname === window.location.hostname || 
-                                         destUrlObj.hostname === "hotme.online" || 
-                                         destUrlObj.hostname === "www.hotme.online" || 
                                          destUrlObj.hostname === "linktery.com" || 
                                          destUrlObj.hostname === "www.linktery.com" || 
                                          /^[./]/.test(finalDestination);
                 } catch {
                     isLocalDestination = finalDestination.includes(window.location.hostname) || 
-                                         finalDestination.includes("hotme.online") || 
                                          finalDestination.includes("linktery.com") || 
                                          /^[./]/.test(finalDestination);
                 }
@@ -398,8 +395,6 @@ export default function RedirectHandler() {
                 try {
                     const destUrlObj = new URL(finalDestination, window.location.href);
                     const isOurDomain = destUrlObj.hostname === window.location.hostname ||
-                                         destUrlObj.hostname === "hotme.online" ||
-                                         destUrlObj.hostname === "www.hotme.online" ||
                                          destUrlObj.hostname === "linktery.com" ||
                                          destUrlObj.hostname === "www.linktery.com";
                     
