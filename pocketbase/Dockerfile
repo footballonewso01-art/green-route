@@ -20,5 +20,5 @@ COPY ./repair_db.py /pb/repair_db.py
 # Expose the default port
 EXPOSE 8080
 
-# Run sleep so we can debug manually
-CMD ["sleep", "3600"]
+# Run Repair and then PocketBase
+CMD ["sh", "-c", "python3 /pb/repair_db.py && /pb/pocketbase serve --http=0.0.0.0:8080 --dir=/pb/pb_data --hooksDir=/pb/pb_hooks"]
