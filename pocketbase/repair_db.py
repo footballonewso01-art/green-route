@@ -5,6 +5,17 @@ import os
 DB_PATH = '/pb/pb_data/data.db'
 
 def repair():
+    # Force WAL checkpointing on both databases before PocketBase starts
+    for db_file in [DB_PATH, '/pb/pb_data/auxiliary.db']:
+        if os.path.exists(db_file):
+            try:
+                c = sqlite3.connect(db_file)
+                c.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+                c.close()
+                print(f"WAL checkpoint truncated successfully for {db_file}")
+            except Exception as checkpoint_err:
+                print(f"Could not checkpoint {db_file}: {checkpoint_err}")
+
     if not os.path.exists(DB_PATH):
         print(f"Database not found at {DB_PATH}, skipping repair.")
         return
