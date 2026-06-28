@@ -74,6 +74,35 @@ routerAdd("POST", "/api/stripe/create-checkout", (c) => {
         const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
         const HOST_URL = $os.getenv("HOST_URL") || "https://linktery.com";
 
+        // Look up existing Stripe Customer to prevent creating duplicates on upgrade
+        let existingCustomerId = "";
+        let existingSubscriptionId = "";
+        try {
+            const billingRecords = $app.findRecordsByFilter(
+                "billing",
+                "user_id = {:userId} && stripe_customer_id != ''",
+                "-created", 1, 0,
+                { userId: user.id }
+            );
+            if (billingRecords.length > 0) {
+                existingCustomerId = billingRecords[0].get("stripe_customer_id");
+                const subId = billingRecords[0].get("stripe_subscription_id");
+                const status = billingRecords[0].get("status");
+                if (subId && (status === "active" || status === "canceling")) {
+                    existingSubscriptionId = subId;
+                }
+            }
+            // Fallback: check users table
+            if (!existingCustomerId) {
+                const custId = user.get("stripe_customer_id");
+                if (custId) existingCustomerId = custId;
+            }
+        } catch (lookupErr) {
+            $app.logger().info("create-checkout: customer lookup error (non-fatal): " + lookupErr);
+        }
+
+        $app.logger().info("create-checkout: user=" + user.id + " existingCustomer=" + (existingCustomerId || "none") + " existingSub=" + (existingSubscriptionId || "none"));
+
         const sessionData = {
             "payment_method_types[0]": "card",
             "line_items[0][price]": priceId,
@@ -82,10 +111,21 @@ routerAdd("POST", "/api/stripe/create-checkout", (c) => {
             "success_url": HOST_URL + "/dashboard/billing?session_id={CHECKOUT_SESSION_ID}",
             "cancel_url": HOST_URL + "/dashboard/pricing",
             "client_reference_id": user.id,
-            "customer_email": user.get("email"),
             "metadata[userId]": user.id,
             "metadata[billingCycle]": billingCycle
         };
+
+        // Reuse existing Stripe Customer if available, otherwise let Stripe create one via email
+        if (existingCustomerId) {
+            sessionData["customer"] = existingCustomerId;
+        } else {
+            sessionData["customer_email"] = user.get("email");
+        }
+
+        // Track old subscription so webhook can cancel it after new one activates
+        if (existingSubscriptionId) {
+            sessionData["metadata[oldSubscriptionId]"] = existingSubscriptionId;
+        }
 
         const parts = [];
         for (const key in sessionData) {
@@ -396,6 +436,25 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                     txApp.save(billingRecord);
                 }
             });
+
+            // Cancel old subscription if this was an upgrade (prevent double billing)
+            var oldSubId = session.metadata ? session.metadata.oldSubscriptionId : null;
+            if (oldSubId && oldSubId !== subscriptionId) {
+                try {
+                    var cancelRes = $http.send({
+                        url: "https://api.stripe.com/v1/subscriptions/" + oldSubId,
+                        method: "DELETE",
+                        headers: {
+                            "Authorization": "Bearer " + STRIPE_SECRET_KEY,
+                            "Content-Type": "application/x-www-form-urlencoded"
+                        },
+                        timeout: 10
+                    });
+                    $app.logger().info("Webhook: Cancelled old subscription " + oldSubId + " (status=" + cancelRes.statusCode + ") after upgrade for user " + userId);
+                } catch (cancelErr) {
+                    $app.logger().error("Webhook: Failed to cancel old subscription " + oldSubId + ": " + cancelErr);
+                }
+            }
 
             $app.logger().info("Webhook: SUCCESS plan '" + planName + "' activated for user " + userId);
 
