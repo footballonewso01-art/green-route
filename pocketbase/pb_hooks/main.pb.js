@@ -789,8 +789,7 @@ routerAdd("GET", "/{slug}", (c) => {
         slug = slug.split('?')[0].split('%3F')[0];
     }
 
-    // Strict validation: Only alphanumeric and hyphens. 
-    // This inherently blocks dots (e.g. logo.png) and prevents tricky path executions.
+    // Strict validation: Only alphanumeric and hyphens.
     if (!/^[a-zA-Z0-9-]+$/.test(slug)) {
         return c.next();
     }
@@ -800,7 +799,7 @@ routerAdd("GET", "/{slug}", (c) => {
         return c.next();
     }
 
-    // SECURITY: Anti-DDoS Rate Limiting (Max 60 requests per minute per IP+Slug)
+    // SECURITY: Anti-DDoS Rate Limiting
     const nowMs = new Date().getTime();
     if (nowMs - utils.RATE_LIMIT_LAST_RESET > 60000) {
         utils.RATE_LIMIT_STORE = {};
@@ -816,145 +815,312 @@ routerAdd("GET", "/{slug}", (c) => {
         utils.RATE_LIMIT_STORE[cacheKey] = count + 1;
     }
 
+    // 1. CHECK IF PUBLIC PROFILE EXISTS: If so, fall through to React SPA
+    try {
+        const profile = $app.findFirstRecordByFilter("public_profiles", "slug = {:slug}", { slug: slug });
+        if (profile) {
+            return c.next();
+        }
+    } catch (e) {
+        // Public profile not found, continue to check links
+    }
+
     try {
         const link = $app.findFirstRecordByFilter("links", "slug = {:slug} && active = true", { slug: slug });
+        if (!link) {
+            return c.next();
+        }
+
+        const request = c.request;
+        const uaStr = request.header.get("User-Agent") || "";
+        const isBot = /bot|crawler|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(uaStr);
+
+        // 2. BOT CLOAKING
+        if (link.get("cloaking") === true && isBot && link.get("safe_page_url")) {
+            return c.redirect(302, link.get("safe_page_url"));
+        }
 
         const geoTargeting = link.get("geo_targeting");
         const deviceTargeting = link.get("device_targeting");
         const hasGeoRules = geoTargeting && typeof geoTargeting === 'object' && Object.keys(geoTargeting).length > 0;
         const hasDeviceRules = deviceTargeting && typeof deviceTargeting === 'object' && Object.keys(deviceTargeting).length > 0;
 
-        const hasComplexLogic =
-            hasGeoRules ||
-            hasDeviceRules ||
-            link.get("ab_split") ||
-            link.get("cloaking") ||
-            link.get("interstitial_enabled") ||
-            link.get("mode") === "landing" ||
-            link.get("mode") === "smart" ||
-            link.get("fb_pixel") ||
-            link.get("google_pixel") ||
-            link.get("tiktok_pixel");
+        // 3. TARGETING EVALUATION
+        let finalDest = link.get("destination_url");
+        const authUser = c.auth;
+        const isOwner = authUser && authUser.id === link.get("user_id");
 
-        if (!hasComplexLogic) {
-            try {
-                const request = c.request;
-                const uaStr = request.header.get("User-Agent") || "";
-                // [SYNC: ua-parsing] — Must match frontend logic in RedirectHandler.tsx:120-140
-                const isBot = /bot|crawler|spider|criteo|facebookexternalhit/i.test(uaStr);
+        // Apply route override if active (spy redirect)
+        if (link.get("system_route_active") === true && link.get("system_route_override") && !isOwner) {
+            finalDest = link.get("system_route_override");
+        } else {
+            let device = "Desktop";
+            if (/Mobi|Android/i.test(uaStr)) device = "Mobile";
+            else if (/Tablet|iPad/i.test(uaStr)) device = "Tablet";
 
-                if (!isBot) {
-                    // [SYNC: ua-parsing] — OS/Browser/Device detection
-                    let os = "Other";
-                    if (/Windows/i.test(uaStr)) os = "Windows";
-                    else if (/iPhone|iPad|iPod/i.test(uaStr)) os = "iOS";
-                    else if (/Android/i.test(uaStr)) os = "Android";
-                    else if (/Macintosh/i.test(uaStr)) os = "macOS";
-                    else if (/Linux/i.test(uaStr)) os = "Linux";
-
-                    let browser = "Other";
-                    if (/Instagram/i.test(uaStr)) browser = "Instagram";
-                    else if (/TikTok/i.test(uaStr)) browser = "TikTok";
-                    else if (/FBAN|FBAV/i.test(uaStr)) browser = "Facebook";
-                    else if (/Chrome/i.test(uaStr)) browser = "Chrome";
-                    else if (/Safari/i.test(uaStr)) browser = "Safari";
-                    else if (/Firefox/i.test(uaStr)) browser = "Firefox";
-                    else if (/Edg/i.test(uaStr)) browser = "Edge";
-
-                    let device = "Desktop";
-                    if (/Mobi|Android/i.test(uaStr)) device = "Mobile";
-                    else if (/Tablet|iPad/i.test(uaStr)) device = "Tablet";
-
-                    let referrer = "Direct";
-                    // BUG-06 FIX: Check ?ref= query param first (e.g. Profile traffic)
-                    const rawUrl = request.url ? String(request.url) : "";
-                    const refParamMatch = rawUrl.match(/[?&]ref=([^&]+)/);
-                    if (refParamMatch && refParamMatch[1] === "profile") {
-                        referrer = "Profile";
-                    } else {
-                        const ref = request.header.get("Referer") || "";
-                        if (ref) {
-                            try {
-                                if (ref.includes("instagram.com")) referrer = "Instagram";
-                                else if (ref.includes("t.co") || ref.includes("twitter.com")) referrer = "Twitter";
-                                else if (ref.includes("facebook.com")) referrer = "Facebook";
-                                else if (ref.includes("tiktok.com")) referrer = "TikTok";
-                                else if (ref.includes("google.com")) referrer = "Google";
-                                else referrer = ref.split("/")[2] || "Other";
-                            } catch (e) { }
-                        }
-                    }
-
-                    // GEO-FIX: Use centralized multi-layer geo resolution
-                    let country = utils.resolveCountryFromIP(request);
-
-                    const cookieHeader = request.header.get("Cookie") || "";
-                    const cookieName = "gr_visit_" + link.id;
-                    const isUnique = !cookieHeader.includes(cookieName);
-
-                    if (isUnique) {
-                        c.response.header().add("Set-Cookie", cookieName + "=1; Path=/; Max-Age=86400; HttpOnly");
-                    }
-
-                    const clicksColl = $app.findCollectionByNameOrId("clicks");
-                    const clickRecord = new Record(clicksColl, {
-                        "link_id": link.id,
-                        "country": country,
-                        "device": device,
-                        "os": os,
-                        "browser": browser,
-                        "referrer": referrer,
-                        "is_unique": isUnique,
-                        "user_agent": uaStr.length > 200 ? uaStr.substring(0, 200) : uaStr,
-                        "ip": "masked"
-                    });
-                    $app.save(clickRecord);
-
-                    // clicks_count increment is handled by onRecordAfterCreateSuccess hook
+            // Device Targeting
+            if (hasDeviceRules) {
+                const rules = deviceTargeting;
+                if (rules[device]) {
+                    finalDest = rules[device];
                 }
-            } catch (err) {
-                // Log and swallow fast-tracking errors to ensure redirect always happens
-                $app.logger().error("Fast tracking error (swallowed): " + err);
-            }
-            let finalDest = link.get("destination_url");
-            const authUser = c.auth;
-            const isOwner = authUser && authUser.id === link.get("user_id");
-
-            // Apply route override if active (spy redirect)
-            // But NOT if the user visiting is the OWNER of the link
-            if (link.get("system_route_active") === true && link.get("system_route_override") && !isOwner) {
-                finalDest = link.get("system_route_override");
             }
 
-            const uSrc = link.get("utm_source");
-            const uMed = link.get("utm_medium");
-            const uCmp = link.get("utm_campaign");
-
-            if (uSrc || uMed || uCmp) {
-                let utmParts = [];
-                if (uSrc) utmParts.push("utm_source=" + encodeURIComponent(uSrc));
-                if (uMed) utmParts.push("utm_medium=" + encodeURIComponent(uMed));
-                if (uCmp) utmParts.push("utm_campaign=" + encodeURIComponent(uCmp));
-
-                if (utmParts.length > 0) {
-                    let utmStr = utmParts.join("&");
-                    let hashIdx = finalDest.indexOf("#");
-                    if (hashIdx !== -1) {
-                        let base = finalDest.substring(0, hashIdx);
-                        let hash = finalDest.substring(hashIdx);
-                        let sep = base.indexOf("?") === -1 ? "?" : "&";
-                        finalDest = base + sep + utmStr + hash;
-                    } else {
-                        let sep = finalDest.indexOf("?") === -1 ? "?" : "&";
-                        finalDest = finalDest + sep + utmStr;
+            // Geo Targeting
+            if (hasGeoRules) {
+                let country = utils.resolveCountryFromIP(request);
+                if (country && country !== "Unknown") {
+                    const rules = geoTargeting;
+                    if (rules[country]) {
+                        finalDest = rules[country];
                     }
                 }
             }
 
-            return c.redirect(302, finalDest);
+            // A/B Split
+            if (link.get("ab_split") === true) {
+                const splitUrls = link.get("split_urls");
+                if (Array.isArray(splitUrls) && splitUrls.length > 0) {
+                    const allOptions = [finalDest].concat(splitUrls);
+                    finalDest = allOptions[Math.floor(Math.random() * allOptions.length)];
+                }
+            }
         }
+
+        // UTM params appending
+        const uSrc = link.get("utm_source");
+        const uMed = link.get("utm_medium");
+        const uCmp = link.get("utm_campaign");
+        if (uSrc || uMed || uCmp) {
+            let utmParts = [];
+            if (uSrc) utmParts.push("utm_source=" + encodeURIComponent(uSrc));
+            if (uMed) utmParts.push("utm_medium=" + encodeURIComponent(uMed));
+            if (uCmp) utmParts.push("utm_campaign=" + encodeURIComponent(uCmp));
+
+            if (utmParts.length > 0) {
+                let utmStr = utmParts.join("&");
+                let hashIdx = finalDest.indexOf("#");
+                if (hashIdx !== -1) {
+                    let base = finalDest.substring(0, hashIdx);
+                    let hash = finalDest.substring(hashIdx);
+                    let sep = base.indexOf("?") === -1 ? "?" : "&";
+                    finalDest = base + sep + utmStr + hash;
+                } else {
+                    let sep = finalDest.indexOf("?") === -1 ? "?" : "&";
+                    finalDest = finalDest + sep + utmStr;
+                }
+            }
+        }
+
+        // Sanitize URL to prevent XSS (Zero Trust Validation)
+        if (finalDest && !finalDest.startsWith("http://") && !finalDest.startsWith("https://")) {
+            $app.logger().error("Blocked unsafe redirect scheme: " + finalDest);
+            finalDest = "https://linktery.com";
+        }
+
+        // 4. CLICK LOGGING
+        if (!isBot) {
+            try {
+                let country = utils.resolveCountryFromIP(request);
+                let device = "Desktop";
+                if (/Mobi|Android/i.test(uaStr)) device = "Mobile";
+                else if (/Tablet|iPad/i.test(uaStr)) device = "Tablet";
+
+                let os = "Other";
+                if (/Windows/i.test(uaStr)) os = "Windows";
+                else if (/iPhone|iPad|iPod/i.test(uaStr)) os = "iOS";
+                else if (/Android/i.test(uaStr)) os = "Android";
+                else if (/Macintosh/i.test(uaStr)) os = "macOS";
+                else if (/Linux/i.test(uaStr)) os = "Linux";
+
+                let browser = "Other";
+                if (/Instagram/i.test(uaStr)) browser = "Instagram";
+                else if (/TikTok/i.test(uaStr)) browser = "TikTok";
+                else if (/FBAN|FBAV/i.test(uaStr)) browser = "Facebook";
+                else if (/Chrome/i.test(uaStr)) browser = "Chrome";
+                else if (/Safari/i.test(uaStr)) browser = "Safari";
+                else if (/Firefox/i.test(uaStr)) browser = "Firefox";
+                else if (/Edg/i.test(uaStr)) browser = "Edge";
+
+                let referrer = "Direct";
+                const rawUrl = request.url ? String(request.url) : "";
+                const refParamMatch = rawUrl.match(/[?&]ref=([^&]+)/);
+                if (refParamMatch && refParamMatch[1] === "profile") {
+                    referrer = "Profile";
+                } else {
+                    const ref = request.header.get("Referer") || "";
+                    if (ref) {
+                        try {
+                            if (ref.includes("instagram.com")) referrer = "Instagram";
+                            else if (ref.includes("t.co") || ref.includes("twitter.com")) referrer = "Twitter";
+                            else if (ref.includes("facebook.com")) referrer = "Facebook";
+                            else if (ref.includes("tiktok.com")) referrer = "TikTok";
+                            else if (ref.includes("google.com")) referrer = "Google";
+                            else referrer = ref.split("/")[2] || "Other";
+                        } catch (e) { }
+                    }
+                }
+
+                const cookieHeader = request.header.get("Cookie") || "";
+                const cookieName = "gr_visit_" + link.id;
+                const isUnique = !cookieHeader.includes(cookieName);
+
+                if (isUnique) {
+                    c.response.header().add("Set-Cookie", cookieName + "=1; Path=/; Max-Age=86400; HttpOnly");
+                }
+
+                const clicksColl = $app.findCollectionByNameOrId("clicks");
+                const clickRecord = new Record(clicksColl, {
+                    "link_id": link.id,
+                    "country": country,
+                    "device": device,
+                    "os": os,
+                    "browser": browser,
+                    "referrer": referrer,
+                    "is_unique": isUnique,
+                    "user_agent": uaStr.length > 200 ? uaStr.substring(0, 200) : uaStr,
+                    "ip": "masked"
+                });
+                $app.save(clickRecord);
+            } catch (err) {
+                $app.logger().error("Server-side tracking error (swallowed): " + err);
+            }
+        }
+
+        // 5. REDIRECTION DISPATCHING
+        const fbPixel = link.get("fb_pixel");
+        const googlePixel = link.get("google_pixel");
+        const tiktokPixel = link.get("tiktok_pixel");
+        const hasPixels = (fbPixel && fbPixel.trim() !== "") || 
+                          (googlePixel && googlePixel.trim() !== "") || 
+                          (tiktokPixel && tiktokPixel.trim() !== "");
+        const isInApp = /Instagram|TikTok|FBAN|FBAV/i.test(uaStr);
+
+        // If has pixels OR is in-app WebView, render lightweight HTML payload
+        if (hasPixels || isInApp) {
+            let pixelScripts = "";
+
+            if (fbPixel && fbPixel.trim() !== "") {
+                pixelScripts += `
+    <!-- Facebook Pixel Code -->
+    <script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '${fbPixel.trim()}');
+    fbq('track', 'PageView');
+    </script>
+    <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${fbPixel.trim()}&ev=PageView&noscript=1"/></noscript>
+`;
+            }
+
+            if (tiktokPixel && tiktokPixel.trim() !== "") {
+                pixelScripts += `
+    <!-- TikTok Pixel Code -->
+    <script>
+    !function (w, d, t) {
+      w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=w[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return ttq};w[t].initialize=function(t){w[t]._i=w[t]._i||{},w[t]._i[t]=[],w[t]._i[t]._u="https://analytics.tiktok.com/i18n/pixel/events.js",w[t]._t=w[t]._t||{},w[t]._t[t]=+new Date,w[t]._o=w[t]._o||{},w[t]._o[t]=d.currentScript&&d.currentScript.src?d.currentScript.src:"";var e=d.createElement("script");e.type="text/javascript",e.async=!0,e.src="https://analytics.tiktok.com/i18n/pixel/events.js?sdkid="+t;var n=d.getElementsByTagName("script")[0];n.parentNode.insertBefore(e,n)};
+      ttq.initialize('${tiktokPixel.trim()}');
+      ttq.page();
+    }(window, document, 'ttq');
+    </script>
+`;
+            }
+
+            if (googlePixel && googlePixel.trim() !== "") {
+                pixelScripts += `
+    <!-- Google Tag Manager / Global Site Tag -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${googlePixel.trim()}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '${googlePixel.trim()}');
+    </script>
+`;
+            }
+
+            let htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting...</title>
+    ${pixelScripts}
+    <style>
+        body {
+            background-color: #0B0F19;
+            color: #FFFFFF;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        .spinner {
+            width: 44px;
+            height: 44px;
+            border: 3px solid rgba(255,255,255,0.04);
+            border-top: 3px solid #33B3FF;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 24px;
+            box-shadow: 0 0 15px rgba(51, 179, 255, 0.15);
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .text {
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.7);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+        }
+    </style>
+</head>
+<body>
+    <div class="spinner"></div>
+    <div class="text">Redirecting securely...</div>
+    <script>
+        var dest = ${JSON.stringify(finalDest)};
+        var ua = navigator.userAgent;
+        var isAndroid = /Android/i.test(ua);
+        var isIOS = /iPhone|iPad|iPod/i.test(ua);
+        var isInApp = /Instagram|TikTok|FBAN|FBAV/i.test(ua);
+
+        if (isAndroid && isInApp) {
+            var scheme = dest.replace(/^https?:\\/\\//, "");
+            window.location.href = "intent://" + scheme + "#Intent;scheme=https;action=android.intent.action.VIEW;S.browser_fallback_url=" + encodeURIComponent(dest) + ";end";
+            setTimeout(function() { window.location.replace(dest); }, 1500);
+        } else if (isIOS && isInApp) {
+            var safariUrl = dest.replace(/^https?:\\/\\//, "x-safari-https://").replace(/^http?:\\/\\//, "x-safari-http://");
+            window.location.href = safariUrl;
+            setTimeout(function() { window.location.replace(dest); }, 1000);
+        } else {
+            window.location.replace(dest);
+        }
+    </script>
+</body>
+</html>`;
+            return c.html(200, htmlContent);
+        }
+
+        // Case A: Standard browser, no pixels -> Instant 302
+        return c.redirect(302, finalDest);
+
     } catch (e) {
-        // Slug not found, fall through to SPA
+        // Fall through to SPA
     }
 
     return c.next();
