@@ -654,7 +654,7 @@ routerAdd("POST", "/api/admin/clear-dedup", (c) => {
     } catch (err) {
         return c.json(500, { error: String(err) });
     }
-}, $apis.requireAdminAuth());
+}, $apis.requireSuperuserAuth());
 
 // Stripe: Verify Session & Activate Plan (Fallback for when webhook doesn't fire)
 // Called from frontend success page with ?session_id=cs_xxx
