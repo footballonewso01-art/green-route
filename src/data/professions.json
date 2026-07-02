@@ -570,6 +570,95 @@
     ],
     "seoTitle": "Link in Bio for AI Models & Virtual Influencers: Traffic Cloaker | Linktery",
     "seoDescription": "Secure your virtual influencer social profiles. Cloak Fanvue and adult links from bot audits, rotate traffic across backup destinations, and boost chat app conversions."
+  },
+  {
+    "slug": "ai-agencies",
+    "name": "AI Model Agencies & OFM",
+    "headline": "Link in Bio & Traffic Router for AI Model Agencies",
+    "subheadline": "Scale your virtual creator promotions safely. Split-test visitor landing pages, rotate backup links dynamically, and cloak adult domains from social media crawling filters.",
+    "cta": "Build My Agency Hub Link",
+    "theme": "bg-slate-950 border-slate-900",
+    "accent": "bg-indigo-500/20 border-indigo-500/40 text-indigo-400",
+    "avatar": "🏢",
+    "handle": "@stellar_models_agency",
+    "links": [
+      { "title": "💋 Model A - Primary Fanvue", "icon": "🦋", "clicks": "22.4k" },
+      { "title": "💬 Model B - Chat Companion", "icon": "💬", "clicks": "18.1k" },
+      { "title": "🔒 Model C - VIP Fansly", "icon": "💋", "clicks": "14.5k" }
+    ],
+    "stats": [
+      { "label": "Models Managed", "value": "24" },
+      { "label": "Daily Clicks", "value": "85.2K" },
+      { "label": "Bot Blocks", "value": "99.8%" }
+    ],
+    "problemTitle": "High Infrastructure Risk",
+    "problemDesc": "AI influencer agencies face massive losses when promotional social accounts or model links get shadowbanned. Updating dozens of links manually creates downtime and leaks traffic.",
+    "solutionTitle": "Centralized Agency Traffic Control",
+    "solutionDesc": "Linktery provides OFM agencies with a single command dashboard. Route traffic by custom weights, swap dead model destination links instantly, and protect domains with smart cloaking.",
+    "bullet1": "Weight-based link rotators for A/B promo splits.",
+    "bullet2": "Instant destination swaps preventing leaked traffic.",
+    "bullet3": "Geographical redirection rules to localize monetization.",
+    "faqs": [
+      {
+        "question": "Can I connect multiple custom domains to a single agency account?",
+        "answer": "Yes. With the Linktery Agency plan, you can connect unlimited custom domains and assign unique brand profiles to each domain."
+      },
+      {
+        "question": "How does the geo-targeted link rotator work?",
+        "answer": "You can configure traffic rules to automatically route North American visitors to primary subscription sites while directing global clicks to localized tipping pages."
+      },
+      {
+        "question": "Can I track campaign analytics across different promo platforms?",
+        "answer": "Yes, our dashboard gathers granular country, device, browser, and UTM metrics to help you calculate agency promo ROI."
+      }
+    ],
+    "seoTitle": "OnlyFans Management (OFM) Link-in-Bio Traffic Router | Linktery",
+    "seoDescription": "Scale your AI model agency conversions. Centralize link management, split-test promotional landing pages, rotate backup destinations, and cloak adult domains."
+  },
+  {
+    "slug": "vtubers",
+    "name": "VTubers & Virtual Streamers",
+    "headline": "Universal Smart Link in Bio for VTubers & Streamers",
+    "subheadline": "Direct your anime avatar fans to native applications. Deep link stream channels, integrate custom shop checkouts, and route Discord invites natively.",
+    "cta": "Build My VTuber Page",
+    "theme": "bg-neutral-900 border-neutral-800",
+    "accent": "bg-cyan-500/20 border-cyan-500/40 text-cyan-400",
+    "avatar": "👾",
+    "handle": "@yuki_vtuber_official",
+    "links": [
+      { "title": "👾 Watch Live on Twitch App", "icon": "🟣", "clicks": "12.4k" },
+      { "title": "🚀 Join Yuki's Discord Server", "icon": "💬", "clicks": "9.2k" },
+      { "title": "🛍️ Shop Virtual Assets (Booth.pm)", "icon": "🛒", "clicks": "4.5k" }
+    ],
+    "stats": [
+      { "label": "Twitch CTR", "value": "18.2%" },
+      { "label": "Discord Joins", "value": "4.5K" },
+      { "label": "Asset Sales", "value": "$3.2K" }
+    ],
+    "problemTitle": "In-App Browser Drop-offs",
+    "problemDesc": "When fans click your Twitch or Discord links on TikTok/Twitter, they get stuck in webviews and must log in. This prevents follows, subscribes, and message posts.",
+    "solutionTitle": "Direct Native App Launcher",
+    "solutionDesc": "Linktery bypasses webviews by triggering native iOS & Android deep links, opening the installed Twitch, Discord, or YouTube app directly to preserve user login sessions.",
+    "bullet1": "Twitch & Discord native application launchers.",
+    "bullet2": "Fast-loading grid portfolio embeds.",
+    "bullet3": "Tracking pixel integrations to target sponsor ads.",
+    "faqs": [
+      {
+        "question": "Does it open Twitch directly in the mobile app?",
+        "answer": "Yes. Linktery triggers deep links that bypass in-app browsers, launching the native Twitch app directly where fans are already logged in."
+      },
+      {
+        "question": "Can I promote virtual asset checkouts like Booth.pm?",
+        "answer": "Yes. Paste your Booth or Ko-fi checkouts, and Linktery will redirect mobile users out of social media webviews directly to Safari/Chrome."
+      },
+      {
+        "question": "How fast does the VTuber landing page load?",
+        "answer": "Because we pre-render pages into lightweight static HTML (SSG) served via global edge CDNs, your profile loads in under 150ms."
+      }
+    ],
+    "seoTitle": "Link in Bio for VTubers: Deep Links to Twitch & Discord | Linktery",
+    "seoDescription": "Build a professional VTuber bio link. Bypass in-app browsers to launch Twitch and Discord natively, showcase virtual stores, and track stream analytics."
   }
 ]
+
 

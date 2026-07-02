@@ -446,5 +446,99 @@
     "faqAnswer": "Carrd is a fantastic single-page builder but lacks dynamic traffic routing, A/B rotators, and native mobile-app deep linking. Linktery is optimized specifically for routing and converting mobile social traffic.",
     "alternativeSeoTitle": "Best Carrd Alternative: Dynamic Traffic Routing & Bio Links | Linktery",
     "alternativeSeoDescription": "Compare Carrd vs Linktery. If you need a fast mobile-optimized bio page with smart geolocation redirection, link rotators, and deep-linking, choose Linktery."
+  },
+  {
+    "slug": "fanlink",
+    "name": "Fanlink.tv",
+    "emoji": "🦋",
+    "description": "Fanlink is a popular onlyfans-centric landing page router for adult content creators.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$5/mo",
+      "customDomains": "$5/mo",
+      "watermarkRemoval": "$5/mo",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "⚠️ Basic app launching configurations",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "⚠️ Simple click telemetry",
+      "customDomains": "⚠️ Restricted to Pro plan ($5/mo)"
+    },
+    "pros": [
+      "Extremely recognizable by OnlyFans creators",
+      "Easy visual builders with dark presets",
+      "Direct integrations with adult subscription networks"
+    ],
+    "cons": [
+      "Highly rigid layout customizability",
+      "No automated A/B link rotators to split promotional traffic",
+      "Direct link domain (fanlink.tv) is frequently flagged by Instagram bots"
+    ],
+    "faqAnswer": "Fanlink is a standard adult link router but lacks advanced traffic routing capabilities like geo-targeting, bot cloaking, and weight rotators. Linktery wraps links in safe domains and rotators to maximize OFM conversions.",
+    "alternativeSeoTitle": "Best Fanlink.tv Alternative: Protect Your OnlyFans Bio Link | Linktery",
+    "alternativeSeoDescription": "Compare Fanlink.tv vs Linktery. Avoid Instagram shadowbans with smart bot filters, custom domain rotations, and deep links that double model signups."
+  },
+  {
+    "slug": "ohmybio",
+    "name": "OhMyBio",
+    "emoji": "💋",
+    "description": "OhMyBio is a specialized adult link-in-bio tool focusing on NSFW creator safety.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$4.99/mo to $19.99/mo",
+      "customDomains": "$9.99/mo (Pro)",
+      "watermarkRemoval": "$4.99/mo (Basic)",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "⚠️ Basic country redirect logic",
+      "analytics": "⚠️ Simple click tracking dashboards"
+    },
+    "pros": [
+      "Designed specifically for adult creator profiles",
+      "Offers basic link redirection safety layers",
+      "Simple card and button mobile layout grids"
+    ],
+    "cons": [
+      "No automated percentage-based link rotators",
+      "Expensive paid tiers to connect multiple model domains",
+      "Lacks deep analytics pixels and UTM parameters tracking"
+    ],
+    "faqAnswer": "OhMyBio offers adult safety features but lacks the advanced marketing tools that agencies require, such as A/B rotators and deep tracking pixels. Linktery provides full agency dashboard control with zero transaction fees.",
+    "alternativeSeoTitle": "Best OhMyBio Alternative: Advanced NSFW Creator Bio Link | Linktery",
+    "alternativeSeoDescription": "Compare OhMyBio vs Linktery. Scale your OFM agency with automated traffic rotators, location-based redirections, and multi-profile tracking pixels."
+  },
+  {
+    "slug": "urmybio",
+    "name": "UrMy.bio",
+    "emoji": "📲",
+    "description": "UrMy.bio is a link builder built by OnlyFans management (OFM) agency developers.",
+    "pricing": {
+      "free": "$0",
+      "pro": "$29.99/mo",
+      "customDomains": "$29.99/mo (Agency)",
+      "watermarkRemoval": "$29.99/mo (Agency)",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "❌ Not Supported",
+      "geotargeting": "❌ Not Supported",
+      "analytics": "⚠️ Basic visitor numbers only"
+    },
+    "pros": [
+      "Developed for the unique needs of adult agencies",
+      "Supports simple backup link toggle configurations"
+    ],
+    "cons": [
+      "Extremely expensive compared to standard link-in-bio tools",
+      "Very rigid and outdated visual layout templates",
+      "No native deep linking to launch installed mobile apps directly"
+    ],
+    "faqAnswer": "UrMy.bio targets agencies but charges exorbitant fees for simple features. Linktery offers unlimited link rotators, geo-rules, and deep links at a fraction of the cost under a premium, high-speed interface.",
+    "alternativeSeoTitle": "Best UrMy.bio Alternative: Premium OFM Agency Link Router | Linktery",
+    "alternativeSeoDescription": "Compare UrMy.bio vs Linktery. Discover the ultimate agency traffic router with unlimited A/B link splits, geotargeting, and zero watermark branding."
   }
 ]
+
