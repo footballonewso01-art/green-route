@@ -1435,7 +1435,7 @@ onRecordUpdateRequest((e) => {
         }
     }
 
-    
+    return e.next();
 }, "users");
 
 // IP Rate Limiting for new registrations
@@ -1468,7 +1468,7 @@ onRecordCreateRequest((e) => {
         }
         console.error("RATELIMIT ERROR:", err);
     }
-    
+    return e.next();
 }, "users");
 
 // Slug-Username collision prevention on link create
@@ -1510,7 +1510,7 @@ onRecordCreateRequest((e) => {
         throw new BadRequestError("DEBUG ERROR (links create 1): " + err + " (stack: " + (err.stack || "none") + ")");
     }
 
-    
+    return e.next();
 }, "links");
 
 // Username-Slug collision prevention on user update
@@ -1529,7 +1529,7 @@ onRecordUpdateRequest((e) => {
         }
     }
 
-    
+    return e.next();
 }, "users");
 
 // Hourly cron: downgrade expired plans or restore fallback
@@ -1673,7 +1673,7 @@ onRecordsListRequest((e) => {
         }
         $app.logger().error("Critical error in onRecordsListRequest: " + err);
     }
-    return;
+    return e.next();
 }, "links");
 
 onRecordViewRequest((e) => {
@@ -1707,7 +1707,7 @@ onRecordViewRequest((e) => {
         $app.logger().error("Critical error in onRecordViewRequest: " + err);
     }
 
-    return;
+    return e.next();
 }, "links");
 
 onRecordAfterCreateSuccess((e) => {
@@ -1768,7 +1768,7 @@ onRecordUpdateRequest((e) => {
             }
         }
     }
-    
+    return e.next();
 }, "users");
 
 // validateTargetingUrls helper migrated to top of file
@@ -1801,7 +1801,7 @@ onRecordUpdateRequest((e) => {
 
     // Validate all redirect and targeting URLs
     utils.validateTargetingUrls(e.record);
-    
+    return e.next();
 }, "links");
 
 // Parasite & XSS Patch for Link Creation
@@ -1823,7 +1823,7 @@ onRecordCreateRequest((e) => {
         }
         throw new BadRequestError("DEBUG ERROR (links create 2): " + err + " (stack: " + (err.stack || "none") + ")");
     }
-    
+    return e.next();
 }, "links");
 
 // validateProfileSocialLinks helper migrated to top of file
@@ -1846,7 +1846,7 @@ onRecordCreateRequest((e) => {
         }
         throw new BadRequestError("DEBUG ERROR (profiles create): " + err + " (stack: " + (err.stack || "none") + ")");
     }
-    
+    return e.next();
 }, "public_profiles");
 
 onRecordUpdateRequest((e) => {
@@ -1869,7 +1869,7 @@ onRecordUpdateRequest((e) => {
         }
         throw new BadRequestError("DEBUG ERROR (profiles update): " + err + " (stack: " + (err.stack || "none") + ")");
     }
-    
+    return e.next();
 }, "public_profiles");
 
 // Restrict public list queries on public_profiles to lookups by slug or user_id only (prevent bulk scraping)
@@ -1936,7 +1936,7 @@ onRecordsListRequest((e) => {
         // Non-BadRequest error — fail-open, don't block legitimate requests
         $app.logger().error("Error in public_profiles list hook: " + err);
     }
-    return;
+    return e.next();
 }, "public_profiles");
 
 console.log("--- main.pb.js LOADED SUCCESSFULLY ---");
