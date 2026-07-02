@@ -527,10 +527,10 @@ export default function LandingPage() {
                   )}
 
                   <div className={`glass-card pt-10 px-8 pb-8 rounded-[28px] relative flex flex-col h-full bg-card/60 backdrop-blur-2xl border transition-all duration-500 ${isPro
-                      ? "border-accent/40 shadow-glow hover:border-accent/60"
-                      : isAgency
-                        ? "border-cyan-500/20 shadow-cyan-glow hover:border-cyan-500/40"
-                        : "border-white/5 hover:border-white/15"
+                    ? "border-accent/40 shadow-glow hover:border-accent/60"
+                    : isAgency
+                      ? "border-cyan-500/20 shadow-cyan-glow hover:border-cyan-500/40"
+                      : "border-white/5 hover:border-white/15"
                     }`}>
 
                     <div className="text-left mb-6">
@@ -594,10 +594,10 @@ export default function LandingPage() {
                         <Link
                           to="/dashboard/pricing"
                           className={`w-full text-center py-3.5 rounded-xl font-bold transition-all duration-300 block text-sm transform active:scale-95 ${isPro
-                              ? "btn-primary-glow"
-                              : isAgency
-                                ? "bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:bg-cyan-600 hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]"
-                                : "border border-border hover:bg-surface-hover text-foreground hover:border-white/20"
+                            ? "btn-primary-glow"
+                            : isAgency
+                              ? "bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:bg-cyan-600 hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]"
+                              : "border border-border hover:bg-surface-hover text-foreground hover:border-white/20"
                             }`}
                         >
                           {plan.buttonText}
@@ -607,10 +607,10 @@ export default function LandingPage() {
                       <Link
                         to="/register"
                         className={`w-full text-center py-3.5 rounded-xl font-bold transition-all duration-300 block text-sm transform active:scale-95 ${isPro
-                            ? "btn-primary-glow"
-                            : isAgency
-                              ? "bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:bg-cyan-600 hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]"
-                              : "border border-border hover:bg-surface-hover text-foreground hover:border-white/20"
+                          ? "btn-primary-glow"
+                          : isAgency
+                            ? "bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:bg-cyan-600 hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]"
+                            : "border border-border hover:bg-surface-hover text-foreground hover:border-white/20"
                           }`}
                       >
                         {plan.id === "creator" ? "Get Started" : plan.buttonText}
