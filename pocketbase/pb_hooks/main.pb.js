@@ -1407,7 +1407,7 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
 // getAuthInfo helper migrated to top of file
 
 // Username change cooldown
-onRecordBeforeUpdateRequest((e) => {
+onRecordUpdateRequest((e) => {
     const newUsername = e.record.get("username");
     const oldUsername = e.record.original().get("username");
 
@@ -1440,7 +1440,7 @@ onRecordBeforeUpdateRequest((e) => {
 
 // IP Rate Limiting for new registrations
 // Requires PocketBase Settings > trustedProxy.headers = ["Fly-Client-IP"]
-onRecordBeforeCreateRequest((e) => {
+onRecordCreateRequest((e) => {
     try {
         const clientIP = e.realIP();
 
@@ -1472,7 +1472,7 @@ onRecordBeforeCreateRequest((e) => {
 }, "users");
 
 // Slug-Username collision prevention on link create
-onRecordBeforeCreateRequest((e) => {
+onRecordCreateRequest((e) => {
     try {
         const slug = e.record.get("slug");
         const userId = e.record.get("user_id");
@@ -1514,7 +1514,7 @@ onRecordBeforeCreateRequest((e) => {
 }, "links");
 
 // Username-Slug collision prevention on user update
-onRecordBeforeUpdateRequest((e) => {
+onRecordUpdateRequest((e) => {
     const newUsername = e.record.get("username");
     const oldUsername = e.record.original().get("username");
 
@@ -1710,11 +1710,9 @@ onRecordViewRequest((e) => {
     return;
 }, "links");
 
-// Universal click counter incrementer
-// PocketBase v0.24 JSVM: GLOBAL function (not $app.), callback first, collection last
-onModelAfterCreate((e) => {
+onRecordAfterCreateSuccess((e) => {
     try {
-        const linkId = e.model.get("link_id");
+        const linkId = e.record.get("link_id");
         console.log("CLICK HOOK FIRED: link_id=" + linkId);
         if (linkId) {
             // Use Direct SQL for maximum reliability and to avoid hook recursion/locking issues
@@ -1724,7 +1722,7 @@ onModelAfterCreate((e) => {
 
             // HIGHLOAD REFACTOR: UPSERT into physical analytics_daily Rollup Table
             // Extracts 'YYYY-MM-DD' from 'YYYY-MM-DD HH:MM:SS.SSSZ'
-            const createdStr = e.model.get("created") || new Date().toISOString();
+            const createdStr = e.record.get("created") || new Date().toISOString();
             const day = createdStr.split(" ")[0].split("T")[0] + " 00:00:00.000Z";
 
             $app.db().newQuery(`
@@ -1734,7 +1732,7 @@ onModelAfterCreate((e) => {
             `).bind({ linkId: linkId, day: day }).execute();
         }
     } catch (err) {
-        $app.logger().error("Critical error incrementing clicks_count for link_id " + e.model.get("link_id") + ": " + err);
+        $app.logger().error("Critical error incrementing clicks_count for link_id " + e.record.get("link_id") + ": " + err);
     }
 }, "clicks");
 
@@ -1745,7 +1743,7 @@ onModelAfterCreate((e) => {
 // God Mode Patch: Prevent non-admins from changing protected user fields
 // Allows: PocketBase superadmins (_superusers) AND app-level admins (role=admin)
 // PB v0.24: e.auth is the authenticated record; superadmins are in _superusers collection
-onRecordBeforeUpdateRequest((e) => {
+onRecordUpdateRequest((e) => {
     // Check if request comes from a superadmin (_superusers collection)
     let isSuperAdmin = false;
     try {
@@ -1776,7 +1774,7 @@ onRecordBeforeUpdateRequest((e) => {
 // validateTargetingUrls helper migrated to top of file
 
 // Parasite Patch: Prevent non-admins from changing system link fields
-onRecordBeforeUpdateRequest((e) => {
+onRecordUpdateRequest((e) => {
     const utils = require(__hooks + '/utils.js');
     let isSuperAdmin = false;
     try {
@@ -1807,7 +1805,7 @@ onRecordBeforeUpdateRequest((e) => {
 }, "links");
 
 // Parasite & XSS Patch for Link Creation
-onRecordBeforeCreateRequest((e) => {
+onRecordCreateRequest((e) => {
     try {
         const utils = require(__hooks + '/utils.js');
         var authInfo = utils.getAuthInfo(e);
@@ -1830,7 +1828,7 @@ onRecordBeforeCreateRequest((e) => {
 
 // validateProfileSocialLinks helper migrated to top of file
 
-onRecordBeforeCreateRequest((e) => {
+onRecordCreateRequest((e) => {
     try {
         const utils = require(__hooks + '/utils.js');
         var authInfo = utils.getAuthInfo(e);
@@ -1851,7 +1849,7 @@ onRecordBeforeCreateRequest((e) => {
     
 }, "public_profiles");
 
-onRecordBeforeUpdateRequest((e) => {
+onRecordUpdateRequest((e) => {
     try {
         const utils = require(__hooks + '/utils.js');
         var authInfo = utils.getAuthInfo(e);
