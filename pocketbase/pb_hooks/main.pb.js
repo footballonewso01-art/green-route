@@ -3,14 +3,14 @@
 // ==========================================
 console.log("--- main.pb.js LOADING ---");
 
-// --- Prevent auxiliary.db bloat: limit log retention to 7 days ---
+// --- Prevent auxiliary.db bloat: limit log retention to 3 days ---
 try {
     const settings = $app.settings();
-    if (!settings.logs.maxDays || settings.logs.maxDays > 7) {
-        settings.logs.maxDays = 7;
+    if (!settings.logs.maxDays || settings.logs.maxDays > 3) {
+        settings.logs.maxDays = 3;
         settings.logs.minLevel = 0; // INFO and above only
         $app.save(settings);
-        console.log("Logs retention set to 7 days (was " + (settings.logs.maxDays || "unlimited") + ")");
+        console.log("Logs retention set to 3 days (was " + (settings.logs.maxDays || "unlimited") + ")");
     }
 } catch (e) {
     console.log("Could not set logs retention: " + e);

@@ -5,9 +5,9 @@ import os
 DB_PATH = '/pb/pb_data/data.db'
 
 def repair():
-    # Guard: If auxiliary.db (logs) is bloated (>500MB), delete it to prevent startup hang
+    # Guard: If auxiliary.db (logs) is bloated (>300MB), delete it to prevent startup hang
     AUX_DB = '/pb/pb_data/auxiliary.db'
-    AUX_MAX_SIZE_MB = 500
+    AUX_MAX_SIZE_MB = 300
     for aux_file in [AUX_DB, AUX_DB + '-shm', AUX_DB + '-wal']:
         if os.path.exists(aux_file):
             size_mb = os.path.getsize(aux_file) / (1024 * 1024)
