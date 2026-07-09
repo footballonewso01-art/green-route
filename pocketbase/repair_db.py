@@ -5,8 +5,24 @@ import os
 DB_PATH = '/pb/pb_data/data.db'
 
 def repair():
+    # Guard: If auxiliary.db (logs) is bloated (>500MB), delete it to prevent startup hang
+    AUX_DB = '/pb/pb_data/auxiliary.db'
+    AUX_MAX_SIZE_MB = 500
+    for aux_file in [AUX_DB, AUX_DB + '-shm', AUX_DB + '-wal']:
+        if os.path.exists(aux_file):
+            size_mb = os.path.getsize(aux_file) / (1024 * 1024)
+            if aux_file == AUX_DB and size_mb > AUX_MAX_SIZE_MB:
+                print(f"WARNING: {aux_file} is {size_mb:.0f}MB (>{AUX_MAX_SIZE_MB}MB). Deleting to prevent startup hang...")
+                for f in [AUX_DB, AUX_DB + '-shm', AUX_DB + '-wal']:
+                    try:
+                        os.remove(f)
+                        print(f"  Deleted {f}")
+                    except FileNotFoundError:
+                        pass
+                break
+
     # Force WAL checkpointing on both databases before PocketBase starts
-    for db_file in [DB_PATH, '/pb/pb_data/auxiliary.db']:
+    for db_file in [DB_PATH, AUX_DB]:
         if os.path.exists(db_file):
             try:
                 c = sqlite3.connect(db_file)

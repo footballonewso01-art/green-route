@@ -3,6 +3,29 @@
 // ==========================================
 console.log("--- main.pb.js LOADING ---");
 
+// --- Prevent auxiliary.db bloat: limit log retention to 7 days ---
+try {
+    const settings = $app.settings();
+    if (!settings.logs.maxDays || settings.logs.maxDays > 7) {
+        settings.logs.maxDays = 7;
+        settings.logs.minLevel = 0; // INFO and above only
+        $app.save(settings);
+        console.log("Logs retention set to 7 days (was " + (settings.logs.maxDays || "unlimited") + ")");
+    }
+} catch (e) {
+    console.log("Could not set logs retention: " + e);
+}
+
+// --- Daily VACUUM on auxiliary.db to reclaim disk space ---
+cronAdd("vacuum_auxiliary_db", "30 3 * * *", () => {
+    try {
+        $app.auxVacuum();
+        $app.logger().info("CRON: auxiliary.db VACUUM completed");
+    } catch (e) {
+        $app.logger().error("CRON: auxiliary.db VACUUM failed: " + String(e));
+    }
+});
+
 routerAdd("GET", "/api/test-c", (c) => {
     try {
         var resJson = {
@@ -461,15 +484,29 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
         } else if (verifiedEvent.type === "invoice.paid") {
             var invoice = verifiedEvent.data.object;
             var invCustomerId = invoice.customer;
-            if (invoice.subscription) {
+            
+            // Extract subscription ID from various locations depending on Stripe API version
+            var subscriptionId = invoice.subscription || 
+                                 (invoice.parent && invoice.parent.subscription_details && invoice.parent.subscription_details.subscription) || 
+                                 "";
+            if (!subscriptionId && invoice.lines && invoice.lines.data && invoice.lines.data.length > 0) {
+                var firstLine = invoice.lines.data[0];
+                if (firstLine.subscription) {
+                    subscriptionId = firstLine.subscription;
+                } else if (firstLine.parent && firstLine.parent.subscription_item_details) {
+                    subscriptionId = firstLine.parent.subscription_item_details.subscription;
+                }
+            }
+
+            if (subscriptionId) {
                 var invAmount = invoice.amount_paid / 100;
-                $app.logger().info("Webhook: invoice.paid for customer " + invCustomerId + " amount=$" + invAmount + " sub=" + invoice.subscription + " email=" + (invoice.customer_email || "none"));
+                $app.logger().info("Webhook: invoice.paid for customer " + invCustomerId + " amount=$" + invAmount + " sub=" + subscriptionId + " email=" + (invoice.customer_email || "none"));
 
                 // Step 1: Find user and billing record by stripe_customer_id
                 var bRecord = null;
                 var bUserId = "";
                 var lookupMethod = "none";
-                
+
                 try {
                     var records = $app.findRecordsByFilter(
                         "billing", "stripe_customer_id = {:custId}", "-created", 1, 0, { custId: invCustomerId }
@@ -487,10 +524,10 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 }
 
                 // Step 2: Fallback - find by stripe_subscription_id in billing
-                if (!bUserId && invoice.subscription) {
+                if (!bUserId && subscriptionId) {
                     try {
                         var subRecords = $app.findRecordsByFilter(
-                            "billing", "stripe_subscription_id = {:subId}", "-created", 1, 0, { subId: invoice.subscription }
+                            "billing", "stripe_subscription_id = {:subId}", "-created", 1, 0, { subId: subscriptionId }
                         );
                         if (subRecords.length > 0) {
                             bRecord = subRecords[0];
@@ -562,12 +599,12 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                         var expiry = billingInterval === "year"
                             ? now.addDate(1, 0, 2)
                             : now.addDate(0, 1, 2);
-                        
+
                         user.set("plan", planName);
                         user.set("plan_expires_at", expiry);
                         user.set("stripe_customer_id", invCustomerId);
-                        if (invoice.subscription) {
-                            user.set("stripe_subscription_id", invoice.subscription);
+                        if (subscriptionId) {
+                            user.set("stripe_subscription_id", subscriptionId);
                         }
                         txApp.save(user);
 
@@ -575,8 +612,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                             bRecord.set("status", "active");
                             bRecord.set("amount", invAmount);
                             bRecord.set("plan", planName);
-                            if (invoice.subscription) {
-                                bRecord.set("stripe_subscription_id", invoice.subscription);
+                            if (subscriptionId) {
+                                bRecord.set("stripe_subscription_id", subscriptionId);
                             }
                             bRecord.set("end_date", expiry);
                             txApp.save(bRecord);
@@ -589,7 +626,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                                 "status": "active",
                                 "payment_method": "Stripe",
                                 "stripe_customer_id": invCustomerId,
-                                "stripe_subscription_id": invoice.subscription || "",
+                                "stripe_subscription_id": subscriptionId,
                                 "end_date": expiry
                             });
                             txApp.save(newBRecord);
@@ -597,7 +634,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                     });
                     $app.logger().info("Webhook: SUCCESS plan '" + planName + "' extended (interval=" + billingInterval + ") for user " + bUserId);
                 } else {
-                    $app.logger().error("Webhook: invoice.paid - NO USER FOUND. customer=" + invCustomerId + " email=" + (invoice.customer_email || "none") + " sub=" + invoice.subscription);
+                    $app.logger().error("Webhook: invoice.paid - NO USER FOUND. customer=" + invCustomerId + " email=" + (invoice.customer_email || "none") + " sub=" + subscriptionId);
                     // Return detailed info so we can debug via Stripe Event Deliveries response
                     return c.json(200, { received: true, warning: "no_user_found", customer: invCustomerId, email: invoice.customer_email || "none" });
                 }
@@ -991,9 +1028,9 @@ routerAdd("GET", "/{slug}", (c) => {
         const fbPixel = link.get("fb_pixel");
         const googlePixel = link.get("google_pixel");
         const tiktokPixel = link.get("tiktok_pixel");
-        const hasPixels = (fbPixel && fbPixel.trim() !== "") || 
-                          (googlePixel && googlePixel.trim() !== "") || 
-                          (tiktokPixel && tiktokPixel.trim() !== "");
+        const hasPixels = (fbPixel && fbPixel.trim() !== "") ||
+            (googlePixel && googlePixel.trim() !== "") ||
+            (tiktokPixel && tiktokPixel.trim() !== "");
         const isInApp = /Instagram|TikTok|FBAN|FBAV/i.test(uaStr);
 
         // If has pixels OR is in-app WebView, render lightweight HTML payload
@@ -2207,6 +2244,246 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
     } catch (e) {
         $app.logger().error("Analytics stats API error: " + e.toString());
         return c.json(500, { message: "Analytics query failed: " + e.toString() });
+    }
+});
+
+// Admin Dashboard telemetry and stats aggregation (fast SQLite queries)
+routerAdd("GET", "/api/admin/overview-stats", (c) => {
+    try {
+        var admin = c.auth;
+        if (!admin || admin.get("role") !== "admin") {
+            return c.json(403, { error: "Forbidden: Admins only" });
+        }
+
+        var query = c.request.url.query();
+        var period = query.get("period") || "7d";
+
+        var days = 7;
+        if (period === "24h") days = 1;
+        else if (period === "30d") days = 30;
+        else if (period === "all") days = 90; // Limit charts to 90 days for performance
+
+        var prevDays = days * 2;
+        var db = $app.db();
+
+        // 1. Basic totals
+        var totals = new DynamicModel({ "total_users": 0, "total_links": 0, "total_revenue": 0 });
+        db.newQuery("SELECT (SELECT count(*) FROM users) as total_users, (SELECT count(*) FROM links) as total_links, (SELECT COALESCE(sum(amount), 0) FROM billing WHERE status = 'success') as total_revenue")
+            .one(totals);
+
+        // 2. Registered Users & Revenue in current/previous periods (for trends)
+        var curStats = new DynamicModel({ "users": 0, "rev": 0, "clicks": 0 });
+        db.newQuery("SELECT (SELECT count(*) FROM users WHERE created >= datetime('now', '-' || {:days} || ' days')) as users, (SELECT COALESCE(sum(amount), 0) FROM billing WHERE status = 'success' AND created >= datetime('now', '-' || {:days} || ' days')) as rev, (SELECT count(*) FROM clicks WHERE created >= datetime('now', '-' || {:days} || ' days')) as clicks")
+            .bind({ days: days })
+            .one(curStats);
+
+        var prevStats = new DynamicModel({ "users": 0, "rev": 0, "clicks": 0 });
+        db.newQuery("SELECT (SELECT count(*) FROM users WHERE created >= datetime('now', '-' || {:prevDays} || ' days') AND created < datetime('now', '-' || {:days} || ' days')) as users, (SELECT COALESCE(sum(amount), 0) FROM billing WHERE status = 'success' AND created >= datetime('now', '-' || {:prevDays} || ' days') AND created < datetime('now', '-' || {:days} || ' days')) as rev, (SELECT count(*) FROM clicks WHERE created >= datetime('now', '-' || {:prevDays} || ' days') AND created < datetime('now', '-' || {:days} || ' days')) as clicks")
+            .bind({ days: days, prevDays: prevDays })
+            .one(prevStats);
+
+        // 3. User registrations in last 24h & 7d (KPI badges)
+        var usersKpi = new DynamicModel({ "u24": 0, "u7": 0 });
+        db.newQuery("SELECT (SELECT count(*) FROM users WHERE created >= datetime('now', '-1 days')) as u24, (SELECT count(*) FROM users WHERE created >= datetime('now', '-7 days')) as u7")
+            .one(usersKpi);
+
+        // 4. DAU / MAU
+        var dauMau = new DynamicModel({ "dau": 0, "mau": 0 });
+        db.newQuery("SELECT (SELECT count(DISTINCT user_id) FROM analytics_events WHERE created >= datetime('now', '-1 days') AND user_id != '') as dau, (SELECT count(DISTINCT user_id) FROM analytics_events WHERE created >= datetime('now', '-30 days') AND user_id != '') as mau")
+            .one(dauMau);
+
+        var prevDau = new DynamicModel({ "val": 0 });
+        db.newQuery("SELECT count(DISTINCT user_id) as val FROM analytics_events WHERE created >= datetime('now', '-2 days') AND created < datetime('now', '-1 days') AND user_id != ''")
+            .one(prevDau);
+
+        // 5. MRR / Paid Users / Churn
+        var billingStats = new DynamicModel({ "mrr": 0, "paid_count": 0 });
+        db.newQuery("SELECT COALESCE(sum(CASE WHEN plan = 'pro' THEN 9.99 WHEN plan = 'agency' THEN 29.99 ELSE 0 END), 0) as mrr, count(*) as paid_count FROM users WHERE plan != 'creator' AND plan_status = 'active'")
+            .one(billingStats);
+
+        var cancelled30 = new DynamicModel({ "val": 0 });
+        db.newQuery("SELECT count(*) as val FROM billing WHERE (status = 'refunded' OR status = 'cancelled') AND created >= datetime('now', '-30 days')")
+            .one(cancelled30);
+
+        var churnRate = billingStats.paid_count > 0 ? (cancelled30.val / billingStats.paid_count) * 100 : 0;
+        var arpu = billingStats.paid_count > 0 ? billingStats.mrr / billingStats.paid_count : 0;
+
+        // 6. Funnel analytics (Landing Views, Signups, Paid signups)
+        var funnelCurrent = new DynamicModel({ "views": 0, "paid": 0 });
+        db.newQuery("SELECT (SELECT count(id) FROM analytics_events WHERE event_name = 'landing_pageview' AND created >= datetime('now', '-' || {:days} || ' days')) as views, (SELECT count(*) FROM users WHERE plan != 'creator' AND plan_status = 'active' AND created >= datetime('now', '-' || {:days} || ' days')) as paid")
+            .bind({ days: days })
+            .one(funnelCurrent);
+
+        var funnelPrev = new DynamicModel({ "views": 0, "paid": 0 });
+        db.newQuery("SELECT (SELECT count(id) FROM analytics_events WHERE event_name = 'landing_pageview' AND created >= datetime('now', '-' || {:prevDays} || ' days') AND created < datetime('now', '-' || {:days} || ' days')) as views, (SELECT count(*) FROM users WHERE plan != 'creator' AND plan_status = 'active' AND created >= datetime('now', '-' || {:prevDays} || ' days') AND created < datetime('now', '-' || {:days} || ' days')) as paid")
+            .bind({ days: days, prevDays: prevDays })
+            .one(funnelPrev);
+
+        var convRate = funnelCurrent.views > 0 ? (funnelCurrent.paid / funnelCurrent.views) * 100 : 0;
+        var prevConvRate = funnelPrev.views > 0 ? (funnelPrev.paid / funnelPrev.views) * 100 : 0;
+
+        // 7. Trends calculations helper
+        var getTrend = function (curr, prev) {
+            if (prev === 0) return curr > 0 ? 100 : 0;
+            return Math.round(((curr - prev) / prev) * 100);
+        };
+
+        var trends = {
+            users: getTrend(curStats.users, prevStats.users),
+            revenue: getTrend(curStats.rev, prevStats.rev),
+            dau: getTrend(dauMau.dau, prevDau.val),
+            conversion: getTrend(convRate, prevConvRate),
+            clicks: getTrend(curStats.clicks, prevStats.clicks)
+        };
+
+        // 8. Traffic Countries (Top 5)
+        var CountryModel = new DynamicModel({ "name": "", "value": 0 });
+        var countriesRaw = arrayOf(CountryModel);
+        db.newQuery("SELECT COALESCE(country, 'Unknown') as name, count(id) as value FROM clicks WHERE created >= datetime('now', '-' || {:days} || ' days') GROUP BY name ORDER BY value DESC LIMIT 5")
+            .bind({ days: days })
+            .all(countriesRaw);
+
+        // 9. Plan distribution
+        var PlanModel = new DynamicModel({ "name": "", "value": 0 });
+        var planRaw = arrayOf(PlanModel);
+        db.newQuery("SELECT plan as name, count(*) as value FROM users GROUP BY plan")
+            .all(planRaw);
+
+        // Map plan tiers to human labels
+        var plansMap = { "creator": "Creator", "pro": "Pro", "agency": "Agency" };
+        var planData = [];
+        for (var pIdx = 0; pIdx < planRaw.length; pIdx++) {
+            var rawPlanName = planRaw[pIdx].name || "creator";
+            planData.push({
+                name: plansMap[rawPlanName] || rawPlanName,
+                value: planRaw[pIdx].value || 0
+            });
+        }
+
+        // 10. Top Creators by links clicks_count (Top 5)
+        var CreatorModel = new DynamicModel({ "username": "", "plan": "", "count": 0 });
+        var creatorsRaw = arrayOf(CreatorModel);
+        db.newQuery("SELECT u.username, u.plan, sum(l.clicks_count) as count FROM links l JOIN users u ON l.user_id = u.id GROUP BY u.id ORDER BY count DESC LIMIT 5")
+            .all(creatorsRaw);
+
+        // 11. Pulse activity feed (Top 10)
+        var PulseModel = new DynamicModel({ "id": "", "event_name": "", "created": "" });
+        var pulseRaw = arrayOf(PulseModel);
+        db.newQuery("SELECT id, event_name, created FROM analytics_events WHERE event_name != 'active_session' ORDER BY created DESC LIMIT 10")
+            .all(pulseRaw);
+
+        // 12. Growth cumulative timeline (O(N) daily SQL aggregation)
+        var DayModel = new DynamicModel({ "day": "", "count": 0 });
+        var dailyUsers = arrayOf(DayModel);
+        db.newQuery("SELECT date(created) as day, count(*) as count FROM users WHERE created >= datetime('now', '-' || {:days} || ' days') GROUP BY day ORDER BY day ASC")
+            .bind({ days: days })
+            .all(dailyUsers);
+
+        var DayRevModel = new DynamicModel({ "day": "", "sum": 0 });
+        var dailyRev = arrayOf(DayRevModel);
+        db.newQuery("SELECT date(created) as day, sum(amount) as sum FROM billing WHERE status = 'success' AND created >= datetime('now', '-' || {:days} || ' days') GROUP BY day ORDER BY day ASC")
+            .bind({ days: days })
+            .all(dailyRev);
+
+        var DayDauModel = new DynamicModel({ "day": "", "dau": 0 });
+        var dailyDau = arrayOf(DayDauModel);
+        db.newQuery("SELECT date(created) as day, count(DISTINCT user_id) as dau FROM analytics_events WHERE user_id != '' AND created >= datetime('now', '-' || {:days} || ' days') GROUP BY day ORDER BY day ASC")
+            .bind({ days: days })
+            .all(dailyDau);
+
+        // Map daily users/revenue into cumulative data
+        var uDailyMap = {};
+        for (var ui = 0; ui < dailyUsers.length; ui++) {
+            uDailyMap[dailyUsers[ui].day] = dailyUsers[ui].count;
+        }
+        var rDailyMap = {};
+        for (var ri = 0; ri < dailyRev.length; ri++) {
+            rDailyMap[dailyRev[ri].day] = dailyRev[ri].sum;
+        }
+        var dDailyMap = {};
+        for (var di = 0; di < dailyDau.length; di++) {
+            dDailyMap[dailyDau[di].day] = dailyDau[di].dau;
+        }
+
+        // Get starting points (totals before date range)
+        var uStarting = new DynamicModel({ "val": 0 });
+        db.newQuery("SELECT count(*) as val FROM users WHERE created < datetime('now', '-' || {:days} || ' days')")
+            .bind({ days: days })
+            .one(uStarting);
+
+        var rStarting = new DynamicModel({ "val": 0 });
+        db.newQuery("SELECT COALESCE(sum(amount), 0) as val FROM billing WHERE status = 'success' AND created < datetime('now', '-' || {:days} || ' days')")
+            .bind({ days: days })
+            .one(rStarting);
+
+        var cumulativeUsers = uStarting.val || 0;
+        var cumulativeRev = rStarting.val || 0;
+
+        var growthData = [];
+        var dauData = [];
+
+        // Build list of dates for period
+        var formatZero = function (n) { return n < 10 ? "0" + n : n; };
+        var msDay = 86400000;
+        var nowTs = new Date().getTime();
+        for (var dIdx = days - 1; dIdx >= 0; dIdx--) {
+            var date = new Date(nowTs - dIdx * msDay);
+            var dateKey = date.getFullYear() + "-" + formatZero(date.getMonth() + 1) + "-" + formatZero(date.getDate());
+
+            cumulativeUsers += (uDailyMap[dateKey] || 0);
+            cumulativeRev += (rDailyMap[dateKey] || 0);
+
+            var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            var dateLabel = months[date.getMonth()] + " " + formatZero(date.getDate());
+
+            growthData.push({
+                name: dateLabel,
+                users: cumulativeUsers,
+                revenue: cumulativeRev
+            });
+
+            dauData.push({
+                name: dateLabel,
+                dau: dDailyMap[dateKey] || 0
+            });
+        }
+
+        // 13. Conversion Events funnel
+        var conversionEvents = [
+            { name: "Landing Visitors", value: funnelCurrent.views, color: "#3b82f6" },
+            { name: "Signups", value: curStats.users, color: "#10b981" },
+            { name: "Active Users", value: dauMau.dau, color: "#f59e0b" },
+            { name: "Paid Conversions", value: funnelCurrent.paid, color: "#8b5cf6" }
+        ];
+
+        return c.json(200, {
+            stats: {
+                totalUsers: totals.total_users,
+                newUsers24h: usersKpi.u24,
+                newUsers7d: usersKpi.u7,
+                dau: dauMau.dau,
+                mau: dauMau.mau,
+                totalLinks: totals.total_links,
+                totalRevenue: totals.total_revenue,
+                mrr: billingStats.mrr,
+                arpu: arpu,
+                conversionRate: convRate,
+                churnRate: churnRate,
+                totalClicksInPeriod: curStats.clicks,
+                trends: trends
+            },
+            growthData: growthData,
+            dauData: dauData,
+            planData: planData,
+            topCreators: creatorsRaw,
+            pulseEvents: pulseRaw,
+            conversionEvents: conversionEvents,
+            trafficData: countriesRaw
+        });
+
+    } catch (e) {
+        $app.logger().error("Admin overview stats endpoint error: " + e.toString() + " stack: " + e.stack);
+        return c.json(500, { error: e.toString() });
     }
 });
 
