@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
 import { useSeo } from "@/hooks/useSeo";
 import competitorsData from "@/data/competitors.json";
+import indexableCompetitorSlugs from "@/data/indexable-competitors.json";
 import Footer from "@/components/Footer";
 
 interface CompetitorPricing {
@@ -52,6 +53,17 @@ export default function CompetitorComparison() {
   const competitorB = (competitorsData as Competitor[]).find(c => c.slug === slugB);
 
   const isValid = !!(competitorA && competitorB);
+  const canonicalCompetitors = competitorA && competitorB
+    ? [competitorA, competitorB].sort((a, b) => a.slug.localeCompare(b.slug))
+    : [];
+  const canonicalComparisonSlug = canonicalCompetitors.length === 2
+    ? `${canonicalCompetitors[0].slug}-vs-${canonicalCompetitors[1].slug}`
+    : "";
+  const isIndexableComparison = !!(
+    competitorA && competitorB &&
+    indexableCompetitorSlugs.includes(competitorA.slug) &&
+    indexableCompetitorSlugs.includes(competitorB.slug)
+  );
 
   // Accordion State
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
@@ -91,11 +103,6 @@ export default function CompetitorComparison() {
           "price": "0.00",
           "priceCurrency": "USD"
         },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.92",
-          "ratingCount": "128"
-        }
       },
       {
         "@type": "FAQPage",
@@ -121,7 +128,7 @@ export default function CompetitorComparison() {
             "name": `Can I bypass social media in-app browsers with these tools?`,
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": `Neither ${competitorA.name} nor ${competitorB.name} natively support advanced app deep linking (deep links). Clicks remain trapped in Instagram, TikTok, or YouTube descriptions. Linktery allows you to bypass webviews on paid plans, routing users directly into native apps (like Spotify, YouTube, or Amazon).`
+              "text": `Deep-linking support and behavior vary by platform and plan. Compare the current published features from ${competitorA.name} and ${competitorB.name} before choosing. Linktery supports routing into compatible native apps on paid plans.`
             }
           }
         ]
@@ -137,13 +144,18 @@ export default function CompetitorComparison() {
     description: isValid
       ? `Compare ${competitorA.name} vs ${competitorB.name} side-by-side. Analyze pricing, deep linking features, custom domain mapping, transaction fees, and pixel integrations.`
       : "Compare industry leading link in bio platforms with Linktery.",
-    canonical: isValid ? `/compare/${competitorA.slug}-vs-${competitorB.slug}` : "",
+    canonical: isValid ? `/compare/${canonicalComparisonSlug}` : "",
+    noIndex: !isIndexableComparison,
     structuredData
   });
 
   // Redirect to 404 if comparison is invalid
   if (!isValid) {
     return <Navigate to="/404" replace />;
+  }
+
+  if (comparisonSlug !== canonicalComparisonSlug) {
+    return <Navigate to={`/compare/${canonicalComparisonSlug}`} replace />;
   }
 
   // FAQ Items array for UI rendering
@@ -154,13 +166,23 @@ export default function CompetitorComparison() {
     },
     {
       question: `Why choose Linktery as an alternative to both ${competitorA.name} and ${competitorB.name}?`,
-      answer: `While ${competitorA.name} and ${competitorB.name} focus on simple index lists, Linktery is built as an edge-rendered traffic management engine. Linktery pre-renders pages (SSG) to load globally in under 150ms, offers native deep-linking to launch mobile apps directly, and does not take transaction fee cuts (0% platform fees on all tiers).`
+      answer: `Linktery combines link-in-bio pages with traffic routing, native-app deep linking for supported destinations, and click analytics. It does not take a platform commission on sales completed through external checkout providers.`
     },
     {
       question: `How do custom domains compare between ${competitorA.name} and ${competitorB.name}?`,
       answer: `${competitorA.name} custom domain mapping: ${competitorA.pricing.customDomains}. ${competitorB.name} custom domain mapping: ${competitorB.pricing.customDomains}. Linktery supports full custom domain mapping on our Agency plan, allowing you to run separate brands under one account.`
     }
   ];
+
+  const relatedComparisons = (competitorsData as Competitor[])
+    .filter((item) => indexableCompetitorSlugs.includes(item.slug) && item.slug !== competitorA.slug && item.slug !== competitorB.slug)
+    .map((item) => {
+      const pair = [competitorA, item].sort((a, b) => a.slug.localeCompare(b.slug));
+      return {
+        name: `${pair[0].name} vs ${pair[1].name}`,
+        href: `/compare/${pair[0].slug}-vs-${pair[1].slug}`,
+      };
+    });
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden text-foreground">
@@ -314,7 +336,7 @@ export default function CompetitorComparison() {
               </tr>
               <tr className="hover:bg-surface-hover/30 transition-colors">
                 <td className="p-5 md:p-6 font-semibold text-white font-sans">Page Load Speed (LCP)</td>
-                <td className="p-5 md:p-6 text-green-400 font-bold">✅ Ultra Fast &lt; 150ms (SSG)</td>
+                <td className="p-5 md:p-6 text-green-400 font-bold">✅ Pre-rendered public landing pages</td>
                 <td className="p-5 md:p-6 text-amber-500">⚠️ Varies (Client-side load)</td>
                 <td className="p-5 md:p-6 text-amber-500">⚠️ Varies (Client-side load)</td>
               </tr>
@@ -444,7 +466,7 @@ export default function CompetitorComparison() {
             </div>
             <h3 className="text-2xl md:text-3xl font-extrabold text-white uppercase tracking-tight">Why Choose Linktery Instead?</h3>
             <p className="text-slate-300 text-sm md:text-base leading-relaxed font-sans">
-              Traditional bio link platforms only act as a simple directory index. Linktery provides a performance-optimized traffic router. By utilizing **Static Site Generation (SSG)** on edge CDN servers, your profiles load instantly in under 150ms. With native app deep linking, visitors bypass webview login walls to launch Spotify, YouTube, or Amazon directly, resulting in up to **40% conversion lifts**.
+              Linktery combines a performance-optimized traffic router with pre-rendered marketing pages. Native-app deep linking can reduce login and navigation friction for supported destinations such as Spotify, YouTube, and Amazon. Actual load time and conversion impact depend on the visitor, network, destination, and campaign setup.
             </p>
           </div>
 
@@ -491,6 +513,18 @@ export default function CompetitorComparison() {
                 </div>
               </div>
             </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="py-12 px-6 max-w-4xl mx-auto border-t border-border/40 relative z-10">
+        <h2 className="text-2xl font-extrabold text-white uppercase mb-2">Related comparisons</h2>
+        <p className="text-sm text-slate-400 mb-6">Pricing and features can change. Verify plan details on each provider's official website before purchasing.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {relatedComparisons.map((comparison) => (
+            <Link key={comparison.href} to={comparison.href} className="rounded-xl border border-border bg-surface/30 px-4 py-3 text-sm font-semibold text-slate-200 hover:border-accent/40 hover:text-accent transition-colors">
+              {comparison.name}
+            </Link>
           ))}
         </div>
       </section>

@@ -100,11 +100,6 @@ export default function MusicSmartLinks() {
           "@type": "Offer",
           "price": "0.00",
           "priceCurrency": "USD"
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.9",
-          "ratingCount": "188"
         }
       },
       {
@@ -674,7 +669,7 @@ export default function MusicSmartLinks() {
           </div>
           
           <h2 className="text-3xl md:text-5xl font-black text-white mb-4 relative z-10">
-            Double Your Music Link Conversions
+            Improve Your Music Link Journey
           </h2>
           <p className="text-base md:text-lg text-muted-foreground max-w-xl mx-auto mb-8 relative z-10 leading-relaxed">
             Configure smart links, bypass in-app browsers, and direct fans to Spotify or Apple Music natively.

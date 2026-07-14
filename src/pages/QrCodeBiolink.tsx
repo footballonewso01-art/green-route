@@ -153,11 +153,6 @@ export default function QrCodeBiolink() {
           "@type": "Offer",
           "price": "0.00",
           "priceCurrency": "USD"
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.94",
-          "ratingCount": "142"
         }
       },
       {

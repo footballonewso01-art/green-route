@@ -97,11 +97,6 @@ export default function PodcastSmartLinks() {
           "@type": "Offer",
           "price": "0.00",
           "priceCurrency": "USD"
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.9",
-          "ratingCount": "194"
         }
       },
       {
@@ -613,7 +608,7 @@ export default function PodcastSmartLinks() {
           </div>
           
           <h2 className="text-3xl md:text-5xl font-black text-white mb-4 relative z-10">
-            Double Your Podcast Subscriber Clicks
+            Improve Your Podcast Subscription Journey
           </h2>
           <p className="text-base md:text-lg text-muted-foreground max-w-xl mx-auto mb-8 relative z-10 leading-relaxed">
             Configure smart links, bypass mobile in-app webviews, and route listeners directly to Apple Podcasts or Spotify.

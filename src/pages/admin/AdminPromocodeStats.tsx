@@ -66,6 +66,14 @@ type PaymentsData = {
   payments: PaymentRecord[];
 };
 
+type PromocodeStatsResponseItem = {
+  id: string;
+  plan_awarded: string;
+  days_awarded: number;
+  created: string;
+  user: UserData;
+};
+
 export default function AdminPromocodeStats() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -86,12 +94,13 @@ export default function AdminPromocodeStats() {
         // Use the new custom endpoint which safely exposes user emails to admins
         const response = await pb.send(`/api/admin/promocodes/${id}/stats`, {
           method: 'GET',
-        });
+        }) as PromocodeStatsResponseItem[];
         
         // Map the response to the expected PromocodeLog format
-        const mappedLogs = response.map((item: any) => ({
+        const mappedLogs = response.map((item) => ({
           id: item.id,
           plan_awarded: item.plan_awarded,
+          days_awarded: item.days_awarded,
           created: item.created,
           expand: {
             user_id: item.user

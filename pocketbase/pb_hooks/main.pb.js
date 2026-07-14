@@ -3,8 +3,6 @@
 // ==========================================
 console.log("--- main.pb.js LOADING ---");
 
-// --- Prevent auxiliary.db bloat: limit log retention to 3 days ---
-
 // --- Daily VACUUM on auxiliary.db to reclaim disk space ---
 cronAdd("vacuum_auxiliary_db", "30 3 * * *", () => {
     try {
@@ -14,40 +12,6 @@ cronAdd("vacuum_auxiliary_db", "30 3 * * *", () => {
         $app.logger().error("CRON: auxiliary.db VACUUM failed: " + String(e));
     }
 });
-
-routerAdd("GET", "/api/test-c", (c) => {
-    try {
-        var resJson = {
-            "globalThis_type": typeof globalThis,
-            "global_type": typeof global,
-            "this_type": typeof this,
-            "globalThis_exists": typeof globalThis !== "undefined",
-            "global_exists": typeof global !== "undefined"
-        };
-        try {
-            resJson["this_keys"] = Object.keys(this);
-        } catch (e) { resJson["this_keys_error"] = e.toString(); }
-        try {
-            resJson["globalThis_keys"] = Object.keys(globalThis);
-        } catch (e) { resJson["globalThis_keys_error"] = e.toString(); }
-        return c.json(200, resJson);
-    } catch (err) {
-        return c.json(500, { error: err.toString() });
-    }
-});
-
-routerAdd("GET", "/api/test-auth", (c) => {
-    try {
-        const utils = require(__hooks + '/utils.js');
-        return c.json(200, {
-            "has_getAuthInfo_utils": typeof utils.getAuthInfo !== "undefined"
-        });
-    } catch (e) {
-        return c.json(500, { error: e.toString() });
-    }
-});
-
-
 
 // (Database initialization moved to migrations)
 
@@ -473,11 +437,11 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
         } else if (verifiedEvent.type === "invoice.paid") {
             var invoice = verifiedEvent.data.object;
             var invCustomerId = invoice.customer;
-            
+
             // Extract subscription ID from various locations depending on Stripe API version
-            var subscriptionId = invoice.subscription || 
-                                 (invoice.parent && invoice.parent.subscription_details && invoice.parent.subscription_details.subscription) || 
-                                 "";
+            var subscriptionId = invoice.subscription ||
+                (invoice.parent && invoice.parent.subscription_details && invoice.parent.subscription_details.subscription) ||
+                "";
             if (!subscriptionId && invoice.lines && invoice.lines.data && invoice.lines.data.length > 0) {
                 var firstLine = invoice.lines.data[0];
                 if (firstLine.subscription) {
@@ -982,6 +946,7 @@ routerAdd("GET", "/{slug}", (c) => {
                             else if (ref.includes("facebook.com")) referrer = "Facebook";
                             else if (ref.includes("tiktok.com")) referrer = "TikTok";
                             else if (ref.includes("google.com")) referrer = "Google";
+                            else if (ref.includes("com.google.android.googlequicksearchbox")) referrer = "Google App";
                             else referrer = ref.split("/")[2] || "Other";
                         } catch (e) { }
                     }
@@ -1157,6 +1122,83 @@ routerAdd("GET", "/api/geo", (c) => {
     const utils = require(__hooks + '/utils.js');
     var country = utils.resolveCountryFromIP(c.request);
     return c.json(200, { country: country });
+});
+
+// Non-blocking click ingestion for the browser redirect flow.
+// The browser only queues a minimal event; geo and User-Agent dimensions are
+// resolved here so navigation never waits for analytics network calls.
+routerAdd("POST", "/api/track-click", (c) => {
+    try {
+        const utils = require(__hooks + '/utils.js');
+        const data = new DynamicModel({
+            "link_id": "",
+            "referrer": "Direct",
+            "is_unique": false
+        });
+        c.bindBody(data);
+
+        const linkId = String(data.link_id || "");
+        if (!/^[a-z0-9]{15}$/.test(linkId)) {
+            return c.json(400, { message: "Invalid link id" });
+        }
+
+        const link = $app.findRecordById("links", linkId);
+        if (!link || link.get("active") !== true) {
+            return c.json(404, { message: "Link not found or inactive" });
+        }
+
+        const request = c.request;
+        const uaStr = request.header.get("User-Agent") || "";
+        const isBot = /bot|crawler|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(uaStr);
+        if (isBot) {
+            return c.json(202, { accepted: false });
+        }
+
+        let device = "Desktop";
+        if (/Mobi|Android/i.test(uaStr)) device = "Mobile";
+        else if (/Tablet|iPad/i.test(uaStr)) device = "Tablet";
+
+        let os = "Other";
+        if (/Windows/i.test(uaStr)) os = "Windows";
+        else if (/iPhone|iPad|iPod/i.test(uaStr)) os = "iOS";
+        else if (/Android/i.test(uaStr)) os = "Android";
+        else if (/Macintosh/i.test(uaStr)) os = "macOS";
+        else if (/Linux/i.test(uaStr)) os = "Linux";
+
+        let browser = "Other";
+        if (/Instagram/i.test(uaStr)) browser = "Instagram";
+        else if (/TikTok/i.test(uaStr)) browser = "TikTok";
+        else if (/FBAN|FBAV/i.test(uaStr)) browser = "Facebook";
+        else if (/Chrome/i.test(uaStr)) browser = "Chrome";
+        else if (/Safari/i.test(uaStr)) browser = "Safari";
+        else if (/Firefox/i.test(uaStr)) browser = "Firefox";
+        else if (/Edg/i.test(uaStr)) browser = "Edge";
+
+        let referrer = String(data.referrer || "Direct").trim();
+        if (!referrer) referrer = "Direct";
+        if (referrer.length > 200) referrer = referrer.substring(0, 200);
+
+        const clicksColl = $app.findCollectionByNameOrId("clicks");
+        const clickRecord = new Record(clicksColl, {
+            "link_id": link.id,
+            "country": utils.resolveCountryFromIP(request),
+            "device": device,
+            "os": os,
+            "browser": browser,
+            "referrer": referrer,
+            "is_unique": data.is_unique === true,
+            "user_agent": uaStr.length > 200 ? uaStr.substring(0, 200) : uaStr,
+            "ip": "masked"
+        });
+        $app.save(clickRecord);
+
+        // Saving the click fires the existing onRecordAfterCreateSuccess hook,
+        // preserving links.clicks_count and analytics_daily updates.
+        return c.json(202, { accepted: true });
+    } catch (err) {
+        $app.logger().error("Track click endpoint error: " + err);
+        return c.json(500, { message: "Unable to record click" });
+    }
 });
 
 // Admin: Update Plan
@@ -1467,6 +1509,24 @@ onRecordUpdateRequest((e) => {
 // IP Rate Limiting for new registrations
 // Requires PocketBase Settings > trustedProxy.headers = ["Fly-Client-IP"]
 onRecordCreateRequest((e) => {
+    const utils = require(__hooks + '/utils.js');
+    const authInfo = utils.getAuthInfo(e);
+
+    // Public registration and OAuth creation cannot seed authorization,
+    // billing or moderation fields. This block intentionally sits outside the
+    // best-effort rate-limit catch so a security error fails the request closed.
+    if (!authInfo.isAdmin) {
+        e.record.set("role", "user");
+        e.record.set("plan", "creator");
+        e.record.set("plan_status", "");
+        e.record.set("plan_expires_at", "");
+        e.record.set("stripe_customer_id", "");
+        e.record.set("stripe_subscription_id", "");
+        e.record.set("banned", false);
+        e.record.set("internal_notes", "");
+        e.record.set("promocode_used", "");
+    }
+
     try {
         const clientIP = e.realIP();
 
@@ -1497,11 +1557,40 @@ onRecordCreateRequest((e) => {
     e.next();
 }, "users");
 
-// Slug-Username collision prevention on link create
+// A ban must block new logins and invalidate existing sessions on refresh.
+onRecordAuthRequest((e) => {
+    if (e.record && e.record.get("banned") === true) {
+        throw new ForbiddenError("This account has been suspended.");
+    }
+    e.next();
+}, "users");
+
+onRecordAuthRefreshRequest((e) => {
+    if (e.record && e.record.get("banned") === true) {
+        throw new ForbiddenError("This account has been suspended.");
+    }
+    e.next();
+}, "users");
+
+// Slug collision prevention and server-side link entitlement enforcement.
 onRecordCreateRequest((e) => {
     try {
+        const utils = require(__hooks + '/utils.js');
+        const authInfo = utils.getAuthInfo(e);
         const slug = e.record.get("slug");
-        const userId = e.record.get("user_id");
+        let userId = e.record.get("user_id");
+
+        if (!authInfo.isAdmin) {
+            if (!authInfo.authUserId) {
+                throw new ForbiddenError("Authentication is required to create links.");
+            }
+            if (!userId) {
+                userId = authInfo.authUserId;
+                e.record.set("user_id", userId);
+            } else if (userId !== authInfo.authUserId) {
+                throw new ForbiddenError("Cannot create links for another user.");
+            }
+        }
 
         let userWithSameName = null;
         try {
@@ -1512,11 +1601,19 @@ onRecordCreateRequest((e) => {
             throw new BadRequestError("This slug is already taken by a user profile.");
         }
 
+        let profileWithSameSlug = null;
+        try {
+            profileWithSameSlug = $app.findFirstRecordByFilter("public_profiles", "slug = {:slug}", { slug: slug });
+        } catch (err) { }
+
+        if (profileWithSameSlug) {
+            throw new BadRequestError("This slug is already taken by a public profile.");
+        }
+
         // Enforce Plan Limits
         const user = $app.findRecordById("users", userId);
         const plan = user.get("plan") || "creator";
-        const limits = { "creator": 4, "pro": 15, "agency": 250 };
-        const maxLinks = limits[plan];
+        const maxLinks = utils.getPlanCatalogEntry(plan).links;
 
         if (maxLinks !== -1) {
             let linksCount = 0;
@@ -1530,7 +1627,7 @@ onRecordCreateRequest((e) => {
             }
         }
     } catch (err) {
-        if (err instanceof BadRequestError) {
+        if (err instanceof BadRequestError || err instanceof ForbiddenError) {
             throw err;
         }
         throw new BadRequestError("DEBUG ERROR (links create 1): " + err + " (stack: " + (err.stack || "none") + ")");
@@ -1622,53 +1719,7 @@ onRecordsListRequest((e) => {
         // Pre-cache auth status to avoid redundant checks in the loop
         const authUserId = authInfo.authUserId;
 
-        // Prevent bulk scraping of links by public visitors (non-authenticated non-admins)
-        if (!authUserId) {
-            var filter = "";
-
-            // Method 1: echo.Context.queryParam
-            if (!filter) {
-                try {
-                    if (e.httpContext && typeof e.httpContext.queryParam === "function") {
-                        filter = e.httpContext.queryParam("filter") || "";
-                    }
-                } catch (e1) { /* swallow */ }
-            }
-
-            // Method 2: Go URL.Query().Get()
-            if (!filter) {
-                try {
-                    if (e.httpContext && e.httpContext.request && e.httpContext.request.url) {
-                        var q = e.httpContext.request.url.query();
-                        if (q) filter = q.get("filter") || "";
-                    }
-                } catch (e2) { /* swallow */ }
-            }
-
-            // Method 3: Parse raw URL string as fallback
-            if (!filter) {
-                try {
-                    var rawUrl = "";
-                    if (e.httpContext && e.httpContext.request && e.httpContext.request.url) {
-                        rawUrl = String(e.httpContext.request.url);
-                    } else if (e.httpContext && typeof e.httpContext.path === "function") {
-                        rawUrl = e.httpContext.path();
-                    }
-                    if (rawUrl) {
-                        var m = rawUrl.match(/[?&]filter=([^&]*)/);
-                        if (m) filter = decodeURIComponent(m[1]);
-                    }
-                } catch (e3) { /* swallow */ }
-            }
-
-            // If we couldn't read the filter at all, fail-open (collection rules still protect data)
-            if (filter) {
-                // Only block if filter is present but doesn't contain slug or user_id
-                if (!/slug\s*=/i.test(filter) && !/user_id\s*=/i.test(filter)) {
-                    throw new BadRequestError("Bulk queries are restricted. Listing links requires a slug or user_id filter.");
-                }
-            }
-        }
+        utils.assertSafePublicListFilter(e, "links", authInfo);
 
         for (let i = 0; i < e.records.length; i++) {
             const record = e.records[i];
@@ -1698,6 +1749,7 @@ onRecordsListRequest((e) => {
             throw err;
         }
         $app.logger().error("Critical error in onRecordsListRequest: " + err);
+        throw new BadRequestError("Unable to validate link list request.");
     }
     return e.next();
 }, "links");
@@ -1739,29 +1791,37 @@ onRecordViewRequest((e) => {
 // Universal click counter incrementer
 // PocketBase v0.24 JSVM: GLOBAL function (not $app.), callback first, collection last
 onRecordAfterCreateSuccess((e) => {
-    try {
-        const linkId = e.record.get("link_id");
-        console.log("CLICK HOOK FIRED: link_id=" + linkId);
-        if (linkId) {
-            // Use Direct SQL for maximum reliability and to avoid hook recursion/locking issues
+    const linkId = e.record.get("link_id");
+    console.log("CLICK HOOK FIRED: link_id=" + linkId);
+
+    if (linkId) {
+        // Keep the total counter and daily rollup independent so a failure in one
+        // doesn't prevent the other from being attempted or correctly diagnosed.
+        try {
             $app.db().newQuery("UPDATE links SET clicks_count = clicks_count + 1 WHERE id = {:id}")
                 .bind({ id: linkId })
                 .execute();
+        } catch (err) {
+            $app.logger().error("Failed to increment clicks_count for link_id " + linkId + ": " + err);
+        }
 
-            // HIGHLOAD REFACTOR: UPSERT into physical analytics_daily Rollup Table
-            // Extracts 'YYYY-MM-DD' from 'YYYY-MM-DD HH:MM:SS.SSSZ'
-            const createdStr = e.record.get("created") || new Date().toISOString();
-            const day = createdStr.split(" ")[0].split("T")[0] + " 00:00:00.000Z";
-
+        try {
+            // Derive the day in SQLite from the persisted click row. PocketBase
+            // exposes `created` to JS as a DateTime object, not a string.
             $app.db().newQuery(`
                 INSERT INTO analytics_daily (id, link_id, day, count, created, updated)
-                VALUES (lower(hex(randomblob(7))) || 'a', {:linkId}, {:day}, 1, datetime('now'), datetime('now'))
+                SELECT lower(hex(randomblob(7))) || 'a', link_id,
+                       date(created) || ' 00:00:00.000Z', 1,
+                       datetime('now'), datetime('now')
+                FROM clicks
+                WHERE id = {:clickId}
                 ON CONFLICT(link_id, day) DO UPDATE SET count = count + 1, updated = datetime('now')
-            `).bind({ linkId: linkId, day: day }).execute();
+            `).bind({ clickId: e.record.id }).execute();
+        } catch (err) {
+            $app.logger().error("Failed to update analytics_daily for click_id " + e.record.id + " link_id " + linkId + ": " + err);
         }
-    } catch (err) {
-        $app.logger().error("Critical error incrementing clicks_count for link_id " + e.record.get("link_id") + ": " + err);
     }
+
     e.next();
 }, "clicks");
 
@@ -1788,7 +1848,18 @@ onRecordUpdateRequest((e) => {
     if (!isSuperAdmin && !isAppAdmin) {
         const original = e.record.original();
         if (original) {
-            const protectedFields = ["role", "plan", "plan_expires_at", "stripe_customer_id", "stripe_subscription_id"];
+            const protectedFields = [
+                "role",
+                "plan",
+                "plan_status",
+                "plan_expires_at",
+                "stripe_customer_id",
+                "stripe_subscription_id",
+                "banned",
+                "internal_notes",
+                "created_ip",
+                "promocode_used"
+            ];
             for (let i = 0; i < protectedFields.length; i++) {
                 const field = protectedFields[i];
                 if (e.record.get(field) !== original.get(field)) {
@@ -1868,7 +1939,43 @@ onRecordCreateRequest((e) => {
                 throw new BadRequestError("Unauthorized profile creation: user_id must match authenticated user.");
             }
         }
+
+        const slug = e.record.get("slug");
+        let linkWithSameSlug = null;
+        try {
+            linkWithSameSlug = $app.findFirstRecordByFilter("links", "slug = {:slug}", { slug: slug });
+        } catch (err) { }
+
+        if (linkWithSameSlug) {
+            throw new BadRequestError("This slug is already taken by a smart link.");
+        }
+
+        // Enforce profile limits for direct PocketBase API requests as well as the UI.
+        // Application admins can create profiles on behalf of users without customer limits.
+        if (!authInfo.isAdmin) {
+            const profileUserId = e.record.get("user_id");
+            const profileUser = $app.findRecordById("users", profileUserId);
+            const profilePlan = profileUser.get("plan") || "creator";
+            const maxProfiles = utils.getPlanCatalogEntry(profilePlan).publicProfiles;
+
+            if (maxProfiles !== -1) {
+                const existingProfiles = $app.findRecordsByFilter(
+                    "public_profiles",
+                    "user_id = {:userId}",
+                    "-created",
+                    maxProfiles + 1,
+                    0,
+                    { userId: profileUserId }
+                );
+
+                if (existingProfiles.length >= maxProfiles) {
+                    throw new BadRequestError("You have reached the public profile limit for your " + profilePlan + " plan. Please upgrade to create more.");
+                }
+            }
+        }
+
         utils.validateProfileSocialLinks(e.record);
+        utils.validateProfileTemplate(e.record);
     } catch (err) {
         if (err instanceof BadRequestError) {
             throw err;
@@ -1892,6 +1999,7 @@ onRecordUpdateRequest((e) => {
             }
         }
         utils.validateProfileSocialLinks(e.record);
+        utils.validateProfileTemplate(e.record);
     } catch (err) {
         if (err instanceof BadRequestError) {
             throw err;
@@ -1906,64 +2014,17 @@ onRecordsListRequest((e) => {
     try {
         const utils = require(__hooks + '/utils.js');
         var authInfo = utils.getAuthInfo(e);
-        if (authInfo.isAdmin || authInfo.authUserId) {
-            // Admins and authenticated users can list their own profiles
+        if (authInfo.isAdmin) {
             return e.next();
         }
-
-        // Try multiple methods to extract the filter parameter (PB 0.24 JSVM compatibility)
-        var filter = "";
-
-        // Method 1: echo.Context.queryParam
-        if (!filter) {
-            try {
-                if (e.httpContext && typeof e.httpContext.queryParam === "function") {
-                    filter = e.httpContext.queryParam("filter") || "";
-                }
-            } catch (e1) { /* swallow */ }
-        }
-
-        // Method 2: Go URL.Query().Get()
-        if (!filter) {
-            try {
-                if (e.httpContext && e.httpContext.request && e.httpContext.request.url) {
-                    var q = e.httpContext.request.url.query();
-                    if (q) filter = q.get("filter") || "";
-                }
-            } catch (e2) { /* swallow */ }
-        }
-
-        // Method 3: Parse raw URL string as fallback
-        if (!filter) {
-            try {
-                var rawUrl = "";
-                if (e.httpContext && e.httpContext.request && e.httpContext.request.url) {
-                    rawUrl = String(e.httpContext.request.url);
-                } else if (e.httpContext && typeof e.httpContext.path === "function") {
-                    rawUrl = e.httpContext.path();
-                }
-                if (rawUrl) {
-                    var m = rawUrl.match(/[?&]filter=([^&]*)/);
-                    if (m) filter = decodeURIComponent(m[1]);
-                }
-            } catch (e3) { /* swallow */ }
-        }
-
-        // If we couldn't read the filter at all, fail-open (collection rules still protect data)
-        if (!filter) {
-            return e.next();
-        }
-
-        // Only block if filter is present but doesn't contain slug or user_id
-        if (!/slug\s*=/i.test(filter) && !/user_id\s*=/i.test(filter)) {
-            throw new BadRequestError("Bulk queries are restricted. Listing public profiles requires a slug or user_id filter.");
-        }
+        utils.assertSafePublicListFilter(e, "public_profiles", authInfo);
     } catch (err) {
         if (err instanceof BadRequestError) {
             throw err;
         }
-        // Non-BadRequest error — fail-open, don't block legitimate requests
+        // Unexpected parser/runtime errors must fail closed.
         $app.logger().error("Error in public_profiles list hook: " + err);
+        throw new BadRequestError("Unable to validate public profile list request.");
     }
     return e.next();
 }, "public_profiles");
@@ -2239,6 +2300,7 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
 // Admin Dashboard telemetry and stats aggregation (fast SQLite queries)
 routerAdd("GET", "/api/admin/overview-stats", (c) => {
     try {
+        var utils = require(__hooks + '/utils.js');
         var admin = c.auth;
         if (!admin || admin.get("role") !== "admin") {
             return c.json(403, { error: "Forbidden: Admins only" });
@@ -2256,18 +2318,18 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
         var db = $app.db();
 
         // 1. Basic totals
-        var totals = new DynamicModel({ "total_users": 0, "total_links": 0, "total_revenue": 0 });
-        db.newQuery("SELECT (SELECT count(*) FROM users) as total_users, (SELECT count(*) FROM links) as total_links, (SELECT COALESCE(sum(amount), 0) FROM billing WHERE status = 'success') as total_revenue")
+        var totals = new DynamicModel({ "total_users": 0, "total_links": 0, "total_revenue": 0.0001 });
+        db.newQuery("SELECT (SELECT count(*) FROM users) as total_users, (SELECT count(*) FROM links) as total_links, (SELECT COALESCE(sum(amount), 0.0) FROM billing WHERE status = 'success') as total_revenue")
             .one(totals);
 
         // 2. Registered Users & Revenue in current/previous periods (for trends)
-        var curStats = new DynamicModel({ "users": 0, "rev": 0, "clicks": 0 });
-        db.newQuery("SELECT (SELECT count(*) FROM users WHERE created >= datetime('now', '-' || {:days} || ' days')) as users, (SELECT COALESCE(sum(amount), 0) FROM billing WHERE status = 'success' AND created >= datetime('now', '-' || {:days} || ' days')) as rev, (SELECT count(*) FROM clicks WHERE created >= datetime('now', '-' || {:days} || ' days')) as clicks")
+        var curStats = new DynamicModel({ "users": 0, "rev": 0.0001, "clicks": 0 });
+        db.newQuery("SELECT (SELECT count(*) FROM users WHERE created >= datetime('now', '-' || {:days} || ' days')) as users, (SELECT COALESCE(sum(amount), 0.0) FROM billing WHERE status = 'success' AND created >= datetime('now', '-' || {:days} || ' days')) as rev, (SELECT count(*) FROM clicks WHERE created >= datetime('now', '-' || {:days} || ' days')) as clicks")
             .bind({ days: days })
             .one(curStats);
 
-        var prevStats = new DynamicModel({ "users": 0, "rev": 0, "clicks": 0 });
-        db.newQuery("SELECT (SELECT count(*) FROM users WHERE created >= datetime('now', '-' || {:prevDays} || ' days') AND created < datetime('now', '-' || {:days} || ' days')) as users, (SELECT COALESCE(sum(amount), 0) FROM billing WHERE status = 'success' AND created >= datetime('now', '-' || {:prevDays} || ' days') AND created < datetime('now', '-' || {:days} || ' days')) as rev, (SELECT count(*) FROM clicks WHERE created >= datetime('now', '-' || {:prevDays} || ' days') AND created < datetime('now', '-' || {:days} || ' days')) as clicks")
+        var prevStats = new DynamicModel({ "users": 0, "rev": 0.0001, "clicks": 0 });
+        db.newQuery("SELECT (SELECT count(*) FROM users WHERE created >= datetime('now', '-' || {:prevDays} || ' days') AND created < datetime('now', '-' || {:days} || ' days')) as users, (SELECT COALESCE(sum(amount), 0.0) FROM billing WHERE status = 'success' AND created >= datetime('now', '-' || {:prevDays} || ' days') AND created < datetime('now', '-' || {:days} || ' days')) as rev, (SELECT count(*) FROM clicks WHERE created >= datetime('now', '-' || {:prevDays} || ' days') AND created < datetime('now', '-' || {:days} || ' days')) as clicks")
             .bind({ days: days, prevDays: prevDays })
             .one(prevStats);
 
@@ -2286,8 +2348,11 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
             .one(prevDau);
 
         // 5. MRR / Paid Users / Churn
-        var billingStats = new DynamicModel({ "mrr": 0, "paid_count": 0 });
-        db.newQuery("SELECT COALESCE(sum(CASE WHEN plan = 'pro' THEN 9.99 WHEN plan = 'agency' THEN 29.99 ELSE 0 END), 0) as mrr, count(*) as paid_count FROM users WHERE plan != 'creator' AND plan_status = 'active'")
+        var billingStats = new DynamicModel({ "mrr": 0.0001, "paid_count": 0 });
+        var proPlan = utils.getPlanCatalogEntry("pro");
+        var agencyPlan = utils.getPlanCatalogEntry("agency");
+        db.newQuery("SELECT COALESCE(sum(CASE WHEN plan = 'pro' THEN {:proPrice} WHEN plan = 'agency' THEN {:agencyPrice} ELSE 0.0 END), 0.0) as mrr, count(*) as paid_count FROM users WHERE plan != 'creator' AND plan != '' AND (plan_status = 'active' OR plan_status = '' OR plan_status IS NULL)")
+            .bind({ proPrice: proPlan.monthlyPrice, agencyPrice: agencyPlan.monthlyPrice })
             .one(billingStats);
 
         var cancelled30 = new DynamicModel({ "val": 0 });
@@ -2352,7 +2417,7 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
         // 10. Top Creators by links clicks_count (Top 5)
         var CreatorModel = new DynamicModel({ "username": "", "plan": "", "count": 0 });
         var creatorsRaw = arrayOf(CreatorModel);
-        db.newQuery("SELECT u.username, u.plan, sum(l.clicks_count) as count FROM links l JOIN users u ON l.user_id = u.id GROUP BY u.id ORDER BY count DESC LIMIT 5")
+        db.newQuery("SELECT u.username, u.plan, CAST(COALESCE(sum(l.clicks_count), 0) as INTEGER) as count FROM links l JOIN users u ON l.user_id = u.id GROUP BY u.id ORDER BY count DESC LIMIT 5")
             .all(creatorsRaw);
 
         // 11. Pulse activity feed (Top 10)
@@ -2368,9 +2433,9 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
             .bind({ days: days })
             .all(dailyUsers);
 
-        var DayRevModel = new DynamicModel({ "day": "", "sum": 0 });
+        var DayRevModel = new DynamicModel({ "day": "", "sum": 0.0001 });
         var dailyRev = arrayOf(DayRevModel);
-        db.newQuery("SELECT date(created) as day, sum(amount) as sum FROM billing WHERE status = 'success' AND created >= datetime('now', '-' || {:days} || ' days') GROUP BY day ORDER BY day ASC")
+        db.newQuery("SELECT date(created) as day, COALESCE(sum(amount), 0.0) as sum FROM billing WHERE status = 'success' AND created >= datetime('now', '-' || {:days} || ' days') GROUP BY day ORDER BY day ASC")
             .bind({ days: days })
             .all(dailyRev);
 
@@ -2400,8 +2465,8 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
             .bind({ days: days })
             .one(uStarting);
 
-        var rStarting = new DynamicModel({ "val": 0 });
-        db.newQuery("SELECT COALESCE(sum(amount), 0) as val FROM billing WHERE status = 'success' AND created < datetime('now', '-' || {:days} || ' days')")
+        var rStarting = new DynamicModel({ "val": 0.0001 });
+        db.newQuery("SELECT COALESCE(sum(amount), 0.0) as val FROM billing WHERE status = 'success' AND created < datetime('now', '-' || {:days} || ' days')")
             .bind({ days: days })
             .one(rStarting);
 

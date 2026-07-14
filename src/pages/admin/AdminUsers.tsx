@@ -81,9 +81,9 @@ export default function AdminUsers() {
 
             toast.success("User plan updated successfully");
             setUsers(users.map(u => u.id === userId ? { ...u, plan: newPlan as PlanType } : u));
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Failed to update plan", err);
-            console.error("Detailed PB error:", err?.data);
+            console.error("Detailed PB error:", (err as { data?: unknown })?.data);
             toast.error("Could not update user plan");
         }
     };

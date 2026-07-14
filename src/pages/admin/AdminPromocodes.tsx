@@ -5,6 +5,7 @@ import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { format, isValid } from "date-fns";
 import { Loader2 } from "lucide-react";
+import { maskError } from "@/lib/utils";
 
 const safeFormat = (d: string, fmt: string) => {
   if (!d) return "—";
@@ -53,9 +54,9 @@ export default function AdminPromocodes() {
         requestKey: "admin-promocodes-" + Date.now(),
       });
       setPromocodes(records as unknown as Promocode[]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Ignore auto-cancelled requests
-      if (err?.isAbort) return;
+      if ((err as { isAbort?: boolean })?.isAbort) return;
       console.error("fetchPromocodes error:", err);
       toast.error("Failed to load promocodes");
     } finally {
@@ -82,8 +83,8 @@ export default function AdminPromocodes() {
       setIsCreateModalOpen(false);
       fetchPromocodes();
       setNewCode(""); setNewMaxUses(""); setNewRewardPlan("pro"); setNewRewardDays(30);
-    } catch (err: any) {
-      toast.error(err?.response?.message || "Failed to create promocode");
+    } catch (err: unknown) {
+      toast.error(maskError(err, "Failed to create promocode"));
     } finally {
       setIsCreating(false);
     }

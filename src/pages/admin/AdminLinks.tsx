@@ -108,9 +108,10 @@ export default function AdminLinks() {
             } else {
                 toast.error(res.message || "Failed to save override");
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Failed to update overrides", err);
-            const detail = err?.response?.message || err?.message || "Unknown error";
+            const error = err as { response?: { message?: string }; message?: string };
+            const detail = error.response?.message || error.message || "Unknown error";
             toast.error(`Error saving override: ${detail}`);
         }
     };

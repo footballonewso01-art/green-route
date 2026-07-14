@@ -8,16 +8,25 @@
   <title>Linktery</title>
   <meta name="description" content="Linktery - Smart Link Management and Traffic Routing" />
   <meta name="author" content="Linktery" />
+  <link rel="canonical" href="https://linktery.com" />
+  <meta name="robots" content="index, follow" />
 
-  <!-- TODO: Update og:title to match your application name -->
-  <meta property="og:title" content="Linktery" />
-  <meta property="og:description" content="Smart Link Management and Traffic Routing" />
+  <meta property="og:site_name" content="Linktery" />
+  <meta property="og:title" content="Linktery — Link in Bio & Traffic Analytics Platform" />
+  <meta property="og:description" content="Design premium link-in-bio profiles, route traffic intelligently, and understand every click." />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="/og-image.png" />
+  <meta property="og:url" content="https://linktery.com" />
+  <meta property="og:image" content="https://linktery.com/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Linktery smart links and analytics" />
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@Linktery" />
-  <meta name="twitter:image" content="/og-image.png" />
+  <meta name="twitter:title" content="Linktery — Link in Bio & Traffic Analytics Platform" />
+  <meta name="twitter:description" content="Design premium link-in-bio profiles, route traffic intelligently, and understand every click." />
+  <meta name="twitter:image" content="https://linktery.com/og-image.png" />
+  <meta name="twitter:image:alt" content="Linktery smart links and analytics" />
 
   <!-- Performance preconnections and font preloading -->
   <link rel="preconnect" href="https://greenroute-pb.fly.dev" />
@@ -29,52 +38,36 @@
   {
     "@context": "https://schema.org",
     "@type": "Organization",
+    "@id": "https://linktery.com/#organization",
     "name": "Linktery",
     "url": "https://linktery.com",
-    "logo": "https://linktery.com/logo.webp",
-    "sameAs": []
+    "logo": "https://linktery.com/logo.webp"
   }
   </script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
+    "@type": "WebSite",
+    "@id": "https://linktery.com/#website",
     "name": "Linktery",
-    "applicationCategory": "BusinessApplication",
-    "operatingSystem": "Web",
     "url": "https://linktery.com",
-    "description": "Smart link management platform with geo & device targeting, deep linking, real-time analytics, and link-in-bio profiles for creators, affiliates, and marketers.",
-    "aggregateRating": {
-      "@type": "AggregateRating",
-      "ratingValue": "4.9",
-      "ratingCount": "154"
-    },
-    "offers": [
-      {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD",
-        "name": "Creator (Free)"
-      },
-      {
-        "@type": "Offer",
-        "price": "11",
-        "priceCurrency": "USD",
-        "name": "Creator Pro"
-      },
-      {
-        "@type": "Offer",
-        "price": "29",
-        "priceCurrency": "USD",
-        "name": "Agency"
-      }
-    ]
+    "publisher": { "@id": "https://linktery.com/#organization" }
   }
   </script>
 </head>
 
 <body>
-  <div id="root"></div>
+  <!--app-root-start--><div id="root">
+    <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #000000; color: #ffffff; font-family: system-ui, -apple-system, sans-serif; gap: 16px;">
+      <div style="width: 48px; height: 48px; border: 4px solid #10b981; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      <p style="color: #9ca3af; font-size: 14px; margin: 0; font-weight: 500; letter-spacing: 0.05em;">Loading...</p>
+    </div>
+    <style>
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  </div><!--app-root-end-->
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

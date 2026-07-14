@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, ExternalLink, BarChart3, ToggleLeft, ToggleRight, Copy, Trash2, Edit, Loader2, GripVertical, Eye, EyeOff, Globe, QrCode, Download, X, Link2, LayoutGrid, List, Lock } from "lucide-react";
+import { Plus, Search, ExternalLink, BarChart3, ToggleLeft, ToggleRight, Copy, Trash2, Edit, Loader2, GripVertical, Eye, EyeOff, Globe, QrCode, Download, X, Link2, LayoutGrid, List, Lock, Check, UserRound } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { QRCodeCanvas } from 'qrcode.react';
 import { IconRenderer } from '@/components/icons/IconRenderer';
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { PLANS, PlanType } from '@/lib/plans';
+import { maskError } from "@/lib/utils";
 
 interface LinkItem {
   id: string;
@@ -31,6 +32,7 @@ interface ProfileItem {
   id: string;
   name?: string;
   slug: string;
+  domain?: string;
 }
 
 export default function LinksManager() {
@@ -118,7 +120,7 @@ export default function LinksManager() {
       // Load sparklines asynchronously without blocking the main UI
       fetchSparklines(linksRecords.items);
     } catch (error: unknown) {
-      toast.error((error as Error).message || "Failed to fetch links");
+      toast.error(maskError(error, "Failed to fetch links"));
     } finally {
       setLoading(false);
     }
@@ -147,14 +149,17 @@ export default function LinksManager() {
     if (selectedProfileFilter === "none") return !l.profile_id || l.show_on_profile === false;
     return l.profile_id === selectedProfileFilter && l.show_on_profile !== false;
   });
+  const profileSelectorLink = profileSelectorLinkId
+    ? links.find((link) => link.id === profileSelectorLinkId)
+    : undefined;
 
   const toggleLink = async (id: string, currentActive: boolean) => {
     try {
       await pb.collection('links').update(id, { active: !currentActive });
       setLinks(links.map((l) => (l.id === id ? { ...l, active: !currentActive } : l)));
       toast.success("Link status updated");
-    } catch (error: unknown) {
-      toast.error((error as Error).message || "Failed to update link");
+    } catch (error) {
+      toast.error(maskError(error, "Failed to update link"));
     }
   };
 
@@ -183,8 +188,8 @@ export default function LinksManager() {
       setLinks(links.map((l) => (l.id === id ? { ...l, show_on_profile: !currentStatus, profile_id: payload.profile_id } : l)));
       setProfileSelectorLinkId(null);
       toast.success(!currentStatus ? "Link will show on profile" : "Link hidden from profile");
-    } catch (error: unknown) {
-      toast.error((error as { message?: string }).message || "Failed to update visibility");
+    } catch (error) {
+      toast.error(maskError(error, "Failed to update visibility"));
     }
   };
 
@@ -194,8 +199,8 @@ export default function LinksManager() {
       await pb.collection('links').delete(id);
       setLinks(links.filter((l) => l.id !== id));
       toast.success("Link deleted");
-    } catch (error: unknown) {
-      toast.error((error as Error).message || "Failed to delete link");
+    } catch (error) {
+      toast.error(maskError(error, "Failed to delete link"));
     }
   };
 
@@ -446,33 +451,14 @@ export default function LinksManager() {
                               {effectiveViewMode === "bento" && (
                                 <div className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
                                   <div className="relative">
-                                    {profileSelectorLinkId === link.id ? (
-                                      <select
-                                        onChange={(e) => {
-                                          if (e.target.value) {
-                                            toggleProfileVisibility(link.id, false, e.target.value);
-                                          } else {
-                                            setProfileSelectorLinkId(null);
-                                          }
-                                        }}
-                                        onBlur={() => setProfileSelectorLinkId(null)}
-                                        autoFocus
-                                        className="px-2 py-1 bg-surface border border-accent/40 rounded text-[10px] text-white focus:outline-none max-w-[100px]"
-                                      >
-                                        <option value="">Profile...</option>
-                                        {profiles.map(p => (
-                                          <option key={p.id} value={p.id}>{p.name || `@${p.slug}`}</option>
-                                        ))}
-                                      </select>
-                                    ) : (
-                                      <button
-                                        onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
-                                        className={`p-2 rounded-xl transition-colors ${link.show_on_profile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground hover:text-foreground hover:bg-surface-hover'}`}
-                                        title={link.show_on_profile ? "Visible on profile" : "Hidden from profile"}
-                                      >
-                                        {link.show_on_profile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                                      </button>
-                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
+                                      className={`p-2 rounded-xl transition-colors ${link.show_on_profile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground hover:text-foreground hover:bg-surface-hover'}`}
+                                      title={link.show_on_profile ? "Visible on profile" : "Hidden from profile"}
+                                    >
+                                      {link.show_on_profile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                    </button>
                                   </div>
                                   <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
                                     <QrCode className="w-4 h-4" />
@@ -539,33 +525,14 @@ export default function LinksManager() {
                                 </div>
 
                                 <div className="relative">
-                                  {profileSelectorLinkId === link.id ? (
-                                    <select
-                                      onChange={(e) => {
-                                        if (e.target.value) {
-                                          toggleProfileVisibility(link.id, false, e.target.value);
-                                        } else {
-                                          setProfileSelectorLinkId(null);
-                                        }
-                                      }}
-                                      onBlur={() => setProfileSelectorLinkId(null)}
-                                      autoFocus
-                                      className="px-2 py-1 bg-surface border border-accent/40 rounded text-xs text-white focus:outline-none"
-                                    >
-                                      <option value="">Select Profile...</option>
-                                      {profiles.map(p => (
-                                        <option key={p.id} value={p.id}>{p.name || `@${p.slug}`}</option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <button
-                                      onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
-                                      className={`p-2 rounded-lg transition-colors ${link.show_on_profile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground bg-surface hover:bg-surface-hover'}`}
-                                      title={link.show_on_profile ? "Visible on profile" : "Hidden from profile"}
-                                    >
-                                      {link.show_on_profile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                                    </button>
-                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
+                                    className={`p-2 rounded-lg transition-colors ${link.show_on_profile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground bg-surface hover:bg-surface-hover'}`}
+                                    title={link.show_on_profile ? "Visible on profile" : "Hidden from profile"}
+                                  >
+                                    {link.show_on_profile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                  </button>
                                 </div>
 
                                 <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors" title="Toggle active status">
@@ -606,6 +573,89 @@ export default function LinksManager() {
           </DragDropContext>
         )}
       </div>
+      {profileSelectorLinkId && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-background/90 p-4 backdrop-blur-md"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-selector-title"
+          onClick={() => setProfileSelectorLinkId(null)}
+        >
+          <div
+            className="relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-white/10 bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-accent/[0.09] to-transparent pointer-events-none" />
+            <div className="relative p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-accent/20 bg-accent/10 text-accent">
+                    <UserRound className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 id="profile-selector-title" className="text-lg font-bold text-foreground">Show on a profile</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">Choose where this link should appear.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setProfileSelectorLinkId(null)}
+                  className="rounded-xl border border-border bg-background/30 p-2 text-muted-foreground transition-colors hover:border-white/15 hover:text-foreground"
+                  aria-label="Close profile selector"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {profileSelectorLink && (
+                <div className="mt-5 flex items-center gap-3 rounded-2xl border border-border/70 bg-background/30 px-3.5 py-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/5 text-muted-foreground">
+                    <Link2 className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-foreground">{profileSelectorLink.title || `/${profileSelectorLink.slug}`}</p>
+                    <p className="mt-0.5 truncate text-[11px] font-sans text-muted-foreground">{profileSelectorLink.domain || "linktery.com"}/{profileSelectorLink.slug}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 max-h-[min(360px,55vh)] space-y-2 overflow-y-auto pr-1 no-scrollbar">
+                {profiles.map((profileOption) => {
+                  const displayName = profileOption.name || `@${profileOption.slug}`;
+                  const avatarLetter = (profileOption.name || profileOption.slug).charAt(0).toUpperCase();
+                  return (
+                    <button
+                      key={profileOption.id}
+                      type="button"
+                      onClick={() => toggleProfileVisibility(profileSelectorLinkId, false, profileOption.id)}
+                      className="group flex w-full items-center gap-3 rounded-2xl border border-border/80 bg-background/20 p-3.5 text-left transition-all hover:border-accent/40 hover:bg-accent/[0.06]"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-white/5 text-sm font-black uppercase text-muted-foreground transition-colors group-hover:border-accent/25 group-hover:bg-accent/10 group-hover:text-accent">
+                        {avatarLetter}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-foreground">{displayName}</span>
+                        <span className="mt-0.5 block truncate text-xs font-sans text-muted-foreground">{profileOption.domain || "linktery.com"}/{profileOption.slug}</span>
+                      </span>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-transparent transition-all group-hover:border-accent group-hover:bg-accent group-hover:text-black">
+                        <Check className="h-3.5 w-3.5" />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setProfileSelectorLinkId(null)}
+                className="mt-4 w-full rounded-xl border border-border bg-background/20 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {qrModal && (
         <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setQrModal(null)}>
           <div className="bg-surface border border-border rounded-2xl p-8 w-full max-w-sm shadow-2xl text-center space-y-6" onClick={e => e.stopPropagation()}>

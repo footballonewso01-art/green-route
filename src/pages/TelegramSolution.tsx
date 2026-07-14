@@ -117,7 +117,7 @@ export default function TelegramSolution() {
     },
     {
       question: "Can Linktery protect my custom domains from being blacklisted by social networks?",
-      answer: "Yes. Social media algorithms scan external links for suspicious redirection loops. Linktery routes traffic through clean, optimized static landing paths and analyzes incoming user agents. Crawlers and platform validation bots are presented with a static, fully compliant informational page, while real human visitors are redirected natively. This keeps your custom domains safe and maintains high domain authority."
+      answer: "A custom domain and a clear landing page can strengthen brand consistency, while Linktery can flag obvious bot traffic and broken requests. No routing tool can guarantee that a domain will never be blocked; the landing page and destination must follow each platform's current policies for every visitor."
     },
     {
       question: "Does using deep linking affect my traffic analytics?",

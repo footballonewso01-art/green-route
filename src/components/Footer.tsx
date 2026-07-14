@@ -48,9 +48,6 @@ export default function Footer() {
         <p className="text-xs text-muted-foreground">
           © 2026 Linktery. All rights reserved.
         </p>
-        <p className="text-xs text-muted-foreground">
-          Engineered for edge routing conversions.
-        </p>
       </div>
     </footer>
   );

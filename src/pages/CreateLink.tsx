@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Globe, Smartphone, Clock, Shuffle, Loader2, Shield, Info, ExternalLink, Lock, Zap, CalendarRange, ChevronDown } from "lucide-react";
+import { ArrowLeft, Globe, Smartphone, Clock, Shuffle, Loader2, Shield, Info, ExternalLink, Lock, Zap, CalendarRange, Check, UserRound, AlertTriangle, ChevronDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { pb } from "@/lib/pocketbase";
 import { urlSchema } from "@/lib/validations";
@@ -15,6 +15,7 @@ import { CountrySelect } from "@/components/CountrySelect";
 import { X, Image as ImageIcon, Camera, Trash2, AlignLeft } from "lucide-react";
 import Cropper, { Area, Point } from 'react-easy-crop';
 import { getCroppedImg } from '@/lib/cropImage';
+import { getAvailableDomains } from '@/lib/siteConfig';
 
 const generateRandomSlug = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -25,19 +26,35 @@ const generateRandomSlug = () => {
   return result;
 };
 
+type ProfileOption = {
+  id: string;
+  name?: string;
+  slug: string;
+  domain: string;
+};
+
+const PROFILE_SELECTOR_COLLAPSED_KEY = "links_profile_selector_collapsed";
+
 export default function CreateLink() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(!!id);
-  const availableDomains = import.meta.env.VITE_AVAILABLE_DOMAINS?.split(",").map((d: string) => d.trim()).filter(Boolean) || [window.location.host];
+  const availableDomains = useMemo(
+    () => getAvailableDomains(import.meta.env.VITE_AVAILABLE_DOMAINS),
+    [],
+  );
   const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; feature: string; description: string; planNeeded?: "pro" | "agency" }>({
     open: false,
     feature: "",
     description: "",
   });
-  const [profiles, setProfiles] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<ProfileOption[]>([]);
+  const [isProfileSelectorCollapsed, setIsProfileSelectorCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(PROFILE_SELECTOR_COLLAPSED_KEY) === "true";
+  });
 
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const canDeepLink = checkPlan(userPlan, "deep_links");
@@ -69,6 +86,8 @@ export default function CreateLink() {
     size: "regular", // "regular" | "large"
   });
 
+  const selectedProfile = profiles.find((profile) => profile.id === form.profile_id);
+
   const [geoData, setGeoData] = useState<{ code: string; url: string }[]>([]);
   const [deviceData, setDeviceData] = useState<{ type: "Mobile" | "Desktop" | "Tablet"; url: string }[]>([]);
   const [splitUrls, setSplitUrls] = useState<string[]>([]);
@@ -85,10 +104,14 @@ export default function CreateLink() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
 
   useEffect(() => {
+    window.localStorage.setItem(PROFILE_SELECTOR_COLLAPSED_KEY, String(isProfileSelectorCollapsed));
+  }, [isProfileSelectorCollapsed]);
+
+  useEffect(() => {
     if (user) {
       const fetchProfiles = async () => {
         try {
-          const list = await pb.collection('public_profiles').getFullList({
+          const list = await pb.collection('public_profiles').getFullList<ProfileOption>({
             filter: `user_id = "${user.id}"`,
             sort: 'created'
           });
@@ -157,7 +180,7 @@ export default function CreateLink() {
       };
       fetchLink();
     }
-  }, [id, navigate]);
+  }, [availableDomains, id, navigate]);
 
   const update = (key: string, value: unknown) => setForm(prev => ({ ...prev, [key]: value }));
 
@@ -202,6 +225,7 @@ export default function CreateLink() {
     const validatedUrl = urlValidation.data;
 
     if (form.show_on_profile && !form.profile_id) {
+      setIsProfileSelectorCollapsed(false);
       toast.error("Please select a Public Profile to display this link on");
       return;
     }
@@ -417,23 +441,51 @@ export default function CreateLink() {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Choose Domain</label>
-            <div className="relative mb-4">
-              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                <Globe className="w-4 h-4 text-accent opacity-70" />
+            <div className="flex items-end justify-between gap-3 mb-2.5">
+              <div>
+                <label className="text-sm font-medium text-foreground block">Choose Domain</label>
+                <p className="text-xs text-muted-foreground mt-0.5">Select the public address for this link.</p>
               </div>
-              <select 
-                value={form.domain} 
-                onChange={(e) => update("domain", e.target.value)} 
-                className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-surface border border-border text-foreground appearance-none focus:outline-none focus:border-accent/50 transition-colors cursor-pointer"
-              >
-                {availableDomains.map((d: string) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
-                <ChevronDown className="w-4 h-4 text-muted-foreground" />
-              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-accent/80">{availableDomains.length} available</span>
+            </div>
+            <div role="radiogroup" aria-label="Choose link domain" className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4">
+              {availableDomains.map((domainOption: string, index: number) => {
+                const selected = form.domain === domainOption;
+                return (
+                  <button
+                    key={domainOption}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => update("domain", domainOption)}
+                    className={`group relative min-w-0 rounded-2xl border p-3.5 text-left transition-all duration-200 ${
+                      selected
+                        ? "border-accent/60 bg-accent/[0.08] shadow-[0_0_0_1px_rgba(16,185,129,0.12),0_12px_32px_rgba(0,0,0,0.18)]"
+                        : "border-border/80 bg-surface/70 hover:border-accent/30 hover:bg-surface-hover"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${selected ? "border-accent/30 bg-accent/15 text-accent" : "border-border bg-background/40 text-muted-foreground group-hover:text-foreground"}`}>
+                        <Globe className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="truncate text-sm font-semibold text-foreground">{domainOption}</span>
+                          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${index === 0 ? "bg-accent/10 text-accent" : "bg-white/5 text-muted-foreground"}`}>
+                            {index === 0 ? "Primary" : "Alias"}
+                          </span>
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                          {index === 0 ? "Main Linktery address" : "Alternate branded address"}
+                        </span>
+                      </span>
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all ${selected ? "border-accent bg-accent text-black" : "border-border text-transparent group-hover:border-accent/30"}`}>
+                        <Check className="h-3 w-3" />
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
             
             <div className="flex items-center justify-between mb-1.5">
@@ -482,30 +534,70 @@ export default function CreateLink() {
         {form.show_on_profile && (
           <div className="space-y-4 pt-2 animate-fade-in">
             {/* Select Public Profile */}
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Select Public Profile</label>
-              <div className="relative">
-                <select
-                  value={form.profile_id}
-                  onChange={(e) => update("profile_id", e.target.value)}
-                  required={form.show_on_profile}
-                  className="w-full px-4 pr-10 py-2.5 rounded-xl bg-surface border border-border text-foreground appearance-none focus:outline-none focus:border-accent/50 transition-colors cursor-pointer"
-                >
-                  <option value="" disabled>-- Select a Profile --</option>
-                  {profiles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name || `@${p.slug}`} ({p.domain}/{p.slug})
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
-                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            <div className="overflow-hidden rounded-2xl border border-border/80 bg-surface/40">
+              <button
+                type="button"
+                onClick={() => setIsProfileSelectorCollapsed((current) => !current)}
+                aria-expanded={!isProfileSelectorCollapsed}
+                aria-controls="link-profile-selector"
+                className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-surface/70"
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-foreground">Select Public Profile</span>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                    {selectedProfile
+                      ? `Selected: ${selectedProfile.name || `@${selectedProfile.slug}`}`
+                      : profiles.length > 0
+                        ? "Choose where this link will be displayed."
+                        : "No public profiles available."}
+                  </span>
+                </span>
+                <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${isProfileSelectorCollapsed ? "" : "rotate-180"}`} />
+              </button>
+
+              {!isProfileSelectorCollapsed && (
+                <div id="link-profile-selector" className="border-t border-border/70 p-3.5 animate-fade-in">
+                  {profiles.length > 0 && (
+                    <div role="radiogroup" aria-label="Select public profile" className="max-h-64 space-y-2 overflow-y-auto pr-1 no-scrollbar">
+                      {profiles.map((profileOption) => {
+                        const selected = form.profile_id === profileOption.id;
+                        const displayName = profileOption.name || `@${profileOption.slug}`;
+                        const profileDomain = profileOption.domain || availableDomains[0];
+                        return (
+                          <button
+                            key={profileOption.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={selected}
+                            onClick={() => update("profile_id", profileOption.id)}
+                            className={`group flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 ${
+                              selected
+                                ? "border-accent/60 bg-accent/[0.08] shadow-[0_10px_30px_rgba(0,0,0,0.16)]"
+                                : "border-border/80 bg-surface/70 hover:border-accent/30 hover:bg-surface-hover"
+                            }`}
+                          >
+                            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-sm font-black uppercase ${selected ? "border-accent/30 bg-accent/15 text-accent" : "border-border bg-background/40 text-muted-foreground"}`}>
+                              {displayName.charAt(0) || <UserRound className="h-4 w-4" />}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-semibold text-foreground">{displayName}</span>
+                              <span className="mt-0.5 block truncate text-xs font-sans text-muted-foreground">{profileDomain}/{profileOption.slug}</span>
+                            </span>
+                            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all ${selected ? "border-accent bg-accent text-black" : "border-border text-transparent group-hover:border-accent/30"}`}>
+                              <Check className="h-3 w-3" />
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {profiles.length === 0 && (
+                    <p className="flex items-start gap-2 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4 text-xs leading-relaxed text-amber-200/70">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                      ⚠️ You don't have any public profiles yet. Go to your dashboard and create a profile first to show links on it.
+                    </p>
+                  )}
                 </div>
-              </div>
-              {profiles.length === 0 && (
-                <p className="text-xs text-amber-500/80 mt-1.5">
-                  ⚠️ You don't have any public profiles yet. Go to your dashboard and create a profile first to show links on it.
-                </p>
               )}
             </div>
 

@@ -43,11 +43,64 @@ interface DashboardStats {
     }
 }
 
+interface GrowthDataPoint {
+    name: string;
+    users: number;
+    revenue: number;
+}
+
+interface DauDataPoint {
+    name: string;
+    dau: number;
+}
+
+interface NamedValue {
+    name: string;
+    value: number;
+}
+
+interface TopCreator {
+    username: string;
+    plan: string;
+    count: number;
+}
+
+interface ConversionEvent extends NamedValue {
+    color: string;
+}
+
+interface PulseEvent {
+    id: string;
+    event_name: string;
+    created: string;
+}
+
+interface OverviewResponse {
+    stats: DashboardStats;
+    growthData: GrowthDataPoint[];
+    dauData: DauDataPoint[];
+    planData: NamedValue[];
+    topCreators?: TopCreator[];
+    pulseEvents?: PulseEvent[];
+    conversionEvents?: ConversionEvent[];
+    trafficData?: NamedValue[];
+}
+
+interface KPIBadgeProps {
+    label: string;
+    value: number | string;
+    trend?: number;
+    isCurrency?: boolean;
+}
+
+const TIME_RANGES = ["24h", "7d", "30d", "all"] as const;
+type TimeRange = typeof TIME_RANGES[number];
+
 const COLORS = ['#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#3b82f6'];
 
 export default function AdminOverview() {
     const navigate = useNavigate();
-    const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d" | "all">("7d");
+    const [timeRange, setTimeRange] = useState<TimeRange>("7d");
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<DashboardStats>({
         totalUsers: 0,
@@ -65,13 +118,13 @@ export default function AdminOverview() {
         trends: { users: 0, revenue: 0, dau: 0, conversion: 0, clicks: 0 }
     });
 
-    const [growthData, setGrowthData] = useState<any[]>([]);
-    const [planData, setPlanData] = useState<any[]>([]);
-    const [trafficData, setTrafficData] = useState<any[]>([]);
-    const [topCreators, setTopCreators] = useState<any[]>([]);
-    const [dauData, setDauData] = useState<any[]>([]);
-    const [conversionEvents, setConversionEvents] = useState<any[]>([]);
-    const [pulseEvents, setPulseEvents] = useState<any[]>([]);
+    const [growthData, setGrowthData] = useState<GrowthDataPoint[]>([]);
+    const [planData, setPlanData] = useState<NamedValue[]>([]);
+    const [trafficData, setTrafficData] = useState<NamedValue[]>([]);
+    const [topCreators, setTopCreators] = useState<TopCreator[]>([]);
+    const [dauData, setDauData] = useState<DauDataPoint[]>([]);
+    const [conversionEvents, setConversionEvents] = useState<ConversionEvent[]>([]);
+    const [pulseEvents, setPulseEvents] = useState<PulseEvent[]>([]);
 
     useEffect(() => {
         fetchDashboardData();
@@ -85,7 +138,7 @@ export default function AdminOverview() {
             const res = await pb.send("/api/admin/overview-stats", {
                 method: "GET",
                 query: { period: timeRange }
-            });
+            }) as OverviewResponse;
 
             setStats(res.stats);
             setGrowthData(res.growthData);
@@ -103,7 +156,7 @@ export default function AdminOverview() {
         }
     };
 
-    const KPIBadge = ({ label, value, trend, isCurrency = false }: any) => (
+    const KPIBadge = ({ label, value, trend, isCurrency = false }: KPIBadgeProps) => (
         <div className="bg-surface border border-border rounded-2xl p-5 relative overflow-hidden group hover:border-accent/40 transition-colors">
             <div className="flex justify-between items-start mb-2">
                 <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
@@ -158,10 +211,10 @@ export default function AdminOverview() {
                 </div>
 
                 <div className="flex p-1.5 bg-surface border border-border rounded-2xl shadow-xl ml-11 md:ml-0">
-                    {["24h", "7d", "30d", "all"].map(tr => (
+                    {TIME_RANGES.map(tr => (
                         <button
                             key={tr}
-                            onClick={() => setTimeRange(tr as any)}
+                            onClick={() => setTimeRange(tr)}
                             className={`px-5 py-2 text-sm font-bold rounded-xl transition-all ${timeRange === tr ? "bg-accent text-black shadow-lg shadow-accent/20" : "text-muted-foreground hover:text-white"}`}
                         >
                             {tr.toUpperCase()}
@@ -171,10 +224,12 @@ export default function AdminOverview() {
             </div>
 
             {/* KPI Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
                 <KPIBadge label="Total Users" value={stats.totalUsers} trend={stats.trends.users} />
                 <KPIBadge label="Total Redirects" value={stats.totalClicksInPeriod} trend={stats.trends.clicks} />
                 <KPIBadge label="Active (DAU/MAU)" value={`${stats.dau} / ${stats.mau}`} trend={stats.trends.dau} />
+                <KPIBadge label="MRR" value={stats.mrr} isCurrency={true} />
+                <KPIBadge label="ARPU" value={stats.arpu} isCurrency={true} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

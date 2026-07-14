@@ -8,6 +8,26 @@ var GEO_CACHE_SIZE = 0;
 var GEO_CACHE_MAX = 10000;
 var GEO_CACHE_CREATED = new Date().getTime();
 
+// Single server-side source of truth for entitlements and monthly list prices.
+// -1 denotes an unlimited resource.
+var PLAN_CATALOG = {
+    "creator": { "links": 3, "publicProfiles": 1, "monthlyPrice": 0 },
+    "pro": { "links": 15, "publicProfiles": 3, "monthlyPrice": 11 },
+    "agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29 }
+};
+
+var PROFILE_TEMPLATES = {
+    "classic": true,
+    "compact": true,
+    "banner": true,
+    "hero": true,
+    "cutout": true
+};
+
+var getPlanCatalogEntry = function(planName) {
+    return PLAN_CATALOG[planName] || PLAN_CATALOG.creator;
+};
+
 var readerToString = function (reader) {
     var result = "";
     var buffer = new Uint8Array(1024);
@@ -128,6 +148,73 @@ var getAuthInfo = function(e) {
     return { isSuperAdmin: isSuperAdmin, isAppAdmin: isAppAdmin, isAdmin: isSuperAdmin || isAppAdmin, authUserId: authUserId };
 };
 
+// RecordsListRequestEvent exposes the parsed request on `e.request` in
+// PocketBase 0.24. Keep a fallback for older wrappers, but never let an
+// unreadable filter become an unrestricted public query.
+var getRequestFilter = function(e) {
+    try {
+        if (e && typeof e.requestInfo === "function") {
+            var info = e.requestInfo();
+            if (info && info.query) return info.query["filter"] || "";
+        }
+    } catch (err) {}
+
+    try {
+        if (e && e.request && e.request.url) {
+            var requestQuery = e.request.url.query();
+            if (requestQuery) return requestQuery.get("filter") || "";
+        }
+    } catch (err) {}
+
+    try {
+        if (e && e.httpContext && e.httpContext.request && e.httpContext.request.url) {
+            var contextQuery = e.httpContext.request.url.query();
+            if (contextQuery) return contextQuery.get("filter") || "";
+        }
+    } catch (err) {}
+
+    return "";
+};
+
+var isSafeSlugLookupFilter = function(filter) {
+    // Accepted public lookups:
+    //   slug="..."
+    //   slug="..." && active=true
+    //   slug="..." && id!="..."
+    //   slug="..." && (domain="..." || domain="")
+    return /^\s*slug\s*=\s*"[^"\\]{1,200}"(?:\s*&&\s*(?:active\s*=\s*true|id\s*!=\s*"[^"\\]*"|\(\s*domain\s*=\s*"[^"\\]*"\s*\|\|\s*domain\s*=\s*""\s*\)))?\s*$/i.test(filter);
+};
+
+var isSafePublicProfileLinksFilter = function(filter) {
+    return /^\s*profile_id\s*=\s*"[a-z0-9]{15}"\s*&&\s*active\s*=\s*true\s*&&\s*show_on_profile\s*!=\s*false\s*$/i.test(filter);
+};
+
+var isAuthenticatedOwnerFilter = function(filter, authUserId) {
+    if (!authUserId || filter.indexOf("||") !== -1) return false;
+
+    var escapedUserId = String(authUserId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    var ownerPattern = new RegExp(
+        "(?:^|&&|\\()\\s*user_id\\s*=\\s*\"" + escapedUserId + "\"\\s*(?:$|&&|\\))",
+        "i"
+    );
+    return ownerPattern.test(filter);
+};
+
+var assertSafePublicListFilter = function(e, collectionName, authInfo) {
+    if (authInfo && authInfo.isAdmin) return;
+
+    var filter = getRequestFilter(e);
+    filter = typeof filter === "string" ? filter.trim() : String(filter || "").trim();
+
+    if (filter && isSafeSlugLookupFilter(filter)) return;
+    if (collectionName === "links" && filter && isSafePublicProfileLinksFilter(filter)) return;
+    if (filter && authInfo && isAuthenticatedOwnerFilter(filter, authInfo.authUserId)) return;
+
+    throw new BadRequestError(
+        "Bulk queries are restricted. Use a public slug lookup or an authenticated owner filter."
+    );
+};
+
 var validateTargetingUrls = function(record) {
     var checkUrl = function (url, fieldName) {
         // Skip nulls, undefined, empty strings, numbers, booleans
@@ -234,6 +321,14 @@ var validateProfileSocialLinks = function(record) {
     }
 };
 
+var validateProfileTemplate = function(record) {
+    var template = String(record.get("profile_template") || "classic").trim().toLowerCase();
+    if (!PROFILE_TEMPLATES[template]) {
+        throw new BadRequestError("Unsupported public profile template.");
+    }
+    record.set("profile_template", template);
+};
+
 module.exports = {
     RATE_LIMIT_STORE,
     RATE_LIMIT_LAST_RESET,
@@ -241,10 +336,19 @@ module.exports = {
     GEO_CACHE_SIZE,
     GEO_CACHE_MAX,
     GEO_CACHE_CREATED,
+    PLAN_CATALOG,
+    PROFILE_TEMPLATES,
+    getPlanCatalogEntry,
     readerToString,
     FLY_REGION_MAP,
     resolveCountryFromIP,
     getAuthInfo,
+    getRequestFilter,
+    isSafeSlugLookupFilter,
+    isSafePublicProfileLinksFilter,
+    isAuthenticatedOwnerFilter,
+    assertSafePublicListFilter,
     validateTargetingUrls,
-    validateProfileSocialLinks
+    validateProfileSocialLinks,
+    validateProfileTemplate
 };

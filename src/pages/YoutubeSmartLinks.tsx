@@ -92,11 +92,6 @@ export default function YoutubeSmartLinks() {
           "@type": "Offer",
           "price": "0.00",
           "priceCurrency": "USD"
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.9",
-          "ratingCount": "142"
         }
       },
       {
@@ -174,7 +169,7 @@ export default function YoutubeSmartLinks() {
             <span className="gradient-text">YouTube Description Links</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed font-medium">
-            Links in YouTube descriptions open in a slow, logged-out webview. Bypass the in-app browser and open native apps (Telegram, Instagram, Spotify) directly on user devices to double your conversions.
+            Links in YouTube descriptions may open in a logged-out webview. Route compatible destinations into native apps such as Telegram, Instagram, or Spotify to reduce extra login and navigation steps.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {user ? (
@@ -655,7 +650,7 @@ export default function YoutubeSmartLinks() {
           </div>
           
           <h2 className="text-3xl md:text-5xl font-black text-white mb-4 relative z-10">
-            Double Your Description Link Conversions
+            Improve Your Description Link Journey
           </h2>
           <p className="text-base md:text-lg text-muted-foreground max-w-xl mx-auto mb-8 relative z-10 leading-relaxed">
             Configure smart links, bypass mobile in-app webviews, and route clicks natively today.

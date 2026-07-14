@@ -51,7 +51,7 @@ export default function BillingPage() {
             }
         };
         verifySession();
-    }, [searchParams, user]);
+    }, [refreshUser, searchParams, setSearchParams, user]);
 
     useEffect(() => {
         const u = user as { plan?: PlanType } | null;

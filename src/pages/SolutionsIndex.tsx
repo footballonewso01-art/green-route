@@ -115,7 +115,7 @@ export default function SolutionsIndex() {
     {
       icon: Shield,
       title: "OnlyFans & Fanvue",
-      desc: "Redirection and link cloaking shields to protect creator profiles from social media shadowbans.",
+      desc: "Branded landing pages, custom domains, and automated traffic filtering for creator profiles.",
       path: "/solutions/onlyfans-link-in-bio"
     }
   ];

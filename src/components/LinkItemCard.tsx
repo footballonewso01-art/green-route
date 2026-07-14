@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import Cropper from "react-easy-crop";
+import Cropper, { Area } from "react-easy-crop";
 import { LinkItem } from "@/pages/DashboardProfile"; 
 import { GripVertical, Edit, Trash2, ExternalLink, Loader2, Save, Upload } from "lucide-react";
 import { IconRenderer } from "@/components/icons/IconRenderer";
@@ -38,11 +38,11 @@ export const LinkItemCard = React.memo(({ link, provided, snapshot, onUpdate, on
     // Cropping states
     const [crop, setCrop] = useState({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
-    const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
     const [showCropModal, setShowCropModal] = useState(false);
     const [cropSourceImage, setCropSourceImage] = useState<string | null>(null);
 
-    const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => {
+    const onCropComplete = (_croppedArea: Area, croppedAreaPixels: Area) => {
         setCroppedAreaPixels(croppedAreaPixels);
     };
 

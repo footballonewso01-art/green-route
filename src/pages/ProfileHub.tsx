@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { PLANS, PlanType } from '@/lib/plans';
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { getAvailableDomains } from "@/lib/siteConfig";
 
 const THEME_NAMES: Record<string, string> = {
   "minimal-dark": "Minimal Dark",
@@ -48,6 +49,7 @@ interface ProfileRecord {
   name?: string;
   bio?: string;
   theme: string;
+  profile_template?: string;
   card_color?: string;
   avatar?: string;
   online_counter?: boolean;
@@ -135,7 +137,7 @@ function getAccentColor(hex?: string): string {
   return `#${toHex(r2)}${toHex(g2)}${toHex(b2)}`;
 }
 
-const availableDomains = import.meta.env.VITE_AVAILABLE_DOMAINS?.split(",").map((d: string) => d.trim()).filter(Boolean) || [typeof window !== 'undefined' ? window.location.host : 'localhost'];
+const availableDomains = getAvailableDomains(import.meta.env.VITE_AVAILABLE_DOMAINS);
 
 export default function ProfileHub() {
   const { user } = useAuth();
@@ -265,6 +267,7 @@ export default function ProfileHub() {
         domain: newProfileDomain,
         name: newProfileName || cleanSlug,
         theme: "minimal-dark",
+        profile_template: "classic",
         card_color: "#000000",
       });
 
@@ -295,7 +298,7 @@ export default function ProfileHub() {
     try {
       // 1. Fetch links belonging to this profile
       const linksToUnlink = await pb.collection('links').getFullList({
-        filter: `profile_id = "${profileId}"`,
+        filter: `user_id = "${user.id}" && profile_id = "${profileId}"`,
         requestKey: null
       });
 

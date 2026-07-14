@@ -92,7 +92,7 @@ export default function AmazonSmartLinks() {
     },
     {
       question: "Is there any delay or redirect screen for my visitors?",
-      answer: "No. Linktery resolves and triggers the deep linking protocol at the network edge on Cloudflare nodes. The redirection takes less than 15 milliseconds, which is virtually unnoticeable to the end-user."
+      answer: "Linktery keeps redirect processing lightweight, but actual latency depends on the visitor's network, location, routing rules, and Amazon's response time."
     }
   ];
 
@@ -109,11 +109,6 @@ export default function AmazonSmartLinks() {
           "@type": "Offer",
           "price": "0.00",
           "priceCurrency": "USD"
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.95",
-          "ratingCount": "312"
         }
       },
       {
@@ -189,7 +184,7 @@ export default function AmazonSmartLinks() {
           <span className="gradient-text font-black">DIRECTLY FROM BIO</span>
         </h1>
         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed font-medium">
-          Stop wasting affiliate traffic in slow in-app webviews. Instantly redirect mobile clicks directly to the native Amazon shopping app to double your commissions.
+          Reduce in-app browser friction by routing compatible mobile clicks to the native Amazon shopping app.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
           {user ? (

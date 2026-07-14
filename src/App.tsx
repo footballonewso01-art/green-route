@@ -5,37 +5,41 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import LandingPage from "./pages/LandingPage";
-import PricingPage from "./pages/PricingPage";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import TermsAndConditions from "./pages/TermsAndConditions";
-import OnlyFansSolution from "./pages/OnlyFansSolution";
-import TelegramSolution from "./pages/TelegramSolution";
-import AffiliateSolution from "./pages/AffiliateSolution";
-import BioLinkTool from "./pages/BioLinkTool";
-import SmartRedirect from "./pages/SmartRedirect";
-import DeeplinkGenerator from "./pages/DeeplinkGenerator";
-import FitnessCoachSolution from "./pages/FitnessCoachSolution";
-import YoutubeSmartLinks from "./pages/YoutubeSmartLinks";
-import MusicSmartLinks from "./pages/MusicSmartLinks";
-import DigitalProductsSolution from "./pages/DigitalProductsSolution";
-import PodcastSmartLinks from "./pages/PodcastSmartLinks";
-import ShopifySmartLinks from "./pages/ShopifySmartLinks";
-import FanvueSmartLinks from "./pages/FanvueSmartLinks";
-import GeoTargetedRedirect from "./pages/GeoTargetedRedirect";
-import AmazonSmartLinks from "./pages/AmazonSmartLinks";
-import UgcPortfolio from "./pages/UgcPortfolio";
-import QrCodeBiolink from "./pages/QrCodeBiolink";
-import ProfessionSolutions from "./pages/ProfessionSolutions";
-import CompetitorComparison from "./pages/CompetitorComparison";
-import CompetitorAlternative from "./pages/CompetitorAlternative";
-import SolutionsIndex from "./pages/SolutionsIndex";
-import AlternativesIndex from "./pages/AlternativesIndex";
 import { AdminRoute } from "./components/AdminRoute";
+import { PRIMARY_DOMAIN } from "./lib/siteConfig";
 
 import RedirectHandler from "./pages/RedirectHandler";
 
-// Lazy loaded pages (non-prerendered, dynamic, or requiring authentication)
+// Route-level chunks keep unrelated landing pages out of the initial download.
+// The streaming SSR entry waits for these modules during prerendering.
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const PricingPage = lazy(() => import("./pages/PricingPage"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const TermsAndConditions = lazy(() => import("./pages/TermsAndConditions"));
+const OnlyFansSolution = lazy(() => import("./pages/OnlyFansSolution"));
+const TelegramSolution = lazy(() => import("./pages/TelegramSolution"));
+const AffiliateSolution = lazy(() => import("./pages/AffiliateSolution"));
+const BioLinkTool = lazy(() => import("./pages/BioLinkTool"));
+const SmartRedirect = lazy(() => import("./pages/SmartRedirect"));
+const DeeplinkGenerator = lazy(() => import("./pages/DeeplinkGenerator"));
+const FitnessCoachSolution = lazy(() => import("./pages/FitnessCoachSolution"));
+const YoutubeSmartLinks = lazy(() => import("./pages/YoutubeSmartLinks"));
+const MusicSmartLinks = lazy(() => import("./pages/MusicSmartLinks"));
+const DigitalProductsSolution = lazy(() => import("./pages/DigitalProductsSolution"));
+const PodcastSmartLinks = lazy(() => import("./pages/PodcastSmartLinks"));
+const ShopifySmartLinks = lazy(() => import("./pages/ShopifySmartLinks"));
+const FanvueSmartLinks = lazy(() => import("./pages/FanvueSmartLinks"));
+const GeoTargetedRedirect = lazy(() => import("./pages/GeoTargetedRedirect"));
+const AmazonSmartLinks = lazy(() => import("./pages/AmazonSmartLinks"));
+const UgcPortfolio = lazy(() => import("./pages/UgcPortfolio"));
+const QrCodeBiolink = lazy(() => import("./pages/QrCodeBiolink"));
+const ProfessionSolutions = lazy(() => import("./pages/ProfessionSolutions"));
+const CompetitorComparison = lazy(() => import("./pages/CompetitorComparison"));
+const CompetitorAlternative = lazy(() => import("./pages/CompetitorAlternative"));
+const SolutionsIndex = lazy(() => import("./pages/SolutionsIndex"));
+const AlternativesIndex = lazy(() => import("./pages/AlternativesIndex"));
+
+// Non-indexed, dynamic, or authenticated routes.
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const DashboardLayout = lazy(() => import("./components/DashboardLayout"));
@@ -47,7 +51,6 @@ const DashboardProfile = lazy(() => import("./pages/DashboardProfile"));
 const ProfileHub = lazy(() => import("./pages/ProfileHub"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const HelpCenter = lazy(() => import("./pages/HelpCenter"));
-const PublicProfile = lazy(() => import("./pages/PublicProfile"));
 const InterstitialPage = lazy(() => import("./pages/InterstitialPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const BillingPage = lazy(() => import("./pages/Billing"));
@@ -78,7 +81,7 @@ function DomainGuard() {
   
   useEffect(() => {
     const hostname = window.location.hostname;
-    const MAIN_DOMAIN = "linktery.com";
+    const MAIN_DOMAIN = PRIMARY_DOMAIN;
     
     // If not main domain, not localhost, and not a vercel preview URL
     if (hostname !== MAIN_DOMAIN && hostname !== 'localhost' && !hostname.includes('vercel.app')) {
@@ -160,9 +163,10 @@ const AppRoutes = () => (
     <Route path="/alternatives/:competitorSlug" element={<CompetitorAlternative />} />
     <Route path="/solutions/ugc-portfolio" element={<UgcPortfolio />} />
     <Route path="/solutions/qr-code-biolink" element={<QrCodeBiolink />} />
-    <Route path="/solutions/link-in-bio-for-:professionSlug" element={<ProfessionSolutions />} />
+    <Route path="/solutions/:professionPath" element={<ProfessionSolutions />} />
     <Route path="/compare/:comparisonSlug" element={<CompetitorComparison />} />
     <Route path="/auth" element={<Navigate to="/login" replace />} />
+    <Route path="/404" element={<NotFound />} />
 
     <Route path="/open-in-browser" element={<InterstitialPage />} />
     <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>

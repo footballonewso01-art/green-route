@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import { PRIMARY_ORIGIN } from "@/lib/siteConfig";
+import { collectServerSeo } from "@/lib/serverSeo";
 
 export interface FAQItem {
   question: string;
@@ -13,10 +15,12 @@ interface SeoOptions {
   ogImage?: string;
   twitterCard?: "summary" | "summary_large_image" | "app" | "player";
   faq?: FAQItem[];
-  structuredData?: Record<string, any>;
+  structuredData?: Record<string, unknown>;
 }
 
 export function useSeo({ title, description, canonical, noIndex, ogImage, twitterCard, faq, structuredData }: SeoOptions) {
+  collectServerSeo({ faq, structuredData });
+
   useEffect(() => {
     // 1. Helper function for meta updates
     const updateMeta = (name: string, content: string, isProperty = false) => {
@@ -44,7 +48,7 @@ export function useSeo({ title, description, canonical, noIndex, ogImage, twitte
     updateMeta("twitter:description", finalDesc);
 
     // 4. Canonical Link (Strips query/UTM parameters from window.location by default)
-    const mainDomain = "https://linktery.com";
+    const mainDomain = PRIMARY_ORIGIN;
     let path = window.location.pathname;
     // Canonical standard: normalize homepage path to empty string for trailing slash removal
     if (path === "/") path = "";
@@ -65,7 +69,11 @@ export function useSeo({ title, description, canonical, noIndex, ogImage, twitte
     // 5. Open Graph & Twitter Images
     const finalImage = ogImage || `${mainDomain}/og-image.png`;
     updateMeta("og:image", finalImage, true);
+    updateMeta("og:image:alt", "Linktery smart links and analytics", true);
+    updateMeta("og:image:width", "1200", true);
+    updateMeta("og:image:height", "630", true);
     updateMeta("twitter:image", finalImage);
+    updateMeta("twitter:image:alt", "Linktery smart links and analytics");
 
     // 6. Twitter Card Type
     const finalTwitterCard = twitterCard || "summary_large_image";
@@ -116,7 +124,7 @@ export function useSeo({ title, description, canonical, noIndex, ogImage, twitte
       const genericScript = document.createElement("script");
       genericScript.type = "application/ld+json";
       genericScript.id = "jsonld-structured";
-      genericScript.text = JSON.stringify(structuredData);
+      genericScript.text = JSON.stringify(stripUnverifiedRatings(structuredData));
       document.head.appendChild(genericScript);
       jsonLdElements.push(genericScript);
     }
@@ -132,3 +140,13 @@ export function useSeo({ title, description, canonical, noIndex, ogImage, twitte
   }, [title, description, canonical, noIndex, ogImage, twitterCard, faq, structuredData]);
 }
 
+export function stripUnverifiedRatings(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripUnverifiedRatings);
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key !== "aggregateRating")
+      .map(([key, nestedValue]) => [key, stripUnverifiedRatings(nestedValue)])
+  );
+}

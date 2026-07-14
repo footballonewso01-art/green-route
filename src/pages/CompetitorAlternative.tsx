@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
 import { useSeo } from "@/hooks/useSeo";
 import competitorsData from "@/data/competitors.json";
+import indexableCompetitorSlugs from "@/data/indexable-competitors.json";
 import Footer from "@/components/Footer";
 
 interface CompetitorPricing {
@@ -118,11 +119,6 @@ export default function CompetitorAlternative() {
           "price": "0.00",
           "priceCurrency": "USD"
         },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.92",
-          "ratingCount": "128"
-        }
       },
       {
         "@type": "FAQPage",
@@ -150,6 +146,16 @@ export default function CompetitorAlternative() {
   if (!isValid) {
     return <Navigate to="/404" replace />;
   }
+
+  const relatedComparisons = (competitorsData as Competitor[])
+    .filter((item) => indexableCompetitorSlugs.includes(item.slug) && item.slug !== competitor.slug)
+    .map((item) => {
+      const pair = [competitor, item].sort((a, b) => a.slug.localeCompare(b.slug));
+      return {
+        name: `${pair[0].name} vs ${pair[1].name}`,
+        href: `/compare/${pair[0].slug}-vs-${pair[1].slug}`,
+      };
+    });
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden text-foreground">
@@ -269,7 +275,7 @@ export default function CompetitorAlternative() {
               <AlertTriangle className="w-5 h-5 text-amber-400" /> The In-App Webview Jail
             </h2>
             <p className="text-xs md:text-sm text-slate-300 leading-relaxed font-medium">
-              Sharing a standard URL in your social bio traps clicks inside Instagram or TikTok's built-in sandbox browser. Users are prompted to log in again to follow, play, or purchase—ruining up to **40% of visitor conversions**.
+              Sharing a standard URL in a social bio can keep visitors inside an in-app browser, where login state and checkout capabilities may differ from the native app or system browser.
             </p>
             <p className="text-xs md:text-sm text-slate-300 leading-relaxed mt-2.5 font-medium">
               Linktery bypasses this webview wall on paid plans, triggering installed applications (Spotify, YouTube, Amazon, Telegram) directly to preserve sessions and complete orders.
@@ -449,7 +455,7 @@ export default function CompetitorAlternative() {
                 <Check className="w-4 h-4 text-accent" /> Linktery Advantages
               </h3>
               <ul className="space-y-2 text-xs md:text-sm text-slate-400 font-sans">
-                <li>• **SSG Loading**: Compiles profiles to load in under 150ms.</li>
+                <li>• **Optimized loading**: Uses lightweight public landing pages and cached assets.</li>
                 <li>• **App launching**: Launch Spotify, YouTube, or Amazon directly on iOS/Android.</li>
                 <li>• **Domain Mapping**: Connect custom subdomains on our Agency plan.</li>
                 <li>• **0% Commission Cuts**: Keep your product sales revenues clean.</li>
@@ -632,6 +638,20 @@ export default function CompetitorAlternative() {
           </div>
         </div>
       </section>
+
+      {relatedComparisons.length > 0 && (
+        <section className="py-12 px-6 max-w-4xl mx-auto relative z-10 border-t border-border/40">
+          <h2 className="text-2xl font-extrabold text-white uppercase mb-2">Compare {competitor.name}</h2>
+          <p className="text-sm text-slate-400 mb-6">Pricing and features can change. Verify current plan details on each provider's official website.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {relatedComparisons.map((comparison) => (
+              <Link key={comparison.href} to={comparison.href} className="rounded-xl border border-border bg-surface/30 px-4 py-3 text-sm font-semibold text-slate-200 hover:border-accent/40 hover:text-accent transition-colors">
+                {comparison.name}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Footer */}
       <Footer />

@@ -106,11 +106,6 @@ export default function BioLinkTool() {
           "@type": "Offer",
           "price": "0.00",
           "priceCurrency": "USD"
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.9",
-          "ratingCount": "142"
         }
       },
       {
@@ -129,12 +124,6 @@ export default function BioLinkTool() {
 
   return (
     <div className="min-h-screen bg-[#07090e] text-[#f0f2f5] font-sans antialiased relative overflow-hidden">
-      {/* Dynamic Schema Injection */}
-      <script 
-        type="application/ld+json" 
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} 
-      />
-
       {/* Bauhaus Grid Line overlays */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#111827_1px,transparent_1px),linear-gradient(to_bottom,#111827_1px,transparent_1px)] bg-[size:6rem_6rem] opacity-30 pointer-events-none z-0" />
       

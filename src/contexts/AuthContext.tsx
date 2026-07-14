@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
 import { pb } from "@/lib/pocketbase";
 
 interface User {
@@ -18,6 +18,7 @@ interface User {
   plan: string;
   online_counter: boolean;
   role?: string;
+  promocode_used?: string;
   created?: string;
 }
 
@@ -250,7 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const record = await pb.collection('users').authRefresh();
       // authStore.onChange will handle updating the user state
@@ -263,7 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.error('[Auth] Failed to refresh user:', e);
     }
-  };
+  }, []);
 
   const isValid = Boolean(user && pb.authStore.isValid);
   const isAdmin = Boolean(user && user.role === 'admin');

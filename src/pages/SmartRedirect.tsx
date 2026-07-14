@@ -84,11 +84,11 @@ export default function SmartRedirect() {
     },
     {
       question: "Does the routing engine verify traffic quality to protect ad accounts?",
-      answer: "Absolutely. Linktery runs request validation checks. We compare incoming IP addresses against known datacenter ASN records (Google, Facebook, TikTok ad crawlers) and verify browser user agent signatures. Crawlers are redirected to compliant informational safety pages, while real human buyers proceed to your affiliate offers, keeping your campaigns running."
+      answer: "Linktery can compare incoming requests with datacenter ASN and browser signals to identify obvious automation. Suspicious requests can be blocked or excluded from human analytics. Campaign destinations must remain policy-compliant for every visitor, including platform reviewers."
     },
     {
       question: "What is the redirection latency on Linktery?",
-      answer: "Linktery's routing processing takes less than 12ms. Our serverless edge compute runs globally across multiple data centers, executing redirection logic at the node closest to the visitor. There is zero perceivable latency, ensuring your ad campaigns do not suffer click-to-page bounce losses."
+      answer: "Linktery keeps routing logic lightweight and processes it close to the redirect flow. Actual latency depends on network conditions, visitor location, configured rules, and the destination server."
     }
   ];
 
@@ -105,11 +105,6 @@ export default function SmartRedirect() {
           "@type": "Offer",
           "price": "0.00",
           "priceCurrency": "USD"
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.9",
-          "ratingCount": "142"
         }
       },
       {
@@ -558,7 +553,7 @@ export default function SmartRedirect() {
                   Traditional redirect proxies route requests through centralized cloud instances (e.g. AWS us-east-1). If your visitor resides in Europe, their request must travel across the Atlantic, execute routing logic, and travel back. This geographic distance adds significant latency.
                 </p>
                 <p>
-                  Linktery solves this by utilizing globally distributed serverless Edge compute. Redirection logic runs on serverless nodes physically closest to the user (e.g. Frankfurt node for European users), completing processing in under **12 milliseconds**. This guarantees minimal click drop-off and prevents ad budget waste.
+                  Linktery keeps redirect rules compact and processes them before navigation. Actual response time depends on network conditions, configured rules, visitor location, and the destination server.
                 </p>
               </div>
             </div>
@@ -576,10 +571,10 @@ export default function SmartRedirect() {
             <div>
               <span className="text-[#06b6d4] font-mono text-xs uppercase tracking-wider font-bold">Campaign Protection</span>
               <h2 className="text-3xl font-extrabold tracking-tight text-white mt-2 uppercase">
-                How Ad Reviewer Bots Scan URLs
+                How Automated Traffic Is Identified
               </h2>
               <p className="text-sm text-slate-400 mt-2 leading-relaxed">
-                Ad platform bots (Google, Meta, TikTok) review landing pages using crawler engines. If your campaign redirects visitors, reviewers must see a compliant page, while human buyers proceed to checkout.
+                Crawlers and automated tools can distort campaign reporting. Linktery uses multiple technical signals to flag automation while applying the same policy-compliant destination rules to every legitimate visitor.
               </p>
             </div>
 
@@ -589,7 +584,7 @@ export default function SmartRedirect() {
                   <ShieldAlert className="w-3.5 h-3.5 text-[#06b6d4]" /> ASN Registry Lookup
                 </h4>
                 <p className="text-[11px] text-slate-400 leading-normal">
-                  Google (AS15169), AWS (AS16509), and Meta (AS32934) operate review scrapers from cloud datacenters. We filter requests originating from these IP registries.
+                  ASN and IP reputation data help identify hosting and datacenter traffic. These signals are combined with other checks to reduce false positives.
                 </p>
               </div>
 
@@ -616,7 +611,7 @@ export default function SmartRedirect() {
                   <ArrowRightLeft className="w-3.5 h-3.5 text-[#06b6d4]" /> Dynamic Dispatch
                 </h4>
                 <p className="text-[11px] text-slate-400 leading-normal">
-                  Reviewers receive a static, 100% compliant informational layout, keeping advertising accounts healthy, while human buyers proceed to checkouts.
+                  High-confidence automation can be blocked or excluded from human analytics. Valid visitors follow the configured geo, device, and split-routing rules.
                 </p>
               </div>
             </div>
@@ -687,7 +682,7 @@ export default function SmartRedirect() {
             </p>
           </div>
           <div className="bg-[#06080c] border-2 border-slate-950 p-6 shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] space-y-2">
-            <h4 className="text-sm font-black text-white uppercase">Subdomain (CNAME) Cloaking</h4>
+            <h4 className="text-sm font-black text-white uppercase">Custom Subdomain (CNAME)</h4>
             <p className="text-xs text-slate-400 leading-relaxed font-medium">
               Mapping a custom domain (e.g. `track.company.com`) via CNAME records to run redirection scripts. Using private custom domains prevents campaign tracking paths from sharing public domain footprints.
             </p>

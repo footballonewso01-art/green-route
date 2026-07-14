@@ -29,33 +29,28 @@ export default function OnlyFansSolution() {
   const [customDomain, setCustomDomain] = useState<boolean>(false);
   const [cloaking, setCloaking] = useState<boolean>(false);
   const [riskCalculated, setRiskCalculated] = useState<boolean>(false);
-  const [riskPercent, setRiskPercent] = useState<number>(85);
-  const [riskLevel, setRiskLevel] = useState<"Critical" | "High" | "Medium" | "Safe">("Critical");
+  const [riskPercent, setRiskPercent] = useState<number>(0);
+  const [riskLevel, setRiskLevel] = useState<"Needs work" | "Basic" | "Improved" | "Configured">("Needs work");
 
   const calculateRisk = () => {
-    let score = 85; // Base high risk for standard setup
-    
+    let score = 0;
     if (customDomain && cloaking) {
-      score = 3;
+      score = 100;
     } else if (customDomain && !cloaking) {
-      score = 45;
+      score = 60;
     } else if (!customDomain && cloaking) {
-      score = 35;
-    }
-
-    if (platform === "tiktok" && score > 10) {
-      score = Math.min(score + 10, 95); // TikTok is slightly more aggressive
+      score = 40;
     }
 
     setRiskPercent(score);
-    if (score > 70) {
-      setRiskLevel("Critical");
-    } else if (score > 40) {
-      setRiskLevel("High");
-    } else if (score > 10) {
-      setRiskLevel("Medium");
+    if (score === 100) {
+      setRiskLevel("Configured");
+    } else if (score >= 60) {
+      setRiskLevel("Improved");
+    } else if (score > 0) {
+      setRiskLevel("Basic");
     } else {
-      setRiskLevel("Safe");
+      setRiskLevel("Needs work");
     }
     setRiskCalculated(true);
   };
@@ -71,11 +66,11 @@ export default function OnlyFansSolution() {
   const faqItems: FaqItem[] = [
     {
       question: "How do I safely share an OnlyFans link on Instagram bio in 2026?",
-      answer: "To share OnlyFans links safely on Instagram and TikTok without getting banned or shadowbanned, creators must avoid direct links. The industry-standard approach is to map a custom domain (e.g., bio.yourname.com) to your link-in-bio page and enable Link Cloaking. This filters automatic moderating crawlers while routing human fans straight to your content."
+      answer: "Use a clear, branded link-in-bio page and ensure both the page and its destinations comply with the social platform's current rules. A custom domain can improve brand consistency, but no tool can guarantee protection from moderation or shadowbans."
     },
     {
-      question: "What is Link Cloaking and how does it protect my social accounts?",
-      answer: "Link Cloaking is a programmatic traffic filtering protocol. When someone clicks your short link, Linktery instantly analyzes the visitor's HTTP headers, IP address, and behavior. If it detects search engine scrapers, platform bot-crawlers, or automated scanners, it displays a compliant safe page. Real human visitors are redirected directly to your OnlyFans profile."
+      question: "What does the traffic-quality filter do?",
+      answer: "Linktery's traffic-quality filter evaluates request signals to identify obvious bots and automated abuse. Suspicious automation can be blocked or excluded from analytics. It should not be used to show reviewers a different destination from the one ordinary visitors receive."
     },
     {
       question: "Why do standard link-in-bio tools get banned or flag links?",
@@ -104,11 +99,6 @@ export default function OnlyFansSolution() {
           "@type": "Offer",
           "price": "0.00",
           "priceCurrency": "USD"
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.9",
-          "ratingCount": "142"
         }
       },
       {
@@ -186,7 +176,7 @@ export default function OnlyFansSolution() {
             <span className="gradient-text">on Instagram & TikTok without Ban</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed font-medium">
-            Stop risking your social media accounts. Protect your links, bypass the in-app browser block, and secure your audience using Link Cloaking and Custom Domains.
+            Build a clear branded landing page, reduce in-app browser friction, and organize your creator destinations under a custom domain.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {user ? (
@@ -199,7 +189,7 @@ export default function OnlyFansSolution() {
               </Link>
             )}
             <a href="#calculator" className="px-6 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-surface-hover transition-all duration-200 text-base inline-flex items-center justify-center">
-              Check Your Ban Risk
+              Check Your Setup
             </a>
           </div>
         </div>
@@ -223,7 +213,7 @@ export default function OnlyFansSolution() {
               When you use a generic link-in-bio URL (like `linktr.ee/username`), you are sharing domain reputation with millions of other accounts. If only a few creators post spam or flag-worthy content on that domain, social networks will blacklist the entire root address.
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed mt-2.5">
-              Linktery isolates you completely. By mapping your own custom domain (e.g., `links.mybrand.com`), you bypass domain ban footprints entirely, ensuring your links stay active forever.
+              Mapping your own custom domain (for example, `links.mybrand.com`) gives you a consistent brand identity and separates your URL from a shared link-provider hostname. It does not guarantee approval by any social platform.
             </p>
           </div>
 
@@ -233,10 +223,10 @@ export default function OnlyFansSolution() {
               <ShieldAlert className="w-5 h-5 text-red-400" /> Account Suspension Risks
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Automated crawlers and moderation bots continuously inspect user profiles. If their scanners follow a direct redirect link to OnlyFans or restricted platforms, they can automatically trigger a shadowban or account suspension.
+              Social platforms may inspect profile links and destinations against their current policies. Creators should make the landing page purpose clear and keep every destination compliant with the platform where the link is shared.
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed mt-2.5">
-              Our advanced **Link Cloaking** protocol filters these bots, routing crawlers to a safe, compliant placeholder landing page while letting real users pass through.
+              Linktery's traffic-quality filter can block obvious automated abuse and keep bot traffic out of human analytics. It must not be used to present platform reviewers with a different destination.
             </p>
           </div>
         </div>
@@ -246,8 +236,8 @@ export default function OnlyFansSolution() {
           <div>
             <div className="flex items-center justify-between border-b border-border/60 pb-4 mb-6">
               <div>
-                <h2 className="text-xl font-bold text-white">Biolink Risk Assessment</h2>
-                <p className="text-xs text-muted-foreground">Select your configurations below to calculate link-in-bio suspension risk</p>
+                <h2 className="text-xl font-bold text-white">Biolink Setup Checklist</h2>
+                <p className="text-xs text-muted-foreground">Review brand and traffic-quality options. This is not a platform approval guarantee.</p>
               </div>
               <ShieldCheck className="w-5 h-5 text-accent animate-pulse" />
             </div>
@@ -302,8 +292,8 @@ export default function OnlyFansSolution() {
 
                 <div className="p-4 rounded-xl bg-background/50 border border-border flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-bold text-white">Link Cloaking Active?</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Filter bot and mod crawlers</p>
+                    <p className="text-sm font-bold text-white">Traffic Filter Active?</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Exclude obvious automation</p>
                   </div>
                   <button 
                     onClick={() => { setCloaking(!cloaking); setRiskCalculated(false); }}
@@ -319,7 +309,7 @@ export default function OnlyFansSolution() {
                 onClick={calculateRisk}
                 className="w-full py-3 rounded-xl bg-accent text-background font-bold text-sm hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-accent/10"
               >
-                Calculate Suspend Risk
+                Review Setup
               </button>
 
               {/* Calculator Output */}
@@ -327,11 +317,11 @@ export default function OnlyFansSolution() {
                 <div className="animate-fade-in p-5 rounded-2xl border border-border/80 bg-background/30 space-y-4">
                   <div className="flex items-center justify-between border-b border-border/40 pb-3">
                     <div>
-                      <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Calculated Risk Index</p>
+                      <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Setup completeness</p>
                       <h3 className={`text-2xl font-black mt-1 ${
-                        riskLevel === "Critical" ? "text-red-500 animate-pulse" :
-                        riskLevel === "High" ? "text-orange-400" :
-                        riskLevel === "Medium" ? "text-amber-300" : "text-emerald-400 font-bold"
+                        riskLevel === "Needs work" ? "text-red-500" :
+                        riskLevel === "Basic" ? "text-orange-400" :
+                        riskLevel === "Improved" ? "text-amber-300" : "text-emerald-400 font-bold"
                       }`}>
                         {riskLevel} ({riskPercent}%)
                       </h3>
@@ -339,33 +329,33 @@ export default function OnlyFansSolution() {
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Status</p>
                       <p className="text-xs text-foreground/90 font-medium mt-1">
-                        {riskLevel === "Critical" && "⚠️ Domain flag highly probable"}
-                        {riskLevel === "High" && "⚠️ Action needed immediately"}
-                        {riskLevel === "Medium" && "Moderate risk level"}
-                        {riskLevel === "Safe" && "✅ Domain fully secure"}
+                        {riskLevel === "Needs work" && "Add clear branding and review policies"}
+                        {riskLevel === "Basic" && "Traffic filtering configured"}
+                        {riskLevel === "Improved" && "Custom domain configured"}
+                        {riskLevel === "Configured" && "Brand and traffic settings configured"}
                       </p>
                     </div>
                   </div>
 
                   <div className="text-sm text-muted-foreground leading-relaxed">
-                    {riskLevel === "Critical" && (
+                    {riskLevel === "Needs work" && (
                       <p>
-                        <strong>Warning:</strong> You are sharing a default short domain without bot cloaking. Mod-bots scanning your profile will directly follow the redirect to OnlyFans, which will trigger domain flags, shadowbans, and possible profile suspension.
+                        Start with a clear landing page, check the destination policies for {platform}, and consider a branded domain. No setup can guarantee moderation outcomes.
                       </p>
                     )}
-                    {riskLevel === "High" && (
+                    {riskLevel === "Improved" && (
                       <p>
-                        Using a custom domain shields you from shared domain blocks, but the redirect remains fully open to moderation crawlers. We recommend activating **Link Cloaking** to filter crawlers.
+                        Your custom domain improves brand consistency. Enable traffic filtering if you also want obvious automation separated from human analytics.
                       </p>
                     )}
-                    {riskLevel === "Medium" && (
+                    {riskLevel === "Basic" && (
                       <p>
-                        Cloaking prevents bots from accessing the destination link. However, using the default shared domain still exposes your profile to blocks if other creators flag the domain. Connect a custom domain to achieve 100% safety.
+                        Automated traffic is separated from human reporting. A custom domain can add stronger brand identity, but platform policies still apply.
                       </p>
                     )}
-                    {riskLevel === "Safe" && (
+                    {riskLevel === "Configured" && (
                       <p>
-                        <strong>Excellent!</strong> Mapped custom domain combined with active Link Cloaking is the industry standard for creator safety. Bots see a fully compliant clean page, while users get routed safely.
+                        Your branded domain and traffic-quality settings are configured. Keep the same policy-compliant destination experience for ordinary visitors and platform reviewers.
                       </p>
                     )}
                   </div>
@@ -388,7 +378,7 @@ export default function OnlyFansSolution() {
         <div className="text-center mb-8">
           <h2 className="text-3xl font-extrabold tracking-tight text-white mb-2">Biolink Security Features Comparison</h2>
           <p className="text-sm text-muted-foreground max-w-lg mx-auto">
-            Review how other platforms compare in safeguarding creators against domain blacklists and shadowbans.
+            Compare custom-domain, traffic-filtering, and deep-linking options. Social-platform approval is never guaranteed.
           </p>
         </div>
 
@@ -410,7 +400,7 @@ export default function OnlyFansSolution() {
                 <td className="p-4 md:p-6">Requires $10/mo plan</td>
               </tr>
               <tr className="hover:bg-surface-hover/40 transition-colors">
-                <td className="p-4 md:p-6 font-semibold text-white">Mod-Bot Link Cloaking</td>
+                <td className="p-4 md:p-6 font-semibold text-white">Automated Traffic Filtering</td>
                 <td className="p-4 md:p-6 text-green-400 font-medium">✅ Yes (Pro/Agency tiers)</td>
                 <td className="p-4 md:p-6 text-red-500">❌ Not Supported</td>
                 <td className="p-4 md:p-6 text-red-500">❌ Not Supported</td>
@@ -448,9 +438,9 @@ export default function OnlyFansSolution() {
                 <Shield className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white mb-2">Automated Link Cloaking</h3>
+                <h3 className="text-lg font-bold text-white mb-2">Automated Traffic Filtering</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Protect your destination URLs from social platform scanners. Linktery identifies bot crawlers and automatically presents them with clean, fully compliant landing pages, while real users proceed instantly.
+                  Identify high-confidence automated traffic and exclude it from human analytics or block it. Campaign destinations remain consistent and policy-compliant for legitimate visitors and reviewers.
                 </p>
               </div>
             </div>
@@ -543,7 +533,7 @@ export default function OnlyFansSolution() {
             Secure Your Bio Link Conversion Rates Now
           </h2>
           <p className="text-base md:text-lg text-muted-foreground max-w-xl mx-auto mb-8 relative z-10 leading-relaxed">
-            Move to Linktery for advanced link cloaking, custom domain isolation, and native mobile deep-linking.
+            Move to Linktery for traffic-quality filtering, custom domain branding, and native mobile deep-linking.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center relative z-10">

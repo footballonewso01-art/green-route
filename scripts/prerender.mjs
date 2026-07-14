@@ -1,243 +1,140 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { DOMAIN, getSeoPageConfigs } from "./seo-routes.mjs";
 
-const DOMAIN = 'https://linktery.com';
+const escapeAttribute = (value) => String(value)
+  .replace(/&/g, "&amp;")
+  .replace(/"/g, "&quot;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;");
 
-const getSeoPagesConfig = () => {
-  const configPath = path.join(process.cwd(), 'src/lib/seo-config.ts');
-  if (!fs.existsSync(configPath)) {
-    console.error(`⚠️ SEO Config file not found at: ${configPath}`);
-    return [];
+const stripUnverifiedRatings = (value) => {
+  if (Array.isArray(value)) return value.map(stripUnverifiedRatings);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "aggregateRating")
+      .map(([key, nestedValue]) => [key, stripUnverifiedRatings(nestedValue)])
+  );
+};
+
+const replaceOrInsertHeadTag = (html, pattern, tag) => (
+  pattern.test(html)
+    ? html.replace(pattern, tag)
+    : html.replace("</head>", `  ${tag}\n</head>`)
+);
+
+const upsertMeta = (html, attribute, key, content) => {
+  const pattern = new RegExp(`<meta\\s+[^>]*${attribute}=["']${key}["'][^>]*>`, "i");
+  return replaceOrInsertHeadTag(
+    html,
+    pattern,
+    `<meta ${attribute}="${key}" content="${escapeAttribute(content)}" />`
+  );
+};
+
+const injectPageJsonLd = (html, seo) => {
+  const schemas = [];
+  if (seo?.faq?.length) {
+    schemas.push({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: seo.faq.map((item) => ({
+        "@type": "Question",
+        name: item.question,
+        acceptedAnswer: { "@type": "Answer", text: item.answer },
+      })),
+    });
+  }
+  if (seo?.structuredData) schemas.push(stripUnverifiedRatings(seo.structuredData));
+  if (!schemas.length) return html;
+
+  const scripts = schemas.map((schema) => {
+    const json = JSON.stringify(schema).replace(/</g, "\\u003c");
+    return `  <script type="application/ld+json" data-page-seo="true">${json}</script>`;
+  }).join("\n");
+  return html.replace("</head>", `${scripts}\n</head>`);
+};
+
+const injectAppRoot = (template, appHtml) => {
+  const markerPattern = /<!--app-root-start-->[\s\S]*?<!--app-root-end-->/i;
+  if (!markerPattern.test(template)) {
+    throw new Error("App root markers are missing from the client template.");
+  }
+  return template.replace(
+    markerPattern,
+    `<!--app-root-start--><div id="root" data-prerendered="true">${appHtml}</div><!--app-root-end-->`
+  );
+};
+
+const writeRoute = (route, html) => {
+  const distDir = path.join(process.cwd(), "dist");
+  if (route === "/" || route === "") {
+    fs.writeFileSync(path.join(distDir, "landing.html"), html, "utf8");
+    return;
   }
 
-  const text = fs.readFileSync(configPath, 'utf8');
-  
-  // Match configuration blocks like: key: { ... }
-  const blockRegex = /(\w+)\s*:\s*\{([^}]+)\}/g;
-  const configs = [];
-  let match;
-
-  while ((match = blockRegex.exec(text)) !== null) {
-    const key = match[1];
-    const content = match[2];
-
-    const titleMatch = content.match(/title\s*:\s*["']([^"']+)["']/);
-    const descMatch = content.match(/description\s*:\s*["']([^"']+)["']/);
-    const canonicalMatch = content.match(/canonical\s*:\s*["']([^"']+)["']/);
-    const noIndex = content.includes('noIndex: true');
-
-    if (canonicalMatch) {
-      configs.push({
-        key,
-        route: canonicalMatch[1], // e.g. "/pricing" or "/" or "/alternatives/linktree"
-        title: titleMatch ? titleMatch[1] : '',
-        description: descMatch ? descMatch[1] : '',
-        noIndex,
-      });
-    }
-  }
-
-  // Load programmatic SEO pages from professions.json
-  try {
-    const professionsPath = path.join(process.cwd(), 'src/data/professions.json');
-    if (fs.existsSync(professionsPath)) {
-      const professions = JSON.parse(fs.readFileSync(professionsPath, 'utf8'));
-      console.log(`🤖 Loaded ${professions.length} professions for pre-rendering.`);
-      for (const prof of professions) {
-        configs.push({
-          key: `profession_${prof.slug.replace(/-/g, '_')}`,
-          route: `/solutions/link-in-bio-for-${prof.slug}`,
-          title: prof.seoTitle,
-          description: prof.seoDescription,
-          noIndex: false,
-        });
-      }
-    } else {
-      console.warn(`⚠️ Professions data file not found at: ${professionsPath}`);
-    }
-  } catch (err) {
-    console.error('❌ Failed to load professions data in prerender.mjs:', err);
-  }
-
-  // Load programmatic SEO competitor comparison & alternative pages from competitors.json
-  try {
-    const competitorsPath = path.join(process.cwd(), 'src/data/competitors.json');
-    if (fs.existsSync(competitorsPath)) {
-      const competitors = JSON.parse(fs.readFileSync(competitorsPath, 'utf8'));
-      console.log(`🤖 Loaded ${competitors.length} competitors for pre-rendering.`);
-      
-      // 1. Generate competitor comparison pages
-      let pairsCount = 0;
-      for (let i = 0; i < competitors.length; i++) {
-        for (let j = i + 1; j < competitors.length; j++) {
-          const compA = competitors[i];
-          const compB = competitors[j];
-          const sortedSlugs = [compA.slug, compB.slug].sort();
-          const routeSlug = `${sortedSlugs[0]}-vs-${sortedSlugs[1]}`;
-          
-          configs.push({
-            key: `compare_${sortedSlugs[0].replace(/-/g, '_')}_vs_${sortedSlugs[1].replace(/-/g, '_')}`,
-            route: `/compare/${routeSlug}`,
-            title: `${compA.name} vs ${compB.name}: Which is Better? (2026) | Linktery`,
-            description: `Compare ${compA.name} vs ${compB.name} side-by-side. Analyze pricing, deep linking features, custom domain mapping, transaction fees, and pixel integrations.`,
-            noIndex: false,
-          });
-          pairsCount++;
-        }
-      }
-      console.log(`🤖 Generated ${pairsCount} competitor comparison pairs for pre-rendering.`);
-
-      // 2. Generate competitor alternative pages
-      for (const comp of competitors) {
-        configs.push({
-          key: `alternative_${comp.slug.replace(/-/g, '_')}`,
-          route: `/alternatives/${comp.slug}`,
-          title: comp.alternativeSeoTitle,
-          description: comp.alternativeSeoDescription,
-          noIndex: false,
-        });
-      }
-      console.log(`🤖 Generated ${competitors.length} competitor alternative pages for pre-rendering.`);
-    } else {
-      console.warn(`⚠️ Competitors data file not found at: ${competitorsPath}`);
-    }
-  } catch (err) {
-    console.error('❌ Failed to load competitors data in prerender.mjs:', err);
-  }
-
-  return configs;
+  const outputDir = path.join(distDir, route.replace(/^\//, ""));
+  fs.mkdirSync(outputDir, { recursive: true });
+  fs.writeFileSync(path.join(outputDir, "index.html"), html, "utf8");
 };
 
 const runPrerender = async () => {
-  const serverBundlePath = path.join(process.cwd(), 'dist-server', 'entry-server.js');
-  if (!fs.existsSync(serverBundlePath)) {
-    console.error(`❌ Server bundle not found at: ${serverBundlePath}`);
-    console.error('Please run the server build first: npm run build:server');
-    process.exit(1);
-  }
+  const serverBundlePath = path.join(process.cwd(), "dist-server", "entry-server.js");
+  const templatePath = path.join(process.cwd(), "dist", "index.html");
+  if (!fs.existsSync(serverBundlePath)) throw new Error(`Server bundle not found: ${serverBundlePath}`);
+  if (!fs.existsSync(templatePath)) throw new Error(`Client template not found: ${templatePath}`);
 
-  // Dynamically import the render function from the compiled server bundle
-  const serverModuleUrl = pathToFileURL(serverBundlePath).href;
-  const { render } = await import(serverModuleUrl);
+  const { render } = await import(pathToFileURL(serverBundlePath).href);
+  const template = fs.readFileSync(templatePath, "utf8");
+  const configs = getSeoPageConfigs().filter((config) => !config.noIndex);
+  if (!configs.length) throw new Error("No indexable routes configured for prerendering.");
 
-  // Read indexable config
-  const configs = getSeoPagesConfig();
-  if (configs.length === 0) {
-    console.error('❌ No routes configured for SEO pre-rendering.');
-    process.exit(1);
-  }
-
-  const templatePath = path.join(process.cwd(), 'dist', 'index.html');
-  if (!fs.existsSync(templatePath)) {
-    console.error(`❌ Client template not found at: ${templatePath}`);
-    process.exit(1);
-  }
-  let template = fs.readFileSync(templatePath, 'utf8');
-
-  // Inline the CSS file content to avoid render-blocking requests
-  try {
-    const cssLinkRegex = /<link\s+[^>]*href=["']\/assets\/([^"']+\.css)["'][^>]*>/i;
-    const match = template.match(cssLinkRegex);
-    if (match) {
-      const cssFileName = match[1];
-      const cssFilePath = path.join(process.cwd(), 'dist', 'assets', cssFileName);
-      if (fs.existsSync(cssFilePath)) {
-        console.log(`⚡ Inlining CSS asset: ${cssFileName} (${(fs.statSync(cssFilePath).size / 1024).toFixed(2)} KB)`);
-        const cssContent = fs.readFileSync(cssFilePath, 'utf8');
-        template = template.replace(cssLinkRegex, `<style>${cssContent}</style>`);
-        console.log(`✅ CSS successfully inlined into template!`);
-      } else {
-        console.warn(`⚠️ CSS file not found for inlining: ${cssFilePath}`);
-      }
-    } else {
-      console.warn(`⚠️ Could not find CSS stylesheet link tag in index.html to inline.`);
-    }
-  } catch (inlineErr) {
-    console.error(`❌ Failed to inline CSS:`, inlineErr);
-  }
-
-  console.log('🚀 Starting pre-rendering (Static Site Generation)...');
-
+  const failures = [];
   for (const config of configs) {
-    // We only prerender indexable paths (skip noIndex routes like /login, /register)
-    if (config.noIndex) {
-      console.log(`⏭️ Skipping noIndex route: ${config.route}`);
-      continue;
-    }
-
-    const route = config.route;
-    console.log(`📦 Prerendering route: ${route}`);
-
     try {
-      // 1. Render components to HTML string
-      const appHtml = render(route);
+      const renderResult = await render(config.route);
+      const appHtml = typeof renderResult === "string" ? renderResult : renderResult.appHtml;
+      const seo = typeof renderResult === "string" ? undefined : renderResult.seo;
+      if (!appHtml?.includes("<h1")) throw new Error("Rendered page has no H1.");
 
-      // 2. Inject React HTML into the root div
-      let pageHtml = template.replace('<div id="root"></div>', `<div id="root">${appHtml}</div>`);
+      const canonicalUrl = config.route === "/" ? DOMAIN : `${DOMAIN}${config.route}`;
+      let pageHtml = injectAppRoot(template, appHtml);
+      pageHtml = pageHtml.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeAttribute(config.title)}</title>`);
+      pageHtml = upsertMeta(pageHtml, "name", "description", config.description);
+      pageHtml = upsertMeta(pageHtml, "property", "og:title", config.title);
+      pageHtml = upsertMeta(pageHtml, "property", "og:description", config.description);
+      pageHtml = upsertMeta(pageHtml, "property", "og:url", canonicalUrl);
+      pageHtml = upsertMeta(pageHtml, "name", "twitter:title", config.title);
+      pageHtml = upsertMeta(pageHtml, "name", "twitter:description", config.description);
+      pageHtml = upsertMeta(pageHtml, "name", "robots", "index, follow");
+      pageHtml = replaceOrInsertHeadTag(
+        pageHtml,
+        /<link\s+[^>]*rel=["']canonical["'][^>]*>/i,
+        `<link rel="canonical" href="${escapeAttribute(canonicalUrl)}" />`
+      );
+      pageHtml = injectPageJsonLd(pageHtml, seo);
 
-      // 3. Inject SEO metadata in head
-      const mainDomain = DOMAIN;
-      const canonicalUrl = route === '/' ? mainDomain : `${mainDomain}${route}`;
-
-      // Update Title
-      if (config.title) {
-        pageHtml = pageHtml.replace(/<title>.*?<\/title>/, `<title>${config.title}</title>`);
-        pageHtml = pageHtml.replace(/<meta\s+property="og:title"\s+content=".*?"\s*\/?>/, `<meta property="og:title" content="${config.title}" />`);
-        pageHtml = pageHtml.replace(/<meta\s+name="twitter:title"\s+content=".*?"\s*\/?>/, `<meta name="twitter:title" content="${config.title}" />`);
-      }
-
-      // Update Description
-      if (config.description) {
-        pageHtml = pageHtml.replace(/<meta\s+name="description"\s+content=".*?"\s*\/?>/, `<meta name="description" content="${config.description}" />`);
-        pageHtml = pageHtml.replace(/<meta\s+property="og:description"\s+content=".*?"\s*\/?>/, `<meta property="og:description" content="${config.description}" />`);
-        pageHtml = pageHtml.replace(/<meta\s+name="twitter:description"\s+content=".*?"\s*\/?>/, `<meta name="twitter:description" content="${config.description}" />`);
-      }
-
-      // Add Canonical link tag
-      const canonicalTag = `<link rel="canonical" href="${canonicalUrl}" />`;
-      // Insert right before </head>
-      pageHtml = pageHtml.replace('</head>', `  ${canonicalTag}\n  <meta property="og:url" content="${canonicalUrl}" />\n</head>`);
-
-      // Add Robots tag
-      const robotsTag = `<meta name="robots" content="index, follow" />`;
-      pageHtml = pageHtml.replace('</head>', `  ${robotsTag}\n</head>`);
-
-      // 4. Determine output file path
-      let outDir = path.join(process.cwd(), 'dist');
-      let outFile = 'index.html';
-
-      if (route !== '/' && route !== '') {
-        // Create matching subdirectories (e.g. dist/pricing/index.html)
-        outDir = path.join(outDir, route.replace(/^\//, ''));
-        fs.mkdirSync(outDir, { recursive: true });
-      }
-
-      const outFilePath = path.join(outDir, outFile);
-      fs.writeFileSync(outFilePath, pageHtml, 'utf8');
-      console.log(`✅ Generated: ${outFilePath}`);
-    } catch (err) {
-      console.error(`❌ Failed to prerender ${route}:`, err);
+      writeRoute(config.route, pageHtml);
+      console.log(`Generated ${config.route}`);
+    } catch (error) {
+      failures.push(`${config.route}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  // Cleanup dist-server directory
-  const serverDir = path.join(process.cwd(), 'dist-server');
-  if (fs.existsSync(serverDir)) {
-    try {
-      fs.rmSync(serverDir, { recursive: true, force: true });
-      console.log('🧹 Cleaned up temporary dist-server directory.');
-    } catch (cleanupErr) {
-      console.log('⚠️ Temporary dist-server directory is locked, skipping cleanup (it will overwrite on next build).');
-    }
+  if (failures.length) {
+    throw new Error(`Prerender failed for ${failures.length} route(s):\n${failures.join("\n")}`);
   }
-
-  console.log('🎉 Pre-rendering completed successfully!');
+  console.log(`Prerendered ${configs.length} indexable routes.`);
 };
 
 try {
   await runPrerender();
 } catch (error) {
-  console.error('❌ Pre-rendering execution failed:', error);
-  process.exit(1);
+  console.error(error);
+  process.exitCode = 1;
+} finally {
+  const serverDir = path.join(process.cwd(), "dist-server");
+  if (fs.existsSync(serverDir)) fs.rmSync(serverDir, { recursive: true, force: true });
 }

@@ -94,7 +94,7 @@ export default function FitnessCoachSolution() {
     },
     {
       question: "Can I connect scheduling tools like Calendly and intake forms like Google Forms?",
-      answer: "Yes, absolutely. You can easily add button redirects to your Calendly, Acuity Scheduling, Google Forms, or Typeform. With our App Deep Linking feature, we can command the phone to open these links directly in native Safari or Chrome viewports, preserving active user logins and cookies to double your consultation bookings."
+      answer: "Yes. Add button redirects to Calendly, Acuity Scheduling, Google Forms, or Typeform. Deep linking can open compatible destinations in the system browser or native app, reducing login and navigation friction."
     },
     {
       question: "Do I need a separate website if I use Linktery for my fitness business?",
@@ -119,11 +119,6 @@ export default function FitnessCoachSolution() {
           "@type": "Offer",
           "price": "0.00",
           "priceCurrency": "USD"
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.9",
-          "ratingCount": "184"
         }
       },
       {
@@ -142,12 +137,6 @@ export default function FitnessCoachSolution() {
 
   return (
     <div className="min-h-screen bg-[#07090e] text-[#f0f2f5] font-sans antialiased relative overflow-hidden">
-      {/* Dynamic Schema Injection */}
-      <script 
-        type="application/ld+json" 
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} 
-      />
-
       {/* Decorative Grid Background */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-35 z-0 pointer-events-none" />
       
@@ -206,7 +195,7 @@ export default function FitnessCoachSolution() {
         </h1>
 
         <p className="text-base sm:text-lg text-slate-450 max-w-2xl mx-auto mb-10 leading-relaxed font-normal">
-          Create a white-labeled mobile portal. Connect custom domains, bypass sandboxed in-app browsers to double your Calendly bookings, and sell PDF plans with zero middleman commission fees.
+          Create a branded mobile portal, connect a custom domain, reduce in-app browser friction for booking links, and sell PDF plans through your preferred external checkout.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto">

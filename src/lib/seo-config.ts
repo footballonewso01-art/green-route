@@ -44,7 +44,7 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
 
   onlyfansSolution: {
     title: "OnlyFans Link in Bio: Safe Sharing on Instagram & TikTok | Linktery",
-    description: "Learn how to safely share OnlyFans links on Instagram & TikTok without bans or shadowbans. Secure your creator profile with link cloaking and custom domains.",
+    description: "Build a branded creator link page for OnlyFans audiences, use custom domains, and route visitors with clear, policy-safe landing experiences.",
     canonical: "/solutions/onlyfans-link-in-bio",
   },
   telegramSolution: {
@@ -84,12 +84,12 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
   },
   musicSmartLinks: {
     title: "Music Smart Links: Spotify Pre-Save & App Deep Linking | Linktery",
-    description: "Create beautiful music smart links. Redirect listeners directly to Spotify, Apple Music, and YouTube Music native apps to double your streams and pre-saves.",
+    description: "Create beautiful music smart links and route listeners to Spotify, Apple Music, and YouTube Music with native-app deep linking where supported.",
     canonical: "/solutions/music-smart-links",
   },
   digitalProductsSmartLinks: {
     title: "Gumroad & Lemon Squeezy Smart Links: Maximize Sales | Linktery",
-    description: "Bypass conversion-killing in-app browsers. Redirect buyers directly to Safari or Chrome with active Apple/Google Pay sessions to double your digital product sales.",
+    description: "Reduce in-app browser checkout friction by routing buyers to Safari or Chrome, where existing Apple Pay or Google Pay sessions may be available.",
     canonical: "/solutions/digital-product-smart-links",
   },
   podcastSmartLinks: {
@@ -103,8 +103,8 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     canonical: "/solutions/shopify-smart-links",
   },
   fanvueSmartLinks: {
-    title: "Fanvue & AI Influencer Smart Links: Link Rotators & Ban Shield | Linktery",
-    description: "Protect your AI model profiles from bans. Use advanced link cloaking, rotate traffic across multiple Fanvue/Fansly destinations, and bypass in-app browser login blocks.",
+    title: "Fanvue & AI Influencer Smart Links: Link Rotators | Linktery",
+    description: "Build branded landing pages for AI model profiles, rotate traffic across Fanvue or Fansly destinations, and reduce in-app browser friction.",
     canonical: "/solutions/fanvue-ai-models",
   },
   geoTargetedRedirect: {
@@ -114,7 +114,7 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
   },
   amazonSmartLinks: {
     title: "Amazon Affiliate Smart Links: Open Amazon App Directly | Linktery",
-    description: "Generate Amazon Associate smart links. Bypass in-app webviews to redirect mobile clicks directly to the native Amazon shopping app, doubling your affiliate conversions.",
+    description: "Generate Amazon Associate smart links and route compatible mobile clicks to the native Amazon shopping app to reduce in-app browser friction.",
     canonical: "/solutions/amazon-smart-links",
   },
 
@@ -139,5 +139,3 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     canonical: "/alternatives",
   },
 };
-
-

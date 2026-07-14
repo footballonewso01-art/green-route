@@ -394,7 +394,7 @@ export default function LandingPage() {
                   ))}
                 </div>
                 <span className="text-[14px] md:text-[16px] text-muted-foreground font-medium text-left">
-                  Trusted by 95K creators across 350 agencies
+                  Built for creators, marketers, and growing teams
                 </span>
               </div>
             </div>
@@ -404,16 +404,14 @@ export default function LandingPage() {
           <div className="lg:col-span-6 flex justify-center relative w-full mt-10 lg:mt-0 transform lg:translate-y-[6%]">
             <div className="relative animate-float w-full max-w-none flex justify-center">
               <picture>
-                {/* On desktop (lg breakpoint >= 1024px), use the high-quality original PNG */}
-                <source media="(min-width: 1024px)" srcSet="/mobila.png" type="image/png" />
-                {/* On mobile/tablet, use the highly compressed and resized WebP */}
                 <source srcSet="/mobila.webp" type="image/webp" />
                 <img
                   src="/mobila.webp"
                   alt="Linktery mobile preview"
+                  width="1200"
+                  height="670"
                   className="transform rotate-3 scale-[1.75] lg:scale-[2.31] lg:translate-x-[17%] w-full h-auto select-none pointer-events-none origin-center z-10"
                   loading="eager"
-                  fetchPriority="high"
                 />
               </picture>
             </div>

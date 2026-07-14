@@ -112,12 +112,12 @@ export default function FanvueSmartLinks() {
 
   const faqItems: FaqItem[] = [
     {
-      question: "Why do social networks shadowban links to Fanvue or Fansly?",
-      answer: "Platforms like Instagram, TikTok, and Meta have extremely strict safety filters against adult, sensitive, or NSFW platforms. When you place a direct link to fanvue.com in your bio, automated bots audit the URL signature, flag the adult domain, and immediately limit your account reach, leading to permanent shadowbans or account suspension."
+      question: "What should I check before sharing Fanvue or Fansly links?",
+      answer: "Review the current external-link and adult-content policies of the social platform where you share the page. Use clear branding and descriptions, and keep every destination compliant; moderation outcomes cannot be guaranteed by a redirect tool."
     },
     {
-      question: "How does Linktery's Ban Shield prevent social media flags?",
-      answer: "Linktery utilizes dynamic domain signature cloaking. When a crawler bot from Meta or TikTok audits your link, Linktery identifies their server signatures and routes them to a safe, clean, fully-compliant decoy profile. Real human shoppers are instantly routed directly to your Fanvue or Fansly pages, keeping your links completely safe from algorithm triggers."
+      question: "How does Linktery filter automated traffic?",
+      answer: "Use a clear branded landing page, a custom domain, and destinations that comply with each social platform's rules. Linktery can filter obvious automated abuse and broken traffic, but it does not guarantee immunity from moderation or replace platform-policy compliance."
     },
     {
       question: "What is a Link Rotator and why do AI agencies use it?",
@@ -146,11 +146,6 @@ export default function FanvueSmartLinks() {
           "@type": "Offer",
           "price": "0.00",
           "priceCurrency": "USD"
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.94",
-          "ratingCount": "228"
         }
       },
       {
@@ -226,7 +221,7 @@ export default function FanvueSmartLinks() {
           <span className="gradient-text">AI MODEL ACENCIES</span>
         </h1>
         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-          Avoid Instagram adult-link shadowbans. Cloak your Fanvue and Fansly domains, rotate traffic weight dynamically, and filter out crawler bots automatically.
+          Build a branded Fanvue or Fansly landing page, rotate traffic weights dynamically, and filter obvious automated traffic from campaign analytics.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
           {user ? (
@@ -239,7 +234,7 @@ export default function FanvueSmartLinks() {
             </Link>
           )}
           <a href="#ban-shield" className="px-6 py-3.5 rounded-xl border border-border text-foreground font-medium hover:bg-surface-hover transition-all duration-200 text-base inline-flex items-center justify-center">
-            Test Ban Shield
+            Review Link Setup
           </a>
         </div>
       </section>
@@ -305,7 +300,7 @@ export default function FanvueSmartLinks() {
                 {/* Weight: Patreon */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-center text-xs font-bold text-white uppercase font-mono">
-                    <span className="text-slate-400">Decoy / Patreon</span>
+                    <span className="text-slate-400">Fallback / Patreon</span>
                     <span>{weightPatreon}%</span>
                   </div>
                   <input 
@@ -321,8 +316,8 @@ export default function FanvueSmartLinks() {
               </div>
               
               <div className="text-xs text-muted-foreground font-mono space-y-2 leading-relaxed">
-                <p>💡 <strong className="text-white">Live Node Simulation:</strong> Dots flow from left (Social clicks) through the Linktery rotator node to targets based on weights.</p>
-                {filterBots && <p className="text-red-400">🛡️ Crawler bots (Red dots) are auto-detected and filtered into a safe decoy page.</p>}
+                <p>💡 <strong className="text-white">Live Node Simulation:</strong> Dots flow from social clicks through the Linktery router to weighted destinations.</p>
+                {filterBots && <p className="text-red-400">🛡️ High-confidence automated traffic is blocked and excluded from human routing totals.</p>}
               </div>
             </div>
 
@@ -363,10 +358,10 @@ export default function FanvueSmartLinks() {
                     </div>
                   </div>
 
-                  {/* Target 3: Decoy Safe */}
+                  {/* Target 3: bot filter or fallback destination */}
                   <div className="bg-slate-900/90 border border-border/80 p-2 rounded-lg text-left relative overflow-hidden">
                     <span className="text-[9px] font-black text-white uppercase block">
-                      {filterBots ? "🛡️ Decoy Safe" : `Patreon (${weightPatreon}%)`}
+                      {filterBots ? "🛡️ Bot Blocked" : `Patreon (${weightPatreon}%)`}
                     </span>
                     <div className="h-1 bg-slate-800 rounded-full mt-1 overflow-hidden">
                       <div className="h-full bg-slate-500 transition-all duration-300" style={{ width: `${filterBots ? 100 : weightPatreon}%` }} />
@@ -408,10 +403,10 @@ export default function FanvueSmartLinks() {
       {/* BAN SHIELD SANDBOX SIMULATOR */}
       <section id="ban-shield" className="py-16 px-6 max-w-4xl mx-auto border-t border-border/40 z-10 relative">
         <div className="text-center max-w-2xl mx-auto mb-12">
-          <span className="text-accent text-xs font-bold uppercase tracking-widest font-mono">SECURITY SANDBOX</span>
-          <h2 className="text-3xl font-extrabold tracking-tight text-white mt-1">Ban Shield Simulator</h2>
+          <span className="text-accent text-xs font-bold uppercase tracking-widest font-mono">LANDING PAGE CHECK</span>
+          <h2 className="text-3xl font-extrabold tracking-tight text-white mt-1">Branded Link Simulator</h2>
           <p className="text-sm text-muted-foreground">
-            Test how algorithms audit your bio link. Direct adult links trigger shadowbans; Linktery shields hide adult domain signatures.
+            Compare a direct destination URL with a branded landing page. Platform policies still apply to both configurations.
           </p>
         </div>
 
@@ -434,7 +429,7 @@ export default function FanvueSmartLinks() {
 
               <div className="text-[11px] text-muted-foreground font-mono leading-normal pt-2 border-t border-border/40 space-y-1">
                 <p>Status: <span className={shieldActive ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>
-                  {shieldActive ? "Shield Active (Cloaking)" : "Unprotected (Direct Link)"}
+                  {shieldActive ? "Branded Landing Page" : "Direct Destination"}
                 </span></p>
                 <p>Domain: <span className="text-white">{shieldActive ? "links.mybrand.com" : "fanvue.com/myprofile"}</span></p>
               </div>
@@ -473,7 +468,7 @@ export default function FanvueSmartLinks() {
                     <p className="text-slate-400">&gt; Incoming request from MetaAuditorBot/v3.4...</p>
                     <p className="text-slate-400">&gt; Headers: User-Agent: FacebookExternalHit/1.1...</p>
                     <p className="text-red-400">&gt; Flagged domain matching: adult_directory (fanvue.com)</p>
-                    <p className="text-red-500 font-extrabold uppercase">&gt; CRITICAL EXCEPTION: Direct adult link. Initiating shadowban flag.</p>
+                    <p className="text-red-500 font-extrabold uppercase">&gt; DIRECT DESTINATION: Review the sharing platform's current policies.</p>
                   </>
                 )}
                 {banSimulatorState === "passed" && (
@@ -481,15 +476,15 @@ export default function FanvueSmartLinks() {
                     <p className="text-slate-400">&gt; Incoming request from MetaAuditorBot/v3.4...</p>
                     <p className="text-slate-400">&gt; Headers: User-Agent: FacebookExternalHit/1.1...</p>
                     <p className="text-emerald-400">&gt; Target domain checked: clean subdomain signature (mybrand.com)</p>
-                    <p className="text-emerald-400">&gt; Bot routed to compliant decoy profile. Signature verified.</p>
-                    <p className="text-emerald-400 font-extrabold uppercase">&gt; AUDIT PASSED: Account link safe. Reach unrestricted.</p>
+                    <p className="text-emerald-400">&gt; Branded landing page loaded successfully.</p>
+                    <p className="text-emerald-400 font-extrabold uppercase">&gt; CHECK COMPLETE: Verify content against platform policy.</p>
                   </>
                 )}
               </div>
 
               <div className="border-t border-slate-900 pt-2 text-center text-[9px] uppercase font-bold">
-                {banSimulatorState === "flagged" && <span className="text-red-500 animate-pulse">❌ Flagged. Link causes shadowban.</span>}
-                {banSimulatorState === "passed" && <span className="text-emerald-400 animate-pulse">✅ Safe. Domain signature disguised.</span>}
+                {banSimulatorState === "flagged" && <span className="text-red-500 animate-pulse">Direct destination selected. Review platform rules.</span>}
+                {banSimulatorState === "passed" && <span className="text-emerald-400 animate-pulse">Branded page ready for policy review.</span>}
                 {banSimulatorState === "idle" && <span className="text-slate-500">Awaiting scan...</span>}
                 {banSimulatorState === "testing" && <span className="text-yellow-400 animate-pulse">Scanning...</span>}
               </div>
@@ -539,7 +534,7 @@ export default function FanvueSmartLinks() {
                 <div className="flex gap-3">
                   <span className="text-xs font-mono font-bold text-red-500 bg-red-500/10 w-5 h-5 rounded-full flex items-center justify-center shrink-0">2</span>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    <strong className="text-white">Account Shadowbans.</strong> Meta limits the views and organic reach of profiles linking directly to flagged NSFW destinations, cutting off views to Reels.
+                    <strong className="text-white">Platform Policy Review.</strong> Social platforms may limit or remove links that conflict with their current external-link and content policies.
                   </p>
                 </div>
                 <div className="flex gap-3">
@@ -564,7 +559,7 @@ export default function FanvueSmartLinks() {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-emerald-400 uppercase font-mono tracking-wider">LINKTERY ADVANTAGE</span>
-                  <h4 className="text-lg font-bold text-white uppercase">Cloaked Subdomain & Rotator</h4>
+                  <h4 className="text-lg font-bold text-white uppercase">Custom Subdomain & Rotator</h4>
                 </div>
               </div>
               <p className="text-xs text-slate-400">
@@ -575,7 +570,7 @@ export default function FanvueSmartLinks() {
                 <div className="flex gap-3">
                   <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 w-5 h-5 rounded-full flex items-center justify-center shrink-0">1</span>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    <strong className="text-white">Decoy Redirection.</strong> Moderator bot crawlers are automatically sent to compliant landing pages. Safe and clean signatures are recorded.
+                    <strong className="text-white">Clear Branded Landing.</strong> A custom page explains the destination and presents the same policy-compliant experience to visitors and platform reviewers.
                   </p>
                 </div>
                 <div className="flex gap-3">
@@ -587,13 +582,13 @@ export default function FanvueSmartLinks() {
                 <div className="flex gap-3">
                   <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 w-5 h-5 rounded-full flex items-center justify-center shrink-0">3</span>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    <strong className="text-white">Organic Reach Protected.</strong> Because your domain shows clean signatures, your Instagram/TikTok accounts retain maximum organic algorithmic push.
+                    <strong className="text-white">Consistent Brand Identity.</strong> A custom domain keeps campaign URLs recognizable across profiles and channels.
                   </p>
                 </div>
               </div>
             </div>
             <div className="border-t border-emerald-500/10 pt-4 text-center text-xs font-mono text-emerald-400 font-bold uppercase tracking-wider">
-              🎉 Result: Maximum reach, active split routing.
+              Result: Consistent branding and active split routing.
             </div>
           </div>
 
@@ -628,7 +623,7 @@ export default function FanvueSmartLinks() {
           <span className="text-accent text-xs font-bold uppercase tracking-widest font-mono">CAPABILITY COMPONENT</span>
           <h2 className="text-3xl font-extrabold tracking-tight text-white mt-1 mb-3">ROTATOR COMPARISONS</h2>
           <p className="text-sm text-muted-foreground">
-            Compare ban-shield and rotators features with standard bio link aggregators.
+            Compare traffic routing and automation filtering with standard bio link aggregators.
           </p>
         </div>
 
@@ -644,8 +639,8 @@ export default function FanvueSmartLinks() {
             </thead>
             <tbody className="divide-y divide-border text-xs md:text-sm text-foreground/90 font-medium">
               <tr className="hover:bg-surface-hover/40 transition-colors">
-                <td className="p-4 md:p-6 font-semibold text-white">Bot & Crawler Decoy Routing</td>
-                <td className="p-4 md:p-6 text-green-400">✅ Yes (Redirects bots to safe pages)</td>
+                <td className="p-4 md:p-6 font-semibold text-white">Bot & Crawler Filtering</td>
+                <td className="p-4 md:p-6 text-green-400">✅ Yes (Blocks obvious automation)</td>
                 <td className="p-4 md:p-6 text-red-500">❌ No (Directly audited)</td>
                 <td className="p-4 md:p-6 text-red-500">❌ No (Directly audited)</td>
               </tr>
@@ -679,7 +674,7 @@ export default function FanvueSmartLinks() {
             <HelpCircle className="w-8 h-8 text-accent" /> Frequently Asked Questions
           </h2>
           <p className="text-muted-foreground text-sm">
-            Everything you need to know about setting up link rotators, domain cloaking, and protecting your AI model profiles.
+            Everything you need to know about link rotators, custom domains, and traffic-quality filtering for AI model profiles.
           </p>
         </div>
 
@@ -721,7 +716,7 @@ export default function FanvueSmartLinks() {
             Scale Your AI Model Traffic
           </h2>
           <p className="text-base md:text-lg text-muted-foreground max-w-xl mx-auto mb-8 relative z-10 leading-relaxed">
-            Protect accounts from shadowbans, cloak adult links dynamically, and split traffic weights safely across all models.
+            Manage branded creator destinations, filter obvious automation, and split traffic weights across multiple models.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center relative z-10">

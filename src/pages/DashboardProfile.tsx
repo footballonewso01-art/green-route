@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { pb } from "@/lib/pocketbase";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Loader2, Camera, Palette, Smartphone, User, Check, Upload, Globe, Plus, GripVertical, Eye, EyeOff, Edit, Trash2, ExternalLink, X, Save, Lock, Copy, ChevronDown } from "lucide-react";
+import { Loader2, Camera, Palette, Smartphone, User, Check, Upload, Globe, Plus, GripVertical, Eye, EyeOff, Edit, Trash2, ExternalLink, X, Save, Lock, Copy, ChevronDown, Sparkles } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { IconPicker } from '@/components/icons/IconPicker';
 import { IconRenderer } from '@/components/icons/IconRenderer';
@@ -14,7 +14,15 @@ import Cropper, { Area, Point } from 'react-easy-crop';
 import { Link as RouterLink, useParams, useNavigate } from "react-router-dom";
 import { getCroppedImg } from '@/lib/cropImage';
 import { LinkItemCard } from "@/components/LinkItemCard";
+import { ProfileIdentity } from "@/components/profile/ProfileIdentity";
 import { urlSchema } from "@/lib/validations";
+import { getAvailableDomains } from "@/lib/siteConfig";
+import {
+  isLightProfileColor,
+  normalizeProfileTemplate,
+  PROFILE_TEMPLATES,
+  ProfileTemplateId,
+} from "@/lib/profileTemplates";
 
 const THEMES = [
   { id: "minimal-dark", name: "Minimal Dark", colors: "bg-background border-border" },
@@ -24,6 +32,75 @@ const THEMES = [
   { id: "glass", name: "Glassmorphism", colors: "bg-white/5 backdrop-blur-xl border-white/10 text-white" },
   { id: "custom", name: "Custom Background", colors: "bg-surface border-border border-dashed text-white" },
 ];
+
+function TemplateThumbnail({ template }: { template: ProfileTemplateId }) {
+  const linkRows = (
+    <div className="space-y-1.5 px-2 pb-2">
+      <div className="h-2.5 rounded-full bg-white/15" />
+      <div className="h-2.5 rounded-full bg-white/10" />
+    </div>
+  );
+
+  if (template === "compact") {
+    return (
+      <div className="h-28 rounded-lg bg-neutral-950 border border-white/10 pt-3 overflow-hidden">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent/80 to-white/20 mx-auto border border-white/20" />
+        <div className="w-12 h-1.5 rounded-full bg-white/70 mx-auto mt-2" />
+        <div className="w-20 h-1 rounded-full bg-white/20 mx-auto mt-1" />
+        <div className="mt-3">{linkRows}</div>
+      </div>
+    );
+  }
+
+  if (template === "banner") {
+    return (
+      <div className="h-28 rounded-lg bg-neutral-950 border border-white/10 overflow-hidden">
+        <div className="h-9 bg-gradient-to-r from-accent/50 via-cyan-500/30 to-purple-500/40" />
+        <div className="w-8 h-8 -mt-4 rounded-full bg-neutral-700 mx-auto border-2 border-neutral-950" />
+        <div className="w-14 h-1.5 rounded-full bg-white/70 mx-auto mt-1.5" />
+        <div className="mt-2">{linkRows}</div>
+      </div>
+    );
+  }
+
+  if (template === "hero") {
+    return (
+      <div className="h-28 rounded-lg border border-white/10 overflow-hidden relative bg-gradient-to-br from-neutral-600 via-neutral-800 to-black">
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+        <div className="absolute inset-x-2 bottom-2 space-y-1">
+          <div className="w-16 h-2 rounded-full bg-white/80" />
+          <div className="w-10 h-1 rounded-full bg-white/35" />
+          <div className="w-full h-2 rounded-full bg-white/15 mt-2" />
+        </div>
+      </div>
+    );
+  }
+
+  if (template === "cutout") {
+    return (
+      <div className="h-28 rounded-lg bg-stone-100 border border-white/10 overflow-hidden relative">
+        <div className="absolute w-11 h-14 rounded-[45%_45%_20%_20%] bg-neutral-400 right-2 top-2 rotate-3" />
+        <div className="absolute left-2 top-12">
+          <div className="w-14 h-2.5 rounded-sm bg-neutral-900" />
+          <div className="w-10 h-2.5 rounded-sm bg-neutral-900 mt-0.5" />
+        </div>
+        <div className="absolute inset-x-2 bottom-2 space-y-1">
+          <div className="h-px bg-neutral-900/30" />
+          <div className="h-px bg-neutral-900/20" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-28 rounded-lg bg-neutral-950 border border-white/10 overflow-hidden">
+      <div className="h-14 bg-gradient-to-b from-neutral-600 to-neutral-950" />
+      <div className="w-14 h-2 rounded-full bg-white/75 mx-auto -mt-2 relative" />
+      <div className="w-9 h-1 rounded-full bg-white/25 mx-auto mt-1.5" />
+      <div className="mt-3">{linkRows}</div>
+    </div>
+  );
+}
 
 // LinkItem Interface
 export interface LinkItem {
@@ -59,11 +136,37 @@ interface ProfileRecord {
   name?: string;
   bio?: string;
   theme: string;
+  profile_template?: string;
   card_color?: string;
   avatar?: string;
   online_counter?: boolean;
   custom_theme_bg?: string;
   social_links?: SocialLink[];
+}
+
+type VisualSectionId = "template" | "background" | "card";
+type VisualSectionState = Record<VisualSectionId, boolean>;
+
+const VISUAL_SECTIONS_STORAGE_KEY = "linktery:profile-editor:visual-sections";
+const DEFAULT_VISUAL_SECTIONS: VisualSectionState = {
+  template: true,
+  background: true,
+  card: true,
+};
+
+function readVisualSectionState(): VisualSectionState {
+  if (typeof window === "undefined") return DEFAULT_VISUAL_SECTIONS;
+
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(VISUAL_SECTIONS_STORAGE_KEY) || "null") as Partial<VisualSectionState> | null;
+    return {
+      template: typeof stored?.template === "boolean" ? stored.template : true,
+      background: typeof stored?.background === "boolean" ? stored.background : true,
+      card: typeof stored?.card === "boolean" ? stored.card : true,
+    };
+  } catch {
+    return DEFAULT_VISUAL_SECTIONS;
+  }
 }
 
 export default function DashboardProfile() {
@@ -91,8 +194,10 @@ export default function DashboardProfile() {
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [theme, setTheme] = useState(user?.theme || "minimal-dark");
+  const [profileTemplate, setProfileTemplate] = useState<ProfileTemplateId>("classic");
   const [cardColor, setCardColor] = useState(user?.card_color || "#000000");
   const [onlineCounter, setOnlineCounter] = useState(!!user?.online_counter);
+  const [openVisualSections, setOpenVisualSections] = useState<VisualSectionState>(readVisualSectionState);
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const canCustomize = checkPlan(userPlan, "profile_customization");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -103,6 +208,21 @@ export default function DashboardProfile() {
   const [customBgPreview, setCustomBgPreview] = useState<string | null>(null);
   const [customBgFile, setCustomBgFile] = useState<File | null>(null);
   const customBgInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleVisualSection = (section: VisualSectionId) => {
+    setOpenVisualSections((current) => ({
+      ...current,
+      [section]: !current[section],
+    }));
+  };
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(VISUAL_SECTIONS_STORAGE_KEY, JSON.stringify(openVisualSections));
+    } catch {
+      // The editor still works when browser storage is unavailable.
+    }
+  }, [openVisualSections]);
 
   // Avatar Cropper State
   const [imageToCrop, setImageToCrop] = useState<string | null>(null);
@@ -134,7 +254,7 @@ export default function DashboardProfile() {
   const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [domain, setDomain] = useState("");
-  const availableDomains = import.meta.env.VITE_AVAILABLE_DOMAINS?.split(",").map((d: string) => d.trim()).filter(Boolean) || [window.location.host];
+  const availableDomains = getAvailableDomains(import.meta.env.VITE_AVAILABLE_DOMAINS);
   
   // Create Profile Modal State
   const [showCreateProfileModal, setShowCreateProfileModal] = useState(false);
@@ -151,7 +271,7 @@ export default function DashboardProfile() {
   const fetchProfiles = async (selectProfileId?: string) => {
     if (!user || !profileId) return;
     try {
-      const records = await pb.collection('public_profiles').getFullList({
+      const records = await pb.collection('public_profiles').getFullList<ProfileRecord>({
         filter: `user_id = "${user.id}"`,
         sort: 'created',
         requestKey: null,
@@ -175,6 +295,7 @@ export default function DashboardProfile() {
       setDomain(active.domain || availableDomains[0]);
       setBio(active.bio || "");
       setTheme(active.theme || "minimal-dark");
+      setProfileTemplate(normalizeProfileTemplate(active.profile_template));
       setCardColor(active.card_color || "#000000");
       setOnlineCounter(!!active.online_counter);
       
@@ -220,6 +341,7 @@ export default function DashboardProfile() {
     setDomain(p.domain || availableDomains[0]);
     setBio(p.bio || "");
     setTheme(p.theme || "minimal-dark");
+    setProfileTemplate(normalizeProfileTemplate(p.profile_template));
     setCardColor(p.card_color || "#000000");
     setOnlineCounter(!!p.online_counter);
     
@@ -288,6 +410,7 @@ export default function DashboardProfile() {
         domain: newProfileDomain,
         name: newProfileName || cleanSlug,
         theme: "minimal-dark",
+        profile_template: "classic",
         card_color: "#000000",
       });
 
@@ -316,7 +439,7 @@ export default function DashboardProfile() {
     try {
       // 1. Fetch links belonging to this profile
       const linksToUnlink = await pb.collection('links').getFullList({
-        filter: `profile_id = "${profileId}"`,
+        filter: `user_id = "${user.id}" && profile_id = "${profileId}"`,
         requestKey: null
       });
 
@@ -361,10 +484,10 @@ export default function DashboardProfile() {
   }, [createUrl, createIconType]);
 
   const fetchLinks = async () => {
-    if (!activeProfileId) return;
+    if (!activeProfileId || !user) return;
     try {
       const records = await pb.collection('links').getList<LinkItem>(1, 100, {
-        filter: `profile_id = "${activeProfileId}" && show_on_profile=true`,
+        filter: `user_id = "${user.id}" && profile_id = "${activeProfileId}" && show_on_profile=true`,
         sort: 'order,-created',
         requestKey: null,
       });
@@ -454,6 +577,7 @@ export default function DashboardProfile() {
         domain,
         bio,
         theme,
+        profile_template: profileTemplate,
         card_color: cardColor,
         online_counter: onlineCounter,
         social_links: socialLinks,
@@ -473,7 +597,7 @@ export default function DashboardProfile() {
       // Step 3: Synchronize Regular Links for this profile
       console.log("[handleSaveProfile] Syncing profile links for active profile...");
       const dbLinksResult = await pb.collection('links').getList<LinkItem>(1, 100, {
-        filter: `profile_id = "${activeProfileId}" && show_on_profile=true`,
+        filter: `user_id = "${user.id}" && profile_id = "${activeProfileId}" && show_on_profile=true`,
         requestKey: null,
       });
       const dbLinks = dbLinksResult.items;
@@ -508,8 +632,9 @@ export default function DashboardProfile() {
         } else {
           const original = dbLinks.find(dbl => dbl.id === link.id);
           if (original) {
-            const fieldsToCompare = ['title', 'destination_url', 'slug', 'order', 'active', 'show_on_profile', 'icon_type', 'icon_value', 'mode', 'size'];
-            const hasChanged = fieldsToCompare.some(key => (payload as Record<string, unknown>)[key] !== (original as Record<string, unknown>)[key]);
+            const fieldsToCompare: (keyof typeof payload)[] = ['title', 'destination_url', 'slug', 'order', 'active', 'show_on_profile', 'icon_type', 'icon_value', 'mode', 'size'];
+            const originalValues = original as unknown as Partial<typeof payload>;
+            const hasChanged = fieldsToCompare.some(key => payload[key] !== originalValues[key]);
             if (hasChanged) {
               await pb.collection('links').update(link.id, payload, { requestKey: null });
             }
@@ -676,9 +801,12 @@ export default function DashboardProfile() {
           {username && (
             <div className="md:border-l md:border-border/60 md:pl-6 flex flex-col sm:flex-row sm:items-center gap-2">
               <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Public Link:</span>
-              <div className="inline-flex items-center gap-2 bg-surface/50 border border-border/80 px-3 py-1.5 rounded-xl shrink-0">
-                <code className="text-xs font-semibold text-accent">{domain}/{username}</code>
+              <div className="inline-flex items-center gap-2 bg-surface/50 border border-border/80 px-3 py-1.5 rounded-xl min-w-0 max-w-full">
+                <span className="min-w-0 truncate text-xs font-sans font-semibold tracking-normal text-accent">
+                  {domain}/{username}
+                </span>
                 <button
+                  type="button"
                   onClick={handleCopyLink}
                   className="p-1 rounded-lg hover:bg-surface text-muted-foreground hover:text-foreground transition-all focus:outline-none shrink-0"
                   title="Copy Link"
@@ -741,80 +869,160 @@ export default function DashboardProfile() {
               </div>
             </div>
 
-            <div className="space-y-4 pt-2">
-              <h3 className="text-sm font-medium flex items-center gap-2 text-white">
-                <Palette className="w-4 h-4 text-accent" /> Background Theme
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {THEMES.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => canCustomize && setTheme(t.id)}
-                    disabled={!canCustomize}
-                    className={`relative p-3 rounded-xl border text-left transition-all ${theme === t.id ? "border-accent bg-accent/5 ring-1 ring-accent/50" : "border-border bg-surface hover:border-accent/30"} ${!canCustomize ? "opacity-50 cursor-not-allowed" : ""}`}
-                  >
-                    <div className={`w-full h-12 rounded-lg mb-2 ${t.colors} border`} />
-                    <span className="text-xs font-medium block text-white">{t.name}</span>
-                    {theme === t.id && (
-                      <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-accent flex items-center justify-center">
-                        <Check className="w-2.5 h-2.5 text-white" />
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
+            <div className="space-y-4 pt-4 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => toggleVisualSection("template")}
+                aria-expanded={openVisualSections.template}
+                aria-controls="profile-template-options"
+                className="group flex w-full items-start justify-between gap-4 text-left"
+              >
+                <div>
+                  <h3 className="text-sm font-medium flex items-center gap-2 text-white">
+                    <Smartphone className="w-4 h-4 text-accent" /> Profile Template
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Change the profile composition without changing its content or links.
+                  </p>
+                </div>
+                <ChevronDown
+                  className={`mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:text-white ${openVisualSections.template ? "rotate-180" : ""}`}
+                />
+              </button>
+              {openVisualSections.template && (
+                <div id="profile-template-options" className="grid grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {PROFILE_TEMPLATES.map((templateOption) => (
+                    <button
+                      key={templateOption.id}
+                      type="button"
+                      onClick={() => canCustomize && setProfileTemplate(templateOption.id)}
+                      disabled={!canCustomize}
+                      aria-pressed={profileTemplate === templateOption.id}
+                      className={`relative p-2.5 rounded-xl border text-left transition-all ${
+                        profileTemplate === templateOption.id
+                          ? "border-accent bg-accent/5 ring-1 ring-accent/50"
+                          : "border-border bg-surface hover:border-accent/30"
+                      } ${!canCustomize ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      <TemplateThumbnail template={templateOption.id} />
+                      <span className="text-xs font-semibold block text-white mt-2">
+                        {templateOption.name}
+                      </span>
+                      <span className="text-[10px] leading-snug text-muted-foreground block mt-1">
+                        {templateOption.description}
+                      </span>
+                      {profileTemplate === templateOption.id && (
+                        <div className="absolute top-4 right-4 w-5 h-5 rounded-full bg-accent flex items-center justify-center shadow-lg">
+                          <Check className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-              {theme === "custom" && (
-                <div className="mt-4 p-4 border border-border border-dashed rounded-xl bg-background/50 flex flex-col items-center justify-center space-y-3">
-                  {customBgPreview ? (
-                    <div className="relative w-full h-32 rounded-lg overflow-hidden group">
-                      <img src={customBgPreview} alt="Custom Background" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button type="button" onClick={() => customBgInputRef.current?.click()} className="btn-primary-glow text-xs py-1.5 px-3">
-                          Change Background
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
-                        <Upload className="w-5 h-5 text-accent" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-medium text-white mb-1">Upload Custom Background</p>
-                        <p className="text-xs text-muted-foreground">Recommended: 1080x1920 JPG or PNG</p>
-                      </div>
-                      <button type="button" onClick={() => customBgInputRef.current?.click()} className="btn-primary-glow text-xs py-1.5 px-3">
-                        Choose File
+            <div className="space-y-4 pt-4 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => toggleVisualSection("background")}
+                aria-expanded={openVisualSections.background}
+                aria-controls="background-theme-options"
+                className="group flex w-full items-start justify-between gap-4 text-left"
+              >
+                <div>
+                  <h3 className="text-sm font-medium flex items-center gap-2 text-white">
+                    <Palette className="w-4 h-4 text-accent" /> Background Theme
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Choose the background behind your public profile card.
+                  </p>
+                </div>
+                <ChevronDown
+                  className={`mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:text-white ${openVisualSections.background ? "rotate-180" : ""}`}
+                />
+              </button>
+              {openVisualSections.background && (
+                <div id="background-theme-options" className="space-y-4">
+                  <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-3">
+                    {THEMES.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => canCustomize && setTheme(t.id)}
+                        disabled={!canCustomize}
+                        className={`relative p-3 rounded-xl border text-left transition-all ${theme === t.id ? "border-accent bg-accent/5 ring-1 ring-accent/50" : "border-border bg-surface hover:border-accent/30"} ${!canCustomize ? "opacity-50 cursor-not-allowed" : ""}`}
+                      >
+                        <div className={`w-full h-12 rounded-lg mb-2 ${t.colors} border`} />
+                        <span className="text-xs font-medium block text-white">{t.name}</span>
+                        {theme === t.id && (
+                          <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-accent flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 text-white" />
+                          </div>
+                        )}
                       </button>
-                    </>
+                    ))}
+                  </div>
+
+                  {theme === "custom" && (
+                    <div className="p-4 border border-border border-dashed rounded-xl bg-background/50 flex flex-col items-center justify-center space-y-3">
+                      {customBgPreview ? (
+                        <div className="relative w-full h-32 rounded-lg overflow-hidden group">
+                          <img src={customBgPreview} alt="Custom Background" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button type="button" onClick={() => customBgInputRef.current?.click()} className="btn-primary-glow text-xs py-1.5 px-3">
+                              Change Background
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
+                            <Upload className="w-5 h-5 text-accent" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-medium text-white mb-1">Upload Custom Background</p>
+                            <p className="text-xs text-muted-foreground">Recommended: 1080x1920 JPG or PNG</p>
+                          </div>
+                          <button type="button" onClick={() => customBgInputRef.current?.click()} className="btn-primary-glow text-xs py-1.5 px-3">
+                            Choose File
+                          </button>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        ref={customBgInputRef}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 5 * 1024 * 1024) {
+                              toast.error("Background image must be less than 5MB");
+                              return;
+                            }
+                            setCustomBgFile(file);
+                            const reader = new FileReader();
+                            reader.onloadend = () => setCustomBgPreview(reader.result as string);
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="hidden"
+                        accept="image/*"
+                      />
+                    </div>
                   )}
-                  <input
-                    type="file"
-                    ref={customBgInputRef}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        if (file.size > 5 * 1024 * 1024) {
-                            toast.error("Background image must be less than 5MB");
-                            return;
-                        }
-                        setCustomBgFile(file);
-                        const reader = new FileReader();
-                        reader.onloadend = () => setCustomBgPreview(reader.result as string);
-                        reader.readAsDataURL(file);
-                      }
-                    }}
-                    className="hidden"
-                    accept="image/*"
-                  />
                 </div>
               )}
             </div>
 
             {/* Card Color Theme */}
             <div className="space-y-4 pt-4 border-t border-white/10">
-              <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => toggleVisualSection("card")}
+                aria-expanded={openVisualSections.card}
+                aria-controls="card-theme-options"
+                className="group flex w-full items-start justify-between gap-4 text-left"
+              >
                 <div>
                   <h3 className="text-sm font-medium flex items-center gap-2 text-white">
                     <Palette className="w-4 h-4 text-accent" /> Card Theme
@@ -823,36 +1031,54 @@ export default function DashboardProfile() {
                     Choose the base color for your profile card and gradient.
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="relative group/picker">
-                    <input
-                      type="color"
-                      value={cardColor}
-                      onChange={(e) => canCustomize && setCardColor(e.target.value)}
-                      disabled={!canCustomize}
-                      className={`w-10 h-10 rounded-xl cursor-pointer bg-surface border-2 border-border p-0.5 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-lg [&::-webkit-color-swatch]:border-none ${!canCustomize ? "opacity-50 cursor-not-allowed" : "hover:border-accent/40"}`}
-                      title="Card Color"
-                    />
-                    <div className="absolute top-1/2 -translate-y-1/2 right-12 px-2 py-1 bg-surface border border-border rounded text-[10px] text-white opacity-0 group-hover/picker:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className="h-5 w-5 rounded-md border border-white/15 shadow-inner"
+                    style={{ backgroundColor: cardColor }}
+                    aria-hidden="true"
+                  />
+                  <ChevronDown
+                    className={`h-4 w-4 text-muted-foreground transition-transform group-hover:text-white ${openVisualSections.card ? "rotate-180" : ""}`}
+                  />
+                </div>
+              </button>
+
+              {openVisualSections.card && (
+                <div id="card-theme-options" className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-xs font-medium text-muted-foreground">
                       {cardColor.toUpperCase()}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <div className="relative group/picker">
+                        <input
+                          type="color"
+                          value={cardColor}
+                          onChange={(e) => canCustomize && setCardColor(e.target.value)}
+                          disabled={!canCustomize}
+                          className={`w-10 h-10 rounded-xl cursor-pointer bg-surface border-2 border-border p-0.5 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-lg [&::-webkit-color-swatch]:border-none ${!canCustomize ? "opacity-50 cursor-not-allowed" : "hover:border-accent/40"}`}
+                          title="Card Color"
+                        />
+                      </div>
+                      {cardColor !== "#000000" && (
+                        <button
+                          type="button"
+                          onClick={() => canCustomize && setCardColor("#000000")}
+                          disabled={!canCustomize}
+                          className="text-xs text-muted-foreground hover:text-white transition-colors underline underline-offset-2"
+                        >
+                          Reset
+                        </button>
+                      )}
                     </div>
                   </div>
-                  {cardColor !== "#000000" && (
-                    <button
-                      onClick={() => canCustomize && setCardColor("#000000")}
-                      disabled={!canCustomize}
-                      className="text-xs text-muted-foreground hover:text-white transition-colors underline underline-offset-2"
-                    >
-                      Reset
-                    </button>
-                  )}
+
+                  <div
+                    className="w-full h-12 rounded-xl shadow-inner transition-colors"
+                    style={{ backgroundColor: cardColor }}
+                  />
                 </div>
-              </div>
-              
-              <div 
-                className="w-full h-12 rounded-xl mt-3 shadow-inner transition-colors" 
-                style={{ backgroundColor: cardColor }} 
-              />
+              )}
             </div>
 
             {/* Online Counter Toggle */}
@@ -1160,44 +1386,17 @@ export default function DashboardProfile() {
                 style={{ backgroundColor: cardColor }}
               >
                 <div className="flex flex-col flex-1 overflow-y-auto no-scrollbar relative z-10 pb-10">
-                  {/* Top Header with Avatar and Fade */}
-                  <div className="relative aspect-[10/8] w-full overflow-hidden shrink-0">
-                    {avatarPreview ? (
-                      <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover object-top" />
-                    ) : (
-                      <div className="w-full h-full bg-surface flex items-center justify-center">
-                        <span className="text-5xl font-bold bg-gradient-to-br from-white to-white/30 bg-clip-text text-transparent">{name.charAt(0) || "?"}</span>
-                      </div>
-                    )}
-                    <div className="absolute bottom-0 w-full h-[45%] transition-all duration-700" style={{ background: `linear-gradient(to top, ${cardColor} 15%, transparent)` }} />
-                  </div>
-
-                  {/* Profile Content */}
-                  <div className="px-4 -mt-14 relative">
-                    <div className="text-center space-y-1">
-                      <h4 className="text-2xl font-black tracking-tight text-white drop-shadow-lg">{name || "Your Name"}</h4>
-                      <p className="text-muted-foreground text-xs font-medium tracking-wide">@{username || "username"}</p>
-                    </div>
-
-                    {/* Social Icons Preview */}
-                    {socialLinks.length > 0 && (
-                      <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
-                        {socialLinks.map(link => (
-                          <div key={link.id} className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
-                            <IconRenderer type={link.icon_type} value={link.icon_value} className="w-4 h-4 text-white/80" />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {bio && (
-                      <div className="mt-2 text-center">
-                        <p className="text-white text-xs leading-relaxed max-w-[240px] mx-auto whitespace-pre-line line-clamp-3">{bio || "Your bio will appear here..."}</p>
-                      </div>
-                    )}
-
-                    {/* Online Counter Preview */}
-                    {onlineCounter && (
+                  <ProfileIdentity
+                    preview
+                    template={profileTemplate}
+                    name={name || "Your Name"}
+                    username={username || "username"}
+                    bio={bio}
+                    avatarUrl={avatarPreview}
+                    avatarFallback={name.charAt(0).toUpperCase() || "?"}
+                    cardColor={cardColor}
+                    socialLinks={socialLinks}
+                    onlineCounter={onlineCounter ? (
                       <div className="mt-3 flex items-center justify-center gap-2">
                         <span className="relative flex h-2 w-2">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
@@ -1207,7 +1406,11 @@ export default function DashboardProfile() {
                           <span className="font-bold text-white/70">342</span> people are currently watching this
                         </span>
                       </div>
-                    )}
+                    ) : undefined}
+                  />
+
+                  {/* Profile content shared by all template previews. */}
+                  <div className="px-4 relative">
 
                     {/* Dynamic Links */}
                     <div className="w-full mt-5 space-y-3">
@@ -1218,9 +1421,14 @@ export default function DashboardProfile() {
                           const bgImageUrl = link.bg_image
                             ? pb.files.getUrl(link, link.bg_image)
                             : null;
+                          const editorialLink = profileTemplate === "cutout" && link.size !== "large";
 
                           return (
-                            <div key={link.id} className={`w-full rounded-2xl bg-[#111] border border-white/5 hover:bg-[#161616] hover:border-white/20 transition-all group cursor-pointer shadow-lg shadow-black/5 relative overflow-hidden flex ${link.size === 'large' ? 'flex-col p-3 aspect-[10/6] sm:aspect-[10/5.4]' : 'h-[40px] items-center justify-center px-1'}`}>
+                            <div key={link.id} className={`w-full transition-all group cursor-pointer relative overflow-hidden flex ${
+                              editorialLink
+                                ? `rounded-none border-b h-[44px] items-center px-1 ${isLightProfileColor(cardColor) ? "border-black/15" : "border-white/15"}`
+                                : `rounded-2xl bg-[#111] border border-white/5 shadow-lg shadow-black/5 ${link.size === 'large' ? 'flex-col p-3 aspect-[10/6] sm:aspect-[10/5.4]' : 'h-[40px] items-center justify-center px-1'}`
+                            }`}>
 
                               {/* Custom Background */}
                               {bgImageUrl && (
@@ -1234,14 +1442,14 @@ export default function DashboardProfile() {
                                 </>
                               )}
 
-                              <div className={`relative z-10 flex w-full ${link.size === 'large' ? 'h-full flex-col justify-between items-start' : 'items-center justify-center'}`}>
-                                <div className={`${link.size === 'large' ? 'shrink-0 self-start' : 'absolute left-0 shrink-0 ml-0'}`}>
-                                  <div className={`${link.size === 'large' ? 'w-8 h-8 rounded-xl bg-white/10 backdrop-blur-md overflow-hidden shadow-lg' : 'w-11 h-11 rounded-xl overflow-hidden'} flex items-center justify-center`}>
+                              <div className={`relative z-10 flex w-full ${link.size === 'large' ? 'h-full flex-col justify-between items-start' : editorialLink ? 'items-center' : 'items-center justify-center'}`}>
+                                <div className={`${link.size === 'large' ? 'shrink-0 self-start' : editorialLink ? 'relative shrink-0 mr-2' : 'absolute left-0 shrink-0 ml-0'}`}>
+                                  <div className={`${link.size === 'large' ? 'w-8 h-8 rounded-xl bg-white/10 backdrop-blur-md overflow-hidden shadow-lg' : editorialLink ? 'w-9 h-9 rounded-lg bg-white/5' : 'w-11 h-11 rounded-xl overflow-hidden'} flex items-center justify-center`}>
                                     <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className={`${link.size === 'large' ? 'w-4 h-4' : 'w-5 h-5'} text-white/90 drop-shadow-md`} />
                                   </div>
                                 </div>
-                                <div className={`${link.size === 'large' ? 'mt-auto text-center w-full px-10' : 'text-center px-10'}`}>
-                                  <span className={`font-bold text-white group-hover:scale-[1.02] transition-transform block uppercase tracking-wider ${link.size === 'large' ? 'text-sm drop-shadow-lg' : 'text-xs'}`}>{link.title || "Untitled Link"}</span>
+                                <div className={`${link.size === 'large' ? 'mt-auto text-center w-full px-10' : editorialLink ? 'text-left flex-1' : 'text-center px-10'}`}>
+                                  <span className={`font-bold group-hover:scale-[1.02] transition-transform block uppercase tracking-wider ${editorialLink && isLightProfileColor(cardColor) ? 'text-black' : 'text-white'} ${link.size === 'large' ? 'text-sm drop-shadow-lg' : 'text-xs'}`}>{link.title || "Untitled Link"}</span>
                                 </div>
                               </div>
                             </div>

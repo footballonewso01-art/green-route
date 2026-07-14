@@ -220,7 +220,7 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
-          <button type="submit" disabled={loading} className="btn-primary-glow w-full mt-2 disabled:opacity-50">
+          <button type="submit" disabled={loading} className="btn-primary-glow w-full !mt-6 disabled:opacity-50">
             {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>

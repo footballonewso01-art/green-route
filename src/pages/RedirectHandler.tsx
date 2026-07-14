@@ -2,6 +2,8 @@ import { useEffect, useState, useRef, useCallback, lazy, Suspense } from "react"
 import { useParams, useNavigate } from "react-router-dom";
 import { pb } from "@/lib/pocketbase";
 import { Loader2, AlertTriangle, Smartphone, ExternalLink, MoreVertical, Share2, Compass, Lock } from "lucide-react";
+import { PRIMARY_DOMAIN, PRIMARY_ORIGIN } from "@/lib/siteConfig";
+import { useSeo } from "@/hooks/useSeo";
 const PublicProfile = lazy(() => import("./PublicProfile"));
 
 // Utility to inject tracking pixels and allow them 400ms to fire before the page is destroyed by a redirect
@@ -110,6 +112,15 @@ export default function RedirectHandler() {
     const [destination, setDestination] = useState<string>("");
     const redirected = useRef(false);
 
+    // Short links and public profile slugs are utility URLs. They should never
+    // inherit the indexable homepage metadata while the client resolves them.
+    useSeo({
+        title: "Link Redirect | Linktery",
+        description: "Resolving a Linktery smart link.",
+        canonical: `/${username || ""}`,
+        noIndex: true,
+    });
+
     // ── bfcache handler: if the page is restored from cache, re-resolve ──
     useEffect(() => {
         const handlePageShow = (e: PageTransitionEvent) => {
@@ -131,14 +142,13 @@ export default function RedirectHandler() {
         return () => window.removeEventListener("pageshow", handlePageShow);
     }, [username]);
 
-    // ── Track click — returns a promise that resolves when the click is saved ──
-    // NOTE (BUG-01): Double-tracking is architecturally prevented:
-    // - Simple links: server tracks + 302 redirect → SPA never loads
-    // - Complex links: server does c.next() → SPA loads → this function tracks
-    // The hasTracked ref + sessionStorage key provide defense-in-depth.
+    // ── Track click without blocking the redirect ──
+    // Geo, User-Agent parsing and persistence happen on the backend. sendBeacon
+    // keeps the request alive while the page navigates away; keepalive fetch is
+    // retained as a fallback for browsers where Beacon isn't available.
     const hasTracked = useRef(false);
 
-    const trackClick = useCallback(async (link: Record<string, unknown>) => {
+    const trackClick = useCallback((link: Record<string, unknown>) => {
         if (hasTracked.current) return;
         // Defense-in-depth: sessionStorage guard survives React re-renders
         const trackKey = `gr_tracked_${link.id}`;
@@ -147,30 +157,8 @@ export default function RedirectHandler() {
         sessionStorage.setItem(trackKey, "1");
 
         const ua = navigator.userAgent;
-        // [SYNC: ua-parsing] — Must match server-side logic in main.pb.js:505-526
         const isBot = /bot|crawler|spider|criteo|facebookexternalhit/i.test(ua);
         if (isBot) return;
-
-        // [SYNC: ua-parsing] — OS/Browser/Device detection must match main.pb.js:508-526
-        let os = "Other";
-        if (/Windows/i.test(ua)) os = "Windows";
-        else if (/iPhone|iPad|iPod/i.test(ua)) os = "iOS";
-        else if (/Android/i.test(ua)) os = "Android";
-        else if (/Macintosh/i.test(ua)) os = "macOS";
-        else if (/Linux/i.test(ua)) os = "Linux";
-
-        let browser = "Other";
-        if (/Instagram/i.test(ua)) browser = "Instagram";
-        else if (/TikTok/i.test(ua)) browser = "TikTok";
-        else if (/FBAN|FBAV/i.test(ua)) browser = "Facebook";
-        else if (/Chrome/i.test(ua)) browser = "Chrome";
-        else if (/Safari/i.test(ua)) browser = "Safari";
-        else if (/Firefox/i.test(ua)) browser = "Firefox";
-        else if (/Edg/i.test(ua)) browser = "Edge";
-
-        let device = "Desktop";
-        if (/Mobi|Android/i.test(ua)) device = "Mobile";
-        else if (/Tablet|iPad/i.test(ua)) device = "Tablet";
 
         let referrer = "Direct";
         const urlParams = new URLSearchParams(window.location.search);
@@ -200,31 +188,31 @@ export default function RedirectHandler() {
             document.cookie = `${cookieName}=1; path=/; max-age=86400`;
         }
 
-        const country = await fetchCountryCode();
+        const trackingUrl = `${pb.baseUrl}/api/track-click`;
+        const payload = new URLSearchParams({
+            link_id: String(link.id || ""),
+            referrer,
+            is_unique: isUnique ? "true" : "false"
+        });
 
-        const clickData = {
-            link_id: link.id,
-            country,
-            device, os, browser, referrer,
-            is_unique: isUnique,
-            ip: "masked",
-            user_agent: ua.slice(0, 200)
-        };
-
-        // Send non-blocking beacon/fetch request that persists after page unload
+        // URLSearchParams uses a CORS-safelisted content type, avoiding a
+        // preflight that could otherwise race with the outgoing navigation.
         try {
-            fetch(`${pb.baseUrl}/api/collections/clicks/records`, {
+            if (typeof navigator.sendBeacon === "function" && navigator.sendBeacon(trackingUrl, payload)) {
+                return;
+            }
+        } catch { /* fall back to keepalive fetch */ }
+
+        try {
+            void fetch(trackingUrl, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
+                    "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
                 },
-                body: JSON.stringify(clickData),
+                body: payload.toString(),
                 keepalive: true
             }).catch(() => {});
-        } catch (e) {
-            // fallback to fire-and-forget promise if keepalive is somehow blocked
-            pb.collection('clicks').create(clickData).catch(() => {});
-        }
+        } catch { /* analytics must never block or break the redirect */ }
     }, []);
 
     // ── Main redirect logic ──
@@ -363,7 +351,7 @@ export default function RedirectHandler() {
                 // ----- SANITIZE URL TO PREVENT XSS (Zero Trust Validation) -----
                 if (finalDestination && !finalDestination.startsWith("http://") && !finalDestination.startsWith("https://")) {
                     console.error("Blocked unsafe redirect scheme:", finalDestination);
-                    finalDestination = "https://linktery.com"; // Safe fallback
+                    finalDestination = PRIMARY_ORIGIN; // Safe fallback
                 }
 
                 setDestination(finalDestination);
@@ -380,13 +368,13 @@ export default function RedirectHandler() {
                 let isLocalDestination = false;
                 try {
                     const destUrlObj = new URL(finalDestination, window.location.href);
-                    isLocalDestination = destUrlObj.hostname === window.location.hostname || 
-                                         destUrlObj.hostname === "linktery.com" || 
-                                         destUrlObj.hostname === "www.linktery.com" || 
+                    isLocalDestination = destUrlObj.hostname === window.location.hostname ||
+                                         destUrlObj.hostname === PRIMARY_DOMAIN ||
+                                         destUrlObj.hostname === `www.${PRIMARY_DOMAIN}` ||
                                          /^[./]/.test(finalDestination);
                 } catch {
-                    isLocalDestination = finalDestination.includes(window.location.hostname) || 
-                                         finalDestination.includes("linktery.com") || 
+                    isLocalDestination = finalDestination.includes(window.location.hostname) ||
+                                         finalDestination.includes(PRIMARY_DOMAIN) ||
                                          /^[./]/.test(finalDestination);
                 }
 
@@ -395,8 +383,8 @@ export default function RedirectHandler() {
                 try {
                     const destUrlObj = new URL(finalDestination, window.location.href);
                     const isOurDomain = destUrlObj.hostname === window.location.hostname ||
-                                         destUrlObj.hostname === "linktery.com" ||
-                                         destUrlObj.hostname === "www.linktery.com";
+                                         destUrlObj.hostname === PRIMARY_DOMAIN ||
+                                         destUrlObj.hostname === `www.${PRIMARY_DOMAIN}`;
                     
                     isSamePage = isOurDomain && destUrlObj.pathname.toLowerCase().replace(/\/$/, "") === window.location.pathname.toLowerCase().replace(/\/$/, "");
                 } catch (e) {
@@ -412,7 +400,7 @@ export default function RedirectHandler() {
                 // Step 3: Track click, then redirect
                 if (link.mode === 'direct' && isInApp && !isLocalDestination) {
                     setStatus("deeplink");
-                    await trackClick(link);
+                    trackClick(link);
                     await fireTrackingPixels(link);
 
                     const isIOS = /iPhone|iPad|iPod/i.test(ua);
@@ -472,7 +460,7 @@ export default function RedirectHandler() {
 
                 if (needsInterstitial) {
                     setStatus("verifying");
-                    await trackClick(link);
+                    trackClick(link);
 
                     const performFinalAction = async () => {
                         redirected.current = true;
@@ -487,9 +475,9 @@ export default function RedirectHandler() {
                     window.addEventListener('touchstart', interactionHandler);
                     window.addEventListener('click', interactionHandler);
                 } else {
-                    // Track click FIRST, then redirect
+                    // Queue click tracking, then redirect without waiting for geo/storage.
                     redirected.current = true;
-                    await trackClick(link);
+                    trackClick(link);
                     await fireTrackingPixels(link);
                     window.location.replace(finalDestination);
                 }

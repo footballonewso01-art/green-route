@@ -281,7 +281,7 @@ const helpCategories: Category[] = [
     {
         id: "advanced",
         title: "Advanced Features",
-        description: "Deeplinks, targeting & cloaking",
+        description: "Deeplinks, targeting & traffic filtering",
         icon: Zap,
         color: "text-amber-400",
         articles: [
@@ -358,18 +358,18 @@ const helpCategories: Category[] = [
             },
             {
                 id: "link-cloaking",
-                title: "Link Cloaking (Optimization)",
+                title: "Traffic Quality Filter",
                 icon: Shield,
                 tags: ["cloak", "cloaking", "hide", "optimization", "safe", "bot"],
                 content: (
                     <div className="space-y-4">
-                        <p>Link cloaking hides your real destination URL from bots, crawlers, and competitors.</p>
+                        <p>The traffic quality filter identifies obvious automation so bot activity does not distort human analytics.</p>
                         <h4 className="font-semibold text-foreground mt-4 mb-3">What it does:</h4>
                         <ul className="space-y-2 text-muted-foreground">
-                            <li className="flex items-start gap-2"><span className="text-accent">•</span> Bots and crawlers see a <strong className="text-foreground">safe page URL</strong> instead of your real destination</li>
-                            <li className="flex items-start gap-2"><span className="text-accent">•</span> Real human visitors are redirected <strong className="text-foreground">normally</strong></li>
-                            <li className="flex items-start gap-2"><span className="text-accent">•</span> Prevents platforms from flagging your destination domain</li>
-                            <li className="flex items-start gap-2"><span className="text-accent">•</span> Protects affiliate links from being copied</li>
+                            <li className="flex items-start gap-2"><span className="text-accent">•</span> High-confidence bots can be <strong className="text-foreground">blocked or reported separately</strong></li>
+                            <li className="flex items-start gap-2"><span className="text-accent">•</span> Human visitors continue through the configured routing rules</li>
+                            <li className="flex items-start gap-2"><span className="text-accent">•</span> Reduces automated noise in campaign analytics</li>
+                            <li className="flex items-start gap-2"><span className="text-accent">•</span> Do not use filtering to show ad or platform reviewers a different destination</li>
                         </ul>
                         <div className="p-4 rounded-xl bg-accent/5 border border-accent/20">
                             <p className="text-sm text-accent flex items-start gap-2"><Sparkles className="w-4 h-4 mt-0.5 shrink-0" /> <span>Available on <strong>Creator Pro</strong> and <strong>Agency</strong> plans.</span></p>
@@ -457,7 +457,7 @@ const helpCategories: Category[] = [
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Deeplinks</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Geo Targeting</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Tracking Pixels</td><td className="text-center">—</td><td className="text-center">—</td><td className="text-center text-accent">✓</td></tr>
-                                    <tr className="border-b border-border/50"><td className="py-2.5 px-4">Link Cloaking</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
+                                    <tr className="border-b border-border/50"><td className="py-2.5 px-4">Traffic Quality Filter</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Remove Branding</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Custom Slugs</td><td className="text-center">—</td><td className="text-center">—</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">A/B Testing</td><td className="text-center">—</td><td className="text-center">—</td><td className="text-center text-accent">✓</td></tr>

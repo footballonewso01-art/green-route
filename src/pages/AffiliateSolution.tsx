@@ -104,8 +104,8 @@ export default function AffiliateSolution() {
       answer: "An Affiliate Link Rotator is an traffic broker that dynamically routes clicks to multiple URLs based on predefined rules. Rather than pointing campaigns to a single static URL, media buyers use rotators to A/B test landing pages, distribute click weights among multiple merchants, balance daily volume caps, and route users based on device OS or geography, maximizing overall yield."
     },
     {
-      question: "How does the link rotator protect my campaigns from search crawler and ad reviewer flags?",
-      answer: "Advertising networks (Google Ads, Meta Ads, TikTok Ads) use automated crawler bots and human QA reviewers to inspect affiliate landing pages. Because standard affiliate URLs often trigger flags, Linktery utilizes Real-Time Fingerprinting (RTF). It evaluates user agent headers, IP ASN records, and executes a JS check. Reviewers are automatically shown a compliant informational page, while real human buyers proceed to the affiliate link. This keeps your ad accounts active."
+      question: "How does the link rotator identify invalid or automated traffic?",
+      answer: "Linktery can evaluate request headers, IP reputation signals, and browser capabilities to identify obvious bots and automated scanners. Suspicious traffic can be blocked or recorded separately so it does not distort campaign analytics. Every destination used in an advertising campaign should follow the advertising platform's policies for every visitor."
     },
     {
       question: "What is EPC (Earnings Per Click) and how does A/B testing impact it?",
@@ -113,7 +113,7 @@ export default function AffiliateSolution() {
     },
     {
       question: "Does routing traffic through Linktery add latency or page load delays?",
-      answer: "No. Linktery's redirection architecture is deployed on a globally distributed Edge DNS and Serverless compute infrastructure.Redirection logic is processed in under 12 milliseconds at the closest edge node to the visitor, meaning there is zero perceivable delay, keeping your landing page bounce rates minimal."
+      answer: "Linktery keeps the routing path lightweight and processes rules before sending the visitor to the selected destination. Actual redirect time depends on network conditions, the visitor's location, and the destination server."
     },
     {
       question: "Can I use my own custom domains to host the affiliate rotators?",
@@ -473,10 +473,10 @@ export default function AffiliateSolution() {
         <div className="text-center max-w-2xl mx-auto mb-16">
           <span className="text-emerald-400 font-mono text-xs uppercase tracking-wider">Verification Blueprint</span>
           <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white mt-2">
-            Ad Network Compliance & Filtration Pipeline
+            Traffic Quality & Validation Pipeline
           </h2>
           <p className="text-slate-400 text-sm sm:text-base mt-3 leading-relaxed">
-            Here is how Linktery inspects client variables at the Edge DNS level to route reviewer bots to safe pages and real users to offers.
+            Linktery evaluates technical signals to separate obvious automation from campaign traffic and keep analytics cleaner.
           </p>
         </div>
 
@@ -485,9 +485,9 @@ export default function AffiliateSolution() {
           <div className="lg:col-span-4 flex flex-col gap-3">
             {[
               { title: "1. HTTP Request Signature Analysis", desc: "Inspection of request headers & client parameters." },
-              { title: "2. ASN & IP Reputation Check", desc: "Identifying datacenter reviewers & scraper networks." },
+              { title: "2. ASN & IP Reputation Check", desc: "Identifying datacenter traffic and scraper networks." },
               { title: "3. Interactive Browser Fingerprinting", desc: "Checking JS stack & execution capabilities." },
-              { title: "4. Dynamic Path Dispatch", desc: "Routing bots to compliance pages & buyers to offers." }
+              { title: "4. Policy-Safe Dispatch", desc: "Blocking suspicious automation or applying campaign rules." }
             ].map((step, idx) => (
               <button
                 key={idx}
@@ -513,10 +513,10 @@ export default function AffiliateSolution() {
                 </div>
                 <h3 className="text-xl font-bold text-white">HTTP Request Header Signature Analysis</h3>
                 <p className="text-sm text-slate-400 leading-relaxed">
-                  Every click dispatches specific technical details. Automated review scanners sent by Facebook, Google, and TikTok ad algorithms often use customized browser setups that report missing or inconsistent headers (such as `Accept-Language`, `Sec-Ch-Ua`, or custom fonts payloads).
+                  Automated clients and scrapers often use browser setups that report missing or inconsistent headers such as `Accept-Language` or `Sec-CH-UA`.
                 </p>
                 <p className="text-sm text-slate-400 leading-relaxed">
-                  Linktery reads headers at the Edge Server level before processing any redirect. If header parameters match bot inspector signatures, the visitor is flagged for safe-routing.
+                  Linktery reads available request headers before processing a redirect. Requests that match high-confidence automation signals can be flagged for analytics or blocked according to the link owner's settings.
                 </p>
               </div>
             )}
@@ -528,10 +528,10 @@ export default function AffiliateSolution() {
                 </div>
                 <h3 className="text-xl font-bold text-white">ASN & IP Reputation Database Check</h3>
                 <p className="text-sm text-slate-400 leading-relaxed">
-                  Most ad reviewing bots are hosted on major cloud services (Amazon Web Services, Microsoft Azure, Google Cloud, DigitalOcean). Real buyers utilize domestic internet service providers (Comcast, AT&T, Vodafone).
+                  Automated tools commonly originate from hosting providers and datacenter networks, while consumer traffic often comes from residential or mobile networks. ASN is one signal, not proof by itself.
                 </p>
                 <p className="text-sm text-slate-400 leading-relaxed">
-                  Linktery cross-references the request IP against a real-time database of Autonomous System Numbers (ASN). Hits originating from datacenters or known advertising review regions (such as Menlo Park for Facebook or Mountain View for Google) are immediately separated from public consumer traffic.
+                  Linktery can compare a request's network against IP reputation and ASN data. The result is combined with other signals to reduce false positives and avoid treating location alone as a reason to reroute a visitor.
                 </p>
               </div>
             )}
@@ -546,7 +546,7 @@ export default function AffiliateSolution() {
                   Automated web scrapers frequently disable Javascript or fail to emulate native canvas rendering, WebGL setups, and OS font registries correctly.
                 </p>
                 <p className="text-sm text-slate-400 leading-relaxed">
-                  For suspicious traffic, Linktery serves a sub-millisecond background script challenge. If the visitor's client fails to execute JS variables, report correct canvas dimensions, or fails browser sandbox checks, it is filtered, preventing advertiser blacklists.
+                  For suspicious traffic, a lightweight browser-capability check can help distinguish basic automation from an interactive browser. Failed checks are treated as a traffic-quality signal and can be excluded from campaign analytics.
                 </p>
               </div>
             )}
@@ -558,18 +558,18 @@ export default function AffiliateSolution() {
                 </div>
                 <h3 className="text-xl font-bold text-white">Dynamic Path Dispatching</h3>
                 <p className="text-sm text-slate-400 leading-relaxed">
-                  After passing verification stages, the request executes a double redirect:
+                  After validation, Linktery applies the link owner's routing rules consistently:
                 </p>
                 <ul className="text-sm text-slate-400 space-y-2 pl-4 list-disc">
-                  <li>**Verified Reviewers / Bots:** Directed to a highly compliant landing page mapped to look like a standard informational website, protecting the campaign ad account.</li>
-                  <li>**Real Human Consumers:** Redirected to the designated affiliate campaign (Offer A or Offer B depending on rotator split weights) in under 12ms.</li>
+                  <li>**Suspicious automation:** Blocked or marked as bot traffic so it does not pollute human campaign reporting.</li>
+                  <li>**Valid visitors:** Routed to the configured campaign variant according to geography, device, and split weights.</li>
                 </ul>
               </div>
             )}
 
             <div className="border-t border-[#1e293b] pt-4 mt-6 flex justify-between items-center text-xs text-slate-500">
               <span>Pipeline Stage {activePipelineStep + 1} of 4</span>
-              <span className="text-emerald-400 font-mono font-bold">100% compliant routing</span>
+              <span className="text-emerald-400 font-mono font-bold">Policy-safe traffic validation</span>
             </div>
           </div>
         </div>

@@ -135,7 +135,7 @@ export default function GeoTargetedRedirect() {
   const faqItems: FaqItem[] = [
     {
       question: "How does Linktery determine the visitor's country location?",
-      answer: "Linktery utilizes a ultra-fast, global Geo-IP database distributed across edge server networks. When a user clicks your link, our edge servers analyze their request IP address and resolve their exact country, region, and city in less than 15 milliseconds, before the redirection handshake begins."
+      answer: "Linktery resolves available Geo-IP signals before applying routing rules. Accuracy and processing time depend on the network, IP data, visitor location, and configured rule set."
     },
     {
       question: "Can I target traffic based on browser language settings instead of location?",
@@ -168,11 +168,6 @@ export default function GeoTargetedRedirect() {
           "@type": "Offer",
           "price": "0.00",
           "priceCurrency": "USD"
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.92",
-          "ratingCount": "184"
         }
       },
       {

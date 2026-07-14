@@ -97,11 +97,6 @@ export default function DigitalProductsSolution() {
           "@type": "Offer",
           "price": "0.00",
           "priceCurrency": "USD"
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.9",
-          "ratingCount": "194"
         }
       },
       {
@@ -591,7 +586,7 @@ export default function DigitalProductsSolution() {
               <div>
                 <h3 className="text-lg font-bold text-white mb-2">Isolated Domain Reputations</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Avoid shared domain flags and shadowbans on social networks by mapping your own custom subdomains directly to your product checkout pages.
+                  Use your own custom subdomain to keep campaign URLs recognizable and separate your brand from a shared link-provider hostname.
                 </p>
               </div>
             </div>
@@ -669,7 +664,7 @@ export default function DigitalProductsSolution() {
           </div>
           
           <h2 className="text-3xl md:text-5xl font-black text-white mb-4 relative z-10">
-            Double Your E-Commerce Sales Today
+            Reduce Mobile Checkout Friction
           </h2>
           <p className="text-base md:text-lg text-muted-foreground max-w-xl mx-auto mb-8 relative z-10 leading-relaxed">
             Protect your links, restore Apple Pay & Google Pay checkouts, and boost conversions free.

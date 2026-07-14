@@ -3,19 +3,14 @@ import { useParams } from "react-router-dom";
 import { ExternalLink, Globe, Loader2 } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
-import { IconRenderer } from '@/components/icons/IconRenderer';
+import { IconRenderer } from "@/components/icons/IconRenderer";
+import { ProfileIdentity } from "@/components/profile/ProfileIdentity";
 import { checkPlan } from "@/lib/plans";
+import {
+  isLightProfileColor,
+  normalizeProfileTemplate,
+} from "@/lib/profileTemplates";
 import { useSeo } from "@/hooks/useSeo";
-
-/** Returns true if a hex color is perceptually light (text on top should be dark). */
-function isLightColor(hex: string): boolean {
-  const c = hex.replace('#', '');
-  const r = parseInt(c.substring(0, 2), 16);
-  const g = parseInt(c.substring(2, 4), 16);
-  const b = parseInt(c.substring(4, 6), 16);
-  // Perceived brightness formula (ITU-R BT.709)
-  return (r * 0.299 + g * 0.587 + b * 0.114) > 150;
-}
 
 interface ProfileData {
   id: string;
@@ -23,6 +18,7 @@ interface ProfileData {
   bio: string;
   avatar: string;
   theme: string;
+  profile_template?: string;
   full_avatar_url?: string;
   custom_theme_bg?: string;
   card_color?: string;
@@ -84,7 +80,7 @@ function OnlineCounter({ cardColor }: { cardColor: string }) {
 
   if (!mounted) return null;
 
-  const light = isLightColor(cardColor);
+  const light = isLightProfileColor(cardColor);
 
   return (
     <div className="mt-4 flex items-center justify-center gap-2">
@@ -138,6 +134,7 @@ export default function PublicProfile() {
           name: profileRecord.name || profileRecord.slug,
           bio: profileRecord.bio || "",
           theme: profileRecord.theme || "minimal-dark",
+          profile_template: normalizeProfileTemplate(profileRecord.profile_template),
           avatar: profileRecord.name ? profileRecord.name.charAt(0).toUpperCase() : profileRecord.slug.charAt(0).toUpperCase(),
           full_avatar_url: profileRecord.avatar ? pb.files.getUrl(profileRecord, profileRecord.avatar) : undefined,
           custom_theme_bg: profileRecord.custom_theme_bg ? pb.files.getUrl(profileRecord, profileRecord.custom_theme_bg) : undefined,
@@ -196,6 +193,8 @@ export default function PublicProfile() {
   }
 
   const currentThemeClass = THEME_STYLES[profile.theme] || THEME_STYLES["minimal-dark"];
+  const profileTemplate = normalizeProfileTemplate(profile.profile_template);
+  const cardColor = profile.card_color || "#000000";
 
   return (
     <div className={`min-h-screen ${currentThemeClass} relative overflow-hidden flex items-start justify-center sm:px-4 pt-0 transition-colors duration-700`}
@@ -212,76 +211,23 @@ export default function PublicProfile() {
       <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-accent/10 blur-[150px] rounded-full pointer-events-none opacity-30 z-0" />
 
       {/* Main Profile Card */}
-      <div className="w-full max-w-[528px] sm:rounded-[1.5rem] min-h-[100dvh] sm:min-h-[98vh] sm:mt-[1vh] sm:mb-[1vh] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8),0_0_40px_rgba(0,0,0,0.4)] animate-fade-in relative z-10 flex flex-col" style={{ backgroundColor: profile.card_color || '#000000' }}>
+      <div className="w-full max-w-[528px] sm:rounded-[1.5rem] min-h-[100dvh] sm:min-h-[98vh] sm:mt-[1vh] sm:mb-[1vh] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8),0_0_40px_rgba(0,0,0,0.4)] animate-fade-in relative z-10 flex flex-col" style={{ backgroundColor: cardColor }}>
 
-        {/* Top Header with Avatar and Fade */}
-        <div className="relative aspect-[10/7] w-full overflow-hidden shrink-0">
-          {profile.full_avatar_url ? (
-            <img
-              src={profile.full_avatar_url}
-              alt={profile.name}
-              className="w-full h-full object-cover object-top"
-            />
-          ) : (
-            <div className="w-full h-full bg-surface flex items-center justify-center">
-              <span className="text-6xl font-bold bg-gradient-to-br from-white to-white/30 bg-clip-text text-transparent">
-                {profile.avatar}
-              </span>
-            </div>
-          )}
-          {/* Fade Overlay - Lower and softer to match card color */}
-          <div className="absolute -bottom-1 left-0 w-full h-[45%] transition-all duration-700 pointer-events-none" style={{ background: `linear-gradient(to top, ${profile.card_color || '#000000'} 15%, transparent)` }} />
-        </div >
+        <ProfileIdentity
+          template={profileTemplate}
+          name={profile.name}
+          username={username || ""}
+          bio={profile.bio}
+          avatarUrl={profile.full_avatar_url}
+          avatarFallback={profile.avatar}
+          cardColor={cardColor}
+          socialLinks={profile.social_links}
+          onlineCounter={profile.online_counter ? <OnlineCounter cardColor={cardColor} /> : undefined}
+        />
 
-        {/* Profile Content */}
-        <div className="px-4 pb-16 -mt-16 relative flex-1 flex flex-col">
-          <div className="text-center space-y-1">
-            <h1 className="text-3xl font-black tracking-tight text-white drop-shadow-lg">
-              {profile.name}
-            </h1>
-            <p className="text-muted-foreground text-sm font-medium tracking-wide">
-              @{username}
-            </p>
-            {/* Tracking confirmation debug marker */}
-            <div data-tracking-active="true" className="hidden" />
-          </div>
-
-          {/* Social Icons Quick Bar */}
-          {
-            profile.social_links && profile.social_links.length > 0 && (
-              <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
-                {profile.social_links.map((social: { id: string; url: string; icon_type: string; icon_value: string }) => (
-                  <a
-                    key={social.id}
-                    href={
-                      social.url && (social.url.startsWith("http://") || social.url.startsWith("https://"))
-                        ? social.url
-                        : "#"
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-accent/20 hover:border-accent/40 hover:scale-105 transition-all duration-300 shadow-lg group"
-                  >
-                    <IconRenderer type={social.icon_type} value={social.icon_value} className="w-5 h-5 text-white/80 group-hover:text-white transition-colors" />
-                  </a>
-                ))}
-              </div>
-            )
-          }
-
-          {/* Bio */}
-          {profile.bio && (
-            <div className="mt-3 text-center px-3">
-              <p className={`text-sm leading-relaxed max-w-[280px] mx-auto whitespace-pre-line line-clamp-3 ${isLightColor(profile.card_color || '#000000') ? 'text-black/80' : 'text-white'}`}>
-                {profile.bio}
-              </p>
-            </div>
-          )}
-
-          {/* Online Counter */}
-          {profile.online_counter && (
-            <OnlineCounter cardColor={profile.card_color || '#000000'} />
-          )}
+        {/* Profile content shared by every visual template. */}
+        <div className={`pb-16 relative flex-1 flex flex-col ${profileTemplate === "cutout" ? "px-4 min-[380px]:px-6 sm:px-8" : "px-4"}`}>
+          <div data-tracking-active="true" className="hidden" />
 
           {/* Links Section */}
           <div className="mt-6 space-y-3">
@@ -295,6 +241,7 @@ export default function PublicProfile() {
                 const bgImageUrl = link.bg_image
                   ? pb.files.getUrl(link, link.bg_image)
                   : null;
+                const editorialLink = profileTemplate === "cutout" && link.size !== "large";
 
                 return (
                   <a
@@ -302,7 +249,11 @@ export default function PublicProfile() {
                     href={`/${link.slug}?ref=profile`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`group relative block w-full bg-[#111] hover:bg-[#161616] rounded-2xl transition-all duration-300 hover:-translate-y-0.5 overflow-hidden will-change-transform isolate ${link.size === 'large' ? 'aspect-[10/6] sm:aspect-[10/4.3]' : 'py-[14px] px-5'}`}
+                    className={`group relative block w-full transition-all duration-300 overflow-hidden will-change-transform isolate ${
+                      editorialLink
+                        ? `border-b rounded-none px-1 py-3 ${isLightProfileColor(cardColor) ? "border-black/15 hover:bg-black/5" : "border-white/15 hover:bg-white/5"}`
+                        : `bg-[#111] hover:bg-[#161616] rounded-2xl hover:-translate-y-0.5 ${link.size === 'large' ? 'aspect-[10/6] sm:aspect-[10/4.3]' : 'py-[14px] px-5'}`
+                    }`}
                   >
                     {/* Custom Background */}
                     {bgImageUrl && (
@@ -316,8 +267,8 @@ export default function PublicProfile() {
                       </>
                     )}
 
-                    <div className={`relative z-10 flex ${link.size === 'large' ? 'flex-col h-full p-5 justify-between' : 'items-center justify-center min-h-[40px]'}`}>
-                      <div className={`${link.size === 'large' ? 'shrink-0 self-start' : 'absolute left-0 shrink-0'} w-11 h-11 rounded-xl ${bgImageUrl ? 'bg-white/20 backdrop-blur-md' : 'bg-white/10'} flex items-center justify-center overflow-hidden group-hover:bg-accent/20 transition-colors shadow-lg`}>
+                    <div className={`relative z-10 flex ${link.size === 'large' ? 'flex-col h-full p-5 justify-between' : editorialLink ? 'items-center min-h-[40px]' : 'items-center justify-center min-h-[40px]'}`}>
+                      <div className={`${link.size === 'large' ? 'shrink-0 self-start' : editorialLink ? 'relative shrink-0 mr-3' : 'absolute left-0 shrink-0'} w-11 h-11 rounded-xl ${editorialLink ? (isLightProfileColor(cardColor) ? 'bg-black/5' : 'bg-white/5') : bgImageUrl ? 'bg-white/20 backdrop-blur-md' : 'bg-white/10'} flex items-center justify-center overflow-hidden group-hover:bg-accent/20 transition-colors ${editorialLink ? '' : 'shadow-lg'}`}>
                         <IconRenderer
                           type={link.icon_type}
                           value={link.icon_value}
@@ -326,13 +277,13 @@ export default function PublicProfile() {
                         />
                       </div>
 
-                      <div className={`${link.size === 'large' ? 'mt-auto text-center w-full px-12' : 'text-center px-12'}`}>
-                        <span className={`block font-bold text-white group-hover:text-accent transition-colors uppercase tracking-wider ${link.size === 'large' ? 'text-lg drop-shadow-lg' : 'text-sm'}`}>
+                      <div className={`${link.size === 'large' ? 'mt-auto text-center w-full px-12' : editorialLink ? 'text-left pr-10 flex-1' : 'text-center px-12'}`}>
+                        <span className={`block font-bold group-hover:text-accent transition-colors uppercase tracking-wider ${isLightProfileColor(cardColor) && editorialLink ? 'text-black' : 'text-white'} ${link.size === 'large' ? 'text-lg drop-shadow-lg' : 'text-sm'}`}>
                           {link.title || `/${link.slug}`}
                         </span>
                       </div>
 
-                      <div className={`absolute ${link.size === 'large' ? 'right-4 top-4' : 'right-0 top-0'} w-8 h-8 rounded-lg bg-white/10 backdrop-blur-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg`}>
+                      <div className={`absolute ${link.size === 'large' ? 'right-4 top-4' : editorialLink ? 'right-0 top-1/2 -translate-y-1/2' : 'right-0 top-0'} w-8 h-8 rounded-lg ${editorialLink ? '' : 'bg-white/10 backdrop-blur-md shadow-lg'} flex items-center justify-center ${editorialLink ? 'opacity-60' : 'opacity-0'} group-hover:opacity-100 transition-opacity`}>
                         <ExternalLink className="w-3.5 h-3.5 text-accent" />
                       </div>
                     </div>
@@ -346,21 +297,21 @@ export default function PublicProfile() {
           <div className="mt-auto pt-16 flex flex-col items-center gap-6 pb-8 justify-end flex-grow">
             {!checkPlan(profile.plan, "remove_branding") && (
               <div className="text-center mt-auto">
-                <a href="/" className={`inline-flex items-center gap-1.5 text-[10px] transition-colors group ${isLightColor(profile.card_color || '#000000') ? 'text-black/40 hover:text-black' : 'text-muted-foreground/50 hover:text-white'}`}>
+                <a href="/" className={`inline-flex items-center gap-1.5 text-[10px] transition-colors group ${isLightProfileColor(cardColor) ? 'text-black/40 hover:text-black' : 'text-muted-foreground/50 hover:text-white'}`}>
                   <span className="uppercase tracking-widest font-medium translate-y-[1px]">Powered by</span>
                   <span className="font-black flex items-center gap-1 group-hover:opacity-100">
-                    <img src="/logo.webp" alt="Linktery" className={`h-6 w-auto opacity-80 group-hover:opacity-100 transition-opacity ${isLightColor(profile.card_color || '#000000') ? 'invert' : 'grayscale mix-blend-screen'}`} />
-                    <span className={`uppercase tracking-tighter text-[11px] translate-y-[0.5px] ${isLightColor(profile.card_color || '#000000') ? 'text-black/70 group-hover:text-black' : 'text-white/80 group-hover:text-white'}`}>Linktery</span>
+                    <img src="/logo.webp" alt="Linktery" className={`h-6 w-auto opacity-80 group-hover:opacity-100 transition-opacity ${isLightProfileColor(cardColor) ? 'invert' : 'grayscale mix-blend-screen'}`} />
+                    <span className={`uppercase tracking-tighter text-[11px] translate-y-[0.5px] ${isLightProfileColor(cardColor) ? 'text-black/70 group-hover:text-black' : 'text-white/80 group-hover:text-white'}`}>Linktery</span>
                   </span>
                 </a>
               </div>
             )}
 
             {/* Legal Links */}
-            <div className={`flex items-center gap-3 text-[10px] uppercase font-bold tracking-widest relative z-50 ${isLightColor(profile.card_color || '#000000') ? 'text-black/20' : 'text-white/20'}`}>
-              <a href="/privacy" className={`transition-colors pointer-events-auto ${isLightColor(profile.card_color || '#000000') ? 'hover:text-black/60' : 'hover:text-white/60'}`}>Privacy Policy</a>
+            <div className={`flex items-center gap-3 text-[10px] uppercase font-bold tracking-widest relative z-50 ${isLightProfileColor(cardColor) ? 'text-black/20' : 'text-white/20'}`}>
+              <a href="/privacy" className={`transition-colors pointer-events-auto ${isLightProfileColor(cardColor) ? 'hover:text-black/60' : 'hover:text-white/60'}`}>Privacy Policy</a>
               <span>|</span>
-              <a href="/terms" className={`transition-colors pointer-events-auto ${isLightColor(profile.card_color || '#000000') ? 'hover:text-black/60' : 'hover:text-white/60'}`}>Terms & Conditions</a>
+              <a href="/terms" className={`transition-colors pointer-events-auto ${isLightProfileColor(cardColor) ? 'hover:text-black/60' : 'hover:text-white/60'}`}>Terms & Conditions</a>
             </div>
           </div>
         </div >

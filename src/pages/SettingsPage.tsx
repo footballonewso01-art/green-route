@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { pb } from "@/lib/pocketbase";
 import { Loader2 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
+import { maskError } from "@/lib/utils";
 
 interface SettingsSection {
   id: string;
@@ -59,7 +60,7 @@ export default function SettingsPage() {
 
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const plan = PLANS[userPlan as PlanType];
-  const hasUsedPromocode = !!(user as Record<string, unknown>)?.promocode_used;
+  const hasUsedPromocode = !!user?.promocode_used;
 
   const [subStatus, setSubStatus] = useState<"active" | "canceling" | "none">("none");
 
@@ -120,7 +121,7 @@ export default function SettingsPage() {
       }
     };
     verifySession();
-  }, [searchParams, user]);
+  }, [refreshUser, searchParams, setSearchParams, user]);
 
   // Fetch billing logs
   useEffect(() => {
@@ -183,6 +184,7 @@ export default function SettingsPage() {
       window.location.assign(data.url);
     } catch (e: unknown) {
       console.error("Portal error:", e);
+      console.error("Billing portal error:", e);
       const status = (e as { status?: number })?.status;
       if (status === 401 || status === 403) {
         toast.error("Your session has expired. Please log in again.");
@@ -190,7 +192,7 @@ export default function SettingsPage() {
         localStorage.removeItem("pocketbase_auth");
         window.location.href = "/login";
       } else {
-        toast.error((e as Error).message || "Failed to open billing portal");
+        toast.error(maskError(e, "Failed to open billing portal"));
       }
     } finally {
       setPortalLoading(false);
@@ -228,7 +230,7 @@ export default function SettingsPage() {
     } catch (err) {
       const error = err as { response?: { message?: string; error?: string }; message?: string };
       console.error("Promocode apply error:", error);
-      toast.error(error?.response?.message || error?.response?.error || error?.message || "Failed to apply promocode");
+      toast.error(maskError(error, "Failed to apply promocode"));
     } finally {
       setLoadingPromocode(false);
     }
@@ -278,7 +280,8 @@ export default function SettingsPage() {
           toast.error(data[firstKey]?.message || "Failed to update password.");
         }
       } else {
-        toast.error(err?.message || "Failed to update password. Please try again.");
+        console.error("Password update error:", err);
+        toast.error(maskError(err, "Failed to update password. Please try again."));
       }
     } finally {
       setLoadingPassword(false);
@@ -307,7 +310,7 @@ export default function SettingsPage() {
     } catch (err) {
       const error = err as { response?: { message?: string; error?: string }; message?: string };
       console.error("Cancel subscription error:", error);
-      toast.error(error?.response?.message || error?.response?.error || error?.message || "Failed to cancel subscription");
+      toast.error(maskError(error, "Failed to cancel subscription"));
     } finally {
       setLoadingCancel(false);
     }
@@ -332,7 +335,7 @@ export default function SettingsPage() {
     } catch (err) {
       const error = err as { response?: { message?: string }; message?: string };
       console.error('Account update error:', error);
-      toast.error(error?.response?.message || error?.message || 'Failed to update account');
+      toast.error(maskError(error, 'Failed to update account'));
     } finally {
       setSavingAccount(false);
     }

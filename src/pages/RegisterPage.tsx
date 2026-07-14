@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Gift, Eye, EyeOff } from "lucide-react";
+import { Gift, Eye, EyeOff, ChevronDown } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { parseAuthError } from "@/lib/authErrors";
@@ -112,6 +112,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [promocode, setPromocode] = useState("");
+  const [showPromocode, setShowPromocode] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -163,8 +164,8 @@ export default function RegisterPage() {
         toast.error("This username is already taken. Please choose another one.");
         setLoading(false);
         return;
-      } catch (err: any) {
-        if (err.status !== 404) {
+      } catch (err: unknown) {
+        if ((err as { status?: number }).status !== 404) {
           console.error("Username check error:", err);
           toast.error("An error occurred while checking username availability.");
           setLoading(false);
@@ -266,7 +267,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-6 relative overflow-hidden">
+    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-6 sm:px-6 sm:py-10 relative overflow-x-hidden">
       {/* Background stars canvas & grid */}
       <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none w-full h-full opacity-60" />
       <div className="absolute inset-0 bg-grid-white opacity-[0.03] z-0 pointer-events-none" />
@@ -276,21 +277,21 @@ export default function RegisterPage() {
         <div className="absolute bottom-1/3 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
       </div>
 
-      <div className="glass-card py-5 px-7 w-full max-w-md relative z-10 animate-scale-in">
-        <div className="text-center mb-5">
+      <div className="glass-card px-5 py-7 sm:p-8 w-full max-w-md relative z-10 animate-scale-in">
+        <div className="text-center mb-6">
           <Link to="/" className="inline-flex items-center gap-2.5 mb-4 hover:opacity-80 transition-opacity">
             <img src="/logo.webp" alt="Linktery" className="h-9 w-auto mix-blend-screen" />
             <span className="text-2xl font-bold text-foreground tracking-tighter">Linktery</span>
           </Link>
           <h1 className="text-xl font-bold text-foreground">Create your account</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">Start managing your links today</p>
+          <p className="text-sm text-muted-foreground mt-1">Start managing your links today</p>
         </div>
 
         {/* Google Sign Up */}
         <button
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-3 py-2 rounded-xl border border-border bg-surface hover:bg-surface-hover text-foreground font-medium transition-all duration-200 mb-4 text-sm"
+          className="w-full flex items-center justify-center gap-3 py-2.5 rounded-xl border border-border bg-surface hover:bg-surface-hover text-foreground font-medium transition-all duration-200 mb-5 text-sm"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -301,46 +302,46 @@ export default function RegisterPage() {
           Continue with Google
         </button>
 
-        <div className="relative mb-4">
+        <div className="relative mb-5">
           <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
-          <div className="relative flex justify-center text-[11px]"><span className="bg-card px-3 text-muted-foreground">or sign up with email</span></div>
+          <div className="relative flex justify-center text-xs"><span className="bg-card px-3 text-muted-foreground">or sign up with email</span></div>
         </div>
 
-        <form onSubmit={handleRegister} className="space-y-2.5">
+        <form onSubmit={handleRegister} className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-foreground mb-1 block">Username</label>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Username</label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_.]/g, "").slice(0, 22))}
               maxLength={22}
-              className="w-full px-4 py-2 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
+              className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
               placeholder="yourname"
               required
             />
           </div>
 
           <div>
-            <label className="text-xs font-medium text-foreground mb-1 block">Email</label>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
+              className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
               placeholder="you@example.com"
               required
             />
           </div>
 
           <div>
-            <label className="text-xs font-medium text-foreground mb-1 block">Password</label>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Password</label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors pr-10 text-sm"
-                placeholder="••••••••"
+                className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors pr-10 text-sm"
+                placeholder="At least 6 characters"
                 required
                 minLength={6}
               />
@@ -351,35 +352,48 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-foreground mb-1 block">Name</label>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
+              className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
               placeholder="Your name"
               required
             />
           </div>
 
-          <div>
-            <label className="text-xs font-medium text-foreground mb-1 block">
-              Promocode <span className="text-muted-foreground font-normal">(Optional)</span>
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={promocode}
-                onChange={(e) => setPromocode(e.target.value.toUpperCase())}
-                className="w-full px-4 py-2 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
-                placeholder="Promo"
-              />
-              <Gift className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            </div>
+          <div className="rounded-xl border border-border/70 bg-surface/40 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowPromocode((current) => !current)}
+              aria-expanded={showPromocode}
+              aria-controls="promocode-field"
+              className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-surface/70 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-accent" />
+                Have a promocode?
+              </span>
+              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showPromocode ? "rotate-180" : ""}`} />
+            </button>
+            {showPromocode && (
+              <div id="promocode-field" className="px-3 pb-3 animate-fade-in">
+                <label htmlFor="promocode" className="sr-only">Promocode</label>
+                <input
+                  id="promocode"
+                  type="text"
+                  value={promocode}
+                  onChange={(e) => setPromocode(e.target.value.toUpperCase())}
+                  className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
+                  placeholder="Enter promocode"
+                />
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-3 py-0.5">
-            <div className="relative flex items-center justify-center shrink-0">
+          <div className="flex items-start gap-3 py-0.5">
+            <div className="relative flex items-center justify-center shrink-0 mt-0.5">
               <input
                 type="checkbox"
                 id="terms"
@@ -402,12 +416,12 @@ export default function RegisterPage() {
             </label>
           </div>
 
-          <button type="submit" disabled={loading} className="btn-primary-glow w-full mt-1.5 py-2 text-sm disabled:opacity-50">
+          <button type="submit" disabled={loading} className="btn-primary-glow w-full !py-2.5 text-sm disabled:opacity-50">
             {loading ? "Creating account..." : "Create Account"}
           </button>
         </form>
 
-        <p className="text-xs text-muted-foreground text-center mt-4">
+        <p className="text-sm text-muted-foreground text-center mt-5">
           Already have an account?{" "}
           <Link to="/login" className="text-accent hover:underline">Sign in</Link>
         </p>

@@ -53,8 +53,11 @@ interface ProfessionConfig {
 }
 
 export default function ProfessionSolutions() {
-  const { professionSlug } = useParams<{ professionSlug: string }>();
+  const { professionPath } = useParams<{ professionPath: string }>();
   const { user } = useAuth();
+  const professionSlug = professionPath?.startsWith("link-in-bio-for-")
+    ? professionPath.slice("link-in-bio-for-".length)
+    : undefined;
 
   // Find configuration for the current slug
   const config = (professionsData as ProfessionConfig[]).find(
@@ -99,11 +102,6 @@ export default function ProfessionSolutions() {
           "@type": "Offer",
           "price": "0.00",
           "priceCurrency": "USD"
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.92",
-          "ratingCount": "128"
         }
       },
       {
@@ -328,7 +326,7 @@ export default function ProfessionSolutions() {
                   <div>
                     <h5 className="text-xs font-bold text-white uppercase">Dynamic routing speed advantage</h5>
                     <p className="text-[10px] text-slate-400 leading-relaxed mt-1">
-                      Linktery compiles your profile into statically pre-rendered (SSG) files, loading pages globally in under 150ms. Visitors review your links instantly without checkout checkout drops or connection delays.
+                      Linktery uses lightweight public pages and cache-friendly assets to reduce loading overhead. Actual speed depends on the visitor's device, network, and page media.
                     </p>
                   </div>
                 </div>
@@ -447,7 +445,7 @@ export default function ProfessionSolutions() {
                     <h4 className="text-xs font-bold text-white uppercase font-mono">Ultra SSG Speed</h4>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Profiles are pre-rendered into lightweight, static HTML files at edge CDN locations, loading globally in under 150ms.
+                    Public marketing pages are pre-rendered and assets are cached so repeat requests avoid downloading the full stylesheet again.
                   </p>
                 </div>
               </div>
