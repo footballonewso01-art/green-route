@@ -84,7 +84,7 @@
       "destination": "/index.html"
     },
     {
-      "source": "^/((?!pricing$|privacy$|terms$|solutions$|alternatives$|compare$|assets$|404$|.*\\.)[^/]+)$",
+      "source": "/:slug",
       "destination": "/index.html"
     }
   ]
