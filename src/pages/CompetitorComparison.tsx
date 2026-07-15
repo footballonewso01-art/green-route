@@ -10,7 +10,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
 import { useSeo } from "@/hooks/useSeo";
 import competitorsData from "@/data/competitors.json";
-import indexableCompetitorSlugs from "@/data/indexable-competitors.json";
 import Footer from "@/components/Footer";
 
 interface CompetitorPricing {
@@ -59,11 +58,7 @@ export default function CompetitorComparison() {
   const canonicalComparisonSlug = canonicalCompetitors.length === 2
     ? `${canonicalCompetitors[0].slug}-vs-${canonicalCompetitors[1].slug}`
     : "";
-  const isIndexableComparison = !!(
-    competitorA && competitorB &&
-    indexableCompetitorSlugs.includes(competitorA.slug) &&
-    indexableCompetitorSlugs.includes(competitorB.slug)
-  );
+  const isIndexableComparison = !!(competitorA && competitorB);
 
   // Accordion State
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
@@ -175,7 +170,7 @@ export default function CompetitorComparison() {
   ];
 
   const relatedComparisons = (competitorsData as Competitor[])
-    .filter((item) => indexableCompetitorSlugs.includes(item.slug) && item.slug !== competitorA.slug && item.slug !== competitorB.slug)
+    .filter((item) => item.slug !== competitorA.slug && item.slug !== competitorB.slug)
     .map((item) => {
       const pair = [competitorA, item].sort((a, b) => a.slug.localeCompare(b.slug));
       return {

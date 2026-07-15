@@ -10,7 +10,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
 import { useSeo } from "@/hooks/useSeo";
 import competitorsData from "@/data/competitors.json";
-import indexableCompetitorSlugs from "@/data/indexable-competitors.json";
 import Footer from "@/components/Footer";
 
 interface CompetitorPricing {
@@ -148,7 +147,7 @@ export default function CompetitorAlternative() {
   }
 
   const relatedComparisons = (competitorsData as Competitor[])
-    .filter((item) => indexableCompetitorSlugs.includes(item.slug) && item.slug !== competitor.slug)
+    .filter((item) => item.slug !== competitor.slug)
     .map((item) => {
       const pair = [competitor, item].sort((a, b) => a.slug.localeCompare(b.slug));
       return {

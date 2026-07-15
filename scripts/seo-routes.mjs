@@ -39,7 +39,6 @@ export const getSeoPageConfigs = () => {
   const configs = getStaticConfigs();
   const professions = readJson("src/data/professions.json");
   const competitors = readJson("src/data/competitors.json");
-  const indexableSlugs = new Set(readJson("src/data/indexable-competitors.json"));
 
   for (const profession of professions) {
     configs.push({
@@ -51,10 +50,12 @@ export const getSeoPageConfigs = () => {
     });
   }
 
-  const indexableCompetitors = competitors.filter((competitor) => indexableSlugs.has(competitor.slug));
-  for (let i = 0; i < indexableCompetitors.length; i += 1) {
-    for (let j = i + 1; j < indexableCompetitors.length; j += 1) {
-      const [competitorA, competitorB] = [indexableCompetitors[i], indexableCompetitors[j]]
+  // Every competitor in the catalog is an intentional SEO entity. Generate
+  // every canonical pair so previously published comparison URLs never fall
+  // through to Vercel's static 404 page.
+  for (let i = 0; i < competitors.length; i += 1) {
+    for (let j = i + 1; j < competitors.length; j += 1) {
+      const [competitorA, competitorB] = [competitors[i], competitors[j]]
         .sort((a, b) => a.slug.localeCompare(b.slug));
       const routeSlug = `${competitorA.slug}-vs-${competitorB.slug}`;
       configs.push({
