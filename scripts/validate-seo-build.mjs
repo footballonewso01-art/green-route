@@ -40,6 +40,23 @@ for (const config of configs) {
   if (new Set(serializedSchemas).size !== serializedSchemas.length) {
     failures.push(`${config.route}: duplicate JSON-LD schema is present`);
   }
+
+  if (config.route.startsWith("/compare/")) {
+    const pair = config.route.replace("/compare/", "").split("-vs-");
+    if (pair.length === 2) {
+      const reverseRoute = `/compare/${pair[1]}-vs-${pair[0]}`;
+      const reversePath = path.join(process.cwd(), "dist", reverseRoute.replace(/^\//, ""), "index.html");
+      if (!fs.existsSync(reversePath)) {
+        failures.push(`${reverseRoute}: reverse comparison alias is missing`);
+      } else {
+        const reverseHtml = fs.readFileSync(reversePath, "utf8");
+        if (!/<meta name="robots" content="noindex, follow" \/>/i.test(reverseHtml)) failures.push(`${reverseRoute}: reverse alias must be noindex`);
+        if (!reverseHtml.includes(`<link rel="canonical" href="${canonical}" />`)) failures.push(`${reverseRoute}: reverse alias canonical is incorrect`);
+        if (!/<meta http-equiv="refresh" content="0;url=https:\/\/linktery\.com\/compare\//i.test(reverseHtml)) failures.push(`${reverseRoute}: reverse alias redirect is missing`);
+        if (/type="module"|data-prerendered="true"/i.test(reverseHtml)) failures.push(`${reverseRoute}: reverse alias must not hydrate the React app`);
+      }
+    }
+  }
 }
 
 const sitemapPath = path.join(process.cwd(), "dist", "sitemap.xml");

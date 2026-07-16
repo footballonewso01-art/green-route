@@ -70,6 +70,75 @@
     <loc>https://linktery.com/alternatives</loc>
   </url>
   <url>
+    <loc>https://linktery.com/features/url-shortener</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/features/link-management</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/features/branded-links</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/features/link-analytics</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/features/custom-domains</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/features/link-rotator</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/features/geo-targeting</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/features/device-targeting</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/templates/link-in-bio</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/templates/classic-cover</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/templates/compact-circle</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/templates/banner-circle</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/templates/hero-portrait</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/templates/cutout-editorial</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/tools/utm-builder</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/tools/qr-code-generator</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/guides/what-is-link-management</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/guides/url-shortener-vs-link-in-bio</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/guides/what-is-a-smart-link</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/guides/how-to-track-link-clicks</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/guides/how-to-create-branded-short-url</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/guides/dynamic-vs-static-qr-codes</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/guides/utm-parameters-guide</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/solutions/link-in-bio-for-real-estate-agents</loc>
   </url>
   <url>
@@ -160,6 +229,9 @@
     <loc>https://linktery.com/compare/linktree-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bitly-vs-linktree</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/beacons-vs-lnk-bio</loc>
   </url>
   <url>
@@ -205,6 +277,9 @@
     <loc>https://linktery.com/compare/beacons-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/beacons-vs-bitly</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/bento-vs-lnk-bio</loc>
   </url>
   <url>
@@ -247,6 +322,9 @@
     <loc>https://linktery.com/compare/lnk-bio-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bitly-vs-lnk-bio</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/bento-vs-link-me</loc>
   </url>
   <url>
@@ -286,6 +364,9 @@
     <loc>https://linktery.com/compare/bento-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bento-vs-bitly</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/link-me-vs-taplink</loc>
   </url>
   <url>
@@ -322,6 +403,9 @@
     <loc>https://linktery.com/compare/link-me-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bitly-vs-link-me</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/shorby-vs-taplink</loc>
   </url>
   <url>
@@ -355,6 +439,9 @@
     <loc>https://linktery.com/compare/taplink-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bitly-vs-taplink</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/campsite-vs-shorby</loc>
   </url>
   <url>
@@ -385,6 +472,9 @@
     <loc>https://linktery.com/compare/shorby-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bitly-vs-shorby</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/campsite-vs-milkshake</loc>
   </url>
   <url>
@@ -412,6 +502,9 @@
     <loc>https://linktery.com/compare/campsite-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bitly-vs-campsite</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/bio-link-vs-milkshake</loc>
   </url>
   <url>
@@ -436,6 +529,9 @@
     <loc>https://linktery.com/compare/milkshake-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bitly-vs-milkshake</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/bio-link-vs-direct-me</loc>
   </url>
   <url>
@@ -457,6 +553,9 @@
     <loc>https://linktery.com/compare/bio-link-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bio-link-vs-bitly</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/direct-me-vs-flowpage</loc>
   </url>
   <url>
@@ -475,6 +574,9 @@
     <loc>https://linktery.com/compare/direct-me-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bitly-vs-direct-me</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/flowpage-vs-koji</loc>
   </url>
   <url>
@@ -490,6 +592,9 @@
     <loc>https://linktery.com/compare/flowpage-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bitly-vs-flowpage</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/carrd-vs-koji</loc>
   </url>
   <url>
@@ -502,6 +607,9 @@
     <loc>https://linktery.com/compare/koji-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bitly-vs-koji</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/carrd-vs-fanlink</loc>
   </url>
   <url>
@@ -511,13 +619,25 @@
     <loc>https://linktery.com/compare/carrd-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bitly-vs-carrd</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/fanlink-vs-ohmybio</loc>
   </url>
   <url>
     <loc>https://linktery.com/compare/fanlink-vs-urmybio</loc>
   </url>
   <url>
+    <loc>https://linktery.com/compare/bitly-vs-fanlink</loc>
+  </url>
+  <url>
     <loc>https://linktery.com/compare/ohmybio-vs-urmybio</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/compare/bitly-vs-ohmybio</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/compare/bitly-vs-urmybio</loc>
   </url>
   <url>
     <loc>https://linktery.com/alternatives/linktree</loc>
@@ -569,5 +689,8 @@
   </url>
   <url>
     <loc>https://linktery.com/alternatives/urmybio</loc>
+  </url>
+  <url>
+    <loc>https://linktery.com/alternatives/bitly</loc>
   </url>
 </urlset>

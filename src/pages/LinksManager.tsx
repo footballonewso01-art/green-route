@@ -55,45 +55,30 @@ export default function LinksManager() {
       const userId = pb.authStore.model?.id;
       if (!userId) return;
 
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const filter = `link_id.user_id="${userId}" && created >= "${sevenDaysAgo.toISOString()}"`;
-
-      // Paginate to collect ALL clicks (not capped at 5000)
-      const allItems: { link_id: string; created: string }[] = [];
-      let page = 1;
-      const perPage = 500;
-      let hasMore = true;
-      while (hasMore) {
-        const res = await pb.collection('clicks').getList(page, perPage, {
-          filter,
-          fields: 'link_id,created',
-          sort: 'created',
-          requestKey: null,
-        });
-        allItems.push(...(res.items as unknown as { link_id: string; created: string }[]));
-        hasMore = res.totalPages > page;
-        page++;
-      }
-
       const sparks: Record<string, number[]> = {};
       linksList.forEach(link => { sparks[link.id] = [0, 0, 0, 0, 0, 0, 0]; });
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const dayToIndex: Record<string, number> = {};
+      for (let offset = 6; offset >= 0; offset--) {
+        const date = new Date();
+        date.setUTCDate(date.getUTCDate() - offset);
+        dayToIndex[date.toISOString().slice(0, 10)] = 6 - offset;
+      }
 
-      allItems.forEach(row => {
-        if (sparks[row.link_id]) {
-          const rowDate = new Date(row.created);
-          rowDate.setHours(0, 0, 0, 0);
-          const diffDays = Math.floor((today.getTime() - rowDate.getTime()) / (1000 * 3600 * 24));
-          if (diffDays >= 0 && diffDays <= 6) {
-            sparks[row.link_id][6 - diffDays]++;
-          }
+      const response = await pb.send('/api/links/sparklines', {
+        method: 'GET',
+        requestKey: 'links-sparklines',
+      });
+      const rows = (response.items || []) as { link_id: string; day: string; clicks: number }[];
+      rows.forEach((row) => {
+        const index = dayToIndex[row.day];
+        if (sparks[row.link_id] && index !== undefined) {
+          sparks[row.link_id][index] = row.clicks || 0;
         }
       });
       setSparklines(sparks);
     } catch (e) {
+      if ((e as { isAbort?: boolean }).isAbort) return;
       console.error("Failed to fetch clicks for sparkline", e);
     }
   };

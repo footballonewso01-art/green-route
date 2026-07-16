@@ -135,7 +135,7 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
   },
   alternativesIndex: {
     title: "Best Link-in-Bio Alternatives & Comparisons (2026) | Linktery",
-    description: "Compare the best link-in-bio tools side-by-side. Analyze pricing, features, watermark removal costs, and deep-linking support across 14 leading creator platforms.",
+    description: "Compare 18 link-in-bio and link-management platforms side-by-side, including pricing, analytics, custom domains, QR codes, and routing features.",
     canonical: "/alternatives",
   },
 };

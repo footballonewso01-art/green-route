@@ -39,6 +39,17 @@ export const getSeoPageConfigs = () => {
   const configs = getStaticConfigs();
   const professions = readJson("src/data/professions.json");
   const competitors = readJson("src/data/competitors.json");
+  const contentPages = readJson("src/data/seo-content-pages.json");
+
+  for (const page of contentPages) {
+    configs.push({
+      key: `content_${page.path.replace(/^\//, "").replace(/\//g, "_").replace(/-/g, "_")}`,
+      route: page.path,
+      title: page.seoTitle,
+      description: page.seoDescription,
+      noIndex: false,
+    });
+  }
 
   for (const profession of professions) {
     configs.push({

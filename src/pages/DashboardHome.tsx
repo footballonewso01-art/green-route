@@ -19,61 +19,47 @@ export default function DashboardHome() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const userId = pb.authStore.model?.id;
-        // BUG-02 FIX: Use getList with bounded limit instead of getFullList (OOM prevention)
-        // Get last 7 days of clicks only, capped at 200 for trend chart + recent list
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const [links, clicksResult] = await Promise.all([
-          pb.collection('links').getFullList({
-            filter: `user_id="${userId}"`,
-            requestKey: null
-          }),
-          pb.collection('clicks').getList(1, 200, {
-            filter: `link_id.user_id="${userId}" && created >= "${sevenDaysAgo.toISOString()}"`,
-            sort: '-created',
-            requestKey: null
-          })
-        ]);
+        const response = await pb.send('/api/dashboard/summary', {
+          method: 'GET',
+          requestKey: 'dashboard-summary',
+        }) as {
+          totalClicks?: number;
+          activeLinks?: number;
+          totalLinks?: number;
+          trend?: { day: string; clicks: number }[];
+          recent?: { slug: string; country: string; device: string; created: string }[];
+        };
 
-        const clicks = clicksResult.items;
-        const activeLinks = links.filter(l => l.active).length;
-        // Use clicks_count from links (always accurate) instead of loading all click records
-        const totalClicks = links.reduce((sum, l) => sum + ((l as { clicks_count?: number }).clicks_count || 0), 0);
+        const totalClicks = response.totalClicks || 0;
+        const activeLinks = response.activeLinks || 0;
+        const totalLinks = response.totalLinks || 0;
 
         setStats({
           totalClicks,
           activeLinks,
-          clickRate: links.length > 0 ? Math.round((totalClicks / links.length) * 10) / 10 : 0,
+          clickRate: totalLinks > 0 ? Math.round((totalClicks / totalLinks) * 10) / 10 : 0,
         });
 
-        // Recent clicks (from bounded result)
-        setRecentClicks(clicks.slice(0, 5).map(c => ({
-          slug: links.find(l => l.id === c.link_id)?.slug || "unknown",
+        setRecentClicks((response.recent || []).map((click) => ({
+          slug: click.slug || "unknown",
           country: (() => {
-            const raw = c.country || "Unknown";
+            const raw = click.country || "Unknown";
             if (raw === "Unknown" || raw.length !== 2) return raw;
             try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(raw) || raw; } catch { return raw; }
           })(),
-          device: c.device || "Other",
-          time: new Date(c.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          device: click.device || "Other",
+          time: new Date(click.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         })));
 
-        // Trend data (last 7 days from bounded clicks)
         const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const trendByDay = new Map((response.trend || []).map((entry) => [entry.day, entry.clicks]));
         const last7Days = Array.from({ length: 7 }, (_, i) => {
           const d = new Date();
-          d.setDate(d.getDate() - i);
-          return { name: days[d.getDay()], clicks: 0, rawDate: d.toDateString() };
+          d.setUTCDate(d.getUTCDate() - i);
+          const key = d.toISOString().slice(0, 10);
+          return { name: days[d.getUTCDay()], clicks: trendByDay.get(key) || 0 };
         }).reverse();
-
-        clicks.forEach(c => {
-          const clickDate = new Date(c.created).toDateString();
-          const dayMatch = last7Days.find(d => d.rawDate === clickDate);
-          if (dayMatch) dayMatch.clicks++;
-        });
-
-        setTrendData(last7Days.map(({ name, clicks }) => ({ name, clicks })));
+        setTrendData(last7Days);
 
       } catch (error: unknown) {
         if (!(error as { isAbort?: boolean }).isAbort) {

@@ -78,7 +78,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     return null;
   });
-  const [loading, setLoading] = useState(true);
+  // The initial auth snapshot is restored synchronously above. Keeping this
+  // flag true until the first effect forced an immediate provider update while
+  // prerendered lazy routes were still hydrating, which made React abandon the
+  // Suspense boundary on every public SEO page (production error #421).
+  const loading = false;
 
   useEffect(() => {
     // Token expiry check: if stored token is no longer valid, force logout
@@ -163,7 +167,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }, 60_000);
 
-    setLoading(false);
     return () => {
       unsubscribe();
       clearInterval(tokenCheckInterval);

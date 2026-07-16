@@ -1792,7 +1792,6 @@ onRecordViewRequest((e) => {
 // PocketBase v0.24 JSVM: GLOBAL function (not $app.), callback first, collection last
 onRecordAfterCreateSuccess((e) => {
     const linkId = e.record.get("link_id");
-    console.log("CLICK HOOK FIRED: link_id=" + linkId);
 
     if (linkId) {
         // Keep the total counter and daily rollup independent so a failure in one
@@ -1819,6 +1818,54 @@ onRecordAfterCreateSuccess((e) => {
             `).bind({ clickId: e.record.id }).execute();
         } catch (err) {
             $app.logger().error("Failed to update analytics_daily for click_id " + e.record.id + " link_id " + linkId + ": " + err);
+        }
+
+        try {
+            // Store independent dimension rows instead of one wide combination.
+            // A single click therefore produces one compact UPSERT statement,
+            // while referrer/country/device cardinalities cannot multiply each
+            // other into an almost raw-sized cube.
+            $app.db().newQuery(`
+                INSERT INTO analytics_hourly_rollup (
+                    link_id, bucket, dimension_type, dimension_value, total, unique_count
+                )
+                SELECT
+                    link_id,
+                    strftime('%Y-%m-%dT%H:00:00Z', created),
+                    'all', '',
+                    1,
+                    CASE WHEN is_unique = 1 THEN 1 ELSE 0 END
+                FROM clicks
+                WHERE id = {:clickId}
+                UNION ALL
+                SELECT link_id, strftime('%Y-%m-%dT%H:00:00Z', created),
+                       'country', COALESCE(NULLIF(country, ''), 'Unknown'), 1, 0
+                FROM clicks WHERE id = {:clickId}
+                UNION ALL
+                SELECT link_id, strftime('%Y-%m-%dT%H:00:00Z', created),
+                       'referrer', COALESCE(NULLIF(referrer, ''), 'Direct'), 1, 0
+                FROM clicks WHERE id = {:clickId}
+                UNION ALL
+                SELECT link_id, strftime('%Y-%m-%dT%H:00:00Z', created),
+                       'device', COALESCE(NULLIF(device, ''), 'Other'), 1, 0
+                FROM clicks WHERE id = {:clickId}
+                UNION ALL
+                SELECT link_id, strftime('%Y-%m-%dT%H:00:00Z', created),
+                       'browser', COALESCE(NULLIF(browser, ''), 'Other'), 1, 0
+                FROM clicks WHERE id = {:clickId}
+                UNION ALL
+                SELECT link_id, strftime('%Y-%m-%dT%H:00:00Z', created),
+                       'os', COALESCE(NULLIF(os, ''), 'Other'), 1, 0
+                FROM clicks WHERE id = {:clickId}
+                ON CONFLICT (link_id, bucket, dimension_type, dimension_value)
+                DO UPDATE SET
+                    total = total + 1,
+                    unique_count = unique_count + excluded.unique_count
+            `).bind({ clickId: e.record.id }).execute();
+        } catch (err) {
+            // Redirect/click recording remains available even if a rollup write
+            // fails. The raw click is the source of truth and can be reconciled.
+            $app.logger().error("Failed to update analytics_hourly_rollup for click_id " + e.record.id + " link_id " + linkId + ": " + err);
         }
     }
 
@@ -2147,109 +2194,126 @@ routerAdd("GET", "/api/admin/promocodes/{id}/payments", (c) => {
 });
 
 // ============================================
-// ANALYTICS: Server-Side SQL Aggregation
+// ANALYTICS: Hourly Rollup API
 // ============================================
-// Replaces slow client-side processing with instant SQLite GROUP BY queries.
-// Returns pre-aggregated JSON (~2KB) instead of thousands of raw click records.
+// Raw clicks remain the source of truth, but dashboard requests read compact
+// hourly rows. Response time therefore scales with hours/dimensions rather
+// than the number of individual click events.
 routerAdd("GET", "/api/analytics/stats", (c) => {
+    var cacheKey = "";
+    var ownsInflight = false;
     try {
+        var utils = require(__hooks + '/utils.js');
         var user = c.auth;
         if (!user || user.collection().name !== "users") {
             return c.json(401, { message: "Unauthorized" });
         }
 
+        var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
+        if (!plan.analytics && user.get("role") !== "admin") {
+            return c.json(403, { message: "Advanced Analytics requires Creator Pro or Agency." });
+        }
+
         var query = c.request.url.query();
         var linkId = query.get("linkId") || "";
         var period = query.get("period") || "7d";
+        var validPeriods = { "24h": 24, "7d": 168, "30d": 720, "90d": 2160 };
+        if (!validPeriods[period]) {
+            return c.json(400, { message: "Invalid analytics period." });
+        }
 
-        // Build WHERE clause with parameterized queries (SQL injection safe)
         var userId = user.id;
-
-        // Calculate date cutoff
-        var days = 7;
-        if (period === "24h") days = 1;
-        else if (period === "30d") days = 30;
-        else if (period === "90d") days = 90;
-
-        // Base WHERE: only clicks belonging to user's links + within time period
-        var whereBase = "c.link_id IN (SELECT id FROM links WHERE user_id = {:userId}) AND c.created >= datetime('now', '-' || {:days} || ' days')";
-        var params = { userId: userId, days: days };
-
         if (linkId !== "") {
-            whereBase = "c.link_id = {:linkId} AND " + whereBase;
+            try {
+                $app.findFirstRecordByFilter(
+                    "links",
+                    "id = {:linkId} && user_id = {:userId}",
+                    { linkId: linkId, userId: userId }
+                );
+            } catch (ownershipError) {
+                return c.json(404, { message: "Link not found." });
+            }
+        }
+
+        cacheKey = "stats|" + userId + "|" + linkId + "|" + period;
+        var cached = utils.getAnalyticsCache(cacheKey);
+        if (cached) return c.json(200, cached);
+
+        if (!utils.analyticsRateLimitAllows(userId)) {
+            return c.json(429, { message: "Too many analytics requests. Please wait a minute." });
+        }
+        if (utils.ANALYTICS_INFLIGHT[userId]) {
+            return c.json(409, { message: "An analytics request is already running. Please retry shortly." });
+        }
+        utils.ANALYTICS_INFLIGHT[userId] = true;
+        ownsInflight = true;
+
+        var startedAt = new Date().getTime();
+        var params = { userId: userId, cutoff: "-" + validPeriods[period] + " hours" };
+        var whereBase = "r.link_id IN (SELECT id FROM links WHERE user_id = {:userId}) AND r.bucket >= strftime('%Y-%m-%dT%H:00:00Z', 'now', {:cutoff})";
+        if (linkId !== "") {
+            whereBase = "r.link_id = {:linkId} AND " + whereBase;
             params["linkId"] = linkId;
         }
 
         var db = $app.db();
-
-        // 1. Total + Unique counts
-        var totalRow = new DynamicModel({ "total": 0, "uniq": 0 });
-        db.newQuery("SELECT count(c.id) as total, COALESCE(sum(CASE WHEN c.is_unique = 1 THEN 1 ELSE 0 END), 0) as uniq FROM clicks c WHERE " + whereBase)
-            .bind(params)
-            .one(totalRow);
-
-        // 2. Countries (top 20)
-        var CountryModel = new DynamicModel({ "name": "", "clicks": 0 });
-        var countriesRaw = arrayOf(CountryModel);
-        db.newQuery("SELECT COALESCE(c.country, 'Unknown') as name, count(c.id) as clicks FROM clicks c WHERE " + whereBase + " GROUP BY name ORDER BY clicks DESC LIMIT 20")
-            .bind(params)
-            .all(countriesRaw);
-
-        // 3. Referrers (top 5)
-        var RefModel = new DynamicModel({ "name": "", "clicks": 0 });
-        var referrersRaw = arrayOf(RefModel);
-        db.newQuery("SELECT COALESCE(c.referrer, 'Direct') as name, count(c.id) as clicks FROM clicks c WHERE " + whereBase + " GROUP BY name ORDER BY clicks DESC LIMIT 5")
-            .bind(params)
-            .all(referrersRaw);
-
-        // 4. Devices
-        var DevModel = new DynamicModel({ "name": "", "value": 0 });
-        var devicesRaw = arrayOf(DevModel);
-        db.newQuery("SELECT COALESCE(c.device, 'Other') as name, count(c.id) as value FROM clicks c WHERE " + whereBase + " GROUP BY name ORDER BY value DESC")
-            .bind(params)
-            .all(devicesRaw);
-
-        // 5. Browsers (top 3)
-        var BrModel = new DynamicModel({ "name": "", "value": 0 });
-        var browsersRaw = arrayOf(BrModel);
-        db.newQuery("SELECT COALESCE(c.browser, 'Other') as name, count(c.id) as value FROM clicks c WHERE " + whereBase + " GROUP BY name ORDER BY value DESC LIMIT 3")
-            .bind(params)
-            .all(browsersRaw);
-
-        // 6. OS (top 3)
-        var OsModel = new DynamicModel({ "name": "", "value": 0 });
-        var osRaw = arrayOf(OsModel);
-        db.newQuery("SELECT COALESCE(c.os, 'Other') as name, count(c.id) as value FROM clicks c WHERE " + whereBase + " GROUP BY name ORDER BY value DESC LIMIT 3")
-            .bind(params)
-            .all(osRaw);
-
-        // 7. Trend (daily or hourly for 24h)
-        var TrendModel = new DynamicModel({ "date": "", "clicks": 0 });
-        var trendRaw = arrayOf(TrendModel);
-        if (period === "24h") {
-            db.newQuery("SELECT strftime('%Y-%m-%dT%H:00:00Z', c.created) as date, count(c.id) as clicks FROM clicks c WHERE " + whereBase + " GROUP BY date ORDER BY date ASC")
-                .bind(params)
-                .all(trendRaw);
-        } else {
-            db.newQuery("SELECT date(c.created) as date, count(c.id) as clicks FROM clicks c WHERE " + whereBase + " GROUP BY date ORDER BY date ASC")
-                .bind(params)
-                .all(trendRaw);
+        var rollupState = new DynamicModel({ "status": "pending" });
+        db.newQuery("SELECT status FROM analytics_rollup_state WHERE id = 'historical'").one(rollupState);
+        if (rollupState.status !== "complete") {
+            return c.json(503, { message: "Analytics history is being optimized. Please retry shortly." });
         }
 
-        // 8. Heatmap (day_of_week x hour)
+        var totalRow = new DynamicModel({ "total": 0, "uniq": 0 });
+        params["dimension"] = "all";
+        db.newQuery("SELECT COALESCE(sum(r.total), 0) as total, COALESCE(sum(r.unique_count), 0) as uniq FROM analytics_hourly_rollup r WHERE " + whereBase + " AND r.dimension_type = {:dimension}")
+            .bind(params).one(totalRow);
+
+        var CountryModel = new DynamicModel({ "name": "", "clicks": 0 });
+        var countriesRaw = arrayOf(CountryModel);
+        params["dimension"] = "country";
+        db.newQuery("SELECT r.dimension_value as name, sum(r.total) as clicks FROM analytics_hourly_rollup r WHERE " + whereBase + " AND r.dimension_type = {:dimension} GROUP BY r.dimension_value ORDER BY clicks DESC LIMIT 20")
+            .bind(params).all(countriesRaw);
+
+        var RefModel = new DynamicModel({ "name": "", "clicks": 0 });
+        var referrersRaw = arrayOf(RefModel);
+        params["dimension"] = "referrer";
+        db.newQuery("SELECT r.dimension_value as name, sum(r.total) as clicks FROM analytics_hourly_rollup r WHERE " + whereBase + " AND r.dimension_type = {:dimension} GROUP BY r.dimension_value ORDER BY clicks DESC LIMIT 5")
+            .bind(params).all(referrersRaw);
+
+        var ValueModel = new DynamicModel({ "name": "", "value": 0 });
+        var devicesRaw = arrayOf(ValueModel);
+        params["dimension"] = "device";
+        db.newQuery("SELECT r.dimension_value as name, sum(r.total) as value FROM analytics_hourly_rollup r WHERE " + whereBase + " AND r.dimension_type = {:dimension} GROUP BY r.dimension_value ORDER BY value DESC")
+            .bind(params).all(devicesRaw);
+
+        var BrowserModel = new DynamicModel({ "name": "", "value": 0 });
+        var browsersRaw = arrayOf(BrowserModel);
+        params["dimension"] = "browser";
+        db.newQuery("SELECT r.dimension_value as name, sum(r.total) as value FROM analytics_hourly_rollup r WHERE " + whereBase + " AND r.dimension_type = {:dimension} GROUP BY r.dimension_value ORDER BY value DESC LIMIT 3")
+            .bind(params).all(browsersRaw);
+
+        var OsModel = new DynamicModel({ "name": "", "value": 0 });
+        var osRaw = arrayOf(OsModel);
+        params["dimension"] = "os";
+        db.newQuery("SELECT r.dimension_value as name, sum(r.total) as value FROM analytics_hourly_rollup r WHERE " + whereBase + " AND r.dimension_type = {:dimension} GROUP BY r.dimension_value ORDER BY value DESC LIMIT 3")
+            .bind(params).all(osRaw);
+
+        var TrendModel = new DynamicModel({ "date": "", "clicks": 0 });
+        var trendRaw = arrayOf(TrendModel);
+        var trendBucket = period === "24h" ? "r.bucket" : "substr(r.bucket, 1, 10)";
+        params["dimension"] = "all";
+        db.newQuery("SELECT " + trendBucket + " as date, sum(r.total) as clicks FROM analytics_hourly_rollup r WHERE " + whereBase + " AND r.dimension_type = {:dimension} GROUP BY " + trendBucket + " ORDER BY date ASC")
+            .bind(params).all(trendRaw);
+
         var HeatModel = new DynamicModel({ "dow": 0, "hour": 0, "clicks": 0 });
         var heatRaw = arrayOf(HeatModel);
-        db.newQuery("SELECT CAST(strftime('%w', c.created) AS INTEGER) as dow, CAST(strftime('%H', c.created) AS INTEGER) as hour, count(c.id) as clicks FROM clicks c WHERE " + whereBase + " GROUP BY dow, hour")
-            .bind(params)
-            .all(heatRaw);
+        db.newQuery("SELECT CAST(strftime('%w', r.bucket) AS INTEGER) as dow, CAST(strftime('%H', r.bucket) AS INTEGER) as hour, sum(r.total) as clicks FROM analytics_hourly_rollup r WHERE " + whereBase + " AND r.dimension_type = {:dimension} GROUP BY dow, hour")
+            .bind(params).all(heatRaw);
 
-        // Build heatmap 7x24 matrix
         var heatmap = [];
         for (var d = 0; d < 7; d++) {
             var row = [];
-            for (var h = 0; h < 24; h++) {
-                row.push(0);
-            }
+            for (var h = 0; h < 24; h++) row.push(0);
             heatmap.push(row);
         }
         for (var i = 0; i < heatRaw.length; i++) {
@@ -2259,7 +2323,6 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
             }
         }
 
-        // Format countries with percentages
         var total = totalRow.total || 0;
         var countriesOut = [];
         for (var ci = 0; ci < countriesRaw.length; ci++) {
@@ -2270,7 +2333,6 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
             });
         }
 
-        // Format referrers with percentages
         var referrersOut = [];
         for (var ri = 0; ri < referrersRaw.length; ri++) {
             referrersOut.push({
@@ -2280,20 +2342,212 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
             });
         }
 
-        return c.json(200, {
+        var valueRowsToPlain = function (rows) {
+            var out = [];
+            for (var vi = 0; vi < rows.length; vi++) {
+                out.push({ name: rows[vi].name, value: rows[vi].value || 0 });
+            }
+            return out;
+        };
+        var trendOut = [];
+        for (var ti = 0; ti < trendRaw.length; ti++) {
+            trendOut.push({ date: trendRaw[ti].date, clicks: trendRaw[ti].clicks || 0 });
+        }
+
+        var response = {
             total: total,
             unique: totalRow.uniq || 0,
             countries: countriesOut,
             referrers: referrersOut,
-            devices: devicesRaw,
-            browsers: browsersRaw,
-            os: osRaw,
-            trend: trendRaw,
-            heatmap: heatmap
-        });
+            devices: valueRowsToPlain(devicesRaw),
+            browsers: valueRowsToPlain(browsersRaw),
+            os: valueRowsToPlain(osRaw),
+            trend: trendOut,
+            heatmap: heatmap,
+            generatedAt: new Date().toISOString(),
+            queryMs: new Date().getTime() - startedAt
+        };
+
+        utils.setAnalyticsCache(cacheKey, response, 30000);
+        if (response.queryMs > 1000) {
+            $app.logger().warn("Slow analytics rollup query user=" + userId + " period=" + period + " durationMs=" + response.queryMs);
+        }
+        return c.json(200, response);
     } catch (e) {
         $app.logger().error("Analytics stats API error: " + e.toString());
-        return c.json(500, { message: "Analytics query failed: " + e.toString() });
+        return c.json(500, { message: "Analytics query failed." });
+    } finally {
+        if (ownsInflight && utils) delete utils.ANALYTICS_INFLIGHT[c.auth ? c.auth.id : ""];
+    }
+});
+
+// Latest activity is deliberately separate from aggregate stats. A slow or
+// empty activity lookup can no longer block charts and totals, and LIMIT 5
+// avoids PocketBase list pagination's full COUNT query.
+routerAdd("GET", "/api/analytics/recent", (c) => {
+    try {
+        var utils = require(__hooks + '/utils.js');
+        var user = c.auth;
+        if (!user || user.collection().name !== "users") return c.json(401, { message: "Unauthorized" });
+        var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
+        if (!plan.analytics && user.get("role") !== "admin") return c.json(403, { message: "Advanced Analytics requires Creator Pro or Agency." });
+
+        var linkId = c.request.url.query().get("linkId") || "";
+        var params = { userId: user.id };
+        var sql = "";
+        if (linkId !== "") {
+            params["linkId"] = linkId;
+            sql = "SELECT c.id, c.country, c.device, c.os, c.browser, c.referrer, c.is_unique, c.created, l.title, l.slug FROM clicks c JOIN links l ON l.id = c.link_id WHERE c.link_id = {:linkId} AND l.user_id = {:userId} ORDER BY c.created DESC LIMIT 5";
+        } else {
+            sql = "SELECT c.id, c.country, c.device, c.os, c.browser, c.referrer, c.is_unique, c.created, l.title, l.slug FROM clicks c INDEXED BY idx_clicks_created JOIN links l ON l.id = c.link_id WHERE l.user_id = {:userId} ORDER BY c.created DESC LIMIT 5";
+        }
+
+        var RecentModel = new DynamicModel({
+            "id": "", "country": "", "device": "", "os": "", "browser": "",
+            "referrer": "", "is_unique": false, "created": "", "title": "", "slug": ""
+        });
+        var rows = arrayOf(RecentModel);
+        $app.db().newQuery(sql).bind(params).all(rows);
+
+        var items = [];
+        for (var i = 0; i < rows.length; i++) {
+            items.push({
+                id: rows[i].id,
+                country: rows[i].country,
+                device: rows[i].device,
+                os: rows[i].os,
+                browser: rows[i].browser,
+                referrer: rows[i].referrer,
+                is_unique: rows[i].is_unique,
+                created: rows[i].created,
+                expand: { link_id: { title: rows[i].title, slug: rows[i].slug } }
+            });
+        }
+        return c.json(200, { items: items });
+    } catch (e) {
+        $app.logger().error("Analytics recent API error: " + e.toString());
+        return c.json(500, { message: "Recent activity query failed." });
+    }
+});
+
+// Seven-day per-link sparklines used by Links. This replaces unbounded client
+// pagination that previously downloaded every raw click in the period.
+routerAdd("GET", "/api/links/sparklines", (c) => {
+    try {
+        var utils = require(__hooks + '/utils.js');
+        var user = c.auth;
+        if (!user || user.collection().name !== "users") return c.json(401, { message: "Unauthorized" });
+        var cacheKey = "sparklines|" + user.id;
+        var cached = utils.getAnalyticsCache(cacheKey);
+        if (cached) return c.json(200, cached);
+
+        var rollupState = new DynamicModel({ "status": "pending" });
+        $app.db().newQuery("SELECT status FROM analytics_rollup_state WHERE id = 'historical'").one(rollupState);
+        if (rollupState.status !== "complete") {
+            return c.json(503, { message: "Analytics history is being optimized. Please retry shortly." });
+        }
+
+        var SparkModel = new DynamicModel({ "link_id": "", "day": "", "clicks": 0 });
+        var rows = arrayOf(SparkModel);
+        $app.db().newQuery(`
+            SELECT r.link_id, substr(r.bucket, 1, 10) as day, sum(r.total) as clicks
+            FROM analytics_hourly_rollup r
+            WHERE r.link_id IN (SELECT id FROM links WHERE user_id = {:userId})
+              AND r.dimension_type = 'all'
+              AND r.bucket >= strftime('%Y-%m-%dT00:00:00Z', 'now', '-6 days')
+            GROUP BY r.link_id, substr(r.bucket, 1, 10)
+            ORDER BY day ASC
+        `).bind({ userId: user.id }).all(rows);
+
+        var items = [];
+        for (var i = 0; i < rows.length; i++) {
+            items.push({ link_id: rows[i].link_id, day: rows[i].day, clicks: rows[i].clicks || 0 });
+        }
+        var response = { items: items };
+        utils.setAnalyticsCache(cacheKey, response, 30000);
+        return c.json(200, response);
+    } catch (e) {
+        $app.logger().error("Links sparklines API error: " + e.toString());
+        return c.json(500, { message: "Sparkline query failed." });
+    }
+});
+
+// Lightweight dashboard summary for every plan. This removes the previous
+// paginated raw-click request and makes the seven-day chart exact.
+routerAdd("GET", "/api/dashboard/summary", (c) => {
+    try {
+        var utils = require(__hooks + '/utils.js');
+        var user = c.auth;
+        if (!user || user.collection().name !== "users") return c.json(401, { message: "Unauthorized" });
+        var cacheKey = "dashboard|" + user.id;
+        var cached = utils.getAnalyticsCache(cacheKey);
+        if (cached) return c.json(200, cached);
+
+        var rollupState = new DynamicModel({ "status": "pending" });
+        $app.db().newQuery("SELECT status FROM analytics_rollup_state WHERE id = 'historical'").one(rollupState);
+        if (rollupState.status !== "complete") {
+            return c.json(503, { message: "Analytics history is being optimized. Please retry shortly." });
+        }
+
+        var summary = new DynamicModel({ "total_clicks": 0, "active_links": 0, "total_links": 0 });
+        $app.db().newQuery(`
+            SELECT
+              COALESCE(sum(clicks_count), 0) as total_clicks,
+              COALESCE(sum(CASE WHEN active = 1 THEN 1 ELSE 0 END), 0) as active_links,
+              count(id) as total_links
+            FROM links
+            WHERE user_id = {:userId}
+        `).bind({ userId: user.id }).one(summary);
+
+        var TrendModel = new DynamicModel({ "day": "", "clicks": 0 });
+        var trendRows = arrayOf(TrendModel);
+        $app.db().newQuery(`
+            SELECT substr(r.bucket, 1, 10) as day, sum(r.total) as clicks
+            FROM analytics_hourly_rollup r
+            WHERE r.link_id IN (SELECT id FROM links WHERE user_id = {:userId})
+              AND r.dimension_type = 'all'
+              AND r.bucket >= strftime('%Y-%m-%dT00:00:00Z', 'now', '-6 days')
+            GROUP BY substr(r.bucket, 1, 10)
+            ORDER BY day ASC
+        `).bind({ userId: user.id }).all(trendRows);
+
+        var RecentModel = new DynamicModel({ "slug": "", "country": "", "device": "", "created": "" });
+        var recentRows = arrayOf(RecentModel);
+        $app.db().newQuery(`
+            SELECT l.slug, c.country, c.device, c.created
+            FROM clicks c INDEXED BY idx_clicks_created
+            JOIN links l ON l.id = c.link_id
+            WHERE l.user_id = {:userId}
+            ORDER BY c.created DESC
+            LIMIT 5
+        `).bind({ userId: user.id }).all(recentRows);
+
+        var trend = [];
+        for (var i = 0; i < trendRows.length; i++) {
+            trend.push({ day: trendRows[i].day, clicks: trendRows[i].clicks || 0 });
+        }
+        var recent = [];
+        for (var j = 0; j < recentRows.length; j++) {
+            recent.push({
+                slug: recentRows[j].slug,
+                country: recentRows[j].country,
+                device: recentRows[j].device,
+                created: recentRows[j].created
+            });
+        }
+
+        var response = {
+            totalClicks: summary.total_clicks || 0,
+            activeLinks: summary.active_links || 0,
+            totalLinks: summary.total_links || 0,
+            trend: trend,
+            recent: recent
+        };
+        utils.setAnalyticsCache(cacheKey, response, 30000);
+        return c.json(200, response);
+    } catch (e) {
+        $app.logger().error("Dashboard summary API error: " + e.toString());
+        return c.json(500, { message: "Dashboard summary query failed." });
     }
 });
 

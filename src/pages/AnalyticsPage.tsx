@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { BarChart3, Globe, Smartphone, Monitor, TabletSmartphone, Loader2, Lock, Clock } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -32,6 +32,7 @@ export default function AnalyticsPage() {
   const { user } = useAuth();
   const [period, setPeriod] = useState("7d");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [clicksCount, setClicksCount] = useState(0);
   const [uniqueCount, setUniqueCount] = useState(0);
   const [countries, setCountries] = useState<{ name: string; clicks: number; pct: number }[]>([]);
@@ -42,21 +43,29 @@ export default function AnalyticsPage() {
   const [trendData, setTrendData] = useState<{ date: string; clicks: number }[]>([]);
   const [recentActivities, setRecentActivities] = useState<ClickRecord[]>([]);
   const [heatmapData, setHeatmapData] = useState<number[][]>(Array.from({ length: 7 }, () => Array(24).fill(0)));
+  const loadedOnceRef = useRef(false);
 
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const canUseAnalytics = checkPlan(userPlan, "analytics");
 
   useEffect(() => {
     if (!canUseAnalytics) return;
+    let active = true;
+    const requestKey = "analytics-stats";
     const fetchAnalytics = async () => {
-      setLoading(true);
+      if (loadedOnceRef.current) setRefreshing(true);
+      else setLoading(true);
       try {
         // === SERVER-SIDE SQL AGGREGATION ===
         // Single API call returns pre-aggregated data (~2KB) instead of thousands of raw records.
         const queryParams = new URLSearchParams({ period });
         if (linkId) queryParams.set("linkId", linkId);
 
-        const stats = await pb.send(`/api/analytics/stats?${queryParams.toString()}`, { method: "GET" });
+        const stats = await pb.send(`/api/analytics/stats?${queryParams.toString()}`, {
+          method: "GET",
+          requestKey,
+        });
+        if (!active) return;
 
         // 1. Totals (already computed by SQL)
         setClicksCount(stats.total || 0);
@@ -123,24 +132,48 @@ export default function AnalyticsPage() {
         setHeatmapData(stats.heatmap || Array.from({ length: 7 }, () => Array(24).fill(0)));
 
         // 9. Recent activities — small separate query (only 5 records with expand)
-        const recentResult = await pb.collection('clicks').getList<ClickRecord>(1, 5, {
-          filter: linkId
-            ? `link_id="${linkId}" && link_id.user_id="${pb.authStore.model?.id}"`
-            : `link_id.user_id="${pb.authStore.model?.id}"`,
-          sort: '-created',
-          expand: 'link_id',
-        });
-        setRecentActivities(recentResult.items);
-
       } catch (error: unknown) {
+        if ((error as { isAbort?: boolean }).isAbort) return;
         console.error("Analytics fetch error:", error);
         toast.error("Failed to fetch analytics");
       } finally {
-        setLoading(false);
+        if (active) {
+          loadedOnceRef.current = true;
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     };
     fetchAnalytics();
+    return () => {
+      active = false;
+      pb.cancelRequest(requestKey);
+    };
   }, [linkId, period, canUseAnalytics]);
+
+  useEffect(() => {
+    if (!canUseAnalytics) return;
+    let active = true;
+    const requestKey = "analytics-recent";
+    const queryParams = new URLSearchParams();
+    if (linkId) queryParams.set("linkId", linkId);
+    const suffix = queryParams.toString() ? `?${queryParams.toString()}` : "";
+
+    pb.send(`/api/analytics/recent${suffix}`, { method: "GET", requestKey })
+      .then((result: { items?: ClickRecord[] }) => {
+        if (active) setRecentActivities(result.items || []);
+      })
+      .catch((error: unknown) => {
+        if (!(error as { isAbort?: boolean }).isAbort) {
+          console.error("Recent analytics fetch error:", error);
+        }
+      });
+
+    return () => {
+      active = false;
+      pb.cancelRequest(requestKey);
+    };
+  }, [linkId, canUseAnalytics]);
 
   if (!canUseAnalytics) {
     return (
@@ -199,9 +232,10 @@ export default function AnalyticsPage() {
             {linkId ? "Showing stats for specific link" : "Across all your links"}
           </p>
         </div>
-        <div className="flex gap-1 p-1 rounded-xl bg-surface border border-border">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-surface border border-border">
+          {refreshing && <Loader2 className="ml-1 h-4 w-4 animate-spin text-accent" aria-label="Refreshing analytics" />}
           {["24h", "7d", "30d", "90d"].map((p) => (
-            <button key={p} onClick={() => setPeriod(p)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${period === p ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            <button key={p} disabled={refreshing} onClick={() => setPeriod(p)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:cursor-wait disabled:opacity-70 ${period === p ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}>
               {p}
             </button>
           ))}

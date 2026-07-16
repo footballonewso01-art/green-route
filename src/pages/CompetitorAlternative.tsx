@@ -39,6 +39,8 @@ interface Competitor {
   faqAnswer: string;
   alternativeSeoTitle: string;
   alternativeSeoDescription: string;
+  officialPricingUrl?: string;
+  reviewedAt?: string;
 }
 
 export default function CompetitorAlternative() {
@@ -92,7 +94,7 @@ export default function CompetitorAlternative() {
     },
     {
       question: `How do I bypass the Instagram and TikTok in-app browser jail with a ${competitor.name} alternative?`,
-      answer: `When users click links inside Instagram or TikTok bios, they open in sandboxed in-app browsers, where visitors are logged out of native accounts (like Spotify, YouTube, or Amazon). Linktery bypasses this by using optimized deep-linking protocols that force the visitor's device to launch the native app directly, which is not supported natively by ${competitor.name}.`
+      answer: `Links opened inside Instagram or TikTok can remain in an embedded browser. Linktery can route compatible destinations toward supported native-app or system-browser experiences and retain a web fallback. Actual handoff behavior depends on the destination, operating system, installed app, and browser.`
     },
     {
       question: `Can I connect my own custom domain to a bio link profile?`,
@@ -395,7 +397,7 @@ export default function CompetitorAlternative() {
             <thead>
               <tr className="border-b border-border bg-slate-900/60 text-muted-foreground text-xs md:text-sm font-bold tracking-wider uppercase font-mono">
                 <th className="p-4 md:p-6">Feature Details</th>
-                <th className="p-4 md:p-6 text-accent">Linktery (Winner)</th>
+                <th className="p-4 md:p-6 text-accent">Linktery</th>
                 <th className="p-4 md:p-6">{competitor.name} {competitor.emoji}</th>
                 <th className="p-4 md:p-6">{fallbackCompetitor.name} {fallbackCompetitor.emoji}</th>
               </tr>
@@ -415,7 +417,7 @@ export default function CompetitorAlternative() {
               </tr>
               <tr className="hover:bg-surface-hover/40 transition-colors">
                 <td className="p-4 md:p-6 font-semibold text-white font-sans">App Deep Linking</td>
-                <td className="p-4 md:p-6 text-green-400 font-bold">✅ Yes (Launch Native Apps)</td>
+                <td className="p-4 md:p-6 text-green-400 font-bold">Compatible app destinations with web fallback</td>
                 <td className="p-4 md:p-6 text-slate-400">{competitor.features.deepLinking}</td>
                 <td className="p-4 md:p-6 text-slate-400">{fallbackCompetitor.features.deepLinking}</td>
               </tr>
@@ -434,6 +436,12 @@ export default function CompetitorAlternative() {
             </tbody>
           </table>
         </div>
+        {competitor.officialPricingUrl && (
+          <p className="mt-4 text-xs leading-5 text-slate-500">
+            Source: <a className="text-accent hover:underline" href={competitor.officialPricingUrl} target="_blank" rel="noreferrer">{competitor.name} official pricing</a>
+            {competitor.reviewedAt ? ` · Reviewed ${competitor.reviewedAt}` : ""}. Prices and plan features can change.
+          </p>
+        )}
       </section>
 
       {/* Competitor Review Detail Section */}
@@ -446,7 +454,7 @@ export default function CompetitorAlternative() {
             <h2 className="text-2xl md:text-3xl font-extrabold text-white uppercase tracking-tight">Linktery: Performance Routing</h2>
           </div>
           <p className="text-slate-300 leading-relaxed font-sans font-medium text-sm md:text-base">
-            Linktery is engineered as a performance-driven routing engine. Instead of a simple index profile, it maps your custom domains, evaluates device-targeting rules at the edge CDN layer, and launches native device apps to bypass conversion drops.
+            Linktery combines public profiles with short-link management, custom domains, device and country rules, weighted destinations, and analytics. Compatible app-aware destinations can use supported handoff behavior while retaining a web fallback.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-slate-900/60 p-6 rounded-2xl border border-border space-y-2">

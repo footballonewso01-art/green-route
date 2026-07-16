@@ -122,7 +122,7 @@ export default function AlternativesIndex() {
             LINK IN BIO <span className="text-accent">ALTERNATIVES</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed font-medium">
-            Compare side-by-side specs, pricing tiers, commission cuts, and custom domain options for 14 major competitor platforms vs Linktery.
+            Compare side-by-side specs, pricing tiers, commission cuts, and custom domain options for {competitorsData.length} major platforms and Linktery.
           </p>
         </div>
       </section>

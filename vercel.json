@@ -1,4 +1,10 @@
 {
+  "redirects": [
+    { "source": "/features", "destination": "/features/link-management", "permanent": true },
+    { "source": "/tools", "destination": "/tools/utm-builder", "permanent": true },
+    { "source": "/templates", "destination": "/templates/link-in-bio", "permanent": true },
+    { "source": "/guides", "destination": "/guides/what-is-link-management", "permanent": true }
+  ],
   "headers": [
     {
       "source": "/login",

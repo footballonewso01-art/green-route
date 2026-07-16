@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AdminRoute } from "./components/AdminRoute";
 import { PRIMARY_DOMAIN } from "./lib/siteConfig";
+import { isSystemRoute } from "./lib/systemRoutes";
 
 import RedirectHandler from "./pages/RedirectHandler";
 
@@ -38,6 +39,9 @@ const CompetitorComparison = lazy(() => import("./pages/CompetitorComparison"));
 const CompetitorAlternative = lazy(() => import("./pages/CompetitorAlternative"));
 const SolutionsIndex = lazy(() => import("./pages/SolutionsIndex"));
 const AlternativesIndex = lazy(() => import("./pages/AlternativesIndex"));
+const SeoContentPage = lazy(() => import("./pages/SeoContentPage"));
+const UtmBuilder = lazy(() => import("./pages/UtmBuilder"));
+const QrCodeGenerator = lazy(() => import("./pages/QrCodeGenerator"));
 
 // Non-indexed, dynamic, or authenticated routes.
 const LoginPage = lazy(() => import("./pages/LoginPage"));
@@ -86,17 +90,7 @@ function DomainGuard() {
     // If not main domain, not localhost, and not a vercel preview URL
     if (hostname !== MAIN_DOMAIN && hostname !== 'localhost' && !hostname.includes('vercel.app')) {
       // System paths that should NOT be accessed on alternate domains
-      const isSystemPath = location.pathname === '/' || 
-                          location.pathname.startsWith('/login') || 
-                          location.pathname.startsWith('/register') || 
-                          location.pathname.startsWith('/dashboard') || 
-                          location.pathname.startsWith('/pricing') || 
-                          location.pathname.startsWith('/privacy') || 
-                          location.pathname.startsWith('/terms') || 
-                          location.pathname.startsWith('/alternatives') || 
-                          location.pathname.startsWith('/solutions') || 
-                          location.pathname.startsWith('/open-in-browser') || 
-                          location.pathname.startsWith('/admin');
+      const isSystemPath = isSystemRoute(location.pathname);
                           
       if (isSystemPath) {
         window.location.replace(`https://${MAIN_DOMAIN}${location.pathname}${location.search}`);
@@ -165,6 +159,15 @@ const AppRoutes = () => (
     <Route path="/solutions/qr-code-biolink" element={<QrCodeBiolink />} />
     <Route path="/solutions/:professionPath" element={<ProfessionSolutions />} />
     <Route path="/compare/:comparisonSlug" element={<CompetitorComparison />} />
+    <Route path="/features" element={<Navigate to="/features/link-management" replace />} />
+    <Route path="/features/:resourceSlug" element={<SeoContentPage />} />
+    <Route path="/templates" element={<Navigate to="/templates/link-in-bio" replace />} />
+    <Route path="/templates/:resourceSlug" element={<SeoContentPage />} />
+    <Route path="/guides" element={<Navigate to="/guides/what-is-link-management" replace />} />
+    <Route path="/guides/:resourceSlug" element={<SeoContentPage />} />
+    <Route path="/tools" element={<Navigate to="/tools/utm-builder" replace />} />
+    <Route path="/tools/utm-builder" element={<UtmBuilder />} />
+    <Route path="/tools/qr-code-generator" element={<QrCodeGenerator />} />
     <Route path="/auth" element={<Navigate to="/login" replace />} />
     <Route path="/404" element={<NotFound />} />
 

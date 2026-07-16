@@ -37,6 +37,8 @@ interface Competitor {
   pros: string[];
   cons: string[];
   faqAnswer: string;
+  officialPricingUrl?: string;
+  reviewedAt?: string;
 }
 
 export default function CompetitorComparison() {
@@ -250,7 +252,7 @@ export default function CompetitorComparison() {
             {competitorA.name} <span className="text-muted-foreground lowercase text-2xl md:text-4xl font-normal px-2">vs</span> {competitorB.name}
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed font-medium">
-            Comparing features, pricing limits, and redirect speeds. Discover why performance creators choose Linktery to bypass browser barriers.
+            Compare published features, pricing limits, analytics, domains, and routing options before choosing the workflow that fits your campaign.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {user ? (
@@ -281,7 +283,7 @@ export default function CompetitorComparison() {
             <thead>
               <tr className="border-b border-border bg-slate-900/60 text-muted-foreground text-xs md:text-sm font-bold tracking-wider uppercase font-mono">
                 <th className="p-5 md:p-6">Feature</th>
-                <th className="p-5 md:p-6 text-accent">Linktery (Winner)</th>
+                <th className="p-5 md:p-6 text-accent">Linktery</th>
                 <th className="p-5 md:p-6">{competitorA.name} {competitorA.emoji}</th>
                 <th className="p-5 md:p-6">{competitorB.name} {competitorB.emoji}</th>
               </tr>
@@ -313,7 +315,7 @@ export default function CompetitorComparison() {
               </tr>
               <tr className="hover:bg-surface-hover/30 transition-colors">
                 <td className="p-5 md:p-6 font-semibold text-white font-sans">App Deep Linking</td>
-                <td className="p-5 md:p-6 text-green-400 font-bold">✅ Yes (Launch Native Apps)</td>
+                <td className="p-5 md:p-6 text-green-400 font-bold">Compatible app destinations with web fallback</td>
                 <td className="p-5 md:p-6 text-slate-400">{competitorA.features.deepLinking}</td>
                 <td className="p-5 md:p-6 text-slate-400">{competitorB.features.deepLinking}</td>
               </tr>
@@ -330,14 +332,22 @@ export default function CompetitorComparison() {
                 <td className="p-5 md:p-6 text-slate-300">{competitorB.pricing.transactionFee}</td>
               </tr>
               <tr className="hover:bg-surface-hover/30 transition-colors">
-                <td className="p-5 md:p-6 font-semibold text-white font-sans">Page Load Speed (LCP)</td>
-                <td className="p-5 md:p-6 text-green-400 font-bold">✅ Pre-rendered public landing pages</td>
-                <td className="p-5 md:p-6 text-amber-500">⚠️ Varies (Client-side load)</td>
-                <td className="p-5 md:p-6 text-amber-500">⚠️ Varies (Client-side load)</td>
+                <td className="p-5 md:p-6 font-semibold text-white font-sans">Public page architecture</td>
+                <td className="p-5 md:p-6 text-green-400 font-bold">Pre-rendered Linktery marketing pages</td>
+                <td className="p-5 md:p-6 text-slate-400">Varies by current published implementation</td>
+                <td className="p-5 md:p-6 text-slate-400">Varies by current published implementation</td>
               </tr>
             </tbody>
           </table>
         </div>
+        {(competitorA.officialPricingUrl || competitorB.officialPricingUrl) && (
+          <p className="mt-4 text-xs leading-5 text-slate-500">
+            Source check: {competitorA.officialPricingUrl && <a className="text-accent hover:underline" href={competitorA.officialPricingUrl} target="_blank" rel="noreferrer">{competitorA.name} official pricing</a>}
+            {competitorA.officialPricingUrl && competitorB.officialPricingUrl ? " · " : ""}
+            {competitorB.officialPricingUrl && <a className="text-accent hover:underline" href={competitorB.officialPricingUrl} target="_blank" rel="noreferrer">{competitorB.name} official pricing</a>}.
+            {competitorA.reviewedAt || competitorB.reviewedAt ? ` Reviewed ${competitorA.reviewedAt || competitorB.reviewedAt}.` : ""}
+          </p>
+        )}
       </section>
 
       {/* Side-by-Side Pros/Cons Analysis */}

@@ -8,12 +8,61 @@ var GEO_CACHE_SIZE = 0;
 var GEO_CACHE_MAX = 10000;
 var GEO_CACHE_CREATED = new Date().getTime();
 
+// Process-local aggregate response cache and abuse controls. Keeping these in
+// the shared module is required by PocketBase's isolated router callbacks.
+var ANALYTICS_RESPONSE_CACHE = {};
+var ANALYTICS_INFLIGHT = {};
+var ANALYTICS_RATE_WINDOWS = {};
+
+var analyticsRateLimitAllows = function (userId) {
+    var now = new Date().getTime();
+    var windowStart = now - 60000;
+    var previous = ANALYTICS_RATE_WINDOWS[userId] || [];
+    var active = [];
+    for (var i = 0; i < previous.length; i++) {
+        if (previous[i] >= windowStart) active.push(previous[i]);
+    }
+    if (active.length >= 10) {
+        ANALYTICS_RATE_WINDOWS[userId] = active;
+        return false;
+    }
+    active.push(now);
+    ANALYTICS_RATE_WINDOWS[userId] = active;
+    return true;
+};
+
+var getAnalyticsCache = function (key) {
+    var item = ANALYTICS_RESPONSE_CACHE[key];
+    if (!item) return null;
+    if (item.expiresAt <= new Date().getTime()) {
+        delete ANALYTICS_RESPONSE_CACHE[key];
+        return null;
+    }
+    return item.data;
+};
+
+var setAnalyticsCache = function (key, data, ttlMs) {
+    var keys = Object.keys(ANALYTICS_RESPONSE_CACHE);
+    if (keys.length > 500) {
+        var now = new Date().getTime();
+        for (var i = 0; i < keys.length; i++) {
+            if (ANALYTICS_RESPONSE_CACHE[keys[i]].expiresAt <= now) {
+                delete ANALYTICS_RESPONSE_CACHE[keys[i]];
+            }
+        }
+    }
+    ANALYTICS_RESPONSE_CACHE[key] = {
+        expiresAt: new Date().getTime() + ttlMs,
+        data: data
+    };
+};
+
 // Single server-side source of truth for entitlements and monthly list prices.
 // -1 denotes an unlimited resource.
 var PLAN_CATALOG = {
-    "creator": { "links": 3, "publicProfiles": 1, "monthlyPrice": 0 },
-    "pro": { "links": 15, "publicProfiles": 3, "monthlyPrice": 11 },
-    "agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29 }
+    "creator": { "links": 3, "publicProfiles": 1, "monthlyPrice": 0, "analytics": false },
+    "pro": { "links": 15, "publicProfiles": 3, "monthlyPrice": 11, "analytics": true },
+    "agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29, "analytics": true }
 };
 
 var PROFILE_TEMPLATES = {
@@ -336,6 +385,12 @@ module.exports = {
     GEO_CACHE_SIZE,
     GEO_CACHE_MAX,
     GEO_CACHE_CREATED,
+    ANALYTICS_RESPONSE_CACHE,
+    ANALYTICS_INFLIGHT,
+    ANALYTICS_RATE_WINDOWS,
+    analyticsRateLimitAllows,
+    getAnalyticsCache,
+    setAnalyticsCache,
     PLAN_CATALOG,
     PROFILE_TEMPLATES,
     getPlanCatalogEntry,

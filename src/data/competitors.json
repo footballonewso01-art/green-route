@@ -539,5 +539,39 @@
     "faqAnswer": "UrMy.bio targets agencies but charges exorbitant fees for simple features. Linktery offers unlimited link rotators, geo-rules, and deep links at a fraction of the cost under a premium, high-speed interface.",
     "alternativeSeoTitle": "Best UrMy.bio Alternative: Premium OFM Agency Link Router | Linktery",
     "alternativeSeoDescription": "Compare UrMy.bio vs Linktery. Discover the ultimate agency traffic router with unlimited A/B link splits, geotargeting, and zero watermark branding."
+  },
+  {
+    "slug": "bitly",
+    "name": "Bitly",
+    "emoji": "🔗",
+    "description": "Bitly is a broad link-management platform combining short links, branded domains, QR codes, landing pages, and cross-channel analytics.",
+    "pricing": {
+      "free": "$0 (5 links/mo)",
+      "pro": "$10/mo billed annually (Core)",
+      "customDomains": "$29/mo billed annually (Growth)",
+      "watermarkRemoval": "Varies by landing-page tier",
+      "transactionFee": "0%"
+    },
+    "features": {
+      "deepLinking": "Premium plan and Enterprise",
+      "geotargeting": "Not listed as a standard self-serve routing feature",
+      "analytics": "Click and scan analytics; depth and retention vary by plan",
+      "customDomains": "Growth plan and above"
+    },
+    "pros": [
+      "Mature URL shortening and branded-link workflows",
+      "QR codes, landing pages, and analytics in one platform",
+      "Strong API, integration, and team-management ecosystem"
+    ],
+    "cons": [
+      "Free plan limits the number of new links created each month",
+      "Custom domains start on the Growth tier",
+      "Advanced mobile deep linking is positioned on higher-priced plans"
+    ],
+    "faqAnswer": "Bitly is a mature choice for broad link management. Linktery is an alternative for users who want short URLs, customizable public profiles, weighted rotation, country and device routing, and creator-focused workflows in one workspace.",
+    "alternativeSeoTitle": "Best Bitly Alternative for Smart Routing | Linktery",
+    "alternativeSeoDescription": "Compare Bitly vs Linktery for short URLs, public profiles, QR codes, custom domains, click analytics, weighted rotation, and routing rules.",
+    "officialPricingUrl": "https://bitly.com/pages/pricing",
+    "reviewedAt": "2026-07-15"
   }
 ]
