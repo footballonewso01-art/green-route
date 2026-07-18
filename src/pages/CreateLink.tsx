@@ -232,18 +232,13 @@ export default function CreateLink() {
 
     if (form.slug) {
       try {
-        const [existingLinks, existingUsers, existingProfiles] = await Promise.all([
+        const [existingLinks, existingProfiles] = await Promise.all([
           pb.collection('links').getList(1, 1, { filter: `slug="${form.slug}" && id!="${id || ''}"` }),
-          pb.collection('users').getList(1, 1, { filter: `username="${form.slug}"` }),
           pb.collection('public_profiles').getList(1, 1, { filter: `slug="${form.slug}"` })
         ]);
 
         if (existingLinks.totalItems > 0) {
           toast.error("This slug is already in use by another link");
-          return;
-        }
-        if (existingUsers.totalItems > 0) {
-          toast.error("This slug is reserved by a user profile");
           return;
         }
         if (existingProfiles.totalItems > 0) {

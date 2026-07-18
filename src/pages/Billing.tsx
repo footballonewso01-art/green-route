@@ -5,16 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Link, useSearchParams } from "react-router-dom";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
-
-type BillingRecord = {
-    id: string;
-    plan: string;
-    amount: number;
-    status: string;
-    payment_method: string;
-    created: string;
-    end_date?: string;
-};
+import { BillingRecord, formatBillingDate } from "@/lib/billing";
 
 export default function BillingPage() {
     const { user, refreshUser } = useAuth();
@@ -38,16 +29,20 @@ export default function BillingPage() {
                     body: { sessionId }
                 });
                 if (result.activated) {
+                    // Clear only after successful server-side activation. If
+                    // verification is temporarily unavailable, a reload can retry.
+                    setSearchParams({}, { replace: true });
                     toast.success(`🎉 ${result.plan.charAt(0).toUpperCase() + result.plan.slice(1)} plan activated!`);
                     // Refresh user data to update UI
                     if (refreshUser) await refreshUser();
+                } else {
+                    toast.error("Payment received, but plan activation is still pending. Reload this page to retry.");
                 }
             } catch (err) {
                 console.error("Session verify error:", err);
+                toast.error("Payment received, but plan activation is still pending. Reload this page to retry.");
             } finally {
                 setVerifying(false);
-                // Clean session_id from URL
-                setSearchParams({}, { replace: true });
             }
         };
         verifySession();
@@ -80,23 +75,6 @@ export default function BillingPage() {
     }, [user, verifying]);
 
     const activePlanDetails = PLANS[currentPlan] || PLANS.creator;
-
-    const formatDate = (dateStr: string) => {
-        return new Date(dateStr).toLocaleDateString("ru-RU", {
-            year: "numeric", month: "short", day: "numeric"
-        });
-    };
-
-    const getEndDate = (log: BillingRecord) => {
-        if (log.end_date) {
-            return formatDate(log.end_date);
-        }
-        const d = new Date(log.created);
-        d.setDate(d.getDate() + 30);
-        return d.toLocaleDateString("ru-RU", {
-            year: "numeric", month: "short", day: "numeric"
-        });
-    };
 
     const hasStripeCustomer = logs.some(log => log.payment_method === "Stripe" && log.status === "active");
 
@@ -211,8 +189,8 @@ export default function BillingPage() {
                                 <th className="px-6 py-4 font-medium">Status</th>
                                 <th className="px-6 py-4 font-medium">Price</th>
                                 <th className="px-6 py-4 font-medium">Method</th>
-                                <th className="px-6 py-4 font-medium">Start Date</th>
-                                <th className="px-6 py-4 font-medium">End Date</th>
+                                <th className="px-6 py-4 font-medium">Period Start</th>
+                                <th className="px-6 py-4 font-medium">Period End</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border/50">
@@ -242,8 +220,8 @@ export default function BillingPage() {
                                                 {log.payment_method || "Given"}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-muted-foreground">{formatDate(log.created)}</td>
-                                        <td className="px-6 py-4 text-muted-foreground">{getEndDate(log)}</td>
+                                        <td className="px-6 py-4 text-muted-foreground">{formatBillingDate(log.period_start)}</td>
+                                        <td className="px-6 py-4 text-muted-foreground">{formatBillingDate(log.end_date)}</td>
                                     </tr>
                                 ))
                             ) : (

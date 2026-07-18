@@ -77,6 +77,53 @@ var getPlanCatalogEntry = function(planName) {
     return PLAN_CATALOG[planName] || PLAN_CATALOG.creator;
 };
 
+// PocketBase executes router callbacks in isolated JSVM scopes. Keep Stripe
+// helpers in this shared module and require them inside each callback.
+var getStripePeriodFromSubscription = function (subscription) {
+    var firstItem = subscription && subscription.items && subscription.items.data && subscription.items.data.length > 0
+        ? subscription.items.data[0]
+        : null;
+    var start = subscription ? (subscription.current_period_start || (firstItem && firstItem.current_period_start)) : null;
+    var end = subscription ? (subscription.current_period_end || (firstItem && firstItem.current_period_end)) : null;
+
+    if (!start || !end || !isFinite(Number(start)) || !isFinite(Number(end))) {
+        throw new Error("Stripe subscription has no valid current billing period");
+    }
+
+    // PocketBase DateTime accepts a formatted string, not a JavaScript Date.
+    // Passing Date objects silently creates "now", which would expire plans
+    // immediately after webhook processing.
+    var startValue = new Date(Number(start) * 1000).toISOString().replace("T", " ");
+    var endValue = new Date(Number(end) * 1000).toISOString().replace("T", " ");
+
+    return {
+        start: new DateTime(startValue),
+        end: new DateTime(endValue),
+        startUnix: Number(start),
+        endUnix: Number(end)
+    };
+};
+
+var fetchStripeSubscriptionPeriod = function (subscriptionId, stripeSecretKey) {
+    if (!subscriptionId) {
+        throw new Error("Stripe subscription id is required to determine billing period");
+    }
+
+    var response = $http.send({
+        url: "https://api.stripe.com/v1/subscriptions/" + subscriptionId,
+        method: "GET",
+        headers: {
+            "Authorization": "Bearer " + stripeSecretKey
+        },
+        timeout: 10
+    });
+    if (response.statusCode >= 400) {
+        throw new Error("Stripe subscription fetch error: " + response.statusCode);
+    }
+
+    return getStripePeriodFromSubscription(response.json);
+};
+
 var readerToString = function (reader) {
     var result = "";
     var buffer = new Uint8Array(1024);
@@ -394,6 +441,8 @@ module.exports = {
     PLAN_CATALOG,
     PROFILE_TEMPLATES,
     getPlanCatalogEntry,
+    getStripePeriodFromSubscription,
+    fetchStripeSubscriptionPeriod,
     readerToString,
     FLY_REGION_MAP,
     resolveCountryFromIP,

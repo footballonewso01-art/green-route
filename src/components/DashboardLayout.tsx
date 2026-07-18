@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Link2, BarChart3, User, Settings, Zap, Menu, X, LogOut, Info, Search, Tag, ShieldCheck, HelpCircle, Bell, Share2, ShieldAlert, Users, Link as LinkIcon } from "lucide-react";
+import { Building2, LayoutDashboard, Link2, BarChart3, User, Settings, Zap, Menu, X, LogOut, Info, Search, Tag, ShieldCheck, HelpCircle, Bell, Share2, ShieldAlert, Users, Link as LinkIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { PLANS, PlanType } from "@/lib/plans";
 import { pb } from "@/lib/pocketbase";
@@ -116,6 +116,7 @@ export default function DashboardLayout() {
 
   const planId = (user as { plan?: string })?.plan || "creator";
   const plan = PLANS[planId as PlanType];
+  const PlanIcon = planId === "agency" ? Building2 : Zap;
   const maxLinks = plan?.limits.links || 0;
   const usagePercentage = maxLinks === -1 ? 0 : Math.min(100, ((linksCount ?? 0) / maxLinks) * 100);
   const usageText = maxLinks === -1 ? "Unlimited Links" : `${linksCount ?? 0} / ${maxLinks} links used`;
@@ -301,11 +302,11 @@ export default function DashboardLayout() {
             </div>
 
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/20 mr-2">
-              <Zap className="w-3.5 h-3.5 text-accent" />
+              <PlanIcon className="w-3.5 h-3.5 text-accent" />
               <span className="text-xs font-bold text-accent uppercase tracking-wide">{plan?.name}</span>
             </div>
 
-            <div className="w-10 h-10 rounded-2xl bg-accent/20 flex items-center justify-center text-accent text-sm font-semibold overflow-hidden border border-accent/20">
+            <div className="w-10 h-10 rounded-[10px] bg-accent/20 flex items-center justify-center text-accent text-sm font-semibold overflow-hidden border border-accent/20">
               {user?.avatar && user?.collectionId ? (
                 <img src={pb.files.getUrl(user as unknown as Record<string, unknown>, user.avatar)} alt="Avatar" className="w-full h-full object-cover" />
               ) : (

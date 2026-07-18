@@ -17,6 +17,7 @@ COPY ./pb_hooks /pb/pb_hooks
 COPY ./pb_migrations /pb/pb_migrations
 COPY ./repair_db.py /pb/repair_db.py
 COPY ./backfill_analytics_rollup.py /pb/backfill_analytics_rollup.py
+COPY ./backfill_billing_periods.py /pb/backfill_billing_periods.py
 
 # Expose the default port
 EXPOSE 8080

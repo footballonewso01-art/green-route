@@ -16,6 +16,7 @@ interface User {
   card_color: string;
   username_last_changed: string;
   plan: string;
+  plan_expires_at?: string;
   online_counter: boolean;
   role?: string;
   promocode_used?: string;
@@ -66,6 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           card_color: parsed.model.card_color || '#000000',
           username_last_changed: parsed.model.username_last_changed || '',
           plan: parsed.model.plan,
+          plan_expires_at: parsed.model.plan_expires_at || '',
           online_counter: !!parsed.model.online_counter,
           role: parsed.model.role || 'user',
           promocode_used: parsed.model.promocode_used || '',
@@ -135,6 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           card_color: model.card_color || '#000000',
           username_last_changed: model.username_last_changed || '',
           plan: model.plan,
+          plan_expires_at: model.plan_expires_at || '',
           online_counter: !!model.online_counter,
           role: model.role || 'user',
           promocode_used: model.promocode_used || '',
@@ -244,6 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       card_color: (userData.card_color as string) || '#000000',
       username_last_changed: (userData.username_last_changed as string) || '',
       plan: userData.plan as string,
+      plan_expires_at: (userData.plan_expires_at as string) || '',
       online_counter: !!(userData.online_counter),
       role: (userData.role as string) || 'user',
     });

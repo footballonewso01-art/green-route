@@ -108,7 +108,6 @@ export default function RegisterPage() {
   const [searchParams] = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState(searchParams.get("username") || "");
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [promocode, setPromocode] = useState("");
@@ -199,7 +198,6 @@ export default function RegisterPage() {
         email,
         password,
         passwordConfirm: password,
-        name,
         username: cleanUsername,
       });
       await pb.collection('users').authWithPassword(email, password);
@@ -243,11 +241,9 @@ export default function RegisterPage() {
       });
 
       const updateData: Record<string, string> = {};
-      if (authData.meta?.name && !authData.record.name) {
-        updateData.name = authData.meta.name;
-      }
       if (!authData.record.username) {
-        updateData.username = await generateUniqueUsername(authData.record.email);
+        const generatedUsername = await generateUniqueUsername(authData.record.email);
+        updateData.username = generatedUsername;
       }
 
       if (Object.keys(updateData).length > 0) {
@@ -349,18 +345,6 @@ export default function RegisterPage() {
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
-              placeholder="Your name"
-              required
-            />
           </div>
 
           <div className="rounded-xl border border-border/70 bg-surface/40 overflow-hidden">

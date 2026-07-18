@@ -126,7 +126,9 @@ def repair():
                     print(f"Column created_ip likely exists: {e}")
                 conn.commit()
 
-        # Add end_date to billing
+        # Add authoritative billing period fields. end_date is the period end;
+        # period_start is stored separately because the record itself is upserted
+        # on renewal and its created timestamp is not the current period start.
         cursor.execute(f"SELECT id, {col_name} FROM _collections WHERE name='billing'")
         billing_row = cursor.fetchone()
         if billing_row:
@@ -152,6 +154,28 @@ def repair():
                     print("Added column 'end_date' to SQLite table 'billing'.")
                 except Exception as e:
                     print(f"Column end_date likely exists: {e}")
+                conn.commit()
+
+            if not any(f.get('name') == 'period_start' for f in billing_fields):
+                print("Adding 'period_start' field to 'billing' schema...")
+                billing_fields.append({
+                    "system": False,
+                    "hidden": False,
+                    "primaryKey": False,
+                    "id": "period_start_id_gen",
+                    "name": "period_start",
+                    "type": "date",
+                    "required": False,
+                    "presentable": False,
+                    "min": "",
+                    "max": ""
+                })
+                cursor.execute(f"UPDATE _collections SET {col_name} = ? WHERE id = ?", (json.dumps(billing_fields, separators=(',', ':')), billing_id))
+                try:
+                    cursor.execute("ALTER TABLE billing ADD COLUMN period_start TEXT DEFAULT '' NOT NULL")
+                    print("Added column 'period_start' to SQLite table 'billing'.")
+                except Exception as e:
+                    print(f"Column period_start likely exists: {e}")
                 conn.commit()
 
         # --- HIGHLOAD REFACTOR: Replace analytics_daily view with physical Rollup Table ---

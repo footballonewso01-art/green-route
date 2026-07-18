@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { User, CreditCard, Key, Globe, ChevronRight, Gift, CheckCircle, Camera, Zap, Calendar, Receipt, Lock } from "lucide-react";
+import { User, Globe, ChevronRight, Gift, CheckCircle, Camera, Zap, Calendar, Receipt, Lock, Building2, AtSign, Mail } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { PLANS, PlanType } from "@/lib/plans";
-import { UpgradeModal } from "@/components/UpgradeModal";
 import { toast } from "sonner";
 import { pb } from "@/lib/pocketbase";
 import { Loader2 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { maskError } from "@/lib/utils";
+import { BillingRecord, formatBillingDate } from "@/lib/billing";
 
 interface SettingsSection {
   id: string;
@@ -16,29 +16,16 @@ interface SettingsSection {
   comingSoon?: boolean;
 }
 
-type BillingRecord = {
-  id: string;
-  plan: string;
-  amount: number;
-  status: string;
-  payment_method: string;
-  created: string;
-  end_date?: string;
-};
-
 const sections: SettingsSection[] = [
-  { id: "personal", label: "Personal Settings", icon: User },
+  { id: "account", label: "Account", icon: User },
   { id: "security", label: "Security", icon: Lock },
-  { id: "subscription", label: "Subscription", icon: CreditCard },
-  { id: "billing", label: "Billing", icon: Receipt },
-  { id: "api", label: "API", icon: Key, comingSoon: true },
+  { id: "billing", label: "Plan & Billing", icon: Receipt },
   { id: "domains", label: "Custom Domain", icon: Globe, comingSoon: true },
 ];
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
-  const [active, setActive] = useState("personal");
-  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; feature: string; description: string; planNeeded?: "pro" | "agency" }>({ open: false, feature: "", description: "" });
+  const [active, setActive] = useState("account");
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -50,7 +37,7 @@ export default function SettingsPage() {
   const [loadingCancel, setLoadingCancel] = useState(false);
 
   // Account profile editing state
-  const [accountName, setAccountName] = useState(user?.name || "");
+  const [accountUsername, setAccountUsername] = useState(user?.username || "");
   const [accountAvatarPreview, setAccountAvatarPreview] = useState<string | null>(
     user?.avatar && user?.collectionId ? pb.files.getUrl(user as unknown as Record<string, unknown>, user.avatar) : null
   );
@@ -60,7 +47,16 @@ export default function SettingsPage() {
 
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const plan = PLANS[userPlan as PlanType];
+  const PlanIcon = userPlan === "agency" ? Building2 : Zap;
   const hasUsedPromocode = !!user?.promocode_used;
+  const usernameChangedAt = user?.username_last_changed ? new Date(user.username_last_changed).getTime() : NaN;
+  const usernameUnlockAt = Number.isFinite(usernameChangedAt)
+    ? usernameChangedAt + 21 * 24 * 60 * 60 * 1000
+    : 0;
+  const usernameLocked = usernameUnlockAt > Date.now();
+  const usernameDaysRemaining = usernameLocked
+    ? Math.max(1, Math.ceil((usernameUnlockAt - Date.now()) / (24 * 60 * 60 * 1000)))
+    : 0;
 
   const [subStatus, setSubStatus] = useState<"active" | "canceling" | "none">("none");
 
@@ -73,6 +69,15 @@ export default function SettingsPage() {
   const [billingLoading, setBillingLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
+
+  useEffect(() => {
+    setAccountUsername(user?.username || "");
+    setAccountAvatarPreview(
+      user?.avatar && user?.collectionId
+        ? pb.files.getUrl(user as unknown as Record<string, unknown>, user.avatar)
+        : null
+    );
+  }, [user]);
 
   useEffect(() => {
     const checkActiveSub = async () => {
@@ -110,14 +115,18 @@ export default function SettingsPage() {
           body: { sessionId }
         });
         if (result.activated) {
+          // Keep session_id on transient failures so a reload can retry.
+          setSearchParams({}, { replace: true });
           toast.success(`🎉 ${result.plan.charAt(0).toUpperCase() + result.plan.slice(1)} plan activated!`);
           if (refreshUser) await refreshUser();
+        } else {
+          toast.error("Payment received, but plan activation is still pending. Reload this page to retry.");
         }
       } catch (err) {
         console.error("Session verify error:", err);
+        toast.error("Payment received, but plan activation is still pending. Reload this page to retry.");
       } finally {
         setVerifying(false);
-        setSearchParams({}, { replace: true });
       }
     };
     verifySession();
@@ -143,20 +152,9 @@ export default function SettingsPage() {
     fetchBilling();
   }, [user, verifying]);
 
-  const hasStripeCustomer = billingLogs.some(log => log.payment_method === "Stripe" && log.status === "active");
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      year: "numeric", month: "short", day: "numeric"
-    });
-  };
-
-  const getEndDate = (log: BillingRecord) => {
-    if (log.end_date) return formatDate(log.end_date);
-    const d = new Date(log.created);
-    d.setDate(d.getDate() + 30);
-    return formatDate(d.toISOString());
-  };
+  const hasStripeCustomer = billingLogs.some(
+    log => log.payment_method === "Stripe" && (log.status === "active" || log.status === "canceling")
+  );
 
   const handleManageSubscription = async () => {
     setPortalLoading(true);
@@ -318,10 +316,32 @@ export default function SettingsPage() {
 
   const handleSaveAccount = async () => {
     if (!user) return;
+    const cleanUsername = accountUsername.trim().toLowerCase();
+    const usernameChanged = cleanUsername !== user.username;
+
+    if (usernameChanged && !/^[a-z0-9_.-]{3,22}$/.test(cleanUsername)) {
+      toast.error("Username must be 3–22 characters and use only letters, numbers, dots, underscores, or hyphens.");
+      return;
+    }
+    if (usernameChanged && usernameLocked) {
+      toast.error(`Username can be changed again in ${usernameDaysRemaining} day${usernameDaysRemaining === 1 ? "" : "s"}.`);
+      return;
+    }
+
     setSavingAccount(true);
     try {
-      const updateData: Record<string, unknown> = { name: accountName };
-      await pb.collection('users').update(user.id, updateData, { requestKey: null });
+      if (usernameChanged) {
+        const existing = await pb.collection("users").getList(1, 1, {
+          filter: `username="${cleanUsername}" && id!="${user.id}"`,
+          requestKey: null
+        });
+        if (existing.totalItems > 0) {
+          toast.error("This username is already taken.");
+          return;
+        }
+
+        await pb.collection("users").update(user.id, { username: cleanUsername }, { requestKey: null });
+      }
 
       if (accountAvatarFile) {
         const fd = new FormData();
@@ -331,31 +351,18 @@ export default function SettingsPage() {
       }
 
       await refreshUser();
-      toast.success('Account updated successfully');
-    } catch (err) {
-      const error = err as { response?: { message?: string }; message?: string };
+      toast.success(usernameChanged ? "Username updated successfully" : "Account updated successfully");
+    } catch (err: unknown) {
+      const error = err as {
+        response?: { message?: string; data?: { username?: { message?: string } } };
+        message?: string;
+      };
       console.error('Account update error:', error);
-      toast.error(maskError(error, 'Failed to update account'));
+      toast.error(error.response?.data?.username?.message || maskError(error, 'Failed to update account'));
     } finally {
       setSavingAccount(false);
     }
   };
-
-  // Settings row component for consistent styling
-  const SettingsRow = ({ label, value, onClick, valueColor }: { label: string; value?: string; onClick?: () => void; valueColor?: string }) => (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center justify-between px-5 py-4 bg-surface/40 border border-border/40 rounded-2xl hover:border-border/70 hover:bg-surface/60 transition-all duration-200 group text-left"
-    >
-      <span className="text-sm font-medium text-foreground">{label}</span>
-      <div className="flex items-center gap-2">
-        {value && (
-          <span className={`text-sm ${valueColor || 'text-muted-foreground'}`}>{value}</span>
-        )}
-        <ChevronRight className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
-      </div>
-    </button>
-  );
 
   return (
     <div className="space-y-6">
@@ -445,21 +452,28 @@ export default function SettingsPage() {
 
           <div className="p-6 sm:p-8 relative z-10 overflow-y-auto max-h-[calc(100vh-220px)]">
 
-            {/* ============ PERSONAL SETTINGS ============ */}
-            {active === "personal" && (
+            {/* ============ ACCOUNT ============ */}
+            {active === "account" && (
               <div className="space-y-8">
                 {/* Section header */}
                 <div>
-                  <h2 className="text-xl font-semibold text-foreground">Personal Settings</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Manage your profile and account details.</p>
+                  <h2 className="text-xl font-semibold text-foreground">Account</h2>
+                  <p className="text-sm text-muted-foreground mt-1">Manage how your Linktery account is identified.</p>
                 </div>
 
                 {/* About You */}
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">About You</h3>
+                  <h3 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">Account Identity</h3>
+
+                  <div className="p-5 bg-accent/[0.04] border border-accent/15 rounded-2xl">
+                    <p className="text-sm text-foreground/90 font-medium">Separate from your Public Profiles</p>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      Your account avatar and username identify you inside Linktery. Changing them will not change any Bio Link Profile name, avatar, slug, or public URL.
+                    </p>
+                  </div>
 
                   {/* Avatar + Name row */}
-                  <div className="flex items-center gap-5 p-5 bg-surface/40 border border-border/40 rounded-2xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-5 p-5 bg-surface/40 border border-border/40 rounded-2xl">
                     {/* Avatar */}
                     <div className="relative group shrink-0">
                       <div
@@ -467,13 +481,14 @@ export default function SettingsPage() {
                         onClick={() => accountAvatarRef.current?.click()}
                       >
                         {accountAvatarPreview ? (
-                          <img src={accountAvatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                          <img src={accountAvatarPreview} alt="Account avatar" className="w-full h-full object-cover" />
                         ) : (
-                          <span className="text-xl font-bold text-accent">{(user?.name?.[0] || user?.email?.[0] || 'U').toUpperCase()}</span>
+                          <span className="text-xl font-bold text-accent">{(user?.username?.[0] || user?.email?.[0] || "U").toUpperCase()}</span>
                         )}
                       </div>
                       <button
                         type="button"
+                        aria-label="Choose account avatar"
                         onClick={() => accountAvatarRef.current?.click()}
                         className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-accent text-accent-foreground flex items-center justify-center shadow-lg transition-transform hover:scale-110"
                       >
@@ -498,48 +513,69 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    {/* Name field */}
-                    <div className="flex-1 space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground block">Display Name</label>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-foreground">Account avatar</p>
+                      <p className="text-xs text-muted-foreground mt-1">Shown in the dashboard header and account menus. JPG, PNG, or WebP up to 5 MB.</p>
+                    </div>
+                  </div>
+
+                  <div className="p-5 bg-surface/40 border border-border/40 rounded-2xl space-y-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <label htmlFor="account-username" className="text-sm font-medium text-foreground">Username</label>
+                        <p className="text-xs text-muted-foreground mt-1">Your unique account identifier inside Linktery.</p>
+                      </div>
+                      {usernameLocked && (
+                        <span className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] font-semibold text-amber-500">
+                          {usernameDaysRemaining}d cooldown
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <AtSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <input
+                        id="account-username"
                         type="text"
-                        value={accountName}
-                        onChange={(e) => setAccountName(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
-                        placeholder="Your name"
+                        value={accountUsername}
+                        onChange={(e) => setAccountUsername(
+                          e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, "").slice(0, 22)
+                        )}
+                        disabled={usernameLocked}
+                        maxLength={22}
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                        placeholder="username"
                       />
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      3–22 characters. You can change your username once every 21 days.
+                      {usernameLocked && ` Next change available ${new Date(usernameUnlockAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`}
+                    </p>
                   </div>
 
-                  {/* Plan + Email info rows */}
-                  <div className="flex items-center justify-between px-5 py-4 bg-surface/40 border border-border/40 rounded-2xl">
-                    <span className="text-sm font-medium text-foreground">Plan</span>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent/10 border border-accent/20">
-                        <Zap className="w-3.5 h-3.5 text-accent" />
-                        <span className="text-xs font-bold text-accent uppercase tracking-wide">{plan?.name || 'Creator'}</span>
+                  <div className="flex items-center justify-between gap-4 px-5 py-4 bg-surface/40 border border-border/40 rounded-2xl">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Sign-in email</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Used for authentication and account recovery.</p>
                       </div>
                     </div>
+                    <span className="text-sm text-muted-foreground truncate max-w-[45%]">{user?.email}</span>
                   </div>
 
                   <div className="flex items-center justify-between px-5 py-4 bg-surface/40 border border-border/40 rounded-2xl">
-                    <span className="text-sm font-medium text-foreground">Email</span>
-                    <span className="text-sm text-muted-foreground">{user?.email}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between px-5 py-4 bg-surface/40 border border-border/40 rounded-2xl">
-                    <span className="text-sm font-medium text-foreground">Member Since</span>
+                    <span className="text-sm font-medium text-foreground">Member since</span>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Calendar className="w-3.5 h-3.5" />
-                      <span>{user?.created ? new Date(user.created as unknown as string).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—'}</span>
+                      <span>{user?.created ? new Date(user.created).toLocaleDateString("en-US", { month: "long", year: "numeric" }) : "—"}</span>
                     </div>
                   </div>
 
                   {/* Save account button */}
                   <button
                     onClick={handleSaveAccount}
-                    disabled={savingAccount}
-                    className="btn-primary-glow text-sm !py-2.5 flex items-center gap-2"
+                    disabled={savingAccount || (usernameLocked && accountUsername !== user?.username)}
+                    className="btn-primary-glow text-sm !py-2.5 flex items-center gap-2 disabled:opacity-50"
                   >
                     {savingAccount ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
                   </button>
@@ -600,111 +636,12 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* ============ SUBSCRIPTION ============ */}
-            {active === "subscription" && (
-              <div className="space-y-8">
-                {/* Section header */}
-                <div>
-                  <h2 className="text-xl font-semibold text-foreground">Subscription</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Manage your plan, promocodes, and billing.</p>
-                </div>
-
-                {/* Current Plan */}
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">Current Plan</h3>
-
-                  <div className="p-5 bg-surface/40 border border-border/40 rounded-2xl space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center">
-                          <Zap className="w-5 h-5 text-accent" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-foreground">{plan?.name || 'Creator'} Plan</p>
-                          <p className="text-xs text-muted-foreground">
-                            {userPlan === "creator" ? "Free plan with basic features" : "Premium features unlocked"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20">
-                        <span className="text-xs font-bold text-accent uppercase tracking-wide">Active</span>
-                      </div>
-                    </div>
-
-                    {/* Subscription Management (cancel) */}
-                    {(userPlan === "pro" || userPlan === "agency") && (
-                      <div className="pt-3 border-t border-border/30">
-                        {subStatus === "canceling" ? (
-                          <p className="text-sm text-amber-500 font-medium bg-amber-500/5 border border-amber-500/10 p-3.5 rounded-xl">
-                            Auto-renewal is turned off. Your premium features will remain active until the end of your billing cycle.
-                          </p>
-                        ) : (
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm text-muted-foreground">
-                              Turn off auto-renewal for your subscription.
-                            </p>
-                            <button
-                              onClick={handleCancelSubscription}
-                              disabled={loadingCancel}
-                              className="px-4 py-2 rounded-xl border border-red-500/30 hover:border-red-500/50 hover:bg-red-500/10 text-red-400 font-medium transition-all flex items-center gap-2 text-xs disabled:opacity-50 shrink-0"
-                            >
-                              {loadingCancel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Cancel Renewal"}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Promocode */}
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">Promocode</h3>
-
-                  {hasUsedPromocode ? (
-                    <div className="flex items-center gap-4 p-5 rounded-2xl border border-accent/20 bg-accent/5">
-                      <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-                        <CheckCircle className="w-5 h-5 text-accent" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-foreground text-sm">Promocode Activated</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">You have already claimed your trial reward.</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-5 bg-surface/40 border border-border/40 rounded-2xl space-y-3">
-                      <div className="flex items-center gap-3 mb-1">
-                        <Gift className="w-5 h-5 text-accent" />
-                        <p className="text-sm text-muted-foreground">Have a promo code? Enter it below!</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={promocode}
-                          onChange={(e) => setPromocode(e.target.value.toUpperCase())}
-                          className="flex-1 px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
-                          placeholder="Enter Code"
-                        />
-                        <button
-                          onClick={handleApplyPromocode}
-                          disabled={loadingPromocode || !promocode.trim()}
-                          className="btn-primary-glow text-sm !py-2.5 flex items-center gap-2 min-w-[100px] justify-center"
-                        >
-                          {loadingPromocode ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* ============ BILLING ============ */}
             {active === "billing" && (
               <div className="space-y-8">
                 <div>
-                  <h2 className="text-xl font-semibold text-foreground">Billing</h2>
-                  <p className="text-sm text-muted-foreground mt-1">View your current plan details and payment history.</p>
+                  <h2 className="text-xl font-semibold text-foreground">Plan & Billing</h2>
+                  <p className="text-sm text-muted-foreground mt-1">Manage your plan, renewal, promo codes, and payment history.</p>
                 </div>
 
                 {/* Current Plan Block */}
@@ -714,18 +651,34 @@ export default function SettingsPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center">
-                          <CreditCard className="w-6 h-6 text-accent" />
+                          <PlanIcon className="w-6 h-6 text-accent" />
                         </div>
                         <div>
                           <p className="font-semibold text-foreground text-base">{plan?.name || 'Creator'} Plan</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             ${plan?.price || 0}/month • {plan?.limits?.links === -1 ? "Unlimited" : `Up to ${plan?.limits?.links || 5}`} smart links
                           </p>
+                          {userPlan !== "creator" && user?.plan_expires_at && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {subStatus === "canceling" ? "Access until" : "Current period ends"}{" "}
+                              {formatBillingDate(user.plan_expires_at)}
+                            </p>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                        <span className="text-xs font-bold text-green-500 uppercase tracking-wide">Active</span>
+                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${
+                        subStatus === "canceling"
+                          ? "bg-amber-500/10 border-amber-500/20"
+                          : "bg-green-500/10 border-green-500/20"
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          subStatus === "canceling" ? "bg-amber-500" : "bg-green-500"
+                        }`} />
+                        <span className={`text-xs font-bold uppercase tracking-wide ${
+                          subStatus === "canceling" ? "text-amber-500" : "text-green-500"
+                        }`}>
+                          {userPlan === "creator" ? "Free" : subStatus === "canceling" ? "Canceling" : "Active"}
+                        </span>
                       </div>
                     </div>
 
@@ -747,7 +700,68 @@ export default function SettingsPage() {
                         <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                       </Link>
                     </div>
+
+                    {subStatus === "canceling" && (
+                      <p className="text-sm text-amber-500 font-medium bg-amber-500/5 border border-amber-500/10 p-3.5 rounded-xl">
+                        Auto-renewal is off. Premium access remains available through the current period end shown above.
+                      </p>
+                    )}
+
+                    {subStatus === "active" && hasStripeCustomer && (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-border/30">
+                        <p className="text-sm text-muted-foreground">You can turn off renewal without losing current-period access.</p>
+                        <button
+                          onClick={handleCancelSubscription}
+                          disabled={loadingCancel}
+                          className="px-4 py-2 rounded-xl border border-red-500/30 hover:border-red-500/50 hover:bg-red-500/10 text-red-400 font-medium transition-all flex items-center justify-center gap-2 text-xs disabled:opacity-50 shrink-0"
+                        >
+                          {loadingCancel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Turn Off Renewal"}
+                        </button>
+                      </div>
+                    )}
                   </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">Promo Code</h3>
+
+                  {hasUsedPromocode ? (
+                    <div className="flex items-center gap-4 p-5 rounded-2xl border border-accent/20 bg-accent/5">
+                      <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+                        <CheckCircle className="w-5 h-5 text-accent" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground text-sm">Promo code claimed</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">This account has already used its one-time promotional reward.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-5 bg-surface/40 border border-border/40 rounded-2xl space-y-3">
+                      <div className="flex items-center gap-3">
+                        <Gift className="w-5 h-5 text-accent" />
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Have a promo code?</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Apply it to this Linktery account.</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          value={promocode}
+                          onChange={(e) => setPromocode(e.target.value.toUpperCase())}
+                          className="flex-1 min-w-0 px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
+                          placeholder="Enter code"
+                        />
+                        <button
+                          onClick={handleApplyPromocode}
+                          disabled={loadingPromocode || !promocode.trim()}
+                          className="btn-primary-glow text-sm !py-2.5 flex items-center gap-2 sm:min-w-[100px] justify-center"
+                        >
+                          {loadingPromocode ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Payment History */}
@@ -762,8 +776,8 @@ export default function SettingsPage() {
                             <th className="px-5 py-3.5 font-medium text-xs uppercase tracking-wider">Status</th>
                             <th className="px-5 py-3.5 font-medium text-xs uppercase tracking-wider">Price</th>
                             <th className="px-5 py-3.5 font-medium text-xs uppercase tracking-wider">Method</th>
-                            <th className="px-5 py-3.5 font-medium text-xs uppercase tracking-wider">Start</th>
-                            <th className="px-5 py-3.5 font-medium text-xs uppercase tracking-wider">End</th>
+                            <th className="px-5 py-3.5 font-medium text-xs uppercase tracking-wider">Period Start</th>
+                            <th className="px-5 py-3.5 font-medium text-xs uppercase tracking-wider">Period End</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/30">
@@ -794,8 +808,8 @@ export default function SettingsPage() {
                                     {log.payment_method || "Given"}
                                   </span>
                                 </td>
-                                <td className="px-5 py-3.5 text-muted-foreground">{formatDate(log.created)}</td>
-                                <td className="px-5 py-3.5 text-muted-foreground">{getEndDate(log)}</td>
+                                <td className="px-5 py-3.5 text-muted-foreground">{formatBillingDate(log.period_start)}</td>
+                                <td className="px-5 py-3.5 text-muted-foreground">{formatBillingDate(log.end_date)}</td>
                               </tr>
                             ))
                           ) : (
@@ -809,23 +823,6 @@ export default function SettingsPage() {
                       </table>
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* ============ API (Coming Soon placeholder) ============ */}
-            {active === "api" && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-xl font-semibold text-foreground">API Keys</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Use API keys to integrate Linktery with your apps.</p>
-                </div>
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-surface/60 border border-border/40 flex items-center justify-center mb-4">
-                    <Key className="w-7 h-7 text-muted-foreground/30" />
-                  </div>
-                  <p className="text-muted-foreground text-sm font-medium">API Access is coming soon</p>
-                  <p className="text-muted-foreground/60 text-xs mt-1.5 max-w-xs">Automate link creation and management with our REST API.</p>
                 </div>
               </div>
             )}
@@ -851,13 +848,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <UpgradeModal
-        isOpen={upgradeModal.open}
-        onClose={() => setUpgradeModal({ ...upgradeModal, open: false })}
-        featureName={upgradeModal.feature}
-        description={upgradeModal.description}
-        planNeeded={upgradeModal.planNeeded}
-      />
     </div>
   );
 }

@@ -198,6 +198,7 @@ routerAdd("POST", "/api/stripe/create-portal", (c) => {
 
 // Stripe: Cancel Subscription
 routerAdd("POST", "/api/stripe/cancel-subscription", (c) => {
+    var stripeUtils = require(__hooks + '/utils.js');
     const user = c.auth;
     if (!user || user.collection().name !== "users") {
         return c.json(401, { message: "Unauthorized" });
@@ -241,9 +242,22 @@ routerAdd("POST", "/api/stripe/cancel-subscription", (c) => {
             throw new Error("Stripe subscription cancel error: " + res.statusCode + " | " + res.raw);
         }
 
+        var cancellationPeriod = null;
+        try {
+            cancellationPeriod = stripeUtils.getStripePeriodFromSubscription(res.json);
+        } catch (periodErr) {
+            // The cancellation itself succeeded. subscription.updated will retry
+            // the period sync if this response does not contain the dates.
+            $app.logger().error("cancel-subscription: could not read Stripe period: " + periodErr);
+        }
+
         // Update the billing record locally to 'canceling' (keeps plan active until end of period)
         $app.runInTransaction((txApp) => {
             bRecord.set("status", "canceling");
+            if (cancellationPeriod) {
+                bRecord.set("period_start", cancellationPeriod.start);
+                bRecord.set("end_date", cancellationPeriod.end);
+            }
             txApp.save(bRecord);
         });
 
@@ -257,6 +271,7 @@ routerAdd("POST", "/api/stripe/cancel-subscription", (c) => {
 
 // Stripe: Webhook Handler (no auth - receives from Stripe)
 routerAdd("POST", "/api/stripe/webhook", (c) => {
+    var stripeUtils = require(__hooks + '/utils.js');
     const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
 
     // --- Phase 1: Parse event ID from body ---
@@ -372,15 +387,15 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             }
             $app.logger().info("Webhook: detected plan=" + planName + " amount=" + amount + " billingCycle=" + billingCycle);
 
+            var checkoutPeriod = stripeUtils.fetchStripeSubscriptionPeriod(subscriptionId, STRIPE_SECRET_KEY);
+
             // Activate plan in transaction
             $app.runInTransaction((txApp) => {
                 var user = txApp.findRecordById("users", userId);
                 user.set("plan", planName);
-                var now = new DateTime();
-                var expiry = billingCycle === "annual"
-                    ? now.addDate(1, 0, 2)
-                    : now.addDate(0, 1, 2);
-                user.set("plan_expires_at", expiry);
+                user.set("plan_expires_at", checkoutPeriod.end);
+                user.set("stripe_customer_id", customerId);
+                user.set("stripe_subscription_id", subscriptionId);
                 txApp.save(user);
 
                 // Upsert billing record
@@ -395,7 +410,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                     bRecord.set("payment_method", "Stripe");
                     bRecord.set("stripe_customer_id", customerId);
                     bRecord.set("stripe_subscription_id", subscriptionId);
-                    bRecord.set("end_date", expiry);
+                    bRecord.set("period_start", checkoutPeriod.start);
+                    bRecord.set("end_date", checkoutPeriod.end);
                     txApp.save(bRecord);
                 } else {
                     var billingColl = txApp.findCollectionByNameOrId("billing");
@@ -407,7 +423,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                         "payment_method": "Stripe",
                         "stripe_customer_id": customerId,
                         "stripe_subscription_id": subscriptionId,
-                        "end_date": expiry
+                        "period_start": checkoutPeriod.start,
+                        "end_date": checkoutPeriod.end
                     });
                     txApp.save(billingRecord);
                 }
@@ -455,41 +472,42 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 var invAmount = invoice.amount_paid / 100;
                 $app.logger().info("Webhook: invoice.paid for customer " + invCustomerId + " amount=$" + invAmount + " sub=" + subscriptionId + " email=" + (invoice.customer_email || "none"));
 
-                // Step 1: Find user and billing record by stripe_customer_id
+                // Step 1: The subscription id is the strongest identity. A
+                // customer may own an older subscription while an upgrade is in
+                // progress, so do not choose the latest customer record first.
                 var bRecord = null;
                 var bUserId = "";
                 var lookupMethod = "none";
 
                 try {
-                    var records = $app.findRecordsByFilter(
-                        "billing", "stripe_customer_id = {:custId}", "-created", 1, 0, { custId: invCustomerId }
+                    var subscriptionRecords = $app.findRecordsByFilter(
+                        "billing", "stripe_subscription_id = {:subId}", "-created", 1, 0, { subId: subscriptionId }
                     );
-                    if (records.length > 0) {
-                        bRecord = records[0];
+                    if (subscriptionRecords.length > 0) {
+                        bRecord = subscriptionRecords[0];
                         bUserId = bRecord.get("user_id");
-                        lookupMethod = "billing.stripe_customer_id";
-                        $app.logger().info("Webhook: Found user " + bUserId + " via billing.stripe_customer_id");
-                    } else {
-                        $app.logger().info("Webhook: No billing record found for stripe_customer_id=" + invCustomerId);
+                        lookupMethod = "billing.stripe_subscription_id";
+                        $app.logger().info("Webhook: Found user " + bUserId + " via billing.stripe_subscription_id");
                     }
-                } catch (billingErr) {
-                    $app.logger().error("Webhook: billing lookup error: " + String(billingErr));
+                } catch (subscriptionLookupErr) {
+                    $app.logger().error("Webhook: subscription_id lookup error: " + String(subscriptionLookupErr));
                 }
 
-                // Step 2: Fallback - find by stripe_subscription_id in billing
-                if (!bUserId && subscriptionId) {
+                // Step 2: Fallback by customer for legacy records that predate
+                // subscription ids. This is intentionally second.
+                if (!bUserId && invCustomerId) {
                     try {
-                        var subRecords = $app.findRecordsByFilter(
-                            "billing", "stripe_subscription_id = {:subId}", "-created", 1, 0, { subId: subscriptionId }
+                        var customerRecords = $app.findRecordsByFilter(
+                            "billing", "stripe_customer_id = {:custId}", "-created", 1, 0, { custId: invCustomerId }
                         );
-                        if (subRecords.length > 0) {
-                            bRecord = subRecords[0];
+                        if (customerRecords.length > 0) {
+                            bRecord = customerRecords[0];
                             bUserId = bRecord.get("user_id");
-                            lookupMethod = "billing.stripe_subscription_id";
-                            $app.logger().info("Webhook: Found user " + bUserId + " via billing.stripe_subscription_id");
+                            lookupMethod = "billing.stripe_customer_id";
+                            $app.logger().info("Webhook: Found user " + bUserId + " via billing.stripe_customer_id");
                         }
-                    } catch (subErr) {
-                        $app.logger().error("Webhook: subscription_id lookup error: " + String(subErr));
+                    } catch (customerLookupErr) {
+                        $app.logger().error("Webhook: billing lookup error: " + String(customerLookupErr));
                     }
                 }
 
@@ -546,15 +564,13 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
 
                     $app.logger().info("Webhook: invoice.paid - plan=" + planName + " interval=" + billingInterval + " amount=$" + invAmount + " user=" + bUserId + " via=" + lookupMethod);
 
+                    var invoicePeriod = stripeUtils.fetchStripeSubscriptionPeriod(subscriptionId, STRIPE_SECRET_KEY);
+
                     $app.runInTransaction((txApp) => {
                         var user = txApp.findRecordById("users", bUserId);
-                        var now = new DateTime();
-                        var expiry = billingInterval === "year"
-                            ? now.addDate(1, 0, 2)
-                            : now.addDate(0, 1, 2);
 
                         user.set("plan", planName);
-                        user.set("plan_expires_at", expiry);
+                        user.set("plan_expires_at", invoicePeriod.end);
                         user.set("stripe_customer_id", invCustomerId);
                         if (subscriptionId) {
                             user.set("stripe_subscription_id", subscriptionId);
@@ -568,7 +584,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                             if (subscriptionId) {
                                 bRecord.set("stripe_subscription_id", subscriptionId);
                             }
-                            bRecord.set("end_date", expiry);
+                            bRecord.set("period_start", invoicePeriod.start);
+                            bRecord.set("end_date", invoicePeriod.end);
                             txApp.save(bRecord);
                         } else {
                             var billingColl = txApp.findCollectionByNameOrId("billing");
@@ -580,7 +597,8 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                                 "payment_method": "Stripe",
                                 "stripe_customer_id": invCustomerId,
                                 "stripe_subscription_id": subscriptionId,
-                                "end_date": expiry
+                                "period_start": invoicePeriod.start,
+                                "end_date": invoicePeriod.end
                             });
                             txApp.save(newBRecord);
                         }
@@ -593,22 +611,57 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 }
             }
 
+        } else if (verifiedEvent.type === "customer.subscription.updated") {
+            var updatedSubscription = verifiedEvent.data.object;
+            var updatedSubscriptionId = updatedSubscription.id || "";
+            var updatedRecords = $app.findRecordsByFilter(
+                "billing", "stripe_subscription_id = {:subId}", "-created", 1, 0, { subId: updatedSubscriptionId }
+            );
+
+            if (updatedRecords.length > 0) {
+                var updatedPeriod = stripeUtils.getStripePeriodFromSubscription(updatedSubscription);
+                var updatedRecord = updatedRecords[0];
+                var updatedStatus = updatedSubscription.status === "canceled"
+                    ? "canceled"
+                    : (updatedSubscription.cancel_at_period_end === true ? "canceling" : "active");
+                updatedRecord.set("status", updatedStatus);
+                updatedRecord.set("period_start", updatedPeriod.start);
+                updatedRecord.set("end_date", updatedPeriod.end);
+                $app.save(updatedRecord);
+
+                var updatedUser = $app.findRecordById("users", updatedRecord.get("user_id"));
+                if (updatedUser.get("stripe_subscription_id") === updatedSubscriptionId) {
+                    updatedUser.set("plan_expires_at", updatedPeriod.end);
+                    $app.save(updatedUser);
+                }
+            }
         } else if (verifiedEvent.type === "customer.subscription.deleted") {
             var sub = verifiedEvent.data.object;
-            var subCustomerId = sub.customer;
+            var deletedSubscriptionId = sub.id || "";
             var subRecords = $app.findRecordsByFilter(
-                "billing", "stripe_customer_id = {:custId}", "-created", 1, 0, { custId: subCustomerId }
+                "billing", "stripe_subscription_id = {:subId}", "-created", 1, 0, { subId: deletedSubscriptionId }
             );
             if (subRecords.length > 0) {
                 var bRec = subRecords[0];
                 bRec.set("status", "canceled");
+                try {
+                    var deletedPeriod = stripeUtils.getStripePeriodFromSubscription(sub);
+                    bRec.set("period_start", deletedPeriod.start);
+                    bRec.set("end_date", deletedPeriod.end);
+                } catch (periodErr) {
+                    $app.logger().error("Webhook: deleted subscription missing period: " + periodErr);
+                }
                 $app.save(bRec);
                 var subUserId = bRec.get("user_id");
                 var subUser = $app.findRecordById("users", subUserId);
-                subUser.set("plan", "");
-                subUser.set("plan_expires_at", "");
-                $app.save(subUser);
-                $app.logger().info("Webhook: subscription.deleted - plan removed for user " + subUserId);
+                // An old subscription may be deleted after an upgrade. Only the
+                // user's current subscription is allowed to remove the plan.
+                if (subUser.get("stripe_subscription_id") === deletedSubscriptionId) {
+                    subUser.set("plan", "");
+                    subUser.set("plan_expires_at", "");
+                    $app.save(subUser);
+                    $app.logger().info("Webhook: subscription.deleted - plan removed for user " + subUserId);
+                }
             }
         } else {
             // Log unhandled event types for debugging
@@ -649,6 +702,7 @@ routerAdd("POST", "/api/admin/clear-dedup", (c) => {
 // Stripe: Verify Session & Activate Plan (Fallback for when webhook doesn't fire)
 // Called from frontend success page with ?session_id=cs_xxx
 routerAdd("POST", "/api/stripe/verify-session", (c) => {
+    var stripeUtils = require(__hooks + '/utils.js');
     var STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
     if (!STRIPE_SECRET_KEY) {
         return c.json(500, { error: "Stripe not configured" });
@@ -721,22 +775,30 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
 
         // Check if plan is already active (idempotent) — but AFTER detecting plan
         var currentPlan = user.get("plan");
-        if (currentPlan === planName) {
-            return c.json(200, { activated: true, plan: currentPlan, note: "Already active" });
-        }
-
-        var billingCycle = session.metadata ? (session.metadata.billingCycle || "monthly") : "monthly";
         var customerId = session.customer || "";
         var subscriptionId = session.subscription || "";
+        var currentSubscriptionId = user.get("stripe_subscription_id") || "";
+
+        var verifiedPeriod = stripeUtils.fetchStripeSubscriptionPeriod(subscriptionId, STRIPE_SECRET_KEY);
+
+        // A paid same-plan renewal may legitimately have a new subscription
+        // id. Accept it when its Stripe period is newer, but do not let an old
+        // Checkout URL overwrite a more recent active subscription.
+        if (currentPlan === planName && currentSubscriptionId && currentSubscriptionId !== subscriptionId) {
+            var currentExpiry = user.get("plan_expires_at");
+            var currentExpiryMs = currentExpiry ? new Date(String(currentExpiry)).getTime() : NaN;
+            var candidateExpiryMs = verifiedPeriod.endUnix * 1000;
+            if (!isFinite(currentExpiryMs) || currentExpiryMs >= candidateExpiryMs) {
+                return c.json(200, { activated: true, plan: currentPlan, note: "Already active" });
+            }
+        }
 
         $app.runInTransaction((txApp) => {
             var u = txApp.findRecordById("users", user.id);
             u.set("plan", planName);
-            var now = new DateTime();
-            var expiry = billingCycle === "annual"
-                ? now.addDate(1, 0, 2)
-                : now.addDate(0, 1, 2);
-            u.set("plan_expires_at", expiry);
+            u.set("plan_expires_at", verifiedPeriod.end);
+            u.set("stripe_customer_id", customerId);
+            u.set("stripe_subscription_id", subscriptionId);
             txApp.save(u);
 
             // Upsert billing record
@@ -751,13 +813,16 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
                 b.set("payment_method", "Stripe");
                 b.set("stripe_customer_id", customerId);
                 b.set("stripe_subscription_id", subscriptionId);
+                b.set("period_start", verifiedPeriod.start);
+                b.set("end_date", verifiedPeriod.end);
                 txApp.save(b);
             } else {
                 var billingColl = txApp.findCollectionByNameOrId("billing");
                 var b = new Record(billingColl, {
                     "user_id": user.id, "plan": planName, "amount": amount,
                     "status": "active", "payment_method": "Stripe",
-                    "stripe_customer_id": customerId, "stripe_subscription_id": subscriptionId
+                    "stripe_customer_id": customerId, "stripe_subscription_id": subscriptionId,
+                    "period_start": verifiedPeriod.start, "end_date": verifiedPeriod.end
                 });
                 txApp.save(b);
             }
@@ -1226,7 +1291,7 @@ routerAdd("POST", "/api/admin/update-plan", (c) => {
             const expires = new Date();
             const days = Math.max(1, data.days || 30);
             expires.setDate(expires.getDate() + days);
-            targetUser.set("plan_expires_at", new DateTime(expires));
+            targetUser.set("plan_expires_at", new DateTime(expires.toISOString().replace("T", " ")));
 
             const billingColl = $app.findCollectionByNameOrId("billing");
             const billingRecord = new Record(billingColl, {
@@ -1235,7 +1300,8 @@ routerAdd("POST", "/api/admin/update-plan", (c) => {
                 "amount": newPlan === "pro" ? 11 : 29,
                 "status": "active",
                 "payment_method": "Given",
-                "end_date": new DateTime(expires)
+                "period_start": new DateTime(),
+                "end_date": new DateTime(expires.toISOString().replace("T", " "))
             });
             $app.save(billingRecord);
         } else {
@@ -1438,6 +1504,7 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
                 "amount": 0,
                 "status": "active",
                 "payment_method": "Free Trial",
+                "period_start": now,
                 "end_date": expiry
             });
             txApp.save(b);
@@ -1476,10 +1543,27 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
 
 // Username change cooldown
 onRecordUpdateRequest((e) => {
-    const newUsername = e.record.get("username");
-    const oldUsername = e.record.original().get("username");
+    const oldUsername = String(e.record.original().get("username") || "").trim().toLowerCase();
+    const newUsername = String(e.record.get("username") || "").trim().toLowerCase();
+    e.record.set("username", newUsername);
 
     if (newUsername !== oldUsername) {
+        if (!/^[a-z0-9_.-]{3,22}$/.test(newUsername)) {
+            throw new BadRequestError("Username must be 3-22 characters and use only letters, numbers, dots, underscores, or hyphens.");
+        }
+
+        var existingUsername = null;
+        try {
+            existingUsername = $app.findFirstRecordByFilter(
+                "users",
+                "username = {:username} && id != {:id}",
+                { username: newUsername, id: e.record.id }
+            );
+        } catch (lookupErr) { }
+        if (existingUsername) {
+            throw new BadRequestError("This username is already taken.");
+        }
+
         const lastChanged = e.record.get("username_last_changed");
         if (lastChanged && lastChanged.toString().trim() !== "") {
             const lastChangedDate = new Date(lastChanged.toString());
@@ -1501,6 +1585,10 @@ onRecordUpdateRequest((e) => {
         if ((nowMs - createdMs) > 60 * 60 * 1000) {
             e.record.set("username_last_changed", new DateTime());
         }
+
+        // Account names are derived from the account username. Public Profile
+        // identity is stored independently in public_profiles.
+        e.record.set("name", newUsername);
     }
 
     e.next();
@@ -1525,6 +1613,17 @@ onRecordCreateRequest((e) => {
         e.record.set("banned", false);
         e.record.set("internal_notes", "");
         e.record.set("promocode_used", "");
+    }
+
+    // An account name is derived from its username. Public bio-link profiles
+    // own their separate display name and must not inherit account metadata.
+    const username = String(e.record.get("username") || "").trim().toLowerCase();
+    if (username) {
+        if (!/^[a-z0-9_.-]{3,22}$/.test(username)) {
+            throw new BadRequestError("Username must be 3-22 characters and use only letters, numbers, dots, underscores, or hyphens.");
+        }
+        e.record.set("username", username);
+        e.record.set("name", username);
     }
 
     try {
@@ -1592,15 +1691,6 @@ onRecordCreateRequest((e) => {
             }
         }
 
-        let userWithSameName = null;
-        try {
-            userWithSameName = $app.findFirstRecordByFilter("users", "username = {:slug}", { slug: slug });
-        } catch (err) { }
-
-        if (userWithSameName) {
-            throw new BadRequestError("This slug is already taken by a user profile.");
-        }
-
         let profileWithSameSlug = null;
         try {
             profileWithSameSlug = $app.findFirstRecordByFilter("public_profiles", "slug = {:slug}", { slug: slug });
@@ -1636,25 +1726,6 @@ onRecordCreateRequest((e) => {
     e.next();
 }, "links");
 
-// Username-Slug collision prevention on user update
-onRecordUpdateRequest((e) => {
-    const newUsername = e.record.get("username");
-    const oldUsername = e.record.original().get("username");
-
-    if (newUsername !== oldUsername) {
-        let linkWithSameSlug = null;
-        try {
-            linkWithSameSlug = $app.findFirstRecordByFilter("links", "slug = {:username}", { username: newUsername });
-        } catch (err) { }
-
-        if (linkWithSameSlug) {
-            throw new BadRequestError("This username matches an existing link slug.");
-        }
-    }
-
-    e.next();
-}, "users");
-
 // Hourly cron: downgrade expired plans or restore fallback
 cronAdd("check_expired_plans", "0 * * * *", () => {
     console.log("[CRON] check_expired_plans running at " + new Date().toISOString());
@@ -1682,7 +1753,7 @@ cronAdd("check_expired_plans", "0 * * * *", () => {
                     var fallbackDate = new Date(fallbackDateStr);
                     if (fallbackDate > new Date()) {
                         user.set("plan", fallbackPlan);
-                        user.set("plan_expires_at", new DateTime(fallbackDate));
+                        user.set("plan_expires_at", new DateTime(fallbackDate.toISOString().replace("T", " ")));
                         restored = true;
                     }
                 }
