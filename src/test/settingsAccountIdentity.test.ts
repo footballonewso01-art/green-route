@@ -10,8 +10,6 @@ describe("settings account identity", () => {
     const createLink = readWorkspaceFile("src/pages/CreateLink.tsx");
     const hook = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
 
-    expect(settings).toContain("Separate from your Public Profiles");
-    expect(settings).toContain("will not change any Bio Link Profile");
     expect(settings).toContain("{ username: cleanUsername }");
     expect(settings).not.toContain("Display Name");
     expect(createLink).not.toContain("existingUsers");
@@ -36,7 +34,7 @@ describe("settings account identity", () => {
 
     expect(settings).toContain('label: "Plan & Billing"');
     expect(settings).not.toContain('id: "subscription"');
-    expect(settings).toContain("Turn Off Renewal");
+    expect(settings).toContain("<CancelRenewalButton");
     expect(settings).toContain("Promo Code");
     expect(settings).toContain("Sign-in email");
     expect(settings).not.toContain("requestEmailChange");

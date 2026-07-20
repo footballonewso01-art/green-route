@@ -186,6 +186,17 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 }
 
 @layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }

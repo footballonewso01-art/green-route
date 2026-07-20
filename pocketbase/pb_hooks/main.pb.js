@@ -129,7 +129,7 @@ routerAdd("POST", "/api/stripe/create-checkout", (c) => {
     } catch (err) {
         let errStr = String(err);
         $app.logger().error("Create checkout error: " + errStr);
-        return c.json(500, { message: "Stripe Checkout failed: " + errStr });
+        return c.json(500, { message: "Billing is temporarily unavailable. Please try again in a moment." });
     }
 });
 
@@ -144,7 +144,7 @@ routerAdd("POST", "/api/stripe/create-portal", (c) => {
     const HOST_URL = $os.getenv("HOST_URL") || "https://linktery.com";
 
     if (!STRIPE_SECRET_KEY) {
-        return c.json(500, { message: "Stripe is not configured" });
+        return c.json(503, { message: "The billing portal is temporarily unavailable. Please try again in a moment." });
     }
 
     try {
@@ -192,7 +192,7 @@ routerAdd("POST", "/api/stripe/create-portal", (c) => {
         return c.json(200, { url: portal.url });
     } catch (err) {
         $app.logger().error("Create portal error: " + err);
-        return c.json(500, { message: err.message });
+        return c.json(500, { message: "The billing portal is temporarily unavailable. Please try again in a moment." });
     }
 });
 
@@ -206,18 +206,28 @@ routerAdd("POST", "/api/stripe/cancel-subscription", (c) => {
 
     const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
     if (!STRIPE_SECRET_KEY) {
-        return c.json(500, { message: "Stripe is not configured" });
+        return c.json(503, { message: "We couldn't update your renewal setting right now. Please try again in a moment." });
     }
 
     try {
-        const records = $app.findRecordsByFilter(
-            "billing",
-            "user_id = {:userId} && status = 'active' && stripe_subscription_id != ''",
-            "-created",
-            1,
-            0,
-            { userId: user.id }
-        );
+        var currentSubscriptionId = String(user.get("stripe_subscription_id") || "").trim();
+        var records = [];
+        if (currentSubscriptionId) {
+            records = $app.findRecordsByFilter(
+                "billing",
+                "user_id = {:userId} && stripe_subscription_id = {:subId} && (status = 'active' || status = 'canceling')",
+                "-created", 1, 0,
+                { userId: user.id, subId: currentSubscriptionId }
+            );
+        }
+        if (records.length === 0) {
+            records = $app.findRecordsByFilter(
+                "billing",
+                "user_id = {:userId} && (status = 'active' || status = 'canceling') && stripe_subscription_id != ''",
+                "-created", 1, 0,
+                { userId: user.id }
+            );
+        }
         if (records.length === 0) {
             // User is Pro/Agency but has no active recurring Stripe subscription in our database (e.g. promocode, manual gift)
             return c.json(200, { success: true, message: "Your plan is non-recurring (activated via promocode or gift) and will expire automatically without any charges." });
@@ -242,6 +252,10 @@ routerAdd("POST", "/api/stripe/cancel-subscription", (c) => {
             throw new Error("Stripe subscription cancel error: " + res.statusCode + " | " + res.raw);
         }
 
+        if (!res.json || res.json.cancel_at_period_end !== true) {
+            throw new Error("Stripe did not confirm cancel_at_period_end for " + subscriptionId);
+        }
+
         var cancellationPeriod = null;
         try {
             cancellationPeriod = stripeUtils.getStripePeriodFromSubscription(res.json);
@@ -253,19 +267,31 @@ routerAdd("POST", "/api/stripe/cancel-subscription", (c) => {
 
         // Update the billing record locally to 'canceling' (keeps plan active until end of period)
         $app.runInTransaction((txApp) => {
-            bRecord.set("status", "canceling");
+            var txBilling = txApp.findRecordById("billing", bRecord.id);
+            txBilling.set("status", "canceling");
             if (cancellationPeriod) {
-                bRecord.set("period_start", cancellationPeriod.start);
-                bRecord.set("end_date", cancellationPeriod.end);
+                txBilling.set("period_start", cancellationPeriod.start);
+                txBilling.set("end_date", cancellationPeriod.end);
             }
-            txApp.save(bRecord);
+            txApp.save(txBilling);
+
+            var txUser = txApp.findRecordById("users", user.id);
+            txUser.set("stripe_subscription_id", subscriptionId);
+            if (res.json.customer) txUser.set("stripe_customer_id", res.json.customer);
+            if (cancellationPeriod) txUser.set("plan_expires_at", cancellationPeriod.end);
+            txApp.save(txUser);
         });
 
         $app.logger().info("cancel-subscription: auto-renewal disabled for subscription '" + subscriptionId + "' of user " + user.id);
-        return c.json(200, { success: true, message: "Subscription auto-renewal turned off successfully." });
+        return c.json(200, {
+            success: true,
+            cancelAtPeriodEnd: true,
+            periodEnd: cancellationPeriod ? String(cancellationPeriod.end) : "",
+            message: "Auto-renewal is off. Your plan remains active until the end of the paid period."
+        });
     } catch (err) {
         $app.logger().error("Cancel subscription error: " + err);
-        return c.json(500, { message: err.message || String(err) });
+        return c.json(500, { message: "We couldn't update your renewal setting. Please try again or use Manage Subscription." });
     }
 });
 
@@ -288,12 +314,12 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
         }
     } catch (e) {
         $app.logger().error("Webhook: body parse error: " + String(e));
-        return c.json(400, { error: "Failed to parse webhook JSON: " + String(e) });
+        return c.json(400, { error: "Invalid webhook request" });
     }
 
     if (!STRIPE_SECRET_KEY) {
         $app.logger().error("Webhook: STRIPE_SECRET_KEY not set");
-        return c.json(500, { error: "Stripe secret key missing" });
+        return c.json(503, { error: "Webhook processing is temporarily unavailable" });
     }
 
     // --- Phase 2: Verify event with Stripe API ---
@@ -314,7 +340,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
         verifiedEvent = res.json;
     } catch (fetchErr) {
         $app.logger().error("Webhook: Stripe fetch error: " + fetchErr);
-        return c.json(500, { error: "Stripe fetch error: " + String(fetchErr) });
+        return c.json(503, { error: "Webhook verification is temporarily unavailable" });
     }
 
     $app.logger().info("Webhook: processing event " + verifiedEvent.type + " id=" + eventId);
@@ -678,7 +704,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             $app.logger().info("Webhook: Rolled back dedup for event " + eventId + " (will allow retry)");
         } catch (delErr) { /* ignore cleanup errors */ }
         $app.logger().error("Webhook: PROCESSING FAILED for event " + eventId + ": " + processingErr);
-        return c.json(500, { error: String(processingErr) });
+        return c.json(500, { error: "Webhook processing failed" });
     }
 });
 
@@ -695,7 +721,7 @@ routerAdd("POST", "/api/admin/clear-dedup", (c) => {
         $app.logger().info("Admin: Cleared dedup for event " + eventId);
         return c.json(200, { success: true, cleared: eventId });
     } catch (err) {
-        return c.json(500, { error: String(err) });
+        return c.json(500, { error: "Unable to clear the event marker." });
     }
 }, $apis.requireSuperuserAuth());
 
@@ -832,14 +858,14 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
         return c.json(200, { activated: true, plan: planName });
     } catch (err) {
         $app.logger().error("verify-session error: " + err);
-        return c.json(500, { error: String(err) });
+        return c.json(500, { error: "Payment verification is temporarily unavailable" });
     }
 });
 
 // Server-Side Redirects
 routerAdd("GET", "/{slug}", (c) => {
     const utils = require(__hooks + '/utils.js');
-    let slug = c.pathParam("slug");
+    let slug = c.request.pathValue("slug");
     if (slug) {
         slug = slug.split('?')[0].split('%3F')[0];
     }
@@ -887,6 +913,11 @@ routerAdd("GET", "/{slug}", (c) => {
         }
 
         const request = c.request;
+        const redirectTraceValue = request.url.query().get("lr_trace") || "";
+        const redirectTrace = utils.parseRedirectTrace("?lr_trace=" + encodeURIComponent(redirectTraceValue));
+        if (redirectTrace.indexOf(String(link.id)) !== -1) {
+            return c.html(508, utils.getRedirectLoopHtml());
+        }
         const uaStr = request.header.get("User-Agent") || "";
         const isBot = /bot|crawler|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(uaStr);
 
@@ -895,8 +926,8 @@ routerAdd("GET", "/{slug}", (c) => {
             return c.redirect(302, link.get("safe_page_url"));
         }
 
-        const geoTargeting = link.get("geo_targeting");
-        const deviceTargeting = link.get("device_targeting");
+        const geoTargeting = utils.toPlainTargetingObject(link.getString("geo_targeting"));
+        const deviceTargeting = utils.toPlainTargetingObject(link.getString("device_targeting"));
         const hasGeoRules = geoTargeting && typeof geoTargeting === 'object' && Object.keys(geoTargeting).length > 0;
         const hasDeviceRules = deviceTargeting && typeof deviceTargeting === 'object' && Object.keys(deviceTargeting).length > 0;
 
@@ -928,14 +959,17 @@ routerAdd("GET", "/{slug}", (c) => {
                     const rules = geoTargeting;
                     if (rules[country]) {
                         finalDest = rules[country];
+                    } else {
+                        const tierKey = utils.getCountryTierKey(country);
+                        if (rules[tierKey]) finalDest = rules[tierKey];
                     }
                 }
             }
 
             // A/B Split
             if (link.get("ab_split") === true) {
-                const splitUrls = link.get("split_urls");
-                if (Array.isArray(splitUrls) && splitUrls.length > 0) {
+                const splitUrls = utils.toPlainStringArray(link.getString("split_urls"));
+                if (splitUrls.length > 0) {
                     const allOptions = [finalDest].concat(splitUrls);
                     finalDest = allOptions[Math.floor(Math.random() * allOptions.length)];
                 }
@@ -971,6 +1005,17 @@ routerAdd("GET", "/{slug}", (c) => {
         if (finalDest && !finalDest.startsWith("http://") && !finalDest.startsWith("https://")) {
             $app.logger().error("Blocked unsafe redirect scheme: " + finalDest);
             finalDest = "https://linktery.com";
+        }
+
+        // Legacy Link-to-Link destinations are traced across all Linktery
+        // domains. New ones are rejected by validation, but this stops cycles
+        // already stored in production after a single repeated edge.
+        const managedTarget = utils.findManagedShortLinkTarget(finalDest);
+        if (managedTarget) {
+            if (managedTarget.id === link.id || redirectTrace.indexOf(String(managedTarget.id)) !== -1) {
+                return c.html(508, utils.getRedirectLoopHtml());
+            }
+            finalDest = utils.appendRedirectTrace(finalDest, redirectTrace.concat([String(link.id)]));
         }
 
         // 4. CLICK LOGGING
@@ -1176,7 +1221,9 @@ routerAdd("GET", "/{slug}", (c) => {
         return c.redirect(302, finalDest);
 
     } catch (e) {
-        // Fall through to SPA
+        // Keep internals in server logs while returning the normal public route
+        // fallback. This must never expose stack traces or repository paths.
+        $app.logger().error("Server redirect error for slug '" + slug + "': " + e);
     }
 
     return c.next();
@@ -1313,7 +1360,7 @@ routerAdd("POST", "/api/admin/update-plan", (c) => {
         return c.json(200, { "success": true });
     } catch (err) {
         $app.logger().error("Admin plan update error: " + err);
-        throw new BadRequestError(err.message);
+        throw new BadRequestError("Unable to update this plan right now.");
     }
 });
 
@@ -1351,12 +1398,13 @@ routerAdd("POST", "/api/admin/update-route-override", (c) => {
         });
     } catch (err) {
         $app.logger().error("Admin route override error: " + err);
-        throw new BadRequestError(err.message);
+        throw new BadRequestError("Unable to update this route override right now.");
     }
 });
 
 // Promocodes: Validate (Public)
 routerAdd("POST", "/api/promocodes/validate", (c) => {
+    var utils = require(__hooks + '/utils.js');
     try {
         const ip = c.realIP();
         const limitKey = "rl_" + ip;
@@ -1398,12 +1446,17 @@ routerAdd("POST", "/api/promocodes/validate", (c) => {
             days: parseInt(promo.get("reward_days")) || 0
         });
     } catch (err) {
-        return c.json(400, { valid: false, error: err.message });
+        const safeError = utils.getSafePromocodeError(err);
+        if (safeError !== String((err && err.message) || "")) {
+            $app.logger().error("Promocode validation error: " + err);
+        }
+        return c.json(400, { valid: false, error: safeError });
     }
 });
 
 // Promocodes: Apply (Auth required)
 routerAdd("POST", "/api/promocodes/apply", (c) => {
+    var utils = require(__hooks + '/utils.js');
     try {
         const ip = c.realIP();
         const limitKey = "rl_" + ip;
@@ -1529,7 +1582,11 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
         $app.logger().info("Promocode " + code + " applied successfully by user " + user.id);
         return c.json(200, { success: true, message: txMessage });
     } catch (err) {
-        return c.json(400, { success: false, error: err.message });
+        const safeError = utils.getSafePromocodeError(err);
+        if (safeError !== String((err && err.message) || "")) {
+            $app.logger().error("Promocode application error: " + err);
+        }
+        return c.json(400, { success: false, error: safeError });
     }
 });
 
@@ -1720,7 +1777,8 @@ onRecordCreateRequest((e) => {
         if (err instanceof BadRequestError || err instanceof ForbiddenError) {
             throw err;
         }
-        throw new BadRequestError("DEBUG ERROR (links create 1): " + err + " (stack: " + (err.stack || "none") + ")");
+        $app.logger().error("Link entitlement validation failed: " + err + " stack=" + (err.stack || "none"));
+        throw new BadRequestError("We couldn't validate this link. Please review its settings and try again.");
     }
 
     e.next();
@@ -2019,6 +2077,7 @@ onRecordUpdateRequest((e) => {
 
     // Validate all redirect and targeting URLs
     utils.validateTargetingUrls(e.record);
+    utils.validateLinkProfileAssignment(e.record);
     e.next();
 }, "links");
 
@@ -2035,14 +2094,53 @@ onRecordCreateRequest((e) => {
 
         // Validate all redirect and targeting URLs
         utils.validateTargetingUrls(e.record);
+        utils.validateLinkProfileAssignment(e.record);
     } catch (err) {
         if (err instanceof BadRequestError) {
             throw err;
         }
-        throw new BadRequestError("DEBUG ERROR (links create 2): " + err + " (stack: " + (err.stack || "none") + ")");
+        $app.logger().error("Link safety validation failed: " + err + " stack=" + (err.stack || "none"));
+        throw new BadRequestError("We couldn't validate this link destination. Please review it and try again.");
     }
     e.next();
 }, "links");
+
+// Public Profile composition records never alter redirect or analytics data.
+// They only control placement and presentation of an existing core Link.
+onRecordCreateRequest((e) => {
+    try {
+        const utils = require(__hooks + '/utils.js');
+        utils.validateProfileLinkComposition(e.record, utils.getAuthInfo(e));
+    } catch (err) {
+        if (err instanceof BadRequestError || err instanceof ForbiddenError) throw err;
+        throw new BadRequestError("Unable to add the Link to this Public Profile.");
+    }
+    e.next();
+}, "profile_links");
+
+onRecordUpdateRequest((e) => {
+    try {
+        const utils = require(__hooks + '/utils.js');
+        utils.validateProfileLinkComposition(e.record, utils.getAuthInfo(e));
+    } catch (err) {
+        if (err instanceof BadRequestError || err instanceof ForbiddenError) throw err;
+        throw new BadRequestError("Unable to update this profile Link.");
+    }
+    e.next();
+}, "profile_links");
+
+onRecordsListRequest((e) => {
+    try {
+        const utils = require(__hooks + '/utils.js');
+        var authInfo = utils.getAuthInfo(e);
+        utils.assertSafePublicListFilter(e, "profile_links", authInfo);
+    } catch (err) {
+        if (err instanceof BadRequestError) throw err;
+        $app.logger().error("Error in profile_links list hook: " + err);
+        throw new BadRequestError("Unable to validate profile Link list request.");
+    }
+    return e.next();
+}, "profile_links");
 
 // validateProfileSocialLinks helper migrated to top of file
 
@@ -2094,11 +2192,13 @@ onRecordCreateRequest((e) => {
 
         utils.validateProfileSocialLinks(e.record);
         utils.validateProfileTemplate(e.record);
+        utils.validateProfilePresentation(e.record);
     } catch (err) {
         if (err instanceof BadRequestError) {
             throw err;
         }
-        throw new BadRequestError("DEBUG ERROR (profiles create): " + err + " (stack: " + (err.stack || "none") + ")");
+        $app.logger().error("Profile create validation failed: " + err + " stack=" + (err.stack || "none"));
+        throw new BadRequestError("We couldn't validate this Public Profile. Please review its settings and try again.");
     }
     e.next();
 }, "public_profiles");
@@ -2118,11 +2218,13 @@ onRecordUpdateRequest((e) => {
         }
         utils.validateProfileSocialLinks(e.record);
         utils.validateProfileTemplate(e.record);
+        utils.validateProfilePresentation(e.record);
     } catch (err) {
         if (err instanceof BadRequestError) {
             throw err;
         }
-        throw new BadRequestError("DEBUG ERROR (profiles update): " + err + " (stack: " + (err.stack || "none") + ")");
+        $app.logger().error("Profile update validation failed: " + err + " stack=" + (err.stack || "none"));
+        throw new BadRequestError("We couldn't validate these Public Profile changes. Please review them and try again.");
     }
     e.next();
 }, "public_profiles");
@@ -2188,7 +2290,8 @@ routerAdd("GET", "/api/admin/promocodes/{id}/stats", (c) => {
 
         return c.json(200, result);
     } catch (e) {
-        return c.json(500, { error: e.toString(), stack: e.stack });
+        $app.logger().error("Admin promocode users endpoint failed: " + e + " stack=" + (e.stack || "none"));
+        return c.json(500, { error: "Unable to load promocode users." });
     }
 });
 
@@ -2260,7 +2363,8 @@ routerAdd("GET", "/api/admin/promocodes/{id}/payments", (c) => {
             payments: payments
         });
     } catch (e) {
-        return c.json(500, { error: e.toString(), stack: e.stack });
+        $app.logger().error("Admin promocode payments endpoint failed: " + e + " stack=" + (e.stack || "none"));
+        return c.json(500, { error: "Unable to load promocode payments." });
     }
 });
 
@@ -2862,7 +2966,7 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
 
     } catch (e) {
         $app.logger().error("Admin overview stats endpoint error: " + e.toString() + " stack: " + e.stack);
-        return c.json(500, { error: e.toString() });
+        return c.json(500, { error: "Analytics are temporarily unavailable. Please try again." });
     }
 });
 

@@ -2,7 +2,8 @@ import { useEffect, useState, useRef, useCallback, lazy, Suspense } from "react"
 import { useParams, useNavigate } from "react-router-dom";
 import { pb } from "@/lib/pocketbase";
 import { Loader2, AlertTriangle, Smartphone, ExternalLink, MoreVertical, Share2, Compass, Lock } from "lucide-react";
-import { PRIMARY_DOMAIN, PRIMARY_ORIGIN } from "@/lib/siteConfig";
+import { DEFAULT_AVAILABLE_DOMAINS, PRIMARY_DOMAIN, PRIMARY_ORIGIN } from "@/lib/siteConfig";
+import { getCountryTierKey } from "@/lib/countryTiers";
 import { useSeo } from "@/hooks/useSeo";
 const PublicProfile = lazy(() => import("./PublicProfile"));
 
@@ -322,6 +323,9 @@ export default function RedirectHandler() {
                                 const rules = link.geo_targeting as Record<string, string>;
                                 if (rules[countryCode]) {
                                     finalDestination = rules[countryCode];
+                                } else {
+                                    const tierKey = getCountryTierKey(countryCode);
+                                    if (rules[tierKey]) finalDestination = rules[tierKey];
                                 }
                             }
                         } catch (e) {
@@ -378,15 +382,34 @@ export default function RedirectHandler() {
                                          /^[./]/.test(finalDestination);
                 }
 
-                // Detect if the destination redirects to the current page itself to prevent loop
+                // Detect direct and cross-domain Linktery redirect loops. Legacy
+                // chains may still exist even though new internal short-link
+                // destinations are rejected on save.
                 let isSamePage = false;
+                let isManagedDestination = false;
+                let trace: string[] = [];
                 try {
+                    const incomingTrace = new URLSearchParams(window.location.search).get("lr_trace") || "";
+                    trace = incomingTrace.split(".").filter((value) => /^[a-z0-9]{15}$/i.test(value)).slice(0, 8);
+                    if (trace.includes(String(link.id))) {
+                        setStatus("error");
+                        setError("This redirect chain contains a loop and was stopped for your safety.");
+                        return;
+                    }
+
                     const destUrlObj = new URL(finalDestination, window.location.href);
-                    const isOurDomain = destUrlObj.hostname === window.location.hostname ||
-                                         destUrlObj.hostname === PRIMARY_DOMAIN ||
-                                         destUrlObj.hostname === `www.${PRIMARY_DOMAIN}`;
+                    const normalizedHost = destUrlObj.hostname.toLowerCase().replace(/^www\./, "");
+                    isManagedDestination = DEFAULT_AVAILABLE_DOMAINS.includes(normalizedHost as typeof DEFAULT_AVAILABLE_DOMAINS[number]);
+                    const isOurDomain = isManagedDestination || normalizedHost === window.location.hostname.toLowerCase().replace(/^www\./, "");
                     
                     isSamePage = isOurDomain && destUrlObj.pathname.toLowerCase().replace(/\/$/, "") === window.location.pathname.toLowerCase().replace(/\/$/, "");
+
+                    if (isManagedDestination && /^\/[a-z0-9_-]+\/?$/i.test(destUrlObj.pathname)) {
+                        const nextTrace = [...trace, String(link.id)].slice(-8);
+                        destUrlObj.searchParams.set("lr_trace", nextTrace.join("."));
+                        finalDestination = destUrlObj.toString();
+                        setDestination(finalDestination);
+                    }
                 } catch (e) {
                     console.error("Error parsing destination URL for loop check:", e);
                 }

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { parseAuthError } from "@/lib/authErrors";
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
+import { maskError } from "@/lib/utils";
 
 interface Star {
   x: number;
@@ -145,7 +146,7 @@ export default function LoginPage() {
     } catch (error: unknown) {
       if ((error as Error).name !== "ClientResponseError" || (error as { originalError?: { message?: string } }).originalError?.message !== "The user cancelled the request.") {
         console.error("Google login error:", error);
-        toast.error((error as Error).message || "Failed to login with Google");
+        toast.error(maskError(error, "Google sign-in couldn't be completed. Please try again."));
       }
       setLoading(false);
     }

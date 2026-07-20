@@ -56,9 +56,8 @@ export function parseAuthError(error: unknown, context: "register" | "login"): s
 
       if (friendly) {
         messages.push(`${label} ${friendly}`);
-      } else if (fieldErr.message) {
-        // Fallback: use PocketBase's message but prefix with field name
-        messages.push(`${label}: ${fieldErr.message}`);
+      } else {
+        messages.push(`${label} contains an invalid value.`);
       }
     }
 
@@ -72,7 +71,7 @@ export function parseAuthError(error: unknown, context: "register" | "login"): s
     if (context === "login") {
       return "Invalid email or password. Please check your credentials.";
     }
-    return err?.message || "Invalid data. Please check your input.";
+    return "Invalid data. Please check your input.";
   }
 
   if (err?.status === 403) {
@@ -84,12 +83,7 @@ export function parseAuthError(error: unknown, context: "register" | "login"): s
   }
 
   // Generic fallback
-  const rawMessage = err?.message || "";
-  if (rawMessage.toLowerCase().includes("failed to create")) {
-    return context === "register"
-      ? "Could not create account. Please check your email and password."
-      : "Something went wrong. Please try again.";
-  }
-
-  return rawMessage || (context === "register" ? "Registration failed. Please try again." : "Login failed. Please try again.");
+  return context === "register"
+    ? "Registration failed. Check your details and try again."
+    : "Login failed. Check your credentials and try again.";
 }

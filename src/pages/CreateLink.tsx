@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Globe, Smartphone, Clock, Shuffle, Loader2, Shield, Info, ExternalLink, Lock, Zap, CalendarRange, Check, UserRound, AlertTriangle, ChevronDown } from "lucide-react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Globe, Smartphone, Clock, Shuffle, Loader2, Shield, Info, Lock, Zap, CalendarRange, Check, UserRound, AlertTriangle, ChevronDown, X, Layers3 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { pb } from "@/lib/pocketbase";
 import { urlSchema } from "@/lib/validations";
@@ -12,10 +12,11 @@ import { detectIconFromUrl } from '@/components/icons/detector';
 import { checkPlan, canUseResource, PlanLimits } from '@/lib/plans';
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { CountrySelect } from "@/components/CountrySelect";
-import { X, Image as ImageIcon, Camera, Trash2, AlignLeft } from "lucide-react";
-import Cropper, { Area, Point } from 'react-easy-crop';
-import { getCroppedImg } from '@/lib/cropImage';
 import { getAvailableDomains } from '@/lib/siteConfig';
+import { resolveNewLinkProfilePrefill } from '@/lib/linkProfileContext';
+import { ProfileLinkRecord } from '@/lib/profileLinks';
+import { COUNTRY_TIER_PACKS, getCountryTierPack, isCountryTierKey } from '@/lib/countryTiers';
+import { maskError } from '@/lib/utils';
 
 const generateRandomSlug = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -38,6 +39,8 @@ const PROFILE_SELECTOR_COLLAPSED_KEY = "links_profile_selector_collapsed";
 export default function CreateLink() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const requestedProfileId = id ? null : searchParams.get("profile");
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(!!id);
@@ -51,6 +54,7 @@ export default function CreateLink() {
     description: "",
   });
   const [profiles, setProfiles] = useState<ProfileOption[]>([]);
+  const [selectedProfileIds, setSelectedProfileIds] = useState<string[]>([]);
   const [isProfileSelectorCollapsed, setIsProfileSelectorCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(PROFILE_SELECTOR_COLLAPSED_KEY) === "true";
@@ -64,8 +68,6 @@ export default function CreateLink() {
     url: "",
     domain: availableDomains[0],
     slug: !id && !checkPlan((user as { plan?: string })?.plan || "creator", "custom_slug") ? generateRandomSlug() : "",
-    show_on_profile: false,
-    profile_id: "",
     cloaking: false,
     icon_type: "none" as "preset" | "emoji" | "custom" | "none",
     icon_value: "",
@@ -83,25 +85,14 @@ export default function CreateLink() {
     fb_pixel: "",
     google_pixel: "",
     tiktok_pixel: "",
-    size: "regular", // "regular" | "large"
   });
 
-  const selectedProfile = profiles.find((profile) => profile.id === form.profile_id);
+  const selectedProfiles = profiles.filter((profile) => selectedProfileIds.includes(profile.id));
 
   const [geoData, setGeoData] = useState<{ code: string; url: string }[]>([]);
   const [deviceData, setDeviceData] = useState<{ type: "Mobile" | "Desktop" | "Tablet"; url: string }[]>([]);
   const [splitUrls, setSplitUrls] = useState<string[]>([]);
   const [showIconPicker, setShowIconPicker] = useState(false);
-
-  // Background Image State
-  const [bgImagePreview, setBgImagePreview] = useState<string | null>(null);
-  const [bgImageFile, setBgImageFile] = useState<File | null>(null);
-
-  // Cropper State
-  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
-  const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
 
   useEffect(() => {
     window.localStorage.setItem(PROFILE_SELECTOR_COLLAPSED_KEY, String(isProfileSelectorCollapsed));
@@ -116,8 +107,12 @@ export default function CreateLink() {
             sort: 'created'
           });
           setProfiles(list);
-          if (!id && list.length === 1) {
-            setForm(prev => ({ ...prev, profile_id: list[0].id }));
+          if (!id) {
+            const prefill = resolveNewLinkProfilePrefill(requestedProfileId, list);
+            if (prefill) {
+              setSelectedProfileIds(prefill.showOnProfile && prefill.profileId ? [prefill.profileId] : []);
+              if (prefill.collapseSelector) setIsProfileSelectorCollapsed(true);
+            }
           }
         } catch (err) {
           console.error("Failed to fetch profiles:", err);
@@ -125,20 +120,24 @@ export default function CreateLink() {
       };
       fetchProfiles();
     }
-  }, [user, id]);
+  }, [user, id, requestedProfileId]);
 
   useEffect(() => {
     if (id) {
       const fetchLink = async () => {
         try {
-          const record = await pb.collection('links').getOne(id);
+          const [record, assignments] = await Promise.all([
+            pb.collection('links').getOne(id),
+            user ? pb.collection('profile_links').getFullList<ProfileLinkRecord>({
+              filter: `user_id="${user.id}" && link_id="${id}"`,
+              requestKey: null,
+            }) : Promise.resolve([]),
+          ]);
           setForm({
             title: record.title || "",
             url: record.destination_url,
             domain: record.domain || availableDomains[0],
             slug: record.slug,
-            show_on_profile: record.show_on_profile !== false,
-            profile_id: record.profile_id || "",
             cloaking: record.cloaking,
             icon_type: record.icon_type || "none",
             icon_value: record.icon_value || "",
@@ -156,7 +155,6 @@ export default function CreateLink() {
             fb_pixel: record.fb_pixel || "",
             google_pixel: record.google_pixel || "",
             tiktok_pixel: record.tiktok_pixel || "",
-            size: record.size || "regular",
           });
 
           if (record.geo_targeting) {
@@ -168,9 +166,7 @@ export default function CreateLink() {
           if (record.split_urls) {
             setSplitUrls(record.split_urls);
           }
-          if (record.bg_image) {
-            setBgImagePreview(pb.files.getUrl(record, record.bg_image));
-          }
+          setSelectedProfileIds(assignments.filter(assignment => assignment.visible).map(assignment => assignment.profile_id));
         } catch (error: unknown) {
           toast.error("Failed to fetch link details");
           navigate("/dashboard/links");
@@ -180,7 +176,7 @@ export default function CreateLink() {
       };
       fetchLink();
     }
-  }, [availableDomains, id, navigate]);
+  }, [availableDomains, id, navigate, user]);
 
   const update = (key: string, value: unknown) => setForm(prev => ({ ...prev, [key]: value }));
 
@@ -208,6 +204,32 @@ export default function CreateLink() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.url, id]);
 
+  const syncProfileAssignments = async (linkId: string) => {
+    if (!user) return;
+    const assignments = await pb.collection('profile_links').getFullList<ProfileLinkRecord>({
+      filter: `user_id="${user.id}"`,
+      requestKey: null,
+    });
+    const currentForLink = assignments.filter(assignment => assignment.link_id === linkId);
+    const selected = new Set(selectedProfileIds);
+
+    await Promise.all(currentForLink
+      .filter(assignment => !selected.has(assignment.profile_id))
+      .map(assignment => pb.collection('profile_links').delete(assignment.id, { requestKey: null })));
+
+    const existingProfileIds = new Set(currentForLink.map(assignment => assignment.profile_id));
+    await Promise.all(selectedProfileIds
+      .filter(profileId => !existingProfileIds.has(profileId))
+      .map(profileId => pb.collection('profile_links').create({
+        user_id: user.id,
+        profile_id: profileId,
+        link_id: linkId,
+        order: assignments.filter(assignment => assignment.profile_id === profileId).length,
+        visible: true,
+        size: "regular",
+      }, { requestKey: null })));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -224,9 +246,14 @@ export default function CreateLink() {
     }
     const validatedUrl = urlValidation.data;
 
-    if (form.show_on_profile && !form.profile_id) {
-      setIsProfileSelectorCollapsed(false);
-      toast.error("Please select a Public Profile to display this link on");
+    const invalidGeoRule = form.geo_targeting
+      ? geoData.find((rule) => rule.code && rule.url && !urlSchema.safeParse(rule.url).success)
+      : null;
+    if (invalidGeoRule) {
+      const label = isCountryTierKey(invalidGeoRule.code)
+        ? getCountryTierPack(invalidGeoRule.code)?.label
+        : invalidGeoRule.code;
+      toast.error(`${label || "Geo rule"} needs a valid destination URL.`);
       return;
     }
 
@@ -257,8 +284,6 @@ export default function CreateLink() {
         destination_url: validatedUrl,
         domain: form.domain,
         slug: form.slug,
-        show_on_profile: form.show_on_profile,
-        profile_id: form.show_on_profile ? form.profile_id : "",
         cloaking: form.cloaking,
         icon_type: form.icon_type,
         icon_value: form.icon_value,
@@ -277,7 +302,6 @@ export default function CreateLink() {
         fb_pixel: form.fb_pixel,
         google_pixel: form.google_pixel,
         tiktok_pixel: form.tiktok_pixel,
-        size: form.size,
         user_id: user.id,
         active: true,
       };
@@ -301,16 +325,10 @@ export default function CreateLink() {
         }
       });
 
-      if (bgImageFile) {
-        formData.append('bg_image', bgImageFile);
-      } else if (bgImagePreview === null && id) {
-        formData.append('bg_image', ''); // Remove image if cleared
-      }
-
       console.log("Submitting link data:", data);
+      let savedLinkId = id;
       if (id) {
         await pb.collection('links').update(id, formData);
-        toast.success("Link updated successfully");
       } else {
         const currentLinks = await pb.collection('links').getList(1, 1, { filter: `user_id="${user.id}"` });
         if (!canUseResource(userPlan, "links", currentLinks.totalItems)) {
@@ -322,57 +340,17 @@ export default function CreateLink() {
           setLoading(false);
           return;
         }
-        await pb.collection('links').create(formData);
-        toast.success("Link created successfully");
+        const created = await pb.collection('links').create(formData);
+        savedLinkId = created.id;
       }
+      if (savedLinkId) await syncProfileAssignments(savedLinkId);
+      toast.success(id ? "Link updated successfully" : "Link created successfully");
       navigate("/dashboard/links");
     } catch (error: unknown) {
       console.error("Link save error:", error);
-      const err = error as { message?: string, data?: { data?: Record<string, { message: string }> } };
-      let errorMsg = err.message || "Failed to save link";
-      if (err.data && err.data.data) {
-        // PocketBase validation errors are deeply nested in error.data.data
-        const details = Object.entries(err.data.data)
-          .map(([field, fieldErr]) => `${field}: ${fieldErr.message}`)
-          .join(", ");
-        if (details) errorMsg += ` (${details})`;
-      }
-      toast.error(errorMsg);
+      toast.error(maskError(error, "We couldn't save this link. Check its settings and try again."));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleBgImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("Image must be less than 5MB");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => setImageToCrop(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-    if (e.target) e.target.value = '';
-  };
-
-  const handleCropComplete = (croppedArea: Area, croppedAreaPixels: Area) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  };
-
-  const handleCropSave = async () => {
-    try {
-      if (!imageToCrop || !croppedAreaPixels) return;
-      const croppedImage = await getCroppedImg(imageToCrop, croppedAreaPixels);
-      if (!croppedImage) return;
-
-      setBgImageFile(croppedImage);
-      setBgImagePreview(URL.createObjectURL(croppedImage));
-      setImageToCrop(null);
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to crop image");
     }
   };
 
@@ -516,19 +494,7 @@ export default function CreateLink() {
           </div>
         </div>
 
-        {/* Global Toggle */}
-        <ToggleRow
-          icon={ExternalLink}
-          label="Show on Profile"
-          description="Display this link on your public Link-in-Bio page"
-          checked={form.show_on_profile}
-          onChange={(v) => update("show_on_profile", v)}
-          tooltip="If enabled, this link will appear on your public Link-in-Bio page. You MUST provide a Link Title if this is enabled."
-        />
-
-        {form.show_on_profile && (
-          <div className="space-y-4 pt-2 animate-fade-in">
-            {/* Select Public Profile */}
+        {/* Public Profile composition. Card presentation is customized in Profile. */}
             <div className="overflow-hidden rounded-2xl border border-border/80 bg-surface/40">
               <button
                 type="button"
@@ -538,13 +504,11 @@ export default function CreateLink() {
                 className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-surface/70"
               >
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-foreground">Select Public Profile</span>
+                  <span className="block text-sm font-semibold text-foreground">Shown on Public Profiles</span>
                   <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                    {selectedProfile
-                      ? `Selected: ${selectedProfile.name || `@${selectedProfile.slug}`}`
-                      : profiles.length > 0
-                        ? "Choose where this link will be displayed."
-                        : "No public profiles available."}
+                    {selectedProfiles.length > 0
+                      ? `${selectedProfiles.length} profile${selectedProfiles.length === 1 ? "" : "s"} selected`
+                      : "Optional. Choose one or several placements."}
                   </span>
                 </span>
                 <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${isProfileSelectorCollapsed ? "" : "rotate-180"}`} />
@@ -553,18 +517,19 @@ export default function CreateLink() {
               {!isProfileSelectorCollapsed && (
                 <div id="link-profile-selector" className="border-t border-border/70 p-3.5 animate-fade-in">
                   {profiles.length > 0 && (
-                    <div role="radiogroup" aria-label="Select public profile" className="max-h-64 space-y-2 overflow-y-auto pr-1 no-scrollbar">
+                    <div aria-label="Select public profiles" className="max-h-64 space-y-2 overflow-y-auto pr-1 no-scrollbar">
                       {profiles.map((profileOption) => {
-                        const selected = form.profile_id === profileOption.id;
+                        const selected = selectedProfileIds.includes(profileOption.id);
                         const displayName = profileOption.name || `@${profileOption.slug}`;
                         const profileDomain = profileOption.domain || availableDomains[0];
                         return (
                           <button
                             key={profileOption.id}
                             type="button"
-                            role="radio"
-                            aria-checked={selected}
-                            onClick={() => update("profile_id", profileOption.id)}
+                            aria-pressed={selected}
+                            onClick={() => setSelectedProfileIds(current => selected
+                              ? current.filter(profileId => profileId !== profileOption.id)
+                              : [...current, profileOption.id])}
                             className={`group flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 ${
                               selected
                                 ? "border-accent/60 bg-accent/[0.08] shadow-[0_10px_30px_rgba(0,0,0,0.16)]"
@@ -589,80 +554,15 @@ export default function CreateLink() {
                   {profiles.length === 0 && (
                     <p className="flex items-start gap-2 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4 text-xs leading-relaxed text-amber-200/70">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-                      ⚠️ You don't have any public profiles yet. Go to your dashboard and create a profile first to show links on it.
+                      You do not have any Public Profiles yet. The Link can still be created and added later.
                     </p>
                   )}
                 </div>
               )}
+              <p className="border-t border-border/70 px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+                Card size, title override and background image are customized separately inside each Public Profile.
+              </p>
             </div>
-
-            <label className="text-sm font-medium text-foreground block">Display Size</label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => update("size", "regular")}
-                className={`py-[14px] px-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group ${form.size === "regular" ? "bg-accent/10 border-accent/50 text-accent" : "bg-surface border-border text-muted-foreground hover:border-accent/30"}`}
-              >
-                <div className="w-full h-8 bg-white/5 rounded-lg border border-white/10 flex items-center justify-center">
-                  <div className="w-8 h-1.5 rounded-full bg-white/20" />
-                </div>
-                <span className="text-xs font-bold uppercase tracking-wider">Regular</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => update("size", "large")}
-                className={`py-[14px] px-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group ${form.size === "large" ? "bg-accent/10 border-accent/50 text-accent" : "bg-surface border-border text-muted-foreground hover:border-accent/30"}`}
-              >
-                <div className="w-full h-8 bg-white/5 rounded-lg border border-white/10 relative">
-                  <div className="absolute top-1.5 left-1.5 w-1.5 h-1.5 rounded-full bg-white/20" />
-                  <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-white/20" />
-                </div>
-                <span className="text-xs font-bold uppercase tracking-wider">Large</span>
-              </button>
-            </div>
-            <p className="text-[10px] text-muted-foreground italic px-1">Large boxes allow for a more prominent display and appear 3x taller.</p>
-
-            {(
-              <div className="mt-4 p-4 rounded-xl border border-border bg-surface/50 space-y-3">
-                <label className="text-sm font-medium text-foreground block flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4 text-accent" /> Custom Background Image
-                </label>
-                <div className="flex items-center gap-4">
-                  {bgImagePreview ? (
-                    <div className={`relative w-32 object-cover ${form.size === 'large' ? 'aspect-[10/5.4]' : 'aspect-[10/3]'} rounded-lg overflow-hidden border border-border group`}>
-                      <img src={bgImagePreview} alt="Background Preview" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setBgImagePreview(null);
-                            setBgImageFile(null);
-                          }}
-                          className="p-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/40 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className={`w-32 ${form.size === 'large' ? 'aspect-[10/5.4]' : 'aspect-[10/3]'} rounded-lg border border-dashed border-border bg-background flex flex-col items-center justify-center text-muted-foreground gap-1`}>
-                      <ImageIcon className="w-5 h-5 opacity-50" />
-                      <span className="text-[10px]">{form.size === 'large' ? '10:5.4' : '10:3'}</span>
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <label className="btn-primary-glow flex items-center justify-center gap-2 cursor-pointer text-sm py-2">
-                      <Camera className="w-4 h-4" />
-                      {bgImagePreview ? "Change Image" : "Upload Image"}
-                      <input type="file" className="hidden" accept="image/*" onChange={handleBgImageChange} />
-                    </label>
-                    <p className="text-[10px] text-muted-foreground mt-2">Max 5MB. Will be cropped to perfectly fit the large link box.</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Power Features Grouping */}
         <div className="space-y-8 pt-4 border-t border-border">
@@ -762,34 +662,99 @@ export default function CreateLink() {
                 lockedTooltip="Available on Creator Pro"
               />
               {form.geo_targeting && (
-                <div className="pl-11 space-y-3 animate-fade-in">
+                <div className="pl-0 sm:pl-11 space-y-4 animate-fade-in">
+                  <div className="rounded-2xl border border-border/60 bg-background/40 p-3.5">
+                    <div className="mb-3 flex items-start gap-2.5">
+                      <div className="mt-0.5 rounded-lg border border-accent/20 bg-accent/10 p-1.5 text-accent">
+                        <Layers3 className="h-3.5 w-3.5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">Country packs</p>
+                        <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+                          Linktery marketing presets. Tier definitions can vary between ad networks.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {COUNTRY_TIER_PACKS.map((pack) => {
+                        const isAdded = geoData.some((rule) => rule.code === pack.key);
+                        return (
+                          <button
+                            key={pack.key}
+                            type="button"
+                            onClick={() => {
+                              if (isAdded) {
+                                setGeoData((current) => current.filter((rule) => rule.code !== pack.key));
+                              } else {
+                                setGeoData((current) => [...current, { code: pack.key, url: "" }]);
+                              }
+                            }}
+                            aria-pressed={isAdded}
+                            className={`group rounded-xl border p-3 text-left transition-all ${isAdded
+                              ? "border-accent/50 bg-accent/10 shadow-[0_0_0_1px_rgba(52,211,153,0.08)]"
+                              : "border-border/60 bg-surface/50 hover:border-accent/30 hover:bg-surface"
+                              }`}
+                            title={pack.codes.join(", ")}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`text-xs font-bold ${isAdded ? "text-accent" : "text-foreground"}`}>{pack.label}</span>
+                              <span className="rounded-md bg-background/70 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground">
+                                {pack.codes.length}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-[9px] leading-snug text-muted-foreground">{pack.description}</p>
+                            <p className={`mt-2 text-[9px] font-semibold ${isAdded ? "text-accent" : "text-muted-foreground group-hover:text-foreground"}`}>
+                              {isAdded ? "Added — click to remove" : "Add pack"}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {geoData.map((d, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <CountrySelect
-                        value={d.code}
-                        onChange={(code) => {
-                          const next = [...geoData];
-                          next[i].code = code;
-                          setGeoData(next);
-                        }}
-                        excludeCodes={geoData.filter((_, j) => j !== i).map((g) => g.code).filter(Boolean)}
-                      />
+                    <div key={`${d.code || "country"}-${i}`} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      {isCountryTierKey(d.code) ? (
+                        <div className="flex h-10 min-w-[190px] items-center justify-between rounded-xl border border-accent/25 bg-accent/5 px-3">
+                          <div>
+                            <p className="text-[11px] font-semibold text-foreground">{getCountryTierPack(d.code)?.label}</p>
+                            <p className="text-[9px] text-muted-foreground">{getCountryTierPack(d.code)?.codes.length} countries</p>
+                          </div>
+                          <Layers3 className="h-3.5 w-3.5 text-accent" />
+                        </div>
+                      ) : (
+                        <CountrySelect
+                          value={d.code}
+                          onChange={(code) => {
+                            const next = [...geoData];
+                            next[i].code = code;
+                            setGeoData(next);
+                          }}
+                          excludeCodes={geoData.filter((_, j) => j !== i).map((g) => g.code).filter((code) => code && !isCountryTierKey(code))}
+                        />
+                      )}
                       <input placeholder="Destination URL" value={d.url} onChange={(e) => {
                         const next = [...geoData];
                         next[i].url = e.target.value;
                         setGeoData(next);
-                      }} className="flex-1 px-3 py-2 rounded-lg bg-surface border border-border text-xs" />
+                      }} className="h-10 flex-1 rounded-xl border border-border bg-surface px-3 text-xs outline-none transition-colors focus:border-accent/60" />
                       <button
                         type="button"
                         onClick={() => setGeoData(geoData.filter((_, j) => j !== i))}
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                        className="self-end rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive sm:self-auto"
                         title="Remove rule"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ))}
-                  <button type="button" onClick={() => setGeoData([...geoData, { code: "", url: "" }])} className="text-[10px] text-accent hover:underline px-1">+ Add country rule</button>
+                  <div className="flex items-center justify-between gap-3">
+                    <button type="button" onClick={() => setGeoData([...geoData, { code: "", url: "" }])} className="rounded-lg px-1 py-1 text-[10px] font-semibold text-accent hover:text-accent/80">+ Add individual country</button>
+                    {geoData.some((rule) => isCountryTierKey(rule.code)) && geoData.some((rule) => rule.code && !isCountryTierKey(rule.code)) && (
+                      <p className="text-right text-[9px] text-muted-foreground">Individual countries override their tier.</p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -910,59 +875,6 @@ export default function CreateLink() {
         description={upgradeModal.description}
         planNeeded={upgradeModal.planNeeded}
       />
-
-      {/* Image Cropper Modal */}
-      {imageToCrop && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
-          <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl animate-scale-in">
-            <h3 className="text-lg font-bold text-foreground mb-4">Crop Background Image</h3>
-
-            <div className="relative w-full h-64 bg-background rounded-xl overflow-hidden mb-6">
-              <Cropper
-                image={imageToCrop}
-                crop={crop}
-                zoom={zoom}
-                aspect={form.size === 'large' ? 10 / 5.4 : 10 / 3}
-                onCropChange={setCrop}
-                onZoomChange={setZoom}
-                onCropComplete={handleCropComplete}
-                showGrid={true}
-              />
-            </div>
-
-            <div className="space-y-3 mb-6">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Zoom</label>
-              <input
-                type="range"
-                value={zoom}
-                min={1}
-                max={3}
-                step={0.1}
-                aria-label="Zoom"
-                onChange={(e) => setZoom(Number(e.target.value))}
-                className="w-full accent-accent"
-              />
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setImageToCrop(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border hover:bg-surface-hover text-foreground font-medium transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleCropSave}
-                className="flex-1 py-2.5 rounded-xl bg-accent hover:bg-accent/90 text-black font-bold shadow-[0_0_20px_rgba(20,241,149,0.3)] transition-all"
-              >
-                Apply Crop
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

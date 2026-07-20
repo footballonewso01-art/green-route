@@ -3,41 +3,51 @@ import { createPortal } from "react-dom";
 import { pb } from "@/lib/pocketbase";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Loader2, Camera, Palette, Smartphone, User, Check, Upload, Globe, Plus, GripVertical, Eye, EyeOff, Edit, Trash2, ExternalLink, X, Save, Lock, Copy, ChevronDown, Sparkles } from "lucide-react";
+import { Loader2, Camera, Palette, Smartphone, User, Check, Upload, Globe, Plus, Eye, EyeOff, Edit, Trash2, X, Save, Lock, Copy, ChevronDown, Sparkles, Layers3, Share2, Search, ExternalLink } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { IconPicker } from '@/components/icons/IconPicker';
 import { IconRenderer } from '@/components/icons/IconRenderer';
 import { detectIconFromUrl } from '@/components/icons/detector';
-import { checkPlan, canUseResource, PLANS, PlanType } from '@/lib/plans';
+import { checkPlan, PLANS, PlanType } from '@/lib/plans';
 import { UpgradeModal } from "@/components/UpgradeModal";
 import Cropper, { Area, Point } from 'react-easy-crop';
 import { Link as RouterLink, useParams, useNavigate } from "react-router-dom";
 import { getCroppedImg } from '@/lib/cropImage';
-import { LinkItemCard } from "@/components/LinkItemCard";
-import { ProfileIdentity } from "@/components/profile/ProfileIdentity";
-import { urlSchema } from "@/lib/validations";
+import { ProfileLinkEditorCard } from "@/components/profile/ProfileLinkEditorCard";
+import { ProfileCanvas } from "@/components/profile/ProfileCanvas";
 import { getAvailableDomains } from "@/lib/siteConfig";
+import { maskError } from "@/lib/utils";
+import { buildProfileLinkUpdateFormData } from "@/lib/profileLinkPersistence";
+import { CoreLinkRecord, getProfileLinkTitle, ProfileLinkItem, ProfileLinkRecord } from "@/lib/profileLinks";
 import {
   isLightProfileColor,
   normalizeProfileTemplate,
   PROFILE_TEMPLATES,
   ProfileTemplateId,
 } from "@/lib/profileTemplates";
-
-const THEMES = [
-  { id: "minimal-dark", name: "Minimal Dark", colors: "bg-background border-border" },
-  { id: "sunset", name: "Sunset", colors: "bg-gradient-to-br from-orange-500/20 to-pink-500/20 border-pink-500/30 text-white" },
-  { id: "ocean", name: "Ocean", colors: "bg-gradient-to-br from-blue-600/20 to-cyan-400/20 border-blue-500/30 text-white" },
-  { id: "emerald", name: "Emerald", colors: "bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border-emerald-500/30 text-white" },
-  { id: "glass", name: "Glassmorphism", colors: "bg-white/5 backdrop-blur-xl border-white/10 text-white" },
-  { id: "custom", name: "Custom Background", colors: "bg-surface border-border border-dashed text-white" },
-];
+import {
+  LINK_CARD_STYLES,
+  LinkCardStyleId,
+  normalizeLinkCardStyle,
+  normalizeSocialLinkStyle,
+  SOCIAL_LINK_STYLES,
+  SocialLinkStyleId,
+} from "@/lib/profileAppearance";
 
 function TemplateThumbnail({ template }: { template: ProfileTemplateId }) {
   const linkRows = (
     <div className="space-y-1.5 px-2 pb-2">
-      <div className="h-2.5 rounded-full bg-white/15" />
-      <div className="h-2.5 rounded-full bg-white/10" />
+      {[0.16, 0.1].map((opacity) => (
+        <div
+          key={opacity}
+          className="h-3.5 rounded-[4px] flex items-center gap-1 px-1.5"
+          style={{ backgroundColor: `rgba(255,255,255,${opacity})` }}
+        >
+          <span className="h-2 w-2 rounded-[2px] bg-white/25" />
+          <span className="h-0.5 w-10 rounded-full bg-white/55" />
+          <span className="ml-auto h-1 w-1 rotate-45 border-r border-t border-white/30" />
+        </div>
+      ))}
     </div>
   );
 
@@ -102,22 +112,52 @@ function TemplateThumbnail({ template }: { template: ProfileTemplateId }) {
   );
 }
 
-// LinkItem Interface
-export interface LinkItem {
-  id: string;
-  slug: string;
-  destination_url: string;
-  clicks_count: number;
-  active: boolean;
-  created: string;
-  title?: string;
-  order?: number;
-  show_on_profile?: boolean;
-  mode?: string;
-  icon_type?: "preset" | "emoji" | "custom" | "none";
-  icon_value?: string;
-  size?: "regular" | "large";
-  bg_image?: string;
+function LinkCardStyleThumbnail({ style }: { style: LinkCardStyleId }) {
+  const rowClass = style === "minimal"
+    ? "rounded-none border-x-0 border-t-0 bg-transparent"
+    : style === "outline"
+      ? "rounded-md border-white/35 bg-transparent"
+      : style === "solid"
+        ? "rounded-md border-white/5 bg-white/20"
+        : style === "glass"
+          ? "rounded-md border-white/20 bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+          : "rounded-md border-white/10 bg-white/10 p-1";
+
+  return (
+    <div className="flex h-16 flex-col justify-center gap-1.5 overflow-hidden rounded-lg border border-white/10 bg-neutral-950 px-2">
+      {[0, 1].map((row) => (
+        <div key={row} className={`flex h-5 items-center gap-1.5 border px-1.5 ${rowClass}`}>
+          <span className={style === "image-first"
+            ? "h-3.5 w-5 rounded-[2px] bg-gradient-to-br from-accent/70 to-cyan-400/45"
+            : "h-2.5 w-2.5 rounded-[3px] bg-white/25"}
+          />
+          <span className={`h-1 rounded-full bg-white/65 ${row === 0 ? "w-12" : "w-9"}`} />
+          <span className="ml-auto h-1.5 w-1.5 rotate-45 border-r border-t border-white/35" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SocialStyleThumbnail({ style }: { style: SocialLinkStyleId }) {
+  return (
+    <div className="flex h-16 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-neutral-950 px-2">
+      {style === "icons" && (
+        <div className="flex gap-2">
+          {["bg-pink-500", "bg-white/15", "bg-blue-500"].map((color) => (
+            <span key={color} className={`h-7 w-7 rounded-full ${color}`} />
+          ))}
+        </div>
+      )}
+      {style === "branded-pills" && (
+        <div className="flex flex-wrap justify-center gap-1.5">
+          <span className="h-6 w-14 rounded-full bg-pink-600" />
+          <span className="h-6 w-12 rounded-full bg-neutral-800" />
+          <span className="h-6 w-14 rounded-full bg-blue-600" />
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface SocialLink {
@@ -137,21 +177,23 @@ interface ProfileRecord {
   bio?: string;
   theme: string;
   profile_template?: string;
+  link_card_style?: string;
+  social_link_style?: string;
   card_color?: string;
   avatar?: string;
   online_counter?: boolean;
-  custom_theme_bg?: string;
   social_links?: SocialLink[];
 }
 
-type VisualSectionId = "template" | "background" | "card";
+type VisualSectionId = "template" | "card" | "linkCards" | "socialStyle";
 type VisualSectionState = Record<VisualSectionId, boolean>;
 
 const VISUAL_SECTIONS_STORAGE_KEY = "linktery:profile-editor:visual-sections";
 const DEFAULT_VISUAL_SECTIONS: VisualSectionState = {
   template: true,
-  background: true,
   card: true,
+  linkCards: true,
+  socialStyle: true,
 };
 
 function readVisualSectionState(): VisualSectionState {
@@ -161,8 +203,9 @@ function readVisualSectionState(): VisualSectionState {
     const stored = JSON.parse(window.localStorage.getItem(VISUAL_SECTIONS_STORAGE_KEY) || "null") as Partial<VisualSectionState> | null;
     return {
       template: typeof stored?.template === "boolean" ? stored.template : true,
-      background: typeof stored?.background === "boolean" ? stored.background : true,
       card: typeof stored?.card === "boolean" ? stored.card : true,
+      linkCards: typeof stored?.linkCards === "boolean" ? stored.linkCards : true,
+      socialStyle: typeof stored?.socialStyle === "boolean" ? stored.socialStyle : true,
     };
   } catch {
     return DEFAULT_VISUAL_SECTIONS;
@@ -193,8 +236,9 @@ export default function DashboardProfile() {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
-  const [theme, setTheme] = useState(user?.theme || "minimal-dark");
   const [profileTemplate, setProfileTemplate] = useState<ProfileTemplateId>("classic");
+  const [linkCardStyle, setLinkCardStyle] = useState<LinkCardStyleId>("glass");
+  const [socialLinkStyle, setSocialLinkStyle] = useState<SocialLinkStyleId>("icons");
   const [cardColor, setCardColor] = useState(user?.card_color || "#000000");
   const [onlineCounter, setOnlineCounter] = useState(!!user?.online_counter);
   const [openVisualSections, setOpenVisualSections] = useState<VisualSectionState>(readVisualSectionState);
@@ -203,11 +247,6 @@ export default function DashboardProfile() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null); // Actual file to upload
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Custom Theme Background State
-  const [customBgPreview, setCustomBgPreview] = useState<string | null>(null);
-  const [customBgFile, setCustomBgFile] = useState<File | null>(null);
-  const customBgInputRef = useRef<HTMLInputElement>(null);
 
   const toggleVisualSection = (section: VisualSectionId) => {
     setOpenVisualSections((current) => ({
@@ -230,26 +269,16 @@ export default function DashboardProfile() {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
 
-  // Links State
-  const [links, setLinks] = useState<LinkItem[]>([]);
+  // Profile composition state. Redirect settings remain owned by `links`.
+  const [profileLinkItems, setProfileLinkItems] = useState<ProfileLinkItem[]>([]);
+  const [allLinks, setAllLinks] = useState<CoreLinkRecord[]>([]);
   const [linksLoading, setLinksLoading] = useState(true);
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
-
-  // Inline Create State
-  const [showCreate, setShowCreate] = useState(false);
-  const [createTitle, setCreateTitle] = useState("");
-  const [createUrl, setCreateUrl] = useState("");
-  const [createLoading, setCreateLoading] = useState(false);
-  const [createIconType, setCreateIconType] = useState<"preset" | "emoji" | "custom" | "none">("none");
-  const [createIconValue, setCreateIconValue] = useState("");
-  const [showIconPicker, setShowIconPicker] = useState(false);
-  const [createSize, setCreateSize] = useState<"regular" | "large">("regular");
+  const [showLinkPicker, setShowLinkPicker] = useState(false);
+  const [linkPickerSearch, setLinkPickerSearch] = useState("");
+  const [linkAddingId, setLinkAddingId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false); // Added from user's snippet
   const [socialEditingId, setSocialEditingId] = useState<string | null>(null);
-
-  // Pending bg_image uploads/removals for when handleSaveProfile runs
-  const [pendingBgImages, setPendingBgImages] = useState<Record<string, { file: File | null; remove: boolean }>>({});
-
 
   const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
@@ -294,8 +323,9 @@ export default function DashboardProfile() {
       setUsername(active.slug || "");
       setDomain(active.domain || availableDomains[0]);
       setBio(active.bio || "");
-      setTheme(active.theme || "minimal-dark");
       setProfileTemplate(normalizeProfileTemplate(active.profile_template));
+      setLinkCardStyle(normalizeLinkCardStyle(active.link_card_style));
+      setSocialLinkStyle(normalizeSocialLinkStyle(active.social_link_style));
       setCardColor(active.card_color || "#000000");
       setOnlineCounter(!!active.online_counter);
       
@@ -303,12 +333,6 @@ export default function DashboardProfile() {
         setAvatarPreview(pb.files.getUrl(active, active.avatar));
       } else {
         setAvatarPreview(null);
-      }
-      
-      if (active.custom_theme_bg) {
-        setCustomBgPreview(pb.files.getUrl(active, active.custom_theme_bg));
-      } else {
-        setCustomBgPreview(null);
       }
       
       setSocialLinks(Array.isArray(active.social_links) ? active.social_links : []);
@@ -332,16 +356,14 @@ export default function DashboardProfile() {
     
     // Clear pending changes state
     setAvatarFile(null);
-    setCustomBgFile(null);
-    setPendingBgImages({});
-    
     setActiveProfileId(profileId);
     setName(p.name || "");
     setUsername(p.slug || "");
     setDomain(p.domain || availableDomains[0]);
     setBio(p.bio || "");
-    setTheme(p.theme || "minimal-dark");
     setProfileTemplate(normalizeProfileTemplate(p.profile_template));
+    setLinkCardStyle(normalizeLinkCardStyle(p.link_card_style));
+    setSocialLinkStyle(normalizeSocialLinkStyle(p.social_link_style));
     setCardColor(p.card_color || "#000000");
     setOnlineCounter(!!p.online_counter);
     
@@ -349,12 +371,6 @@ export default function DashboardProfile() {
       setAvatarPreview(pb.files.getUrl(p, p.avatar));
     } else {
       setAvatarPreview(null);
-    }
-    
-    if (p.custom_theme_bg) {
-      setCustomBgPreview(pb.files.getUrl(p, p.custom_theme_bg));
-    } else {
-      setCustomBgPreview(null);
     }
     
     setSocialLinks(Array.isArray(p.social_links) ? p.social_links : []);
@@ -409,8 +425,10 @@ export default function DashboardProfile() {
         slug: cleanSlug,
         domain: newProfileDomain,
         name: newProfileName || cleanSlug,
-        theme: "minimal-dark",
+        theme: "sunset",
         profile_template: "classic",
+        link_card_style: "solid",
+        social_link_style: "icons",
         card_color: "#000000",
       });
 
@@ -421,8 +439,7 @@ export default function DashboardProfile() {
       
       await fetchProfiles(created.id);
     } catch (e: unknown) {
-      const err = e as { message?: string };
-      toast.error(err.message || "Failed to create profile");
+      toast.error(maskError(e, "We couldn't create this Public Profile. Check the public URL and try again."));
     } finally {
       setProfileLoading(false);
     }
@@ -431,35 +448,19 @@ export default function DashboardProfile() {
   const handleDeleteProfile = async () => {
     if (!profileId || !user) return;
 
-    if (!confirm(`Are you absolutely sure you want to delete profile @${username}? All visual customizations, links, and styling inside it will be permanently deleted.`)) {
+    if (!confirm(`Delete profile @${username}? Its layout and card customizations will be deleted. The underlying Links and their analytics will remain in your account.`)) {
       return;
     }
 
     setProfileLoading(true);
     try {
-      // 1. Fetch links belonging to this profile
-      const linksToUnlink = await pb.collection('links').getFullList({
-        filter: `user_id = "${user.id}" && profile_id = "${profileId}"`,
-        requestKey: null
-      });
-
-      // 2. Safely unlink associated links instead of deleting them
-      for (const link of linksToUnlink) {
-        await pb.collection('links').update(link.id, {
-          profile_id: "",
-          show_on_profile: false
-        }, { requestKey: null });
-      }
-
-      // 3. Delete profile
       await pb.collection('public_profiles').delete(profileId, { requestKey: null });
 
-      toast.success("Profile deleted successfully. Associated links were unlinked.");
+      toast.success("Profile deleted. Your Links and analytics were kept.");
       navigate("/dashboard/profile");
     } catch (e: unknown) {
-      const err = e as { message?: string };
       console.error("Failed to delete profile:", e);
-      toast.error("Failed to delete profile: " + (err.message || "Unknown error"));
+      toast.error(maskError(e, "We couldn't delete this Public Profile. Please try again."));
     } finally {
       setProfileLoading(false);
     }
@@ -472,27 +473,37 @@ export default function DashboardProfile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProfileId]);
 
-  // Auto-detect icon based on URL input
-  useEffect(() => {
-    if (createUrl && createIconType === "none") {
-      const detected = detectIconFromUrl(createUrl);
-      if (detected) {
-        setCreateIconType("preset");
-        setCreateIconValue(detected);
-      }
-    }
-  }, [createUrl, createIconType]);
-
   const fetchLinks = async () => {
     if (!activeProfileId || !user) return;
     try {
-      const records = await pb.collection('links').getList<LinkItem>(1, 100, {
-        filter: `user_id = "${user.id}" && profile_id = "${activeProfileId}" && show_on_profile=true`,
-        sort: 'order,-created',
-        requestKey: null,
+      const [assignments, coreLinks] = await Promise.all([
+        pb.collection('profile_links').getFullList<ProfileLinkRecord>({
+          filter: `user_id = "${user.id}" && profile_id = "${activeProfileId}"`,
+          sort: 'order,created',
+          expand: 'link_id',
+          requestKey: null,
+        }),
+        pb.collection('links').getFullList<CoreLinkRecord>({
+          filter: `user_id = "${user.id}"`,
+          sort: '-created',
+          requestKey: null,
+        }),
+      ]);
+
+      const resolved = assignments.flatMap<ProfileLinkItem>((assignment) => {
+        const link = assignment.expand?.link_id;
+        if (!link) return [];
+        return [{
+          ...assignment,
+          link,
+          backgroundUrl: assignment.bg_image ? pb.files.getUrl(assignment, assignment.bg_image) : null,
+        }];
       });
-      setLinks(records.items);
+
+      setProfileLinkItems(resolved);
+      setAllLinks(coreLinks);
     } catch (error: unknown) {
+      console.error("Failed to load profile composition:", error);
       toast.error("Failed to load links");
     } finally {
       setLinksLoading(false);
@@ -576,8 +587,10 @@ export default function DashboardProfile() {
         slug: cleanSlug,
         domain,
         bio,
-        theme,
+        theme: "sunset",
         profile_template: profileTemplate,
+        link_card_style: linkCardStyle,
+        social_link_style: socialLinkStyle,
         card_color: cardColor,
         online_counter: onlineCounter,
         social_links: socialLinks,
@@ -587,99 +600,21 @@ export default function DashboardProfile() {
       await pb.collection("public_profiles").update(activeProfileId, updateData, { requestKey: null });
 
       // Step 2: Upload files
-      if (avatarFile || customBgFile) {
+      if (avatarFile) {
         const fileData = new FormData();
         if (avatarFile) fileData.append("avatar", avatarFile);
-        if (customBgFile) fileData.append("custom_theme_bg", customBgFile);
         await pb.collection("public_profiles").update(activeProfileId, fileData, { requestKey: null });
       }
 
-      // Step 3: Synchronize Regular Links for this profile
-      console.log("[handleSaveProfile] Syncing profile links for active profile...");
-      const dbLinksResult = await pb.collection('links').getList<LinkItem>(1, 100, {
-        filter: `user_id = "${user.id}" && profile_id = "${activeProfileId}" && show_on_profile=true`,
-        requestKey: null,
-      });
-      const dbLinks = dbLinksResult.items;
-
-      // A. Identify links to DELETE
-      const linksToDelete = dbLinks.filter(dbl => !links.find(l => l.id === dbl.id));
-      for (const link of linksToDelete) {
-        await pb.collection('links').delete(link.id, { requestKey: null });
-      }
-
-      // B. Identify links to CREATE or UPDATE
-      for (const link of links) {
-        const isNew = link.id.startsWith('temp-');
-
-        const payload = {
-          user_id: user.id,
-          profile_id: activeProfileId,
-          title: link.title,
-          destination_url: link.destination_url,
-          slug: link.slug,
-          order: link.order,
-          active: link.active,
-          show_on_profile: link.show_on_profile,
-          icon_type: link.icon_type,
-          icon_value: link.icon_value,
-          mode: link.mode || "redirect",
-          size: link.size || "regular",
-        };
-
-        if (isNew) {
-          await pb.collection('links').create(payload, { requestKey: null });
-        } else {
-          const original = dbLinks.find(dbl => dbl.id === link.id);
-          if (original) {
-            const fieldsToCompare: (keyof typeof payload)[] = ['title', 'destination_url', 'slug', 'order', 'active', 'show_on_profile', 'icon_type', 'icon_value', 'mode', 'size'];
-            const originalValues = original as unknown as Partial<typeof payload>;
-            const hasChanged = fieldsToCompare.some(key => payload[key] !== originalValues[key]);
-            if (hasChanged) {
-              await pb.collection('links').update(link.id, payload, { requestKey: null });
-            }
-          }
-
-          const pendingBg = pendingBgImages[link.id];
-          if (pendingBg) {
-            const bgFormData = new FormData();
-            if (pendingBg.remove) {
-              bgFormData.append('bg_image', '');
-            } else if (pendingBg.file) {
-              bgFormData.append('bg_image', pendingBg.file);
-            }
-            await pb.collection('links').update(link.id, bgFormData, { requestKey: null });
-          }
-        }
-      }
-      setPendingBgImages({});
       setAvatarFile(null);
-      setCustomBgFile(null);
 
-      // Step 4: Refresh profiles state
+      // Link CRUD is persisted independently and immediately. Saving profile
+      // settings must never create, delete or overwrite records in `links`.
       await fetchProfiles(activeProfileId);
-      toast.success("Profile saved successfully");
+      toast.success("Profile settings saved");
     } catch (err: unknown) {
-      const error = err as { message?: string; response?: { data?: Record<string, unknown> } };
-      console.error("[handleSaveProfile] Error:", error);
-      
-      let detailedError = error?.message || "Unknown error";
-      const responseData = error?.response?.data;
-      
-      if (typeof responseData === 'object' && responseData !== null) {
-          if (responseData.data && typeof responseData.data === 'object' && Object.keys(responseData.data).length > 0) {
-              const firstKey = Object.keys(responseData.data)[0];
-              if (firstKey && responseData.data[firstKey].message) {
-                  detailedError = responseData.data[firstKey].message;
-              } else {
-                  detailedError = (responseData.message as string) || JSON.stringify(responseData.data);
-              }
-          } else {
-              detailedError = (responseData.message as string) || JSON.stringify(responseData);
-          }
-      }
-
-      toast.error(detailedError);
+      console.error("[handleSaveProfile] Error:", err);
+      toast.error(maskError(err, "We couldn't save these profile settings. Check the fields and try again."));
     } finally {
       setProfileLoading(false);
     }
@@ -688,91 +623,94 @@ export default function DashboardProfile() {
 
   // --- LINK MANAGEMENT ---
 
-  const handleCreateLink = async () => {
-    if (!user || !createTitle.trim()) {
-      toast.error("Title is required");
-      return;
+  const handleAddLink = async (linkId: string) => {
+    if (!user || !activeProfileId) return;
+    setLinkAddingId(linkId);
+    try {
+      const highestOrder = profileLinkItems.length > 0
+        ? Math.max(...profileLinkItems.map(item => Number(item.order) || 0))
+        : -1;
+      await pb.collection('profile_links').create({
+        user_id: user.id,
+        profile_id: activeProfileId,
+        link_id: linkId,
+        order: highestOrder + 1,
+        visible: true,
+        size: "regular",
+      }, { requestKey: null });
+      await fetchLinks();
+      toast.success("Link added to this profile");
+    } catch (error) {
+      toast.error(maskError(error, "Failed to add link to profile"));
+    } finally {
+      setLinkAddingId(null);
     }
-
-    const urlValidation = urlSchema.safeParse(createUrl);
-    if (!urlValidation.success) {
-      toast.error(urlValidation.error.errors[0].message);
-      return;
-    }
-    const validatedUrl = urlValidation.data;
-
-    const userPlan = (user as { plan?: string })?.plan || "creator";
-    if (!canUseResource(userPlan, "links", links.length)) {
-      toast.error("Link limit reached. Please upgrade your plan.");
-      return;
-    }
-
-    // Local only change
-    const newLinks = [...links];
-    const highestOrder = links.length > 0 ? Math.max(...links.map(l => l.order || 0)) : 0;
-    const tempId = `temp-${Math.random().toString(36).substring(2, 9)}`;
-
-    const newLink: LinkItem = {
-      id: tempId,
-      slug: Math.random().toString(36).substring(2, 8),
-      destination_url: validatedUrl,
-      title: createTitle,
-      show_on_profile: true,
-      order: highestOrder + 1,
-      active: true,
-      clicks_count: 0,
-      created: new Date().toISOString(),
-      icon_type: createIconType,
-      icon_value: createIconValue,
-      size: createSize,
-    };
-
-    setLinks([...links, newLink]);
-
-    // Reset form
-    setCreateTitle("");
-    setCreateUrl("");
-    setCreateIconType("none");
-    setCreateIconValue("");
-    setCreateSize("regular");
-    setShowCreate(false);
-    toast.info("Link added to list (unsaved)");
   };
 
-  const handleUpdateLink = (id: string, updatedLink: LinkItem, bgImageFile: File | null, bgImageRemoved: boolean) => {
-    setLinks(links.map(l => l.id === id ? updatedLink : l));
-    if (bgImageFile || bgImageRemoved) {
-      setPendingBgImages(prev => ({ ...prev, [id]: { file: bgImageFile, remove: bgImageRemoved } }));
+  const handleUpdateProfileLink = async (
+    id: string,
+    presentation: { title_override: string; size: "regular" | "large" },
+    bgImageFile: File | null,
+    bgImageRemoved: boolean,
+  ) => {
+    const formData = buildProfileLinkUpdateFormData(presentation, bgImageFile, bgImageRemoved);
+
+    try {
+      await pb.collection('profile_links').update(id, formData, { requestKey: null });
+      await fetchLinks();
+      toast.success("Profile card saved");
+      return true;
+    } catch (error) {
+      toast.error(maskError(error, "Failed to save profile card"));
+      return false;
     }
-    toast.info("Link updated in list (unsaved)");
   };
 
-  const handleDeleteLink = (id: string) => {
-    if (!confirm("Remove this link?")) return;
-    setLinks(links.filter(l => l.id !== id));
-    toast.info("Link removed from list (unsaved)");
+  const handleRemoveProfileLink = async (id: string) => {
+    if (!confirm("Remove this card from the Public Profile? The Link, redirect and analytics will remain in Links.")) return;
+    try {
+      await pb.collection('profile_links').delete(id, { requestKey: null });
+      setProfileLinkItems(current => current.filter(item => item.id !== id));
+      toast.success("Link removed from this profile");
+    } catch (error) {
+      toast.error(maskError(error, "Failed to remove link from profile"));
+    }
   };
 
-  const toggleProfileVisibility = (id: string, currentStatus: boolean) => {
-    setLinks(links.map((l) => (l.id === id ? { ...l, show_on_profile: !currentStatus } : l)));
-  };
-
-  const handleDragEnd = (result: DropResult) => {
+  const handleDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
     const sourceIndex = result.source.index;
     const destinationIndex = result.destination.index;
     if (sourceIndex === destinationIndex) return;
 
-    const newLinks = Array.from(links);
-    const [reorderedItem] = newLinks.splice(sourceIndex, 1);
-    newLinks.splice(destinationIndex, 0, reorderedItem);
+    const reordered = Array.from(profileLinkItems);
+    const [reorderedItem] = reordered.splice(sourceIndex, 1);
+    if (!reorderedItem) return;
+    reordered.splice(destinationIndex, 0, reorderedItem);
 
-    const reorderedWithOrder = newLinks.map((link, index) => ({ ...link, order: index }));
-    setLinks(reorderedWithOrder);
+    const reorderedWithOrder = reordered.map((item, index) => ({ ...item, order: index }));
+    setProfileLinkItems(reorderedWithOrder);
+
+    try {
+      await Promise.all(reorderedWithOrder.map(item =>
+        pb.collection('profile_links').update(item.id, { order: item.order }, { requestKey: null })
+      ));
+    } catch (error) {
+      toast.error(maskError(error, "Failed to save link order"));
+      await fetchLinks();
+    }
   };
 
-  const activeTheme = THEMES.find(t => t.id === theme) || THEMES[0];
-  const profileLinks = links.filter(l => l.active && l.show_on_profile !== false);
+  const visibleProfileLinks = profileLinkItems.filter(item => item.visible && item.link.active);
+  const assignedLinkIds = new Set(profileLinkItems.map(item => item.link_id));
+  const normalizedLinkSearch = linkPickerSearch.trim().toLowerCase();
+  const availableProfileLinks = allLinks.filter(link => {
+    if (assignedLinkIds.has(link.id)) return false;
+    if (!normalizedLinkSearch) return true;
+    return [link.title, link.slug, link.destination_url]
+      .filter(Boolean)
+      .some(value => String(value).toLowerCase().includes(normalizedLinkSearch));
+  });
 
   const lastUsernameChange = user?.username_last_changed;
   const isUsernameLocked = (lastUsernameChange && lastUsernameChange.trim() !== "")
@@ -796,7 +734,7 @@ export default function DashboardProfile() {
             <h1 className="text-3xl font-extrabold tracking-tight text-white">
               Edit: {name || username || "Biolink Profile"}
             </h1>
-            <p className="text-muted-foreground text-sm mt-1">Customize visual themes, links, and profile details</p>
+            <p className="text-muted-foreground text-sm mt-1">Customize your profile, links, and presentation</p>
           </div>
           {username && (
             <div className="md:border-l md:border-border/60 md:pl-6 flex flex-col sm:flex-row sm:items-center gap-2">
@@ -922,98 +860,6 @@ export default function DashboardProfile() {
               )}
             </div>
 
-            <div className="space-y-4 pt-4 border-t border-white/10">
-              <button
-                type="button"
-                onClick={() => toggleVisualSection("background")}
-                aria-expanded={openVisualSections.background}
-                aria-controls="background-theme-options"
-                className="group flex w-full items-start justify-between gap-4 text-left"
-              >
-                <div>
-                  <h3 className="text-sm font-medium flex items-center gap-2 text-white">
-                    <Palette className="w-4 h-4 text-accent" /> Background Theme
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Choose the background behind your public profile card.
-                  </p>
-                </div>
-                <ChevronDown
-                  className={`mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:text-white ${openVisualSections.background ? "rotate-180" : ""}`}
-                />
-              </button>
-              {openVisualSections.background && (
-                <div id="background-theme-options" className="space-y-4">
-                  <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-3">
-                    {THEMES.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => canCustomize && setTheme(t.id)}
-                        disabled={!canCustomize}
-                        className={`relative p-3 rounded-xl border text-left transition-all ${theme === t.id ? "border-accent bg-accent/5 ring-1 ring-accent/50" : "border-border bg-surface hover:border-accent/30"} ${!canCustomize ? "opacity-50 cursor-not-allowed" : ""}`}
-                      >
-                        <div className={`w-full h-12 rounded-lg mb-2 ${t.colors} border`} />
-                        <span className="text-xs font-medium block text-white">{t.name}</span>
-                        {theme === t.id && (
-                          <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-accent flex items-center justify-center">
-                            <Check className="w-2.5 h-2.5 text-white" />
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-
-                  {theme === "custom" && (
-                    <div className="p-4 border border-border border-dashed rounded-xl bg-background/50 flex flex-col items-center justify-center space-y-3">
-                      {customBgPreview ? (
-                        <div className="relative w-full h-32 rounded-lg overflow-hidden group">
-                          <img src={customBgPreview} alt="Custom Background" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button type="button" onClick={() => customBgInputRef.current?.click()} className="btn-primary-glow text-xs py-1.5 px-3">
-                              Change Background
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
-                            <Upload className="w-5 h-5 text-accent" />
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm font-medium text-white mb-1">Upload Custom Background</p>
-                            <p className="text-xs text-muted-foreground">Recommended: 1080x1920 JPG or PNG</p>
-                          </div>
-                          <button type="button" onClick={() => customBgInputRef.current?.click()} className="btn-primary-glow text-xs py-1.5 px-3">
-                            Choose File
-                          </button>
-                        </>
-                      )}
-                      <input
-                        type="file"
-                        ref={customBgInputRef}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            if (file.size > 5 * 1024 * 1024) {
-                              toast.error("Background image must be less than 5MB");
-                              return;
-                            }
-                            setCustomBgFile(file);
-                            const reader = new FileReader();
-                            reader.onloadend = () => setCustomBgPreview(reader.result as string);
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                        className="hidden"
-                        accept="image/*"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
             {/* Card Color Theme */}
             <div className="space-y-4 pt-4 border-t border-white/10">
               <button
@@ -1077,6 +923,114 @@ export default function DashboardProfile() {
                     className="w-full h-12 rounded-xl shadow-inner transition-colors"
                     style={{ backgroundColor: cardColor }}
                   />
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4 border-t border-white/10 pt-4">
+              <button
+                type="button"
+                onClick={() => toggleVisualSection("linkCards")}
+                aria-expanded={openVisualSections.linkCards}
+                aria-controls="link-card-style-options"
+                className="group flex w-full items-start justify-between gap-4 text-left"
+              >
+                <div>
+                  <h3 className="flex items-center gap-2 text-sm font-medium text-white">
+                    <Layers3 className="h-4 w-4 text-accent" /> Link Card Style
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Control how every destination is presented without changing its URL or tracking.
+                  </p>
+                </div>
+                <ChevronDown
+                  className={`mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:text-white ${openVisualSections.linkCards ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              {openVisualSections.linkCards && (
+                <div id="link-card-style-options" className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-3">
+                  {LINK_CARD_STYLES.map((styleOption) => (
+                    <button
+                      key={styleOption.id}
+                      type="button"
+                      onClick={() => canCustomize && setLinkCardStyle(styleOption.id)}
+                      disabled={!canCustomize}
+                      aria-pressed={linkCardStyle === styleOption.id}
+                      className={`relative rounded-xl border p-2.5 text-left transition-[border-color,background-color,box-shadow,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 active:scale-[0.99] ${
+                        linkCardStyle === styleOption.id
+                          ? "border-accent bg-accent/5 ring-1 ring-accent/50"
+                          : "border-border bg-surface hover:border-accent/30"
+                      } ${!canCustomize ? "cursor-not-allowed opacity-50" : ""}`}
+                    >
+                      <LinkCardStyleThumbnail style={styleOption.id} />
+                      <span className="mt-2 block text-xs font-semibold text-white">
+                        {styleOption.name}
+                      </span>
+                      <span className="mt-1 block text-[10px] leading-snug text-muted-foreground">
+                        {styleOption.description}
+                      </span>
+                      {linkCardStyle === styleOption.id && (
+                        <span className="absolute right-4 top-4 flex h-5 w-5 items-center justify-center rounded-full bg-accent shadow-lg">
+                          <Check className="h-3 w-3 text-accent-foreground" />
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4 border-t border-white/10 pt-4">
+              <button
+                type="button"
+                onClick={() => toggleVisualSection("socialStyle")}
+                aria-expanded={openVisualSections.socialStyle}
+                aria-controls="social-link-style-options"
+                className="group flex w-full items-start justify-between gap-4 text-left"
+              >
+                <div>
+                  <h3 className="flex items-center gap-2 text-sm font-medium text-white">
+                    <Share2 className="h-4 w-4 text-accent" /> Social Links Style
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Choose compact icons or branded pills for social traffic.
+                  </p>
+                </div>
+                <ChevronDown
+                  className={`mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:text-white ${openVisualSections.socialStyle ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              {openVisualSections.socialStyle && (
+                <div id="social-link-style-options" className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+                  {SOCIAL_LINK_STYLES.map((styleOption) => (
+                    <button
+                      key={styleOption.id}
+                      type="button"
+                      onClick={() => canCustomize && setSocialLinkStyle(styleOption.id)}
+                      disabled={!canCustomize}
+                      aria-pressed={socialLinkStyle === styleOption.id}
+                      className={`relative rounded-xl border p-2.5 text-left transition-[border-color,background-color,box-shadow,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 active:scale-[0.99] ${
+                        socialLinkStyle === styleOption.id
+                          ? "border-accent bg-accent/5 ring-1 ring-accent/50"
+                          : "border-border bg-surface hover:border-accent/30"
+                      } ${!canCustomize ? "cursor-not-allowed opacity-50" : ""}`}
+                    >
+                      <SocialStyleThumbnail style={styleOption.id} />
+                      <span className="mt-2 block text-xs font-semibold text-white">
+                        {styleOption.name}
+                      </span>
+                      <span className="mt-1 block text-[10px] leading-snug text-muted-foreground">
+                        {styleOption.description}
+                      </span>
+                      {socialLinkStyle === styleOption.id && (
+                        <span className="absolute right-4 top-4 flex h-5 w-5 items-center justify-center rounded-full bg-accent shadow-lg">
+                          <Check className="h-3 w-3 text-accent-foreground" />
+                        </span>
+                      )}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -1241,90 +1195,69 @@ export default function DashboardProfile() {
 
           {/* Links Section */}
           <div className="bg-card/60 border border-border rounded-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
-                <Globe className="w-5 h-5 text-accent" /> Links
-              </h2>
-              {!showCreate && (
-                <button
-                  onClick={() => setShowCreate(true)}
-                  className="px-3 py-1.5 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent text-sm font-medium flex items-center gap-1.5 transition-colors"
-                >
-                  <Plus className="w-4 h-4" /> Add Link
-                </button>
-              )}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
+                  <Globe className="w-5 h-5 text-accent" /> Profile links
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">Choose existing Links, then customize how each card looks on this profile.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLinkPicker(current => !current)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2 text-sm font-semibold text-accent transition-colors hover:bg-accent/15"
+                aria-expanded={showLinkPicker}
+              >
+                {showLinkPicker ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                {showLinkPicker ? "Close" : "Add from Links"}
+              </button>
             </div>
 
-            {/* Inline Create Form */}
-            {showCreate && (
-              <div className="bg-surface p-4 rounded-xl border border-accent/30 space-y-3 animate-fade-in text-white">
-                <div className="flex justify-between items-center mb-1">
-                  <h3 className="text-sm font-medium text-white">New Link</h3>
-                  <button onClick={() => {
-                    setShowCreate(false);
-                    setCreateSize("regular");
-                  }} className="text-muted-foreground hover:text-white"><X className="w-4 h-4" /></button>
-                </div>
-                <div>
-                  <input value={createTitle} onChange={(e) => setCreateTitle(e.target.value)} placeholder="Title (e.g. My Website)" className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm mb-2 text-white" />
-                  <div className="flex gap-2 mb-2">
-                    <div className="relative">
-                      <button
-                        id="create-link-icon-btn"
-                        type="button"
-                        onClick={() => setShowIconPicker(!showIconPicker)}
-                        className="w-[38px] h-[38px] bg-background border border-border rounded-lg flex items-center justify-center shrink-0 overflow-hidden hover:bg-surface-hover transition-colors"
-                      >
-                        <IconRenderer type={createIconType} value={createIconValue} className="w-4 h-4 text-muted-foreground" />
-                      </button>
-                      {showIconPicker && (
-                        <IconPicker
-                          currentType={createIconType}
-                          currentValue={createIconValue}
-                          anchorRef={{ current: document.getElementById("create-link-icon-btn") } as React.RefObject<HTMLElement>}
-                          onChange={(type, value) => {
-                            setCreateIconType(type);
-                            setCreateIconValue(value);
-                            setShowIconPicker(false);
-                          }}
-                          onClose={() => setShowIconPicker(false)}
-                        />
-                      )}
-                    </div>
-                    <input value={createUrl} onChange={(e) => setCreateUrl(e.target.value)} placeholder="URL (https://...)" type="url" className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-sm text-white" />
+            {showLinkPicker && (
+              <div className="animate-fade-in overflow-hidden rounded-2xl border border-accent/25 bg-surface/75">
+                <div className="flex flex-col gap-3 border-b border-border/70 p-4 sm:flex-row sm:items-center">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      value={linkPickerSearch}
+                      onChange={event => setLinkPickerSearch(event.target.value)}
+                      placeholder="Search your Links"
+                      className="h-10 w-full rounded-xl border border-border bg-background/45 pl-9 pr-3 text-sm text-foreground outline-none transition-colors focus:border-accent/45"
+                    />
                   </div>
-
-                  {/* Size Selection */}
-                  <div className="space-y-2 mt-3">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Display Size</label>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setCreateSize("regular")}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-xs font-semibold transition-all ${createSize === "regular" ? "bg-accent/10 border-accent/50 text-accent" : "bg-background border-border text-muted-foreground hover:border-accent/30"}`}
-                      >
-                        Regular
-                      </button>
-                      <button
-                        onClick={() => setCreateSize("large")}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-xs font-semibold transition-all ${createSize === "large" ? "bg-accent/10 border-accent/50 text-accent" : "bg-background border-border text-muted-foreground hover:border-accent/30"}`}
-                      >
-                        Large
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-accent/5 px-2 py-1 rounded-md border border-accent/10">
-                    <Check className="w-3 h-3 text-accent" />
-                    Automatically added to profile
-                  </div>
-                  <button
-                    onClick={handleCreateLink}
-                    disabled={createLoading || !createUrl || !createTitle}
-                    className="btn-primary-glow !py-1.5 !px-4 text-sm flex items-center gap-2 disabled:opacity-50"
+                  <RouterLink
+                    to={`/dashboard/links/create?profile=${activeProfileId}`}
+                    className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border px-3 text-xs font-bold text-foreground transition-colors hover:border-accent/35 hover:text-accent"
                   >
-                    {createLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Link"}
-                  </button>
+                    <ExternalLink className="h-3.5 w-3.5" /> Create in Links
+                  </RouterLink>
+                </div>
+                <div className="max-h-72 space-y-1.5 overflow-y-auto p-2.5">
+                  {availableProfileLinks.length > 0 ? availableProfileLinks.map(link => (
+                    <div key={link.id} className="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 transition-colors hover:border-white/10 hover:bg-white/[0.025]">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background/45">
+                        <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className="h-5 w-5 text-accent" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-foreground">{link.title || `/${link.slug}`}</p>
+                        <p className="truncate text-xs font-sans text-muted-foreground">{link.destination_url}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleAddLink(link.id)}
+                        disabled={linkAddingId !== null}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-accent/10 px-2.5 text-xs font-bold text-accent transition-colors hover:bg-accent/20 disabled:opacity-50"
+                      >
+                        {linkAddingId === link.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                        Add
+                      </button>
+                    </div>
+                  )) : (
+                    <div className="px-4 py-8 text-center">
+                      <p className="text-sm font-medium text-foreground">{allLinks.length === 0 ? "You do not have any Links yet" : "All matching Links are already on this profile"}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Create and manage redirect destinations in Links.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1332,22 +1265,25 @@ export default function DashboardProfile() {
             {/* Links List */}
             {linksLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-accent" /></div>
-            ) : links.length === 0 && !showCreate ? (
-              <div className="text-center py-6 text-muted-foreground text-sm">No links added yet.</div>
+            ) : profileLinkItems.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border px-5 py-9 text-center">
+                <p className="text-sm font-semibold text-foreground">No Links on this profile yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">Add an existing Link above. Its redirect and analytics stay managed in Links.</p>
+              </div>
             ) : (
               <DragDropContext onDragEnd={handleDragEnd}>
-                <Droppable droppableId="profile-links" isDropDisabled={links.length <= 1}>
+                <Droppable droppableId="profile-links" isDropDisabled={profileLinkItems.length <= 1}>
                   {(provided) => (
                     <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                      {links.map((link, index) => (
-                        <Draggable key={link.id} draggableId={link.id} index={index} isDragDisabled={links.length <= 1}>
+                      {profileLinkItems.map((item, index) => (
+                        <Draggable key={item.id} draggableId={item.id} index={index} isDragDisabled={profileLinkItems.length <= 1}>
                           {(provided, snapshot) => (
-                            <LinkItemCard
-                              link={link}
+                            <ProfileLinkEditorCard
+                              item={item}
                               provided={provided}
                               snapshot={snapshot}
-                              onUpdate={handleUpdateLink}
-                              onDelete={handleDeleteLink}
+                              onUpdate={handleUpdateProfileLink}
+                              onRemove={handleRemoveProfileLink}
                             />
                           )}
                         </Draggable>
@@ -1365,7 +1301,7 @@ export default function DashboardProfile() {
             disabled={profileLoading}
             className="btn-primary-glow w-full flex items-center justify-center gap-2 py-3 mt-4 text-base font-bold shadow-lg shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {profileLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Save Entire Profile"}
+            {profileLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Save Profile Settings"}
           </button>
         </div>
 
@@ -1377,18 +1313,22 @@ export default function DashboardProfile() {
             </div>
 
             {/* Phone Frame */}
-            <div className="relative w-[320px] h-[640px] rounded-[52px] border-[10px] border-surface p-1 shadow-2xl overflow-hidden shadow-accent/20 bg-background/50">
+            <div className="relative w-[320px] overflow-hidden rounded-[52px] border-[10px] border-surface bg-surface shadow-2xl shadow-accent/20">
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-surface rounded-b-2xl z-20" />
-
-              {/* Profile Inner Content (Dynamic Mockup) */}
               <div
-                className="w-full h-full relative flex flex-col no-scrollbar rounded-[40px] overflow-hidden"
-                style={{ backgroundColor: cardColor }}
+                className="relative h-[625px] w-full overflow-hidden rounded-[41px] bg-black"
+                data-profile-preview-viewport="390x812"
               >
-                <div className="flex flex-col flex-1 overflow-y-auto no-scrollbar relative z-10 pb-10">
-                  <ProfileIdentity
+                {/* One CSS pixel of horizontal bleed keeps fractional scaling from exposing the phone frame. */}
+                <div
+                  className="no-scrollbar absolute left-0 top-0 h-[812px] w-[391px] origin-top-left overflow-x-hidden overflow-y-auto overscroll-contain"
+                  style={{ transform: "scale(0.7692307692)" }}
+                >
+                  <ProfileCanvas
                     preview
                     template={profileTemplate}
+                    linkCardStyle={linkCardStyle}
+                    socialLinkStyle={socialLinkStyle}
                     name={name || "Your Name"}
                     username={username || "username"}
                     bio={bio}
@@ -1396,77 +1336,29 @@ export default function DashboardProfile() {
                     avatarFallback={name.charAt(0).toUpperCase() || "?"}
                     cardColor={cardColor}
                     socialLinks={socialLinks}
+                    plan={userPlan}
                     onlineCounter={onlineCounter ? (
-                      <div className="mt-3 flex items-center justify-center gap-2">
+                      <div className="mt-4 flex items-center justify-center gap-2">
                         <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                          <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
                         </span>
-                        <span className="text-[10px] font-medium tracking-wide text-white/50">
-                          <span className="font-bold text-white/70">342</span> people are currently watching this
+                        <span className={`text-xs font-medium tracking-wide ${isLightProfileColor(cardColor) ? "text-black/50" : "text-white/50"}`}>
+                          <span className={isLightProfileColor(cardColor) ? "font-bold text-black/70" : "font-bold text-white/70"}>342</span>{" "}
+                          people are currently watching this
                         </span>
                       </div>
                     ) : undefined}
+                    links={visibleProfileLinks.map((item) => ({
+                      id: item.id,
+                      title: getProfileLinkTitle(item),
+                      destinationUrl: item.link.destination_url,
+                      iconType: item.link.icon_type,
+                      iconValue: item.link.icon_value,
+                      size: item.size,
+                      backgroundUrl: item.backgroundUrl,
+                    }))}
                   />
-
-                  {/* Profile content shared by all template previews. */}
-                  <div className="px-4 relative">
-
-                    {/* Dynamic Links */}
-                    <div className="w-full mt-5 space-y-3">
-                      {profileLinks.length === 0 ? (
-                        <div className="text-center text-white/40 text-sm italic mt-10">No visible links yet.</div>
-                      ) : (
-                        profileLinks.map((link) => {
-                          const bgImageUrl = link.bg_image
-                            ? pb.files.getUrl(link, link.bg_image)
-                            : null;
-                          const editorialLink = profileTemplate === "cutout" && link.size !== "large";
-
-                          return (
-                            <div key={link.id} className={`w-full transition-all group cursor-pointer relative overflow-hidden flex ${
-                              editorialLink
-                                ? `rounded-none border-b h-[44px] items-center px-1 ${isLightProfileColor(cardColor) ? "border-black/15" : "border-white/15"}`
-                                : `rounded-2xl bg-[#111] border border-white/5 shadow-lg shadow-black/5 ${link.size === 'large' ? 'flex-col p-3 aspect-[10/6] sm:aspect-[10/5.4]' : 'h-[40px] items-center justify-center px-1'}`
-                            }`}>
-
-                              {/* Custom Background */}
-                              {bgImageUrl && (
-                                <>
-                                  <img
-                                    src={bgImageUrl}
-                                    alt="Background"
-                                    className="absolute inset-0 w-full h-full object-cover z-0 transition-transform duration-700 group-hover:scale-105"
-                                  />
-                                  <div className={`absolute inset-0 z-0 ${link.size === 'large' ? 'bg-gradient-to-t from-black/90 via-black/40 to-black/20' : 'bg-black/50'}`} />
-                                </>
-                              )}
-
-                              <div className={`relative z-10 flex w-full ${link.size === 'large' ? 'h-full flex-col justify-between items-start' : editorialLink ? 'items-center' : 'items-center justify-center'}`}>
-                                <div className={`${link.size === 'large' ? 'shrink-0 self-start' : editorialLink ? 'relative shrink-0 mr-2' : 'absolute left-0 shrink-0 ml-0'}`}>
-                                  <div className={`${link.size === 'large' ? 'w-8 h-8 rounded-xl bg-white/10 backdrop-blur-md overflow-hidden shadow-lg' : editorialLink ? 'w-9 h-9 rounded-lg bg-white/5' : 'w-11 h-11 rounded-xl overflow-hidden'} flex items-center justify-center`}>
-                                    <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className={`${link.size === 'large' ? 'w-4 h-4' : 'w-5 h-5'} text-white/90 drop-shadow-md`} />
-                                  </div>
-                                </div>
-                                <div className={`${link.size === 'large' ? 'mt-auto text-center w-full px-10' : editorialLink ? 'text-left flex-1' : 'text-center px-10'}`}>
-                                  <span className={`font-bold group-hover:scale-[1.02] transition-transform block uppercase tracking-wider ${editorialLink && isLightProfileColor(cardColor) ? 'text-black' : 'text-white'} ${link.size === 'large' ? 'text-sm drop-shadow-lg' : 'text-xs'}`}>{link.title || "Untitled Link"}</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    {!checkPlan(userPlan, "remove_branding") && (
-                      <div className="mt-auto pt-10 pb-2 flex flex-col items-center gap-1.5 shrink-0">
-                        <div className="flex items-center gap-1.5 grayscale mix-blend-screen opacity-50">
-                          <img src="/logo.webp" alt="Linktery" className="h-7 w-auto" />
-                          <span className="text-[9px] font-bold tracking-widest uppercase text-white translate-y-[0.5px]">Linktery</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
             </div>

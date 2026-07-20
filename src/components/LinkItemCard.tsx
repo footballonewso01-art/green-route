@@ -14,7 +14,7 @@ interface LinkItemCardProps {
     link: LinkItem;
     provided: DraggableProvided;
     snapshot: DraggableStateSnapshot;
-    onUpdate: (id: string, updatedLink: LinkItem, bgImageFile: File | null, bgImageRemoved: boolean) => void;
+    onUpdate: (id: string, updatedLink: LinkItem, bgImageFile: File | null, bgImageRemoved: boolean) => Promise<boolean>;
     onDelete: (id: string) => void;
 }
 
@@ -100,7 +100,7 @@ export const LinkItemCard = React.memo(({ link, provided, snapshot, onUpdate, on
         setIsEditing(false);
     };
 
-    const handleSaveEdit = () => {
+    const handleSaveEdit = async () => {
         if (!editTitle.trim()) return toast.error("Title is required");
 
         const urlValidation = urlSchema.safeParse(editUrl);
@@ -120,8 +120,17 @@ export const LinkItemCard = React.memo(({ link, provided, snapshot, onUpdate, on
             bg_image: editBgImageRemoved ? undefined : link.bg_image,
         };
 
-        onUpdate(link.id, updatedLink, editBgImageFile, editBgImageRemoved);
-        setIsEditing(false);
+        setEditLoading(true);
+        try {
+            const saved = await onUpdate(link.id, updatedLink, editBgImageFile, editBgImageRemoved);
+            if (saved) {
+                setEditBgImageFile(null);
+                setEditBgImageRemoved(false);
+                setIsEditing(false);
+            }
+        } finally {
+            setEditLoading(false);
+        }
     };
 
     return (
@@ -239,8 +248,8 @@ export const LinkItemCard = React.memo(({ link, provided, snapshot, onUpdate, on
 
                         <div className="flex gap-2 justify-end pt-1">
                             <button onClick={cancelEditing} className="text-xs text-muted-foreground hover:text-white">Cancel</button>
-                            <button onClick={handleSaveEdit} className="text-xs text-accent hover:text-accent/80 flex items-center gap-1">
-                                {editLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Save
+                            <button onClick={() => void handleSaveEdit()} disabled={editLoading} className="text-xs text-accent hover:text-accent/80 flex items-center gap-1 disabled:cursor-wait disabled:opacity-60">
+                                {editLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Save link
                             </button>
                         </div>
 

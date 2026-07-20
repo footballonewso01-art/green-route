@@ -207,21 +207,21 @@
     "title": "Link-in-Bio Templates for Every Profile Style",
     "seoTitle": "Link-in-Bio Templates for Creators & Brands | Linktery",
     "seoDescription": "Explore responsive Linktery public-profile templates, including cinematic covers, compact avatars, banners, portraits, and editorial layouts.",
-    "lead": "Choose a visual structure first, then customize its colors, background, cards, avatar, text, and destinations in the profile editor.",
+    "lead": "Choose a visual structure first, then customize its card style, avatar, text, and destinations in the profile editor.",
     "highlights": [
       { "title": "Five structures", "text": "Switch between Classic Cover, Compact Circle, Banner Circle, Hero Portrait, and Cutout Editorial." },
       { "title": "Responsive by design", "text": "Templates adapt their image treatment, spacing, typography, and card layout across phones and larger screens." },
       { "title": "Content stays yours", "text": "Changing a template changes presentation, not the saved profile name, bio, links, or analytics history." }
     ],
     "sections": [
-      { "heading": "Choose structure before decoration", "paragraphs": ["A template controls the hierarchy of the profile: where the avatar appears, how much space the hero image receives, and how quickly visitors reach the first destination card.", "Background and card themes then refine the selected structure without requiring the profile to be rebuilt."], "bullets": ["Avatar and cover placement", "Content density", "Typography hierarchy", "Link-card presentation"] },
+      { "heading": "Choose structure before decoration", "paragraphs": ["A template controls the hierarchy of the profile: where the avatar appears, how much space the hero image receives, and how quickly visitors reach the first destination card.", "Linktery keeps the page atmosphere automatic: a soft Sunset blur appears by default, and an uploaded avatar can become the blurred ambient backdrop."], "bullets": ["Avatar and cover placement", "Content density", "Typography hierarchy", "Link-card presentation"] },
       { "heading": "Match the template to the job", "paragraphs": ["Compact Circle prioritizes immediate access to links. Hero Portrait and Classic Cover devote more space to personal branding. Banner Circle supports a familiar social-profile structure, while Cutout Editorial creates a more expressive portfolio presentation.", "The best template is the one that makes the profile's primary action obvious on the devices your audience actually uses."], "bullets": ["Creators and personal brands", "Musicians and visual artists", "Portfolios and media kits", "Businesses and campaign hubs"] },
       { "heading": "Test with real content", "paragraphs": ["A template can look balanced with three short sample links and still feel crowded with real campaign titles. Preview the actual avatar, bio, cards, and images before publishing.", "Check the first screen on a phone, then review tablet and desktop layouts. Long titles and low-contrast backgrounds deserve special attention."], "bullets": ["Use the real avatar and bio", "Preview long card titles", "Check contrast", "Test phone and desktop sizes"] }
     ],
     "faqs": [
       { "question": "Does changing a profile template delete links?", "answer": "No. The template changes the visual structure while keeping the profile content and destinations." },
       { "question": "Are Linktery templates responsive?", "answer": "Yes. The five profile structures use responsive layouts for phone and larger screens." },
-      { "question": "Can I also change colors and card styles?", "answer": "Yes. Profile Template, Background Theme, and Card Theme are separate controls in the editor." }
+      { "question": "Can I also change card colors and styles?", "answer": "Yes. Profile Template, Card Theme, Link Card Style, and Social Links Style are available in the editor." }
     ],
     "related": ["/templates/classic-cover", "/templates/compact-circle", "/templates/banner-circle", "/templates/hero-portrait", "/templates/cutout-editorial"]
   },
@@ -267,12 +267,12 @@
     ],
     "sections": [
       { "heading": "Designed for quick choices", "paragraphs": ["Compact Circle keeps the identity block small so more destination cards appear near the first screen. It is a strong default for audiences arriving with clear intent.", "The layout works especially well with a concise bio and three to six prioritized links."], "bullets": ["Coaches and consultants", "Affiliate collections", "Event and booking profiles", "Minimal personal pages"] },
-      { "heading": "Use a recognizable avatar", "paragraphs": ["Because the avatar is smaller, use a close crop, simple logo, or high-contrast portrait. Fine background detail will be difficult to recognize at this size.", "Preview light and dark background themes to make sure the circular image remains distinct."], "bullets": ["Close portrait crop", "Simple logo mark", "High edge contrast", "No tiny embedded text"] },
+      { "heading": "Use a recognizable avatar", "paragraphs": ["Because the avatar is smaller, use a close crop, simple logo, or high-contrast portrait. Fine background detail will be difficult to recognize at this size.", "Linktery automatically uses a soft Sunset atmosphere or a blurred version of your avatar behind the profile, so the foreground remains the focus."], "bullets": ["Close portrait crop", "Simple logo mark", "High edge contrast", "No tiny embedded text"] },
       { "heading": "Prioritize the card list", "paragraphs": ["The compact header gives link ordering more influence. Put the highest-value action first and group related destinations with clear titles.", "Avoid repeating the same call to action across several cards unless each destination is genuinely different."], "bullets": ["Primary action first", "Short descriptive titles", "Remove outdated offers", "Review card analytics"] }
     ],
     "faqs": [
       { "question": "Which template shows links fastest?", "answer": "Compact Circle is designed to keep the identity header small and bring the first cards into view quickly." },
-      { "question": "Can Compact Circle use a background image?", "answer": "Background Theme remains a separate profile control, so the compact structure can be combined with supported background styles." },
+      { "question": "Does Compact Circle use the avatar as a backdrop?", "answer": "Yes. When an avatar is available, Linktery uses a blurred version of it as the ambient backdrop; otherwise it uses the Sunset blur." },
       { "question": "Is it suitable for business profiles?", "answer": "Yes, especially when a simple logo and immediate access to booking, shop, or contact links are more important than a large hero image." }
     ],
     "related": ["/templates/link-in-bio", "/templates/banner-circle", "/features/link-analytics", "/register"]

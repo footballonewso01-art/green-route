@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
+import { maskError } from "@/lib/utils";
 
 type LinkRecord = {
     id: string;
@@ -106,13 +107,12 @@ export default function AdminLinks() {
                 setLinks(links.map(l => l.id === activeSpyLink.id ? { ...l, system_route_active: overrideActive, system_route_override: overrideActive ? overrideUrl.trim() : '' } : l));
                 setIsSpyModalOpen(false);
             } else {
-                toast.error(res.message || "Failed to save override");
+                toast.error("The route override wasn't saved. Check the URL and try again.");
             }
         } catch (err: unknown) {
             console.error("Failed to update overrides", err);
             const error = err as { response?: { message?: string }; message?: string };
-            const detail = error.response?.message || error.message || "Unknown error";
-            toast.error(`Error saving override: ${detail}`);
+            toast.error(maskError(error, "The route override wasn't saved. Check the URL and try again."));
         }
     };
 

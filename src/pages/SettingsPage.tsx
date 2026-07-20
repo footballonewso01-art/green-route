@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { maskError } from "@/lib/utils";
 import { BillingRecord, formatBillingDate } from "@/lib/billing";
+import { CancelRenewalButton } from "@/components/billing/CancelRenewalButton";
 
 interface SettingsSection {
   id: string;
@@ -34,7 +35,7 @@ export default function SettingsPage() {
 
   const [promocode, setPromocode] = useState("");
   const [loadingPromocode, setLoadingPromocode] = useState(false);
-  const [loadingCancel, setLoadingCancel] = useState(false);
+  const [billingRevision, setBillingRevision] = useState(0);
 
   // Account profile editing state
   const [accountUsername, setAccountUsername] = useState(user?.username || "");
@@ -100,7 +101,7 @@ export default function SettingsPage() {
       }
     };
     checkActiveSub();
-  }, [user, loadingCancel]);
+  }, [user, billingRevision]);
 
   // Verify Stripe session on return from checkout
   useEffect(() => {
@@ -150,7 +151,7 @@ export default function SettingsPage() {
       }
     };
     fetchBilling();
-  }, [user, verifying]);
+  }, [user, verifying, billingRevision]);
 
   const hasStripeCustomer = billingLogs.some(
     log => log.payment_method === "Stripe" && (log.status === "active" || log.status === "canceling")
@@ -181,7 +182,6 @@ export default function SettingsPage() {
       const data = await pb.send("/api/stripe/create-portal", { method: "POST" });
       window.location.assign(data.url);
     } catch (e: unknown) {
-      console.error("Portal error:", e);
       console.error("Billing portal error:", e);
       const status = (e as { status?: number })?.status;
       if (status === 401 || status === 403) {
@@ -223,7 +223,7 @@ export default function SettingsPage() {
         toast.success(res.message);
         await pb.collection("users").authRefresh();
       } else {
-        toast.error(res.message || "Failed to apply promocode");
+        toast.error("This promo code couldn't be applied. Check its status and try again.");
       }
     } catch (err) {
       const error = err as { response?: { message?: string; error?: string }; message?: string };
@@ -268,14 +268,13 @@ export default function SettingsPage() {
       const data = err?.response?.data;
       if (data) {
         if (data.oldPassword) {
-          toast.error(data.oldPassword.message || "Current password is incorrect.");
+          toast.error("Current password is incorrect.");
         } else if (data.password) {
-          toast.error(data.password.message || "New password does not meet requirements.");
+          toast.error("New password does not meet the security requirements.");
         } else if (data.passwordConfirm) {
-          toast.error(data.passwordConfirm.message || "Password confirmation does not match.");
+          toast.error("Password confirmation does not match.");
         } else {
-          const firstKey = Object.keys(data)[0];
-          toast.error(data[firstKey]?.message || "Failed to update password.");
+          toast.error("We couldn't update the password. Check the fields and try again.");
         }
       } else {
         console.error("Password update error:", err);
@@ -283,34 +282,6 @@ export default function SettingsPage() {
       }
     } finally {
       setLoadingPassword(false);
-    }
-  };
-
-  const handleCancelSubscription = async () => {
-    if (!confirm("Are you sure you want to turn off auto-renewal for your subscription? Your premium plan will remain active until the end of your billing cycle.")) {
-      return;
-    }
-
-    setLoadingCancel(true);
-    try {
-      const res = await pb.send("/api/stripe/cancel-subscription", {
-        method: "POST"
-      });
-
-      if (res.success) {
-        toast.success(res.message || "Subscription canceled successfully");
-        if (refreshUser) {
-          await refreshUser();
-        }
-      } else {
-        toast.error(res.message || "Failed to cancel subscription");
-      }
-    } catch (err) {
-      const error = err as { response?: { message?: string; error?: string }; message?: string };
-      console.error("Cancel subscription error:", error);
-      toast.error(maskError(error, "Failed to cancel subscription"));
-    } finally {
-      setLoadingCancel(false);
     }
   };
 
@@ -358,7 +329,7 @@ export default function SettingsPage() {
         message?: string;
       };
       console.error('Account update error:', error);
-      toast.error(error.response?.data?.username?.message || maskError(error, 'Failed to update account'));
+      toast.error(maskError(error, 'We couldn\'t update the account. Check the username and try again.'));
     } finally {
       setSavingAccount(false);
     }
@@ -465,14 +436,7 @@ export default function SettingsPage() {
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">Account Identity</h3>
 
-                  <div className="p-5 bg-accent/[0.04] border border-accent/15 rounded-2xl">
-                    <p className="text-sm text-foreground/90 font-medium">Separate from your Public Profiles</p>
-                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                      Your account avatar and username identify you inside Linktery. Changing them will not change any Bio Link Profile name, avatar, slug, or public URL.
-                    </p>
-                  </div>
-
-                  {/* Avatar + Name row */}
+                  {/* Avatar + Username row */}
                   <div className="flex flex-col sm:flex-row sm:items-center gap-5 p-5 bg-surface/40 border border-border/40 rounded-2xl">
                     {/* Avatar */}
                     <div className="relative group shrink-0">
@@ -710,13 +674,13 @@ export default function SettingsPage() {
                     {subStatus === "active" && hasStripeCustomer && (
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-border/30">
                         <p className="text-sm text-muted-foreground">You can turn off renewal without losing current-period access.</p>
-                        <button
-                          onClick={handleCancelSubscription}
-                          disabled={loadingCancel}
-                          className="px-4 py-2 rounded-xl border border-red-500/30 hover:border-red-500/50 hover:bg-red-500/10 text-red-400 font-medium transition-all flex items-center justify-center gap-2 text-xs disabled:opacity-50 shrink-0"
-                        >
-                          {loadingCancel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Turn Off Renewal"}
-                        </button>
+                        <CancelRenewalButton
+                          className="shrink-0"
+                          onCanceled={async () => {
+                            setBillingRevision((value) => value + 1);
+                            await refreshUser();
+                          }}
+                        />
                       </div>
                     )}
                   </div>

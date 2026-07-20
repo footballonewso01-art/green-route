@@ -1,15 +1,18 @@
 import { ReactNode } from "react";
 import { IconRenderer } from "@/components/icons/IconRenderer";
+import { getPresetIcon } from "@/components/icons/presets";
 import {
   isLightProfileColor,
   ProfileTemplateId,
 } from "@/lib/profileTemplates";
+import { SocialLinkStyleId } from "@/lib/profileAppearance";
 
 export interface ProfileSocialLink {
   id: string;
   url: string;
   icon_type: "preset" | "emoji" | "custom" | "none" | string;
   icon_value: string;
+  label?: string;
 }
 
 interface ProfileIdentityProps {
@@ -21,6 +24,7 @@ interface ProfileIdentityProps {
   avatarFallback: string;
   cardColor: string;
   socialLinks?: ProfileSocialLink[];
+  socialStyle?: SocialLinkStyleId;
   onlineCounter?: ReactNode;
   preview?: boolean;
 }
@@ -28,11 +32,13 @@ interface ProfileIdentityProps {
 function Avatar({
   avatarUrl,
   fallback,
+  alt,
   className,
   imageClassName = "object-cover object-top",
 }: {
   avatarUrl?: string | null;
   fallback: string;
+  alt: string;
   className: string;
   imageClassName?: string;
 }) {
@@ -41,7 +47,7 @@ function Avatar({
       {avatarUrl ? (
         <img
           src={avatarUrl}
-          alt=""
+          alt={alt}
           className={`w-full h-full ${imageClassName}`}
         />
       ) : (
@@ -53,56 +59,158 @@ function Avatar({
   );
 }
 
-function SocialRow({
+function CardThemeFade({
+  cardColor,
+  className,
+  solidFrom = 72,
+}: {
+  cardColor: string;
+  className: string;
+  solidFrom?: number;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      data-card-theme-transition="true"
+      className={`pointer-events-none ${className}`}
+      style={{
+        background: `linear-gradient(to bottom, transparent 0%, ${cardColor} ${solidFrom}%, ${cardColor} 100%)`,
+      }}
+    >
+      <span
+        data-card-theme-seam-guard="true"
+        className="absolute inset-x-0 -bottom-[3px] h-[8px]"
+        style={{ backgroundColor: cardColor }}
+      />
+    </div>
+  );
+}
+
+function getSocialLabel(social: ProfileSocialLink): string {
+  if (social.label?.trim()) return social.label.trim();
+
+  if (social.icon_type === "preset") {
+    const preset = getPresetIcon(social.icon_value);
+    if (preset) return preset.name;
+  }
+
+  try {
+    return new URL(social.url).hostname.replace(/^www\./, "");
+  } catch {
+    return "Social profile";
+  }
+}
+
+function isValidSocialUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+const SOCIAL_HOVER_COLORS: Record<string, string> = {
+  instagram: "hover:text-[#E1306C]",
+  tiktok: "hover:text-[#25F4EE]",
+  twitter: "hover:text-current",
+  youtube: "hover:text-[#FF0033]",
+  telegram: "hover:text-[#2AABEE]",
+  whatsapp: "hover:text-[#25D366]",
+  spotify: "hover:text-[#1ED760]",
+  github: "hover:text-current",
+  linkedin: "hover:text-[#0A66C2]",
+};
+
+const SOCIAL_BRAND_SURFACES: Record<string, string> = {
+  instagram: "bg-[#D92D78] text-white hover:bg-[#C5266D]",
+  tiktok: "bg-[#161616] text-white hover:bg-black",
+  twitter: "bg-[#151515] text-white hover:bg-black",
+  youtube: "bg-[#E91B23] text-white hover:bg-[#D2151D]",
+  telegram: "bg-[#278CC4] text-white hover:bg-[#217CAD]",
+  whatsapp: "bg-[#1F9E54] text-white hover:bg-[#1B8A49]",
+  spotify: "bg-[#178A45] text-white hover:bg-[#147A3D]",
+  github: "bg-[#24292F] text-white hover:bg-[#171B1F]",
+  linkedin: "bg-[#1769A7] text-white hover:bg-[#135B91]",
+};
+
+function SocialDock({
   links,
   light,
   preview,
   align = "center",
-  compact = false,
+  style,
 }: {
   links: ProfileSocialLink[];
   light: boolean;
   preview: boolean;
   align?: "center" | "left";
-  compact?: boolean;
+  style: SocialLinkStyleId;
 }) {
-  if (links.length === 0) return null;
+  const visibleLinks = links.filter((social) => isValidSocialUrl(social.url));
+  if (visibleLinks.length === 0) return null;
 
-  const wrapperClass = `flex items-center ${align === "left" ? "justify-start" : "justify-center"} ${compact ? "gap-1.5" : "gap-3"} flex-wrap`;
-  const itemClass = `${compact ? "w-8 h-8 rounded-lg" : "w-10 h-10 rounded-xl"} border flex items-center justify-center transition-all duration-300 shadow-lg ${
-    light
-      ? "bg-black/5 border-black/10 hover:bg-black/10"
-      : "bg-white/5 border-white/10 hover:bg-white/10"
-  }`;
-  const iconClass = `${compact ? "w-4 h-4" : "w-5 h-5"} ${light ? "text-black/75" : "text-white/80"}`;
+  const wrapperClass = `flex flex-wrap items-center gap-2 ${align === "left" ? "justify-start" : "justify-center"}`;
 
   return (
     <div className={wrapperClass}>
-      {links.map((social) => {
+      {visibleLinks.map((social) => {
+        const label = getSocialLabel(social);
+        const iconHoverColor = social.icon_type === "preset"
+          ? SOCIAL_HOVER_COLORS[social.icon_value] || ""
+          : "";
+        const brandSurface = social.icon_type === "preset"
+          ? SOCIAL_BRAND_SURFACES[social.icon_value] || ""
+          : "";
+
+        const itemClass = style === "icons"
+          ? `flex h-11 w-11 items-center justify-center rounded-full transition-[color,background-color,transform] duration-200 ${
+              light
+                ? "text-black/[0.72] hover:bg-black/[0.06]"
+                : "text-white/[0.84] hover:bg-white/[0.075]"
+            } ${iconHoverColor} active:scale-[0.94] motion-reduce:transform-none motion-reduce:transition-none`
+          : style === "branded-pills"
+            ? `flex min-h-11 items-center gap-2 rounded-full border px-3.5 text-[12px] font-bold transition-[background-color,border-color,transform] duration-200 ${
+                brandSurface || (light
+                  ? "border-black/[0.08] bg-black/[0.09] text-black hover:bg-black/[0.14]"
+                  : "border-white/[0.09] bg-white/[0.11] text-white hover:bg-white/[0.16]")
+              } ${brandSurface ? "border-white/[0.12]" : ""} active:scale-[0.97] motion-reduce:transform-none motion-reduce:transition-none`
+          : `flex min-h-11 items-center gap-2 rounded-full border px-3.5 text-[12px] font-bold transition-[background-color,border-color,transform] duration-200 ${
+                brandSurface || (light
+                  ? "border-black/[0.08] bg-black/[0.09] text-black hover:bg-black/[0.14]"
+                  : "border-white/[0.09] bg-white/[0.11] text-white hover:bg-white/[0.16]")
+              } ${brandSurface ? "border-white/[0.12]" : ""} active:scale-[0.97] motion-reduce:transform-none motion-reduce:transition-none`;
+
         const content = (
-          <IconRenderer
-            type={social.icon_type}
-            value={social.icon_value}
-            className={iconClass}
-          />
+          <>
+            <span className={`flex shrink-0 items-center justify-center ${style === "icons" ? "h-6 w-6" : "h-5 w-5"}`}>
+              <IconRenderer
+                type={social.icon_type}
+                value={social.icon_value}
+                className="h-full w-full"
+              />
+            </span>
+            {style !== "icons" && <span className="min-w-0 truncate">{label}</span>}
+          </>
         );
 
         if (preview) {
           return (
-            <span key={social.id} className={itemClass}>
+            <span key={social.id} className={itemClass} title={label}>
               {content}
             </span>
           );
         }
 
-        const safeUrl = /^https?:\/\//i.test(social.url) ? social.url : "#";
         return (
           <a
             key={social.id}
-            href={safeUrl}
+            href={social.url}
             target="_blank"
             rel="noopener noreferrer"
-            className={`${itemClass} hover:scale-105`}
+            aria-label={`Open ${label}`}
+            title={label}
+            className={`${itemClass} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2 ${light ? "focus-visible:ring-offset-white" : "focus-visible:ring-offset-black"}`}
           >
             {content}
           </a>
@@ -121,6 +229,7 @@ export function ProfileIdentity({
   avatarFallback,
   cardColor,
   socialLinks = [],
+  socialStyle = "icons",
   onlineCounter,
   preview = false,
 }: ProfileIdentityProps) {
@@ -128,16 +237,24 @@ export function ProfileIdentity({
   const primaryText = light ? "text-black" : "text-white";
   const secondaryText = light ? "text-black/55" : "text-white/55";
   const bioText = light ? "text-black/80" : "text-white/90";
-  const scale = preview ? 0.78 : 1;
-
   const identityText = (alignment: "center" | "left" = "center", hero = false) => (
     <div className={alignment === "left" ? "text-left" : "text-center"}>
       <h1
-        className={`${hero ? (preview ? "text-4xl" : "text-3xl min-[380px]:text-4xl sm:text-5xl") : preview ? "text-2xl" : "text-2xl min-[360px]:text-3xl"} font-black tracking-tight break-words ${primaryText} ${hero ? "drop-shadow-[0_3px_20px_rgba(0,0,0,0.7)]" : ""}`}
+        className={`break-words ${
+          hero
+            ? `font-sans text-4xl font-black leading-[0.94] tracking-[-0.045em] ${preview ? "" : "sm:text-5xl"}`
+            : template === "compact"
+              ? "font-geist text-[28px] font-bold leading-tight tracking-[-0.035em]"
+              : template === "banner"
+                ? "font-geist text-3xl font-extrabold leading-tight tracking-[-0.035em]"
+                : template === "cutout"
+                  ? `font-serif text-4xl font-bold leading-[0.94] tracking-[-0.045em] min-[380px]:text-5xl ${preview ? "" : "sm:text-6xl"}`
+                  : "font-sans text-3xl font-extrabold leading-tight tracking-[-0.035em]"
+        } ${primaryText} ${hero ? "drop-shadow-[0_3px_20px_rgba(0,0,0,0.7)]" : ""}`}
       >
         {name}
       </h1>
-      <p className={`mt-1 text-sm font-medium tracking-wide break-all ${secondaryText}`}>
+      <p className={`mt-1.5 break-all text-sm font-medium tracking-wide ${secondaryText} ${template === "compact" || template === "banner" ? "font-geist" : "font-sans"}`}>
         @{username}
       </p>
     </div>
@@ -156,17 +273,18 @@ export function ProfileIdentity({
 
   if (template === "compact") {
     return (
-      <section className={`${preview ? "pt-10 px-4" : "pt-10 min-[380px]:pt-14 sm:pt-16 px-4 min-[380px]:px-6"} pb-2`}>
+      <section className={`px-4 pb-2 pt-10 min-[380px]:px-6 min-[380px]:pt-14 ${preview ? "" : "sm:pt-16"}`}>
         <Avatar
           avatarUrl={avatarUrl}
           fallback={avatarFallback}
-          className={`${preview ? "w-[76px] h-[76px]" : "w-24 h-24 min-[380px]:w-28 min-[380px]:h-28"} mx-auto rounded-full border-4 ${light ? "border-black/10" : "border-white/10"} shadow-2xl`}
+          alt={`${name} profile image`}
+          className={`mx-auto h-24 w-24 rounded-full border-4 shadow-2xl min-[380px]:h-28 min-[380px]:w-28 ${light ? "border-black/10" : "border-white/10"}`}
         />
-        <div className={`${preview ? "mt-3" : "mt-5"}`}>{identityText()}</div>
-        <div className={`${preview ? "mt-2" : "mt-4"}`}>
-          <SocialRow links={socialLinks} light={light} preview={preview} compact={preview} />
+        <div className="mt-5">{identityText()}</div>
+        <div className="mt-4">
+          <SocialDock links={socialLinks} light={light} preview={preview} style={socialStyle} />
         </div>
-        {bio && <div className={`${preview ? "mt-2" : "mt-4"}`}>{biography()}</div>}
+        {bio && <div className="mt-4">{biography()}</div>}
         {onlineCounter}
       </section>
     );
@@ -174,8 +292,11 @@ export function ProfileIdentity({
 
   if (template === "banner") {
     return (
-      <section className="relative pb-2">
-        <div className={`${preview ? "h-28" : "h-36 min-[380px]:h-44 sm:h-48"} relative overflow-hidden`}>
+      <section className="relative pb-2" style={{ backgroundColor: cardColor }}>
+        <div
+          className={`relative h-36 overflow-hidden min-[380px]:h-44 ${preview ? "" : "sm:h-48"}`}
+          style={{ backgroundColor: cardColor }}
+        >
           {avatarUrl ? (
             <img
               src={avatarUrl}
@@ -185,22 +306,25 @@ export function ProfileIdentity({
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-white/20 via-white/5 to-transparent" />
           )}
-          <div
-            className="absolute inset-0"
-            style={{ background: `linear-gradient(to bottom, transparent 20%, ${cardColor})` }}
-          />
         </div>
-        <div className={`${preview ? "-mt-10 px-4" : "-mt-12 min-[380px]:-mt-14 px-4 min-[380px]:px-6"} relative`}>
+        <CardThemeFade
+          cardColor={cardColor}
+          className={`absolute inset-x-0 top-0 z-[1] h-48 min-[380px]:h-56 ${
+            preview ? "" : "sm:h-60"
+          }`}
+        />
+        <div className="relative z-10 -mt-12 px-4 min-[380px]:-mt-14 min-[380px]:px-6">
           <Avatar
             avatarUrl={avatarUrl}
             fallback={avatarFallback}
-            className={`${preview ? "w-20 h-20" : "w-24 h-24 min-[380px]:w-28 min-[380px]:h-28"} mx-auto rounded-full border-4 shadow-2xl`}
+            alt={`${name} profile image`}
+            className="mx-auto h-24 w-24 rounded-full border-4 shadow-2xl min-[380px]:h-28 min-[380px]:w-28"
           />
-          <div className={`${preview ? "mt-2" : "mt-4"}`}>{identityText()}</div>
-          <div className={`${preview ? "mt-2" : "mt-3"}`}>
-            <SocialRow links={socialLinks} light={light} preview={preview} compact={preview} />
+          <div className="mt-4">{identityText()}</div>
+          <div className="mt-3">
+            <SocialDock links={socialLinks} light={light} preview={preview} style={socialStyle} />
           </div>
-          {bio && <div className={`${preview ? "mt-2" : "mt-3"}`}>{biography()}</div>}
+          {bio && <div className="mt-3">{biography()}</div>}
           {onlineCounter}
         </div>
       </section>
@@ -209,24 +333,28 @@ export function ProfileIdentity({
 
   if (template === "hero") {
     return (
-      <section className={`relative w-full overflow-hidden ${preview ? "aspect-[4/5]" : "aspect-[4/5] max-h-[680px]"}`}>
+      <section className="relative aspect-[4/5] max-h-[680px] w-full overflow-hidden">
         {avatarUrl ? (
-          <img src={avatarUrl} alt="" className="absolute inset-0 w-full h-full object-cover object-top" />
+          <img src={avatarUrl} alt={`${name} profile image`} className="absolute inset-0 w-full h-full object-cover object-top" />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-black/40 flex items-center justify-center">
             <span className="text-8xl font-black text-white/30">{avatarFallback}</span>
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-black/10" />
-        <div className={`${preview ? "p-4 pb-5" : "p-5 min-[380px]:p-6 sm:p-8 pb-6 min-[380px]:pb-8"} absolute inset-x-0 bottom-0`}>
-          <div style={{ transform: preview ? `scale(${scale})` : undefined, transformOrigin: "bottom left" }}>
-            <div className="[&_*]:!text-white">{identityText("left", true)}</div>
-            {bio && <div className="mt-3 [&_*]:!text-white/85">{biography("left")}</div>}
-            <div className="mt-4 [&_*]:!text-white">
-              <SocialRow links={socialLinks} light={false} preview={preview} align="left" compact={preview} />
-            </div>
-            {onlineCounter}
+        <div
+          aria-hidden="true"
+          data-card-theme-seam-guard="true"
+          className="absolute inset-x-0 bottom-0 h-[3px]"
+          style={{ backgroundColor: cardColor }}
+        />
+        <div className={`absolute inset-x-0 bottom-0 p-5 pb-6 min-[380px]:p-6 min-[380px]:pb-8 ${preview ? "" : "sm:p-8"}`}>
+          <div className="[&_*]:!text-white">{identityText("left", true)}</div>
+          {bio && <div className="mt-3 [&_*]:!text-white/[0.85]">{biography("left")}</div>}
+          <div className="mt-4 [&_*]:!text-white">
+            <SocialDock links={socialLinks} light={false} preview={preview} align="left" style={socialStyle} />
           </div>
+          {onlineCounter}
         </div>
       </section>
     );
@@ -234,23 +362,22 @@ export function ProfileIdentity({
 
   if (template === "cutout") {
     return (
-      <section className={`${preview ? "px-4 pt-9" : "px-4 min-[380px]:px-6 sm:px-8 pt-9 min-[380px]:pt-11 sm:pt-12"} pb-3 overflow-hidden`}>
+      <section className={`overflow-hidden px-4 pb-3 pt-9 min-[380px]:px-6 min-[380px]:pt-11 ${preview ? "" : "sm:px-8 sm:pt-12"}`}>
         <div className="relative">
-          <div className={`absolute ${preview ? "w-28 h-36 right-2 top-0" : "w-36 h-44 min-[380px]:w-44 min-[380px]:h-56 sm:w-48 sm:h-60 right-0 top-0"} rounded-[45%_45%_20%_20%] bg-gradient-to-br from-white/20 to-transparent rotate-6`} />
+          <div className={`absolute right-0 top-0 h-44 w-36 rotate-6 rounded-[45%_45%_20%_20%] bg-gradient-to-br from-white/20 to-transparent min-[380px]:h-56 min-[380px]:w-44 ${preview ? "" : "sm:h-60 sm:w-48"}`} />
           <Avatar
             avatarUrl={avatarUrl}
             fallback={avatarFallback}
-            className={`${preview ? "w-28 h-36" : "w-36 h-44 min-[380px]:w-44 min-[380px]:h-56 sm:w-48 sm:h-60"} ml-auto mr-0 min-[380px]:mr-2 rounded-[45%_45%_20%_20%] relative shadow-2xl border ${light ? "border-black/10" : "border-white/15"}`}
+            alt={`${name} profile image`}
+            className={`relative ml-auto mr-0 h-44 w-36 rounded-[45%_45%_20%_20%] border shadow-2xl min-[380px]:mr-2 min-[380px]:h-56 min-[380px]:w-44 ${preview ? "" : "sm:h-60 sm:w-48"} ${light ? "border-black/10" : "border-white/15"}`}
           />
-          <div className={`${preview ? "-mt-5 max-w-[90%]" : "-mt-5 min-[380px]:-mt-8 max-w-full min-[380px]:max-w-[90%]"} relative z-10`}>
-            <div className={preview ? "[&_h1]:!text-3xl" : "[&_h1]:!text-4xl min-[380px]:[&_h1]:!text-5xl sm:[&_h1]:!text-6xl [&_h1]:leading-[0.92]"}>
-              {identityText("left")}
-            </div>
+          <div className="relative z-10 -mt-3 max-w-full min-[380px]:-mt-4 min-[380px]:max-w-[90%]">
+            {identityText("left")}
           </div>
         </div>
-        {bio && <div className={`${preview ? "mt-3" : "mt-5"}`}>{biography("left")}</div>}
-        <div className={`${preview ? "mt-3" : "mt-5"}`}>
-          <SocialRow links={socialLinks} light={light} preview={preview} align="left" compact={preview} />
+        {bio && <div className="mt-5">{biography("left")}</div>}
+        <div className="mt-5">
+          <SocialDock links={socialLinks} light={light} preview={preview} align="left" style={socialStyle} />
         </div>
         {onlineCounter}
       </section>
@@ -258,10 +385,10 @@ export function ProfileIdentity({
   }
 
   return (
-    <section>
-      <div className={`relative ${preview ? "aspect-[10/8]" : "aspect-[10/7]"} w-full overflow-hidden shrink-0`}>
+    <section style={{ backgroundColor: cardColor }}>
+      <div className="relative aspect-[5/4] w-full shrink-0 overflow-hidden">
         {avatarUrl ? (
-          <img src={avatarUrl} alt="" className="w-full h-full object-cover object-top" />
+          <img src={avatarUrl} alt={`${name} profile image`} className="w-full h-full object-cover object-top" />
         ) : (
           <div className="w-full h-full bg-white/5 flex items-center justify-center">
             <span className="text-6xl font-bold bg-gradient-to-br from-white to-white/30 bg-clip-text text-transparent">
@@ -269,17 +396,24 @@ export function ProfileIdentity({
             </span>
           </div>
         )}
-        <div
-          className="absolute -bottom-1 left-0 w-full h-[45%] pointer-events-none"
-          style={{ background: `linear-gradient(to top, ${cardColor} 15%, transparent)` }}
+        <CardThemeFade
+          cardColor={cardColor}
+          solidFrom={90}
+          className="absolute inset-x-0 bottom-0 h-[54%]"
         />
       </div>
-      <div className={`${preview ? "px-4 -mt-14" : "px-4 min-[380px]:px-6 -mt-12 min-[380px]:-mt-16"} relative`}>
+      <div
+        aria-hidden="true"
+        data-card-theme-seam-guard="true"
+        className="relative -mt-[2px] h-[3px]"
+        style={{ backgroundColor: cardColor }}
+      />
+      <div className="relative -mt-12 px-4 min-[380px]:-mt-16 min-[380px]:px-6">
         {identityText()}
-        <div className={`${preview ? "mt-2" : "mt-3"}`}>
-          <SocialRow links={socialLinks} light={light} preview={preview} compact={preview} />
+        <div className="mt-3">
+          <SocialDock links={socialLinks} light={light} preview={preview} style={socialStyle} />
         </div>
-        {bio && <div className={`${preview ? "mt-2" : "mt-3"}`}>{biography()}</div>}
+        {bio && <div className="mt-3">{biography()}</div>}
         {onlineCounter}
       </div>
     </section>

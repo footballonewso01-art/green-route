@@ -46,4 +46,20 @@ describe("billing period server contract", () => {
     expect(backfill).toContain("WHERE id = ? AND stripe_subscription_id = ?");
     expect(backfill).toContain("UPDATE billing SET status = 'expired'");
   });
+
+  it("restores cancellation at period end in both billing surfaces", () => {
+    const hook = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
+    const sharedButton = readWorkspaceFile("src/components/billing/CancelRenewalButton.tsx");
+
+    expect(hook).toContain("cancel_at_period_end=true");
+    expect(hook).toContain("res.json.cancel_at_period_end !== true");
+    expect(hook).toContain('txBilling.set("status", "canceling")');
+    expect(hook).toContain('txUser.set("plan_expires_at", cancellationPeriod.end)');
+    expect(sharedButton).toContain("/api/stripe/cancel-subscription");
+    expect(sharedButton).toContain("result?.cancelAtPeriodEnd");
+
+    for (const page of ["src/pages/Billing.tsx", "src/pages/SettingsPage.tsx"]) {
+      expect(readWorkspaceFile(page)).toContain("<CancelRenewalButton");
+    }
+  });
 });

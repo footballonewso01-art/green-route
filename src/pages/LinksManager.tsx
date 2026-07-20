@@ -8,24 +8,11 @@ import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { PLANS, PlanType } from '@/lib/plans';
 import { maskError } from "@/lib/utils";
+import { getNewLinkHrefForFilter } from "@/lib/linkProfileContext";
+import { CoreLinkRecord, getAssignedProfileIds, ProfileLinkRecord } from "@/lib/profileLinks";
 
-interface LinkItem {
-  id: string;
-  slug: string;
-  destination_url: string;
-  clicks_count: number;
-  active: boolean;
-  created: string;
-  title?: string;
+interface LinkItem extends CoreLinkRecord {
   order?: number;
-  show_on_profile?: boolean;
-  profile_id?: string;
-  mode?: string;
-  icon_type?: "preset" | "emoji" | "custom" | "none";
-  icon_value?: string;
-  size?: "regular" | "large";
-  bg_image?: string;
-  domain?: string;
 }
 
 interface ProfileItem {
@@ -38,6 +25,7 @@ interface ProfileItem {
 export default function LinksManager() {
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [profiles, setProfiles] = useState<ProfileItem[]>([]);
+  const [profileAssignments, setProfileAssignments] = useState<ProfileLinkRecord[]>([]);
   const [selectedProfileFilter, setSelectedProfileFilter] = useState("all");
   const [profileSelectorLinkId, setProfileSelectorLinkId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -88,22 +76,28 @@ export default function LinksManager() {
       const userId = pb.authStore.model?.id;
       if (!userId) return;
 
-      const [linksRecords, profilesRecords] = await Promise.all([
-        pb.collection('links').getList<LinkItem>(1, 100, {
+      const [linksRecords, profilesRecords, assignments] = await Promise.all([
+        pb.collection('links').getFullList<LinkItem>({
           filter: `user_id="${userId}"`,
           sort: 'order,-created',
         }),
         pb.collection('public_profiles').getFullList({
           filter: `user_id="${userId}"`,
           sort: 'created',
-        })
+        }),
+        pb.collection('profile_links').getFullList<ProfileLinkRecord>({
+          filter: `user_id="${userId}"`,
+          sort: 'created',
+          requestKey: null,
+        }),
       ]);
 
-      setLinks(linksRecords.items);
+      setLinks(linksRecords);
       setProfiles(profilesRecords as unknown as ProfileItem[]);
+      setProfileAssignments(assignments);
 
       // Load sparklines asynchronously without blocking the main UI
-      fetchSparklines(linksRecords.items);
+      fetchSparklines(linksRecords);
     } catch (error: unknown) {
       toast.error(maskError(error, "Failed to fetch links"));
     } finally {
@@ -131,12 +125,14 @@ export default function LinksManager() {
     if (!matchesSearch) return false;
 
     if (selectedProfileFilter === "all") return true;
-    if (selectedProfileFilter === "none") return !l.profile_id || l.show_on_profile === false;
-    return l.profile_id === selectedProfileFilter && l.show_on_profile !== false;
+    const assignedProfileIds = getAssignedProfileIds(profileAssignments, l.id);
+    if (selectedProfileFilter === "none") return assignedProfileIds.length === 0;
+    return assignedProfileIds.includes(selectedProfileFilter);
   });
   const profileSelectorLink = profileSelectorLinkId
     ? links.find((link) => link.id === profileSelectorLinkId)
     : undefined;
+  const createLinkHref = getNewLinkHrefForFilter(selectedProfileFilter);
 
   const toggleLink = async (id: string, currentActive: boolean) => {
     try {
@@ -148,33 +144,30 @@ export default function LinksManager() {
     }
   };
 
-  const toggleProfileVisibility = async (id: string, currentStatus: boolean, profileId?: string) => {
+  const toggleProfileAssignment = async (linkId: string, profileId: string) => {
+    const userId = pb.authStore.model?.id;
+    if (!userId) return;
+    const existing = profileAssignments.find(assignment => assignment.link_id === linkId && assignment.profile_id === profileId);
     try {
-      if (!currentStatus && profiles.length === 0) {
-        toast.error("You must create a public profile first to show links on it");
-        return;
-      }
-
-      const payload: { show_on_profile: boolean; profile_id?: string } = { show_on_profile: !currentStatus };
-      if (!currentStatus) {
-        if (profileId) {
-          payload.profile_id = profileId;
-        } else if (profiles.length === 1) {
-          payload.profile_id = profiles[0].id;
-        } else if (profiles.length > 1) {
-          setProfileSelectorLinkId(id);
-          return;
-        }
+      if (existing) {
+        await pb.collection('profile_links').delete(existing.id, { requestKey: null });
+        setProfileAssignments(current => current.filter(assignment => assignment.id !== existing.id));
+        toast.success("Link removed from profile");
       } else {
-        payload.profile_id = "";
+        const profileOrder = profileAssignments.filter(assignment => assignment.profile_id === profileId).length;
+        const created = await pb.collection('profile_links').create<ProfileLinkRecord>({
+          user_id: userId,
+          profile_id: profileId,
+          link_id: linkId,
+          order: profileOrder,
+          visible: true,
+          size: "regular",
+        }, { requestKey: null });
+        setProfileAssignments(current => [...current, created]);
+        toast.success("Link added to profile");
       }
-
-      await pb.collection('links').update(id, payload);
-      setLinks(links.map((l) => (l.id === id ? { ...l, show_on_profile: !currentStatus, profile_id: payload.profile_id } : l)));
-      setProfileSelectorLinkId(null);
-      toast.success(!currentStatus ? "Link will show on profile" : "Link hidden from profile");
     } catch (error) {
-      toast.error(maskError(error, "Failed to update visibility"));
+      toast.error(maskError(error, "Failed to update profile placement"));
     }
   };
 
@@ -183,6 +176,7 @@ export default function LinksManager() {
     try {
       await pb.collection('links').delete(id);
       setLinks(links.filter((l) => l.id !== id));
+      setProfileAssignments(current => current.filter(assignment => assignment.link_id !== id));
       toast.success("Link deleted");
     } catch (error) {
       toast.error(maskError(error, "Failed to delete link"));
@@ -303,7 +297,7 @@ export default function LinksManager() {
               <List className="w-4 h-4" />
             </button>
           </div>
-          <Link to="/dashboard/links/create" className="btn-primary-glow text-sm !py-2 !px-4 inline-flex items-center gap-2">
+          <Link to={createLinkHref} className="btn-primary-glow text-sm !py-2 !px-4 inline-flex items-center gap-2">
             <Plus className="w-4 h-4" /> New Link
           </Link>
         </div>
@@ -379,6 +373,8 @@ export default function LinksManager() {
                     const effectiveViewMode = (typeof window !== 'undefined' && window.innerWidth < 640) ? 'list' : viewMode;
                     const activeIndex = link.active ? activeLinks.findIndex(al => al.id === link.id) : -1;
                     const isFrozen = link.active && limit !== -1 && activeIndex >= limit;
+                    const assignedProfileIds = getAssignedProfileIds(profileAssignments, link.id);
+                    const isOnProfile = assignedProfileIds.length > 0;
 
                     return (
                       <Draggable key={link.id} draggableId={link.id} index={index} isDragDisabled={search.length > 0 || filtered.length <= 1}>
@@ -398,7 +394,7 @@ export default function LinksManager() {
                                 <div {...provided.dragHandleProps} className="text-muted-foreground/50 hover:text-foreground cursor-grab active:cursor-grabbing p-1 -ml-2 -mt-2">
                                   <GripVertical className="w-4 h-4" />
                                 </div>
-                                <div className={`w-12 h-12 bg-background border border-border rounded-2xl flex items-center justify-center shrink-0 overflow-hidden ${link.size === 'large' ? 'ring-2 ring-accent/30 shadow-lg shadow-accent/5' : ''}`}>
+                                <div className="w-12 h-12 bg-background border border-border rounded-2xl flex items-center justify-center shrink-0 overflow-hidden">
                                   <IconRenderer type={link.icon_type} value={link.icon_value} url={link.destination_url} className="w-7 h-7 text-accent" />
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -438,11 +434,11 @@ export default function LinksManager() {
                                   <div className="relative">
                                     <button
                                       type="button"
-                                      onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
-                                      className={`p-2 rounded-xl transition-colors ${link.show_on_profile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground hover:text-foreground hover:bg-surface-hover'}`}
-                                      title={link.show_on_profile ? "Visible on profile" : "Hidden from profile"}
+                                      onClick={() => profiles.length > 0 ? setProfileSelectorLinkId(link.id) : toast.error("Create a Public Profile first")}
+                                      className={`p-2 rounded-xl transition-colors ${isOnProfile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground hover:text-foreground hover:bg-surface-hover'}`}
+                                      title={isOnProfile ? `Shown on ${assignedProfileIds.length} profile${assignedProfileIds.length === 1 ? '' : 's'}` : "Add to a Public Profile"}
                                     >
-                                      {link.show_on_profile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                      {isOnProfile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                     </button>
                                   </div>
                                   <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
@@ -512,11 +508,11 @@ export default function LinksManager() {
                                 <div className="relative">
                                   <button
                                     type="button"
-                                    onClick={() => toggleProfileVisibility(link.id, !!link.show_on_profile)}
-                                    className={`p-2 rounded-lg transition-colors ${link.show_on_profile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground bg-surface hover:bg-surface-hover'}`}
-                                    title={link.show_on_profile ? "Visible on profile" : "Hidden from profile"}
+                                    onClick={() => profiles.length > 0 ? setProfileSelectorLinkId(link.id) : toast.error("Create a Public Profile first")}
+                                    className={`p-2 rounded-lg transition-colors ${isOnProfile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground bg-surface hover:bg-surface-hover'}`}
+                                    title={isOnProfile ? `Shown on ${assignedProfileIds.length} profile${assignedProfileIds.length === 1 ? '' : 's'}` : "Add to a Public Profile"}
                                   >
-                                    {link.show_on_profile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                    {isOnProfile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                   </button>
                                 </div>
 
@@ -578,8 +574,8 @@ export default function LinksManager() {
                     <UserRound className="h-5 w-5" />
                   </span>
                   <div className="min-w-0">
-                    <h3 id="profile-selector-title" className="text-lg font-bold text-foreground">Show on a profile</h3>
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">Choose where this link should appear.</p>
+                    <h3 id="profile-selector-title" className="text-lg font-bold text-foreground">Show on profiles</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">Choose one or several Public Profiles. Each profile keeps its own card design.</p>
                   </div>
                 </div>
                 <button
@@ -608,21 +604,27 @@ export default function LinksManager() {
                 {profiles.map((profileOption) => {
                   const displayName = profileOption.name || `@${profileOption.slug}`;
                   const avatarLetter = (profileOption.name || profileOption.slug).charAt(0).toUpperCase();
+                  const selected = profileAssignments.some(assignment => (
+                    assignment.link_id === profileSelectorLinkId
+                    && assignment.profile_id === profileOption.id
+                    && assignment.visible
+                  ));
                   return (
                     <button
                       key={profileOption.id}
                       type="button"
-                      onClick={() => toggleProfileVisibility(profileSelectorLinkId, false, profileOption.id)}
-                      className="group flex w-full items-center gap-3 rounded-2xl border border-border/80 bg-background/20 p-3.5 text-left transition-all hover:border-accent/40 hover:bg-accent/[0.06]"
+                      onClick={() => void toggleProfileAssignment(profileSelectorLinkId, profileOption.id)}
+                      className={`group flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition-all ${selected ? "border-accent/40 bg-accent/[0.07]" : "border-border/80 bg-background/20 hover:border-accent/40 hover:bg-accent/[0.06]"}`}
+                      aria-pressed={selected}
                     >
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-white/5 text-sm font-black uppercase text-muted-foreground transition-colors group-hover:border-accent/25 group-hover:bg-accent/10 group-hover:text-accent">
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-sm font-black uppercase transition-colors ${selected ? "border-accent/30 bg-accent/10 text-accent" : "border-border bg-white/5 text-muted-foreground group-hover:border-accent/25 group-hover:bg-accent/10 group-hover:text-accent"}`}>
                         {avatarLetter}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold text-foreground">{displayName}</span>
                         <span className="mt-0.5 block truncate text-xs font-sans text-muted-foreground">{profileOption.domain || "linktery.com"}/{profileOption.slug}</span>
                       </span>
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-transparent transition-all group-hover:border-accent group-hover:bg-accent group-hover:text-black">
+                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all ${selected ? "border-accent bg-accent text-black" : "border-border text-transparent group-hover:border-accent"}`}>
                         <Check className="h-3.5 w-3.5" />
                       </span>
                     </button>
@@ -635,7 +637,7 @@ export default function LinksManager() {
                 onClick={() => setProfileSelectorLinkId(null)}
                 className="mt-4 w-full rounded-xl border border-border bg-background/20 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
               >
-                Cancel
+                Done
               </button>
             </div>
           </div>

@@ -6,6 +6,7 @@ import { PlanType, PLAN_RANKS } from "@/lib/plans";
 import { pb } from "@/lib/pocketbase";
 import { STRIPE_PRICES } from "@/lib/stripe";
 import { toast } from "sonner";
+import { maskError } from "@/lib/utils";
 
 const plans = [
     {
@@ -129,7 +130,7 @@ export default function DashboardPricing() {
                 localStorage.removeItem("pocketbase_auth");
                 window.location.href = "/login";
             } else {
-                toast.error((e as Error).message || "Failed to initiate upgrade. Please try again.");
+                toast.error(maskError(e, "We couldn't start checkout. Please try again."));
             }
         } finally {
             setLoading(false);

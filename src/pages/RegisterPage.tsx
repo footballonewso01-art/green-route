@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { parseAuthError } from "@/lib/authErrors";
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
+import { maskError } from "@/lib/utils";
 
 interface Star {
   x: number;
@@ -181,13 +182,12 @@ export default function RegisterPage() {
             body: { code: trimmedPromo }
           });
           if (!res.valid) {
-            toast.error(res.error || "Invalid promocode");
+            toast.error("This promo code is invalid, inactive, or has reached its usage limit.");
             setLoading(false);
             return;
           }
         } catch (err: unknown) {
-          const error = err as { response?: { message?: string, error?: string } };
-          toast.error(error?.response?.message || error?.response?.error || "Invalid promocode");
+          toast.error(maskError(err, "This promo code couldn't be verified. Check it and try again."));
           setLoading(false);
           return; // Stop registration
         }
@@ -215,9 +215,8 @@ export default function RegisterPage() {
             await pb.collection("users").authRefresh();
           }
         } catch (err: unknown) {
-          const error = err as { response?: { message?: string, error?: string } };
-          console.error("Failed to apply promocode after registration", error);
-          toast.error(error?.response?.message || error?.response?.error || "Failed to apply promocode. You can try again in Settings.");
+          console.error("Failed to apply promocode after registration", err);
+          toast.error(maskError(err, "Your account was created, but the promo code wasn't applied. Try it again in Settings."));
           // Don't fail the whole registration if promo applying fails somehow
         }
       } else {
@@ -256,7 +255,7 @@ export default function RegisterPage() {
       const err = error as { name?: string; originalError?: { message?: string }; message?: string };
       if (err.name !== "ClientResponseError" || err.originalError?.message !== "The user cancelled the request.") {
         console.error("Google login error:", err);
-        toast.error(err.message || "Failed to login with Google");
+        toast.error(maskError(err, "Google sign-up couldn't be completed. Please try again."));
       }
       setLoading(false);
     }

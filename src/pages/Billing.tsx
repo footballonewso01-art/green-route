@@ -6,6 +6,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { BillingRecord, formatBillingDate } from "@/lib/billing";
+import { CancelRenewalButton } from "@/components/billing/CancelRenewalButton";
+import { maskError } from "@/lib/utils";
 
 export default function BillingPage() {
     const { user, refreshUser } = useAuth();
@@ -15,6 +17,7 @@ export default function BillingPage() {
     const [loading, setLoading] = useState(true);
     const [portalLoading, setPortalLoading] = useState(false);
     const [verifying, setVerifying] = useState(false);
+    const [billingRevision, setBillingRevision] = useState(0);
 
     // Fallback: verify session when returning from Stripe checkout
     useEffect(() => {
@@ -72,11 +75,15 @@ export default function BillingPage() {
             }
         };
         fetchBilling();
-    }, [user, verifying]);
+    }, [user, verifying, billingRevision]);
 
     const activePlanDetails = PLANS[currentPlan] || PLANS.creator;
 
-    const hasStripeCustomer = logs.some(log => log.payment_method === "Stripe" && log.status === "active");
+    const latestStripeSubscription = logs.find(
+        log => log.payment_method === "Stripe" && (log.status === "active" || log.status === "canceling")
+    );
+    const hasStripeCustomer = Boolean(latestStripeSubscription);
+    const renewalIsCanceling = latestStripeSubscription?.status === "canceling";
 
     const handleManageSubscription = async () => {
         setPortalLoading(true);
@@ -116,7 +123,7 @@ export default function BillingPage() {
                 localStorage.removeItem("pocketbase_auth");
                 window.location.href = "/login";
             } else {
-                toast.error((e as Error).message || "Failed to open billing portal");
+                toast.error(maskError(e, "We couldn't open the billing portal. Please try again."));
             }
         } finally {
             setPortalLoading(false);
@@ -139,8 +146,9 @@ export default function BillingPage() {
                         <CreditCard className="w-7 h-7 text-accent" />
                     </div>
                     <div>
-                        <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20 text-[10px] font-bold uppercase tracking-wider mb-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Active
+                        <div className={`inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider mb-2 ${renewalIsCanceling ? "bg-amber-500/10 text-amber-500 border-amber-500/20" : "bg-green-500/10 text-green-500 border-green-500/20"}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${renewalIsCanceling ? "bg-amber-500" : "bg-green-500 animate-pulse"}`}></span>
+                            {renewalIsCanceling ? "Renewal off" : "Active"}
                         </div>
                         <h2 className="text-2xl font-bold text-foreground mb-1">{activePlanDetails.name} Plan</h2>
                         <p className="text-sm text-muted-foreground">
@@ -166,8 +174,22 @@ export default function BillingPage() {
                         Modify Plan
                         <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </Link>
+                    {latestStripeSubscription?.status === "active" && (
+                        <CancelRenewalButton
+                            onCanceled={async () => {
+                                setBillingRevision((value) => value + 1);
+                                if (refreshUser) await refreshUser();
+                            }}
+                        />
+                    )}
                 </div>
             </div>
+
+            {renewalIsCanceling && (
+                <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 text-sm text-amber-400">
+                    Auto-renewal is off. Your premium access remains active until {formatBillingDate(latestStripeSubscription?.end_date)}.
+                </div>
+            )}
 
             {/* History Table */}
             <div className="glass-card rounded-2xl overflow-hidden">
