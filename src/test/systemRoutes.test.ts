@@ -8,6 +8,7 @@ describe("system route namespace policy", () => {
     expect(isSystemRoute("/tools/utm-builder")).toBe(true);
     expect(isSystemRoute("/templates/link-in-bio")).toBe(true);
     expect(isSystemRoute("/guides/what-is-link-management")).toBe(true);
+    expect(isSystemRoute("/ref/lt_partner123")).toBe(true);
   });
 
   it("does not reserve similar single-segment user slugs", () => {

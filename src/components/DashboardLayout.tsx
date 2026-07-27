@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
-import { Building2, LayoutDashboard, Link2, BarChart3, User, Settings, Zap, Menu, X, LogOut, Info, Search, Tag, ShieldCheck, HelpCircle, Bell, Share2, ShieldAlert, Users, Link as LinkIcon } from "lucide-react";
+import { BadgeDollarSign, Building2, LayoutDashboard, Link2, BarChart3, User, Settings, Zap, Menu, X, LogOut, Info, Search, Tag, ShieldCheck, HelpCircle, Bell, Share2, ShieldAlert, Users, Link as LinkIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { PLANS, PlanType } from "@/lib/plans";
 import { pb } from "@/lib/pocketbase";
@@ -54,6 +54,7 @@ export default function DashboardLayout() {
   useSeo({ noIndex: true });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [linksCount, setLinksCount] = useState<number | null>(null);
+  const [partnerEligible, setPartnerEligible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [notifOpen, setNotifOpen] = useState(false);
   const [dismissedNotifs, setDismissedNotifs] = useState<string[]>(() => {
@@ -89,7 +90,18 @@ export default function DashboardLayout() {
     ]
   };
 
-  const currentNavGroups = isAdmin ? [adminNavGroup, ...navGroups] : navGroups;
+  const partnerNavGroups = partnerEligible
+    ? navGroups.map((group) => group.label === "Main"
+      ? {
+          ...group,
+          items: [
+            ...group.items,
+            { title: "Partner Overview", path: "/dashboard/partner", icon: BadgeDollarSign },
+          ],
+        }
+      : group)
+    : navGroups;
+  const currentNavGroups = isAdmin ? [adminNavGroup, ...partnerNavGroups] : partnerNavGroups;
 
   useEffect(() => {
     const fetchUsage = async () => {
@@ -107,6 +119,29 @@ export default function DashboardLayout() {
       }
     };
     fetchUsage();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setPartnerEligible(false);
+      return;
+    }
+
+    let cancelled = false;
+    pb.send("/api/affiliate/status", {
+      method: "GET",
+      requestKey: null,
+    }).then((response) => {
+      if (!cancelled) setPartnerEligible(response?.eligible === true);
+    }).catch((error: unknown) => {
+      if (!(error as { isAbort?: boolean })?.isAbort) {
+        console.info("Partner status is unavailable:", error);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   const handleSignOut = async () => {

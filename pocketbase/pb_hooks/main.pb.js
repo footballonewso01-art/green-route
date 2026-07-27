@@ -628,6 +628,17 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                             });
                             txApp.save(newBRecord);
                         }
+
+                        // The first positive paid invoice is the authoritative
+                        // commission trigger. The attribution and commission are
+                        // persisted in this same transaction as the plan update.
+                        stripeUtils.createFirstPaymentCommission(txApp, {
+                            referredUserId: bUserId,
+                            stripeInvoiceId: invoice.id,
+                            amountPaidCents: invoice.amount_paid,
+                            currency: invoice.currency || "usd",
+                            plan: planName
+                        });
                     });
                     $app.logger().info("Webhook: SUCCESS plan '" + planName + "' extended (interval=" + billingInterval + ") for user " + bUserId);
                 } else {
@@ -637,6 +648,44 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 }
             }
 
+        } else if (verifiedEvent.type === "charge.refunded" || verifiedEvent.type === "refund.created") {
+            var refundInvoiceId = "";
+            var cumulativeRefundCents = 0;
+
+            if (verifiedEvent.type === "charge.refunded") {
+                var refundedCharge = verifiedEvent.data.object;
+                refundInvoiceId = typeof refundedCharge.invoice === "string"
+                    ? refundedCharge.invoice
+                    : (refundedCharge.invoice && refundedCharge.invoice.id) || "";
+                cumulativeRefundCents = refundedCharge.amount_refunded || 0;
+            } else {
+                var refund = verifiedEvent.data.object;
+                var refundChargeId = typeof refund.charge === "string"
+                    ? refund.charge
+                    : (refund.charge && refund.charge.id) || "";
+                if (refundChargeId) {
+                    var chargeRes = $http.send({
+                        url: "https://api.stripe.com/v1/charges/" + refundChargeId,
+                        method: "GET",
+                        headers: { "Authorization": "Bearer " + STRIPE_SECRET_KEY },
+                        timeout: 10
+                    });
+                    if (chargeRes.statusCode >= 400) {
+                        throw new Error("Stripe charge fetch failed while reconciling affiliate refund");
+                    }
+                    var refundCharge = chargeRes.json;
+                    refundInvoiceId = typeof refundCharge.invoice === "string"
+                        ? refundCharge.invoice
+                        : (refundCharge.invoice && refundCharge.invoice.id) || "";
+                    cumulativeRefundCents = refundCharge.amount_refunded || refund.amount || 0;
+                }
+            }
+
+            if (refundInvoiceId && cumulativeRefundCents > 0) {
+                $app.runInTransaction((txApp) => {
+                    stripeUtils.reconcileAffiliateRefund(txApp, refundInvoiceId, cumulativeRefundCents);
+                });
+            }
         } else if (verifiedEvent.type === "customer.subscription.updated") {
             var updatedSubscription = verifiedEvent.data.object;
             var updatedSubscriptionId = updatedSubscription.id || "";
@@ -1096,9 +1145,12 @@ routerAdd("GET", "/{slug}", (c) => {
             (googlePixel && googlePixel.trim() !== "") ||
             (tiktokPixel && tiktokPixel.trim() !== "");
         const isInApp = /Instagram|TikTok|FBAN|FBAV/i.test(uaStr);
+        const isDeeplinkEnabled = link.get("mode") === "direct";
 
-        // If has pixels OR is in-app WebView, render lightweight HTML payload
-        if (hasPixels || isInApp) {
+        // Standard links remain standard HTTP redirects in social WebViews.
+        // Deeplink handoff is opt-in only; applying it to every Instagram visit
+        // previously caused ordinary links to enter browser-scheme retry loops.
+        if ((hasPixels && !isBot) || (isDeeplinkEnabled && isInApp)) {
             let pixelScripts = "";
 
             if (fbPixel && fbPixel.trim() !== "") {
@@ -1146,6 +1198,13 @@ routerAdd("GET", "/{slug}", (c) => {
 `;
             }
 
+            if (isDeeplinkEnabled && isInApp && !managedTarget) {
+                return c.html(200, utils.getDeeplinkHandoffHtml(finalDest, uaStr, pixelScripts, link.id));
+            }
+
+            // Pixels require a lightweight document, but this is still a normal
+            // redirect. Never invoke external-browser schemes unless Deeplink is
+            // explicitly enabled by the link owner.
             let htmlContent = `<!DOCTYPE html>
 <html>
 <head>
@@ -1194,23 +1253,8 @@ routerAdd("GET", "/{slug}", (c) => {
     <div class="spinner"></div>
     <div class="text">Redirecting securely...</div>
     <script>
-        var dest = ${JSON.stringify(finalDest)};
-        var ua = navigator.userAgent;
-        var isAndroid = /Android/i.test(ua);
-        var isIOS = /iPhone|iPad|iPod/i.test(ua);
-        var isInApp = /Instagram|TikTok|FBAN|FBAV/i.test(ua);
-
-        if (isAndroid && isInApp) {
-            var scheme = dest.replace(/^https?:\\/\\//, "");
-            window.location.href = "intent://" + scheme + "#Intent;scheme=https;action=android.intent.action.VIEW;S.browser_fallback_url=" + encodeURIComponent(dest) + ";end";
-            setTimeout(function() { window.location.replace(dest); }, 1500);
-        } else if (isIOS && isInApp) {
-            var safariUrl = dest.replace(/^https?:\\/\\//, "x-safari-https://").replace(/^http?:\\/\\//, "x-safari-http://");
-            window.location.href = safariUrl;
-            setTimeout(function() { window.location.replace(dest); }, 1000);
-        } else {
-            window.location.replace(dest);
-        }
+        var dest = ${utils.safeJsonForHtml(finalDest)};
+        setTimeout(function() { window.location.replace(dest); }, 250);
     </script>
 </body>
 </html>`;
@@ -1402,6 +1446,455 @@ routerAdd("POST", "/api/admin/update-route-override", (c) => {
     }
 });
 
+// Admin: create an affiliate promocode and bind it to an account by id or email.
+// Creation is server-owned so commission and reward invariants cannot be bypassed
+// with a direct PocketBase collection request.
+routerAdd("POST", "/api/admin/promocodes", (c) => {
+    var utils = require(__hooks + '/utils.js');
+    try {
+        var admin = c.auth;
+        if (!admin || admin.get("role") !== "admin") {
+            throw new ForbiddenError("Only admins can create affiliate offers.");
+        }
+
+        var data = new DynamicModel({
+            "code": "",
+            "internal_name": "",
+            "partner_identifier": "",
+            "max_uses": 0,
+            "reward_enabled": false,
+            "reward_plan": "",
+            "reward_months": 0,
+            "commission_rate_bps": 0
+        });
+        c.bindBody(data);
+
+        var code = String(data.code || "").trim().toUpperCase();
+        var internalName = String(data.internal_name || "").trim().substring(0, 120);
+        var partnerIdentifier = String(data.partner_identifier || "").trim();
+        var maxUses = Math.max(0, parseInt(data.max_uses, 10) || 0);
+        var rewardEnabled = data.reward_enabled === true;
+        var rewardPlan = rewardEnabled ? String(data.reward_plan || "").toLowerCase() : "creator";
+        var rewardMonths = rewardEnabled ? Math.max(0, parseInt(data.reward_months, 10) || 0) : 0;
+        var commissionRateBps = parseInt(data.commission_rate_bps, 10);
+
+        if (!/^[A-Z0-9][A-Z0-9_-]{2,31}$/.test(code)) {
+            throw new BadRequestError("Code must be 3-32 characters and use only letters, numbers, underscores, or hyphens.");
+        }
+        if (!partnerIdentifier) {
+            throw new BadRequestError("Partner user ID or email is required.");
+        }
+        if (maxUses > 1000000) {
+            throw new BadRequestError("Usage limit is too high.");
+        }
+        if (rewardEnabled && rewardPlan !== "pro" && rewardPlan !== "agency") {
+            throw new BadRequestError("Choose Pro or Agency for the signup reward.");
+        }
+        if (rewardEnabled && (rewardMonths < 1 || rewardMonths > 36)) {
+            throw new BadRequestError("Reward duration must be between 1 and 36 months.");
+        }
+        if (!isFinite(commissionRateBps) || commissionRateBps < 0 || commissionRateBps > 10000) {
+            throw new BadRequestError("Commission must be between 0% and 100%.");
+        }
+
+        var partnerUser = null;
+        try {
+            partnerUser = $app.findRecordById("users", partnerIdentifier);
+        } catch (idError) {
+            try {
+                partnerUser = $app.findFirstRecordByFilter(
+                    "users",
+                    "email = {:email}",
+                    { email: partnerIdentifier.toLowerCase() }
+                );
+            } catch (emailError) { }
+        }
+        if (!partnerUser || partnerUser.get("banned") === true) {
+            throw new BadRequestError("Partner account was not found or is unavailable.");
+        }
+
+        var createdPromoId = "";
+        $app.runInTransaction((txApp) => {
+            var txPartnerUser = txApp.findRecordById("users", partnerUser.id);
+            var affiliatePartner = utils.ensureAffiliatePartner(txApp, txPartnerUser);
+            var collection = txApp.findCollectionByNameOrId("promocodes");
+            var promo = new Record(collection, {
+                "code": code,
+                "internal_name": internalName,
+                "partner_id": txPartnerUser.id,
+                "max_uses": maxUses,
+                "current_uses": 0,
+                "reward_enabled": rewardEnabled,
+                "reward_plan": rewardPlan,
+                "reward_months": rewardMonths,
+                "reward_days": rewardEnabled ? rewardMonths * 30 : 0,
+                "commission_rate_bps": commissionRateBps,
+                "is_active": true
+            });
+            txApp.save(promo);
+            createdPromoId = promo.id;
+
+            if (!affiliatePartner.get("primary_promocode_id")) {
+                affiliatePartner.set("primary_promocode_id", promo.id);
+                affiliatePartner.set("default_commission_rate_bps", commissionRateBps);
+                txApp.save(affiliatePartner);
+            }
+        });
+
+        var createdPromo = $app.findRecordById("promocodes", createdPromoId);
+        return c.json(201, {
+            id: createdPromo.id,
+            code: createdPromo.get("code"),
+            partner_id: partnerUser.id,
+            partner_email: partnerUser.email(),
+            commission_rate_bps: commissionRateBps
+        });
+    } catch (error) {
+        if (error instanceof BadRequestError || error instanceof ForbiddenError) throw error;
+        $app.logger().error("Affiliate promocode creation failed: " + error);
+        throw new BadRequestError("We couldn't create this affiliate offer. Check the details and try again.");
+    }
+});
+
+// Public referral-code validation. The response intentionally contains no
+// account metadata, which prevents referral URLs from becoming a user lookup.
+routerAdd("GET", "/api/affiliate/referral/{code}", (c) => {
+    var utils = require(__hooks + '/utils.js');
+    try {
+        var code = utils.normalizeAffiliateCode(c.request.pathValue("code"));
+        if (!code) return c.json(404, { valid: false });
+
+        var partner = $app.findFirstRecordByFilter(
+            "affiliate_partners",
+            "referral_code = {:code} && status = 'active'",
+            { code: code }
+        );
+        var partnerUser = $app.findRecordById("users", partner.get("user_id"));
+        if (partnerUser.get("banned") === true) return c.json(404, { valid: false });
+        return c.json(200, { valid: true, code: code });
+    } catch (error) {
+        return c.json(404, { valid: false });
+    }
+});
+
+// First-touch referral claim. It only accepts recently created accounts and
+// never overwrites an existing attribution.
+routerAdd("POST", "/api/affiliate/claim", (c) => {
+    var utils = require(__hooks + '/utils.js');
+    try {
+        var user = c.auth;
+        if (!user || user.collection().name !== "users") {
+            return c.json(401, { success: false, error: "Unauthorized" });
+        }
+
+        var data = new DynamicModel({ "code": "" });
+        c.bindBody(data);
+        var code = utils.normalizeAffiliateCode(data.code);
+        if (!code) throw new BadRequestError("Invalid referral link.");
+        if (utils.getAccountAgeMs(user) > 24 * 60 * 60 * 1000) {
+            throw new BadRequestError("This referral link is only available to new accounts.");
+        }
+
+        var partnerRecord = $app.findFirstRecordByFilter(
+            "affiliate_partners",
+            "referral_code = {:code} && status = 'active'",
+            { code: code }
+        );
+        var partnerUser = $app.findRecordById("users", partnerRecord.get("user_id"));
+        if (partnerUser.get("banned") === true) throw new BadRequestError("Invalid referral link.");
+
+        var attributionId = "";
+        var wasCreated = false;
+        $app.runInTransaction((txApp) => {
+            var result = utils.createAffiliateAttribution(txApp, {
+                partnerId: partnerUser.id,
+                referredUserId: user.id,
+                promocodeId: partnerRecord.get("primary_promocode_id") || "",
+                source: "referral_link",
+                referralCode: code,
+                commissionRateBps: partnerRecord.get("default_commission_rate_bps") || 0,
+                commissionEligible: true
+            });
+            attributionId = result.record.id;
+            wasCreated = result.created;
+        });
+
+        return c.json(200, {
+            success: true,
+            attributed: wasCreated,
+            attribution_id: attributionId
+        });
+    } catch (error) {
+        var message = String((error && error.message) || "");
+        if (message !== "This referral link is only available to new accounts." &&
+            message !== "You cannot use your own affiliate offer") {
+            message = "This referral link is invalid or no longer active.";
+        }
+        return c.json(400, { success: false, error: message });
+    }
+});
+
+// Lightweight eligibility endpoint used to conditionally expose the sidebar
+// item. A partner record is provisioned lazily for every account, giving every
+// user a stable personal referral URL without occupying the root slug namespace.
+routerAdd("GET", "/api/affiliate/status", (c) => {
+    var utils = require(__hooks + '/utils.js');
+    var user = c.auth;
+    if (!user || user.collection().name !== "users") {
+        return c.json(401, { error: "Unauthorized" });
+    }
+
+    try {
+        var partner = utils.ensureAffiliatePartner($app, user);
+        var activeCodes = $app.findRecordsByFilter(
+            "promocodes",
+            "partner_id = {:userId} && is_active = true",
+            "-created",
+            1,
+            0,
+            { userId: user.id }
+        );
+        return c.json(200, {
+            eligible: activeCodes.length > 0,
+            referral_code: partner.get("referral_code"),
+            referral_url: "https://linktery.com/ref/" + partner.get("referral_code")
+        });
+    } catch (error) {
+        $app.logger().error("Affiliate status failed for user " + user.id + ": " + error);
+        return c.json(500, { error: "Partner status is temporarily unavailable." });
+    }
+});
+
+routerAdd("GET", "/api/affiliate/overview", (c) => {
+    var utils = require(__hooks + '/utils.js');
+    var user = c.auth;
+    if (!user || user.collection().name !== "users") {
+        return c.json(401, { error: "Unauthorized" });
+    }
+
+    try {
+        var partner = utils.ensureAffiliatePartner($app, user);
+        var promoRecords = $app.findRecordsByFilter(
+            "promocodes",
+            "partner_id = {:userId}",
+            "-created",
+            100,
+            0,
+            { userId: user.id }
+        );
+        var codes = [];
+        for (var i = 0; i < promoRecords.length; i++) {
+            var promo = promoRecords[i];
+            codes.push({
+                id: promo.id,
+                code: promo.get("code"),
+                name: promo.get("internal_name") || "",
+                active: promo.get("is_active") === true,
+                current_uses: promo.get("current_uses") || 0,
+                max_uses: promo.get("max_uses") || 0,
+                commission_rate_bps: promo.get("commission_rate_bps") || 0,
+                reward_enabled: promo.get("reward_enabled") === true,
+                reward_plan: promo.get("reward_plan") || "",
+                reward_months: promo.get("reward_months") || 0
+            });
+        }
+
+        var planRows = arrayOf(new DynamicModel({
+            total: 0,
+            creator: 0,
+            pro: 0,
+            agency: 0
+        }));
+        $app.db().newQuery(`
+            SELECT
+                count(*) AS total,
+                sum(CASE WHEN coalesce(nullif(u.plan, ''), 'creator') = 'creator' THEN 1 ELSE 0 END) AS creator,
+                sum(CASE WHEN u.plan = 'pro' THEN 1 ELSE 0 END) AS pro,
+                sum(CASE WHEN u.plan = 'agency' THEN 1 ELSE 0 END) AS agency
+            FROM affiliate_attributions a
+            JOIN users u ON u.id = a.referred_user_id
+            WHERE a.partner_id = {:partnerId}
+        `).bind({ partnerId: user.id }).all(planRows);
+        var plans = planRows.length > 0 ? planRows[0] : { total: 0, creator: 0, pro: 0, agency: 0 };
+
+        var moneyRows = arrayOf(new DynamicModel({
+            earned_cents: 0,
+            matured_cents: 0
+        }));
+        $app.db().newQuery(`
+            SELECT
+                coalesce(sum(CASE WHEN status != 'reversed' THEN commission_cents ELSE 0 END), 0) AS earned_cents,
+                coalesce(sum(CASE
+                    WHEN status IN ('pending', 'approved')
+                      AND available_at != '' AND available_at <= datetime('now')
+                    THEN commission_cents ELSE 0
+                END), 0) AS matured_cents
+            FROM affiliate_commissions
+            WHERE partner_id = {:partnerId}
+        `).bind({ partnerId: user.id }).all(moneyRows);
+
+        var paidRows = arrayOf(new DynamicModel({
+            paid_cents: 0
+        }));
+        $app.db().newQuery(`
+            SELECT coalesce(sum(
+                CASE WHEN status = 'paid' THEN amount_cents ELSE 0 END
+            ), 0) AS paid_cents
+            FROM affiliate_payouts
+            WHERE partner_id = {:partnerId}
+        `).bind({ partnerId: user.id }).all(paidRows);
+
+        var recentRows = arrayOf(new DynamicModel({
+            id: "",
+            plan: "",
+            source: "",
+            status: "",
+            created: ""
+        }));
+        $app.db().newQuery(`
+            SELECT a.id, coalesce(nullif(u.plan, ''), 'creator') AS plan,
+                   a.source, a.status, a.created
+            FROM affiliate_attributions a
+            JOIN users u ON u.id = a.referred_user_id
+            WHERE a.partner_id = {:partnerId}
+            ORDER BY a.created DESC
+            LIMIT 8
+        `).bind({ partnerId: user.id }).all(recentRows);
+        var recent = [];
+        for (var j = 0; j < recentRows.length; j++) {
+            recent.push({
+                id: recentRows[j].id,
+                plan: recentRows[j].plan,
+                source: recentRows[j].source,
+                status: recentRows[j].status,
+                created: recentRows[j].created
+            });
+        }
+
+        var earnedCents = Number(moneyRows.length ? moneyRows[0].earned_cents : 0);
+        var maturedCents = Number(moneyRows.length ? moneyRows[0].matured_cents : 0);
+        var paidCents = Number(paidRows.length ? paidRows[0].paid_cents : 0);
+
+        return c.json(200, {
+            eligible: codes.some(function (item) { return item.active; }),
+            referral_code: partner.get("referral_code"),
+            referral_url: "https://linktery.com/ref/" + partner.get("referral_code"),
+            default_commission_rate_bps: partner.get("default_commission_rate_bps") || 0,
+            stats: {
+                total_activated: Number(plans.total || 0),
+                creator: Number(plans.creator || 0),
+                pro: Number(plans.pro || 0),
+                agency: Number(plans.agency || 0),
+                pending_cents: Math.max(0, earnedCents - paidCents),
+                available_cents: Math.max(0, maturedCents - paidCents),
+                paid_cents: paidCents,
+                currency: "USD"
+            },
+            codes: codes,
+            recent_referrals: recent
+        });
+    } catch (error) {
+        $app.logger().error("Affiliate overview failed for user " + user.id + ": " + error);
+        return c.json(500, { error: "Partner analytics are temporarily unavailable." });
+    }
+});
+
+// Admin payout ledger. It can only consume commission that has passed the
+// refund hold, and the availability check is repeated inside the transaction.
+routerAdd("POST", "/api/admin/affiliate/payouts", (c) => {
+    try {
+        var admin = c.auth;
+        if (!admin || admin.get("role") !== "admin") {
+            throw new ForbiddenError("Only admins can record affiliate payouts.");
+        }
+
+        var data = new DynamicModel({
+            "partner_identifier": "",
+            "amount_cents": 0,
+            "reference": "",
+            "note": ""
+        });
+        c.bindBody(data);
+        var identifier = String(data.partner_identifier || "").trim();
+        var amountCents = parseInt(data.amount_cents, 10) || 0;
+        var reference = String(data.reference || "").trim().substring(0, 255);
+        var note = String(data.note || "").trim().substring(0, 500);
+        if (!identifier || amountCents <= 0 || !reference) {
+            throw new BadRequestError("Partner, positive payout amount, and a unique payment reference are required.");
+        }
+
+        var partnerUser = null;
+        try {
+            partnerUser = $app.findRecordById("users", identifier);
+        } catch (idError) {
+            try {
+                partnerUser = $app.findFirstRecordByFilter(
+                    "users",
+                    "email = {:email}",
+                    { email: identifier.toLowerCase() }
+                );
+            } catch (emailError) { }
+        }
+        if (!partnerUser) throw new BadRequestError("Partner account was not found.");
+
+        var payoutId = "";
+        $app.runInTransaction((txApp) => {
+            var totals = arrayOf(new DynamicModel({
+                matured_cents: 0,
+                paid_cents: 0
+            }));
+            txApp.db().newQuery(`
+                SELECT
+                    (
+                        SELECT coalesce(sum(commission_cents), 0)
+                        FROM affiliate_commissions
+                        WHERE partner_id = {:partnerId}
+                          AND status IN ('pending', 'approved')
+                          AND available_at != ''
+                          AND available_at <= datetime('now')
+                    ) AS matured_cents,
+                    (
+                        SELECT coalesce(sum(amount_cents), 0)
+                        FROM affiliate_payouts
+                        WHERE partner_id = {:partnerId} AND status = 'paid'
+                    ) AS paid_cents
+            `).bind({ partnerId: partnerUser.id }).all(totals);
+            var available = Math.max(
+                0,
+                Number(totals.length ? totals[0].matured_cents : 0) -
+                Number(totals.length ? totals[0].paid_cents : 0)
+            );
+            if (amountCents > available) {
+                throw new BadRequestError("Payout exceeds the partner's available balance.");
+            }
+
+            var collection = txApp.findCollectionByNameOrId("affiliate_payouts");
+            var payout = new Record(collection, {
+                "partner_id": partnerUser.id,
+                "amount_cents": amountCents,
+                "currency": "USD",
+                "status": "paid",
+                "reference": reference,
+                "note": note,
+                "paid_at": new DateTime()
+            });
+            txApp.save(payout);
+            payoutId = payout.id;
+        });
+
+        return c.json(201, {
+            success: true,
+            id: payoutId,
+            amount_cents: amountCents,
+            currency: "USD"
+        });
+    } catch (error) {
+        if (error instanceof BadRequestError || error instanceof ForbiddenError) throw error;
+        $app.logger().error("Affiliate payout creation failed: " + error);
+        throw new BadRequestError("We couldn't record this payout.");
+    }
+});
+
 // Promocodes: Validate (Public)
 routerAdd("POST", "/api/promocodes/validate", (c) => {
     var utils = require(__hooks + '/utils.js');
@@ -1442,7 +1935,9 @@ routerAdd("POST", "/api/promocodes/validate", (c) => {
 
         return c.json(200, {
             valid: true,
+            reward_enabled: promo.get("reward_enabled") === true,
             plan: promo.get("reward_plan"),
+            months: parseInt(promo.get("reward_months")) || 0,
             days: parseInt(promo.get("reward_days")) || 0
         });
     } catch (err) {
@@ -1501,8 +1996,14 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
             throw new BadRequestError("This promocode has reached its usage limit");
         }
 
-        const rewardPlan = promo.get("reward_plan");
-        const rewardDays = parseInt(promo.get("reward_days")) || 0;
+        const partnerId = promo.get("partner_id") || "";
+
+        if (partnerId && partnerId === user.id) {
+            throw new BadRequestError("You cannot use your own affiliate offer");
+        }
+        if (partnerId && utils.getAccountAgeMs(user) > 24 * 60 * 60 * 1000) {
+            throw new BadRequestError("This affiliate offer is only available to new accounts");
+        }
 
         let txMessage = "";
 
@@ -1521,46 +2022,60 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
                 throw new BadRequestError("This promocode has reached its usage limit");
             }
 
+            const txRewardPlan = txPromo.get("reward_plan") || "creator";
+            const txRewardDays = parseInt(txPromo.get("reward_days")) || 0;
+            const txRewardMonths = parseInt(txPromo.get("reward_months")) || 0;
+            const txRewardEnabled = txPromo.get("reward_enabled") === true;
+            const txPartnerId = txPromo.get("partner_id") || "";
+            if (txPartnerId && txPartnerId === txUser.id) {
+                throw new BadRequestError("You cannot use your own affiliate offer");
+            }
+            if (txPartnerId && utils.getAccountAgeMs(txUser) > 24 * 60 * 60 * 1000) {
+                throw new BadRequestError("This affiliate offer is only available to new accounts");
+            }
+
             const currentPlan = txUser.get("plan") || "creator";
-
-            // Validation hierarchy: agency > pro > creator
-            const planWeights = { "creator": 0, "pro": 1, "agency": 2 };
-            const currentWeight = planWeights[currentPlan] || 0;
-            const rewardWeight = planWeights[rewardPlan] || 0;
-
-            if (currentWeight > rewardWeight) {
-                throw new BadRequestError("Your current " + currentPlan + " plan is higher than the " + rewardPlan + " reward");
-            }
-            if (currentWeight === rewardWeight && currentPlan !== "creator") {
-                throw new BadRequestError("You already have the " + currentPlan + " plan");
-            }
-
-            // Handle plan fallback if upgrading
-            if (currentPlan !== "creator") {
-                txUser.set("fallback_plan", currentPlan);
-                txUser.set("fallback_expires_at", txUser.get("plan_expires_at"));
-            }
-
-            // Apply new plan
-            txUser.set("plan", rewardPlan);
             const now = new DateTime();
-            const expiry = now.addDate(0, 0, rewardDays);
-            txUser.set("plan_expires_at", expiry);
+
+            if (txRewardEnabled) {
+                // Validation hierarchy: agency > pro > creator
+                const planWeights = { "creator": 0, "pro": 1, "agency": 2 };
+                const currentWeight = planWeights[currentPlan] || 0;
+                const rewardWeight = planWeights[txRewardPlan] || 0;
+
+                if (currentWeight > rewardWeight) {
+                    throw new BadRequestError("Your current " + currentPlan + " plan is higher than the " + txRewardPlan + " reward");
+                }
+                if (currentWeight === rewardWeight && currentPlan !== "creator") {
+                    throw new BadRequestError("You already have the " + currentPlan + " plan");
+                }
+
+                if (currentPlan !== "creator") {
+                    txUser.set("fallback_plan", currentPlan);
+                    txUser.set("fallback_expires_at", txUser.get("plan_expires_at"));
+                }
+
+                const expiry = txRewardMonths > 0
+                    ? now.addDate(0, txRewardMonths, 0)
+                    : now.addDate(0, 0, txRewardDays);
+                txUser.set("plan", txRewardPlan);
+                txUser.set("plan_expires_at", expiry);
+
+                const billingColl = txApp.findCollectionByNameOrId("billing");
+                const b = new Record(billingColl, {
+                    "user_id": txUser.id,
+                    "plan": txRewardPlan,
+                    "amount": 0,
+                    "status": "active",
+                    "payment_method": "Free Trial",
+                    "period_start": now,
+                    "end_date": expiry
+                });
+                txApp.save(b);
+            }
+
             txUser.set("promocode_used", txPromo.id);
             txApp.save(txUser);
-
-            // Create billing record
-            const billingColl = txApp.findCollectionByNameOrId("billing");
-            const b = new Record(billingColl, {
-                "user_id": txUser.id,
-                "plan": rewardPlan,
-                "amount": 0,
-                "status": "active",
-                "payment_method": "Free Trial",
-                "period_start": now,
-                "end_date": expiry
-            });
-            txApp.save(b);
 
             // Update promo count
             txPromo.set("current_uses", txCurrentUses + 1);
@@ -1571,12 +2086,26 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
             const log = new Record(logsColl, {
                 "promocode_id": txPromo.id,
                 "user_id": txUser.id,
-                "plan_awarded": rewardPlan,
-                "days_awarded": rewardDays
+                "plan_awarded": txRewardEnabled ? txRewardPlan : "",
+                "days_awarded": txRewardEnabled ? (txRewardMonths > 0 ? txRewardMonths * 30 : txRewardDays) : 0
             });
             txApp.save(log);
 
-            txMessage = "Promocode applied: " + rewardDays + " days of " + rewardPlan + "!";
+            if (txPartnerId) {
+                utils.createAffiliateAttribution(txApp, {
+                    partnerId: txPartnerId,
+                    referredUserId: txUser.id,
+                    promocodeId: txPromo.id,
+                    source: "promocode",
+                    referralCode: txPromo.get("code"),
+                    commissionRateBps: txPromo.get("commission_rate_bps") || 0,
+                    commissionEligible: true
+                });
+            }
+
+            txMessage = txRewardEnabled
+                ? "Promocode applied: " + (txRewardMonths > 0 ? txRewardMonths + " month" + (txRewardMonths === 1 ? "" : "s") : txRewardDays + " days") + " of " + txRewardPlan + "!"
+                : "Promocode activated successfully.";
         });
 
         $app.logger().info("Promocode " + code + " applied successfully by user " + user.id);
@@ -2652,6 +3181,7 @@ routerAdd("GET", "/api/links/sparklines", (c) => {
 routerAdd("GET", "/api/dashboard/summary", (c) => {
     try {
         var utils = require(__hooks + '/utils.js');
+        var startedAt = new Date().getTime();
         var user = c.auth;
         if (!user || user.collection().name !== "users") return c.json(401, { message: "Unauthorized" });
         var cacheKey = "dashboard|" + user.id;
@@ -2686,29 +3216,9 @@ routerAdd("GET", "/api/dashboard/summary", (c) => {
             ORDER BY day ASC
         `).bind({ userId: user.id }).all(trendRows);
 
-        var RecentModel = new DynamicModel({ "slug": "", "country": "", "device": "", "created": "" });
-        var recentRows = arrayOf(RecentModel);
-        $app.db().newQuery(`
-            SELECT l.slug, c.country, c.device, c.created
-            FROM clicks c INDEXED BY idx_clicks_created
-            JOIN links l ON l.id = c.link_id
-            WHERE l.user_id = {:userId}
-            ORDER BY c.created DESC
-            LIMIT 5
-        `).bind({ userId: user.id }).all(recentRows);
-
         var trend = [];
         for (var i = 0; i < trendRows.length; i++) {
             trend.push({ day: trendRows[i].day, clicks: trendRows[i].clicks || 0 });
-        }
-        var recent = [];
-        for (var j = 0; j < recentRows.length; j++) {
-            recent.push({
-                slug: recentRows[j].slug,
-                country: recentRows[j].country,
-                device: recentRows[j].device,
-                created: recentRows[j].created
-            });
         }
 
         var response = {
@@ -2716,13 +3226,97 @@ routerAdd("GET", "/api/dashboard/summary", (c) => {
             activeLinks: summary.active_links || 0,
             totalLinks: summary.total_links || 0,
             trend: trend,
-            recent: recent
+            // Kept for compatibility with a frontend/backend rolling deploy.
+            // Recent activity now loads independently and cannot block metrics.
+            recent: [],
+            queryMs: new Date().getTime() - startedAt
         };
         utils.setAnalyticsCache(cacheKey, response, 30000);
+        if (response.queryMs > 500) {
+            $app.logger().warn("Slow dashboard summary user=" + user.id + " durationMs=" + response.queryMs);
+        }
         return c.json(200, response);
     } catch (e) {
         $app.logger().error("Dashboard summary API error: " + e.toString());
         return c.json(500, { message: "Dashboard summary query failed." });
+    }
+});
+
+// Recent dashboard activity is intentionally independent from the summary.
+// Each link contributes at most five index-ordered rows, then the small result
+// sets are merged. Work is bounded by the user's link allowance rather than by
+// the global clicks table or the user's complete click history.
+routerAdd("GET", "/api/dashboard/recent", (c) => {
+    try {
+        var utils = require(__hooks + '/utils.js');
+        var startedAt = new Date().getTime();
+        var user = c.auth;
+        if (!user || user.collection().name !== "users") return c.json(401, { message: "Unauthorized" });
+
+        var cacheKey = "dashboard-recent|" + user.id;
+        var cached = utils.getAnalyticsCache(cacheKey);
+        if (cached) return c.json(200, cached);
+
+        var LinkModel = new DynamicModel({ "id": "", "slug": "" });
+        var links = arrayOf(LinkModel);
+        $app.db().newQuery(`
+            SELECT id, slug
+            FROM links INDEXED BY idx_links_user
+            WHERE user_id = {:userId}
+        `).bind({ userId: user.id }).all(links);
+
+        if (links.length === 0) {
+            var emptyResponse = { items: [], queryMs: new Date().getTime() - startedAt };
+            utils.setAnalyticsCache(cacheKey, emptyResponse, 15000);
+            return c.json(200, emptyResponse);
+        }
+
+        var params = {};
+        var perLinkQueries = [];
+        for (var i = 0; i < links.length; i++) {
+            var linkParam = "link" + i;
+            var slugParam = "slug" + i;
+            params[linkParam] = links[i].id;
+            params[slugParam] = links[i].slug;
+            perLinkQueries.push(
+                "SELECT * FROM (" +
+                "SELECT {:" + slugParam + "} AS slug, c.country, c.device, c.created " +
+                "FROM clicks c INDEXED BY idx_clicks_link_created " +
+                "WHERE c.link_id = {:" + linkParam + "} " +
+                "ORDER BY c.created DESC LIMIT 5" +
+                ")"
+            );
+        }
+
+        var RecentModel = new DynamicModel({ "slug": "", "country": "", "device": "", "created": "" });
+        var rows = arrayOf(RecentModel);
+        var sql = "SELECT slug, country, device, created FROM (" +
+            perLinkQueries.join(" UNION ALL ") +
+            ") ORDER BY created DESC LIMIT 5";
+        $app.db().newQuery(sql).bind(params).all(rows);
+
+        var items = [];
+        for (var j = 0; j < rows.length; j++) {
+            items.push({
+                slug: rows[j].slug,
+                country: rows[j].country,
+                device: rows[j].device,
+                created: rows[j].created
+            });
+        }
+
+        var response = {
+            items: items,
+            queryMs: new Date().getTime() - startedAt
+        };
+        utils.setAnalyticsCache(cacheKey, response, 15000);
+        if (response.queryMs > 500) {
+            $app.logger().warn("Slow dashboard recent user=" + user.id + " links=" + links.length + " durationMs=" + response.queryMs);
+        }
+        return c.json(200, response);
+    } catch (e) {
+        $app.logger().error("Dashboard recent API error: " + e.toString());
+        return c.json(500, { message: "Recent dashboard activity failed." });
     }
 });
 

@@ -7,6 +7,7 @@ import { parseAuthError } from "@/lib/authErrors";
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
 import { maskError } from "@/lib/utils";
+import { captureReferral, claimStoredReferral, normalizeReferralCode } from "@/lib/affiliate";
 
 interface Star {
   x: number;
@@ -118,6 +119,11 @@ export default function RegisterPage() {
 
   useSeo(SEO_PAGES.register);
 
+  useEffect(() => {
+    const referralCode = normalizeReferralCode(searchParams.get("ref"));
+    if (referralCode) captureReferral(referralCode);
+  }, [searchParams]);
+
   // Helper function to generate a guaranteed unique username
   const generateUniqueUsername = async (emailOrName: string) => {
     let baseUsername = emailOrName.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -201,6 +207,14 @@ export default function RegisterPage() {
         username: cleanUsername,
       });
       await pb.collection('users').authWithPassword(email, password);
+
+      // Claim the browser's first-touch referral before applying an optional
+      // typed promo code. This makes attribution deterministic when both exist.
+      try {
+        await claimStoredReferral();
+      } catch (err) {
+        console.info("Referral attribution was not claimed:", err);
+      }
       
       // 3. Apply promocode after successful registration
       if (trimmedPromo) {
@@ -247,6 +261,12 @@ export default function RegisterPage() {
 
       if (Object.keys(updateData).length > 0) {
         await pb.collection('users').update(authData.record.id, updateData);
+      }
+
+      try {
+        await claimStoredReferral();
+      } catch (err) {
+        console.info("Referral attribution was not claimed:", err);
       }
 
       toast.success("Successfully signed up with Google!");

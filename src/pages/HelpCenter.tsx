@@ -140,7 +140,7 @@ const helpCategories: Category[] = [
                             </div>
                             <div className="p-4 rounded-xl bg-surface border border-border">
                                 <h4 className="font-semibold text-foreground mb-1">⚡ Deeplink (Direct)</h4>
-                                <p className="text-sm text-muted-foreground">When clicked from Instagram/TikTok, tries to open the link in the system browser (Safari/Chrome) instead of the in-app browser. Available on Pro+.</p>
+                                <p className="text-sm text-muted-foreground">Adds a safe handoff from Instagram/TikTok to Chrome or a supported native app. iOS may require the visitor to use the app menu to open Safari. Available on Pro+.</p>
                             </div>
                             <div className="p-4 rounded-xl bg-surface border border-border">
                                 <h4 className="font-semibold text-foreground mb-1">🛡️ Security Check (Interstitial)</h4>
@@ -293,14 +293,14 @@ const helpCategories: Category[] = [
                 content: (
                     <div className="space-y-4">
                         <p>Deeplinks solve the #1 problem for creators and marketers: <strong className="text-foreground">in-app browsers</strong>.</p>
-                        <p className="text-muted-foreground">When someone clicks your link in Instagram or TikTok, it opens their built-in browser which has limited functionality (no saved passwords, no extensions, poor cookie support). Deeplinks bypass this.</p>
+                        <p className="text-muted-foreground">When someone clicks your link in Instagram or TikTok, it opens their built-in browser, which may not share sessions with Safari or Chrome. Deeplink provides a safe handoff without repeatedly reloading the redirect page.</p>
                         <h4 className="font-semibold text-foreground mt-6 mb-3">How it works:</h4>
                         <ol className="list-decimal list-inside space-y-3 text-muted-foreground">
                             <li>Enable <strong className="text-foreground">Deeplink</strong> when creating a link</li>
                             <li>When someone opens your link from Instagram/TikTok, Linktery detects the in-app browser</li>
-                            <li><strong className="text-foreground">On iOS:</strong> We use Safari URL schemes to force the link to open in Safari</li>
-                            <li><strong className="text-foreground">On Android:</strong> We use Intent URLs to open the link in the default browser (Chrome, Samsung Browser, etc.)</li>
-                            <li>If automatic redirect fails, a beautiful fallback page with manual instructions is shown</li>
+                            <li><strong className="text-foreground">On iOS:</strong> A confirmed HTTPS tap can open a supported native app through Universal Links; otherwise we show the exact Safari menu step</li>
+                            <li><strong className="text-foreground">On Android:</strong> A user-confirmed Intent opens Chrome, with the original destination as a direct fallback</li>
+                            <li>On Android, Linktery makes one guarded external-browser attempt and never loops or retries it automatically</li>
                         </ol>
                         <div className="p-4 rounded-xl bg-accent/5 border border-accent/20 mt-4">
                             <p className="text-sm text-accent flex items-start gap-2"><Sparkles className="w-4 h-4 mt-0.5 shrink-0" /> <span>Deeplink is available on <strong>Creator Pro</strong> and <strong>Agency</strong> plans.</span></p>

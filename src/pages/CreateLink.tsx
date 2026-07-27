@@ -15,7 +15,14 @@ import { CountrySelect } from "@/components/CountrySelect";
 import { getAvailableDomains } from '@/lib/siteConfig';
 import { resolveNewLinkProfilePrefill } from '@/lib/linkProfileContext';
 import { ProfileLinkRecord } from '@/lib/profileLinks';
-import { COUNTRY_TIER_PACKS, getCountryTierPack, isCountryTierKey } from '@/lib/countryTiers';
+import { getCountryByCode } from '@/lib/countries';
+import {
+  COUNTRY_TIER_PACKS,
+  type CountryTierKey,
+  getCountryTierKey,
+  getCountryTierPack,
+  isCountryTierKey,
+} from '@/lib/countryTiers';
 import { maskError } from '@/lib/utils';
 
 const generateRandomSlug = () => {
@@ -55,6 +62,7 @@ export default function CreateLink() {
   });
   const [profiles, setProfiles] = useState<ProfileOption[]>([]);
   const [selectedProfileIds, setSelectedProfileIds] = useState<string[]>([]);
+  const [expandedTierKey, setExpandedTierKey] = useState<CountryTierKey | null>(null);
   const [isProfileSelectorCollapsed, setIsProfileSelectorCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(PROFILE_SELECTOR_COLLAPSED_KEY) === "true";
@@ -574,7 +582,7 @@ export default function CreateLink() {
             <ToggleRow
               icon={Zap}
               label="Deeplink"
-              description="Smart route from social apps to system browser"
+              description="Safe browser handoff for social app visitors"
               checked={form.mode === "direct"}
               onChange={() => {
                 if (checkPlan(userPlan, "deep_links")) {
@@ -588,7 +596,7 @@ export default function CreateLink() {
                   });
                 }
               }}
-              tooltip="Smart routing: Optimizes link delivery from social app browsers to system browser for best user experience (Beta)."
+              tooltip="Shows a one-tap browser handoff in Instagram, TikTok, and Facebook without automatic retry loops."
               disabled={!checkPlan(userPlan, "deep_links")}
               lockedTooltip="Available on Creator Pro"
             />
@@ -679,23 +687,14 @@ export default function CreateLink() {
                     <div className="grid gap-2 sm:grid-cols-3">
                       {COUNTRY_TIER_PACKS.map((pack) => {
                         const isAdded = geoData.some((rule) => rule.code === pack.key);
+                        const isExpanded = expandedTierKey === pack.key;
                         return (
-                          <button
+                          <div
                             key={pack.key}
-                            type="button"
-                            onClick={() => {
-                              if (isAdded) {
-                                setGeoData((current) => current.filter((rule) => rule.code !== pack.key));
-                              } else {
-                                setGeoData((current) => [...current, { code: pack.key, url: "" }]);
-                              }
-                            }}
-                            aria-pressed={isAdded}
-                            className={`group rounded-xl border p-3 text-left transition-all ${isAdded
+                            className={`rounded-xl border p-3 text-left transition-all ${isAdded
                               ? "border-accent/50 bg-accent/10 shadow-[0_0_0_1px_rgba(52,211,153,0.08)]"
                               : "border-border/60 bg-surface/50 hover:border-accent/30 hover:bg-surface"
                               }`}
-                            title={pack.codes.join(", ")}
                           >
                             <div className="flex items-center justify-between gap-2">
                               <span className={`text-xs font-bold ${isAdded ? "text-accent" : "text-foreground"}`}>{pack.label}</span>
@@ -704,51 +703,130 @@ export default function CreateLink() {
                               </span>
                             </div>
                             <p className="mt-1 text-[9px] leading-snug text-muted-foreground">{pack.description}</p>
-                            <p className={`mt-2 text-[9px] font-semibold ${isAdded ? "text-accent" : "text-muted-foreground group-hover:text-foreground"}`}>
-                              {isAdded ? "Added — click to remove" : "Add pack"}
-                            </p>
-                          </button>
+                            <div className="mt-3 flex items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isAdded) {
+                                    setGeoData((current) => current.filter((rule) => rule.code !== pack.key));
+                                  } else {
+                                    setGeoData((current) => [...current, { code: pack.key, url: "" }]);
+                                  }
+                                }}
+                                aria-pressed={isAdded}
+                                className={`rounded-lg px-2 py-1 text-[9px] font-bold transition-colors ${isAdded
+                                  ? "bg-accent/15 text-accent hover:bg-accent/20"
+                                  : "bg-background/70 text-foreground hover:bg-accent/10 hover:text-accent"
+                                  }`}
+                              >
+                                {isAdded ? "Remove pack" : "Add pack"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setExpandedTierKey(isExpanded ? null : pack.key)}
+                                aria-expanded={isExpanded}
+                                aria-controls={`country-tier-${pack.key}`}
+                                className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-[9px] font-semibold text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
+                              >
+                                Countries
+                                <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                              </button>
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
+
+                    {expandedTierKey && (() => {
+                      const expandedPack = getCountryTierPack(expandedTierKey);
+                      if (!expandedPack) return null;
+
+                      return (
+                        <div
+                          id={`country-tier-${expandedPack.key}`}
+                          className="mt-3 overflow-hidden rounded-xl border border-border/60 bg-surface/45"
+                        >
+                          <div className="flex items-center justify-between border-b border-border/50 px-3 py-2.5">
+                            <div>
+                              <p className="text-[11px] font-semibold text-foreground">Countries in {expandedPack.label}</p>
+                              <p className="mt-0.5 text-[9px] text-muted-foreground">{expandedPack.codes.length} countries in this Linktery preset</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedTierKey(null)}
+                              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
+                              aria-label={`Close ${expandedPack.label} country list`}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <div className="grid max-h-52 grid-cols-1 gap-1 overflow-y-auto p-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {expandedPack.codes.map((code) => {
+                              const country = getCountryByCode(code);
+                              return (
+                                <div key={code} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[10px] text-foreground/85 hover:bg-background/55">
+                                  <span className="text-sm" aria-hidden="true">{country?.flag}</span>
+                                  <span className="min-w-0 flex-1 truncate">{country?.name || code}</span>
+                                  <span className="font-mono text-[9px] text-muted-foreground">{code}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
-                  {geoData.map((d, i) => (
-                    <div key={`${d.code || "country"}-${i}`} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      {isCountryTierKey(d.code) ? (
-                        <div className="flex h-10 min-w-[190px] items-center justify-between rounded-xl border border-accent/25 bg-accent/5 px-3">
-                          <div>
-                            <p className="text-[11px] font-semibold text-foreground">{getCountryTierPack(d.code)?.label}</p>
-                            <p className="text-[9px] text-muted-foreground">{getCountryTierPack(d.code)?.codes.length} countries</p>
+                  {geoData.map((d, i) => {
+                    const individualTier = d.code && !isCountryTierKey(d.code) ? getCountryTierKey(d.code) : null;
+                    const overridesActiveTier = individualTier
+                      ? geoData.some((rule) => rule.code === individualTier)
+                      : false;
+
+                    return (
+                      <div key={`${d.code || "country"}-${i}`} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        {isCountryTierKey(d.code) ? (
+                          <div className="flex h-10 min-w-[190px] items-center justify-between rounded-xl border border-accent/25 bg-accent/5 px-3">
+                            <div>
+                              <p className="text-[11px] font-semibold text-foreground">{getCountryTierPack(d.code)?.label}</p>
+                              <p className="text-[9px] text-muted-foreground">{getCountryTierPack(d.code)?.codes.length} countries</p>
+                            </div>
+                            <Layers3 className="h-3.5 w-3.5 text-accent" />
                           </div>
-                          <Layers3 className="h-3.5 w-3.5 text-accent" />
-                        </div>
-                      ) : (
-                        <CountrySelect
-                          value={d.code}
-                          onChange={(code) => {
-                            const next = [...geoData];
-                            next[i].code = code;
-                            setGeoData(next);
-                          }}
-                          excludeCodes={geoData.filter((_, j) => j !== i).map((g) => g.code).filter((code) => code && !isCountryTierKey(code))}
-                        />
-                      )}
-                      <input placeholder="Destination URL" value={d.url} onChange={(e) => {
-                        const next = [...geoData];
-                        next[i].url = e.target.value;
-                        setGeoData(next);
-                      }} className="h-10 flex-1 rounded-xl border border-border bg-surface px-3 text-xs outline-none transition-colors focus:border-accent/60" />
-                      <button
-                        type="button"
-                        onClick={() => setGeoData(geoData.filter((_, j) => j !== i))}
-                        className="self-end rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive sm:self-auto"
-                        title="Remove rule"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
+                        ) : (
+                          <div className="min-w-[190px]">
+                            <CountrySelect
+                              value={d.code}
+                              onChange={(code) => {
+                                const next = [...geoData];
+                                next[i].code = code;
+                                setGeoData(next);
+                              }}
+                              excludeCodes={geoData.filter((_, j) => j !== i).map((g) => g.code).filter((code) => code && !isCountryTierKey(code))}
+                            />
+                            {overridesActiveTier && individualTier && (
+                              <p className="mt-1 px-1 text-[9px] font-semibold text-amber-400/90">
+                                Overrides {getCountryTierPack(individualTier)?.label}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        <input placeholder="Destination URL" value={d.url} onChange={(e) => {
+                          const next = [...geoData];
+                          next[i].url = e.target.value;
+                          setGeoData(next);
+                        }} className="h-10 flex-1 rounded-xl border border-border bg-surface px-3 text-xs outline-none transition-colors focus:border-accent/60" />
+                        <button
+                          type="button"
+                          onClick={() => setGeoData(geoData.filter((_, j) => j !== i))}
+                          className="self-end rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive sm:self-auto"
+                          title="Remove rule"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
                   <div className="flex items-center justify-between gap-3">
                     <button type="button" onClick={() => setGeoData([...geoData, { code: "", url: "" }])} className="rounded-lg px-1 py-1 text-[10px] font-semibold text-accent hover:text-accent/80">+ Add individual country</button>
                     {geoData.some((rule) => isCountryTierKey(rule.code)) && geoData.some((rule) => rule.code && !isCountryTierKey(rule.code)) && (

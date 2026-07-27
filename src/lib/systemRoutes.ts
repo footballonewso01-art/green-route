@@ -1,6 +1,7 @@
 export const SYSTEM_ROUTE_ROOTS = [
   "/login",
   "/register",
+  "/ref",
   "/dashboard",
   "/pricing",
   "/privacy",

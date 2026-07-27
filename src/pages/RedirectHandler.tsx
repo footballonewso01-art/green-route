@@ -4,6 +4,12 @@ import { pb } from "@/lib/pocketbase";
 import { Loader2, AlertTriangle, Smartphone, ExternalLink, MoreVertical, Share2, Compass, Lock } from "lucide-react";
 import { DEFAULT_AVAILABLE_DOMAINS, PRIMARY_DOMAIN, PRIMARY_ORIGIN } from "@/lib/siteConfig";
 import { getCountryTierKey } from "@/lib/countryTiers";
+import {
+    detectInAppBrowser,
+    getDeeplinkPrimaryAction,
+    isAndroidUserAgent,
+    prepareAutomaticExternalHandoff,
+} from "@/lib/deeplink";
 import { useSeo } from "@/hooks/useSeo";
 const PublicProfile = lazy(() => import("./PublicProfile"));
 
@@ -108,7 +114,7 @@ export default function RedirectHandler() {
         username = username.split('?')[0].split('%3F')[0];
     }
     const navigate = useNavigate();
-    const [status, setStatus] = useState<"loading" | "verifying" | "error" | "deeplink" | "profile" | "blocked">("loading");
+    const [status, setStatus] = useState<"loading" | "verifying" | "error" | "deeplink" | "profile">("loading");
     const [error, setError] = useState<string | null>(null);
     const [destination, setDestination] = useState<string>("");
     const redirected = useRef(false);
@@ -122,26 +128,38 @@ export default function RedirectHandler() {
         noIndex: true,
     });
 
-    // ── bfcache handler: if the page is restored from cache, re-resolve ──
+    // If a visitor returns from a destination through bfcache, resolve again.
+    // Real redirect cycles are handled by the cross-domain lr_trace marker;
+    // counting bfcache restores produced false "infinity loop" warnings.
     useEffect(() => {
         const handlePageShow = (e: PageTransitionEvent) => {
             if (e.persisted && username) {
-                // Safeguard against infinite bfcache restoration loops
-                const attemptKey = `redirect_attempts_${username}`;
-                const attempts = parseInt(sessionStorage.getItem(attemptKey) || '0', 10);
-                
-                if (attempts < 3) {
-                    redirected.current = false;
-                    setStatus("loading");
-                } else {
-                    console.warn("Too many bfcache restorations, ignoring.");
-                    setStatus("blocked");
-                }
+                redirected.current = false;
+                setStatus("loading");
             }
         };
         window.addEventListener("pageshow", handlePageShow);
         return () => window.removeEventListener("pageshow", handlePageShow);
     }, [username]);
+
+    useEffect(() => {
+        if (status !== "deeplink" || !destination) return;
+
+        const attempt = prepareAutomaticExternalHandoff({
+            destination,
+            userAgent: navigator.userAgent,
+            storage: window.sessionStorage,
+            scope: username || window.location.pathname,
+        });
+        if (!attempt) return;
+
+        // A short delay lets the handoff screen paint before Instagram/TikTok
+        // decides whether to honor the external-browser intent.
+        const timer = window.setTimeout(() => {
+            window.location.href = attempt.href;
+        }, 120);
+        return () => window.clearTimeout(timer);
+    }, [destination, status, username]);
 
     // ── Track click without blocking the redirect ──
     // Geo, User-Agent parsing and persistence happen on the backend. sendBeacon
@@ -285,7 +303,8 @@ export default function RedirectHandler() {
                 // "facebook" catches FBAN/FBAV (real users), "instagram" catches in-app (real users)
                 // Only match actual crawler/preview bots, not webview browsers
                 const isBot = /bot|crawl|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(ua);
-                const isInApp = /Instagram|TikTok|FBAN|FBAV/i.test(ua);
+                const inAppBrowser = detectInAppBrowser(ua);
+                const isInApp = inAppBrowser !== null;
 
                 // Bot cloaking
                 if (link.cloaking && isBot && link.safe_page_url) {
@@ -360,14 +379,6 @@ export default function RedirectHandler() {
 
                 setDestination(finalDestination);
 
-                const attemptKey = `redirect_attempts_${username}`;
-                const attempts = parseInt(sessionStorage.getItem(attemptKey) || '0', 10);
-                if (attempts >= 3) {
-                    setStatus("blocked");
-                    return;
-                }
-                sessionStorage.setItem(attemptKey, (attempts + 1).toString());
-
                 // Determine if destination is local or points to our own profile / domains
                 let isLocalDestination = false;
                 try {
@@ -425,57 +436,6 @@ export default function RedirectHandler() {
                     setStatus("deeplink");
                     trackClick(link);
                     await fireTrackingPixels(link);
-
-                    const isIOS = /iPhone|iPad|iPod/i.test(ua);
-                    const isAndroid = /Android/i.test(ua);
-                    const isInstagram = /Instagram/i.test(ua);
-                    const isTikTok = /TikTok/i.test(ua);
-
-                    if (isAndroid) {
-                        if (isInstagram) {
-                            // Instagram Android WebView blocks intent:// — use googlechrome:// scheme
-                            const chromeUrl = finalDestination.replace(/^https:\/\//, "googlechrome://navigate?url=https://").replace(/^http:\/\//, "googlechrome://navigate?url=http://");
-                            window.location.href = chromeUrl;
-                            // Fallback: direct intent with browser_fallback_url
-                            setTimeout(() => {
-                                const scheme = finalDestination.replace(/^https?:\/\//, "");
-                                window.location.href = `intent://${scheme}#Intent;scheme=https;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(finalDestination)};end`;
-                            }, 800);
-                            // Final fallback: show manual open screen instead of infinite reload/loop
-                            setTimeout(() => {
-                                setStatus("blocked");
-                            }, 2000);
-                        } else {
-                            // Other Android in-app browsers: intent with fallback
-                            const scheme = finalDestination.replace(/^https?:\/\//, "");
-                            window.location.href = `intent://${scheme}#Intent;scheme=https;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(finalDestination)};end`;
-                            // Final fallback: show manual open screen
-                            setTimeout(() => {
-                                setStatus("blocked");
-                            }, 1500);
-                        }
-                    } else if (isIOS) {
-                        if (isInstagram || isTikTok) {
-                            // iOS Instagram/TikTok: Use x-safari-https:// scheme to force Safari
-                            const safariUrl = finalDestination.replace(/^https:\/\//, "x-safari-https://").replace(/^http:\/\//, "x-safari-http://");
-                            window.location.href = safariUrl;
-                            // Fallback 1: Try Google Chrome on iOS
-                            setTimeout(() => {
-                                const chromeUrl = finalDestination.replace(/^https:\/\//, "googlechromes://").replace(/^http:\/\//, "googlechrome://");
-                                window.location.href = chromeUrl;
-                            }, 600);
-                            // Final fallback: show manual open screen
-                            setTimeout(() => {
-                                setStatus("blocked");
-                            }, 1800);
-                        } else {
-                            // Other iOS in-app browsers: just navigate directly
-                            window.location.href = finalDestination;
-                        }
-                    } else {
-                        // Desktop or unknown: just redirect
-                        window.location.href = finalDestination;
-                    }
                     return;
                 }
 
@@ -536,48 +496,18 @@ export default function RedirectHandler() {
         );
     }
 
-    if (status === "blocked") {
-        return (
-            <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center animate-fade-in">
-                <div className="relative mb-8">
-                    <div className="absolute inset-0 bg-destructive/20 blur-3xl rounded-full animate-pulse" />
-                    <div className="relative w-24 h-24 rounded-[2rem] bg-surface border border-destructive/30 flex items-center justify-center shadow-xl shadow-destructive/10">
-                        <MoreVertical className="w-10 h-10 text-destructive animate-pulse" />
-                    </div>
-                </div>
-
-                <div className="space-y-4 mb-8 max-w-sm">
-                    <h1 className="text-2xl font-bold text-foreground">Manual Open Required</h1>
-                    <p className="text-muted-foreground text-sm leading-relaxed">
-                        Instagram is blocking this link from opening automatically. You must open it manually using your system browser.
-                    </p>
-                </div>
-
-                <div className="w-full max-w-sm">
-                    <div className="bg-surface/80 border-2 border-accent/50 rounded-2xl p-6 text-left space-y-5 shadow-lg shadow-accent/5 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-accent/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
-                        
-                        <p className="text-sm font-bold text-accent uppercase tracking-wider flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
-                            Required Steps:
-                        </p>
-                        
-                        <div className="flex items-start gap-4">
-                            <div className="w-8 h-8 rounded-full bg-background border-2 border-accent/30 flex items-center justify-center text-sm font-bold text-foreground flex-shrink-0">1</div>
-                            <p className="text-sm text-foreground pt-1">Tap the <span className="inline-flex items-center gap-1 bg-surface-hover px-2 py-1 rounded-md border border-border font-medium"><MoreVertical className="w-4 h-4" /> menu</span> icon in the top right corner.</p>
-                        </div>
-                        
-                        <div className="flex items-start gap-4">
-                            <div className="w-8 h-8 rounded-full bg-background border-2 border-accent/30 flex items-center justify-center text-sm font-bold text-foreground flex-shrink-0">2</div>
-                            <p className="text-sm text-foreground pt-1">Select <span className="font-bold text-accent bg-accent/10 px-2 py-1 rounded-md">"Open in Browser"</span> or <span className="font-bold text-accent bg-accent/10 px-2 py-1 rounded-md">"Open in Chrome/Safari"</span>.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
     if (status === "deeplink") {
+        const userAgent = navigator.userAgent;
+        const action = getDeeplinkPrimaryAction(destination, userAgent);
+        const inAppBrowser = detectInAppBrowser(userAgent);
+        const isAndroid = isAndroidUserAgent(userAgent);
+        const browserName = inAppBrowser === "instagram"
+            ? "Instagram"
+            : inAppBrowser === "tiktok"
+                ? "TikTok"
+                : inAppBrowser === "facebook"
+                    ? "Facebook"
+                    : "this app";
         return (
             <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center animate-fade-in">
                 <div className="relative mb-10">
@@ -588,19 +518,27 @@ export default function RedirectHandler() {
                 </div>
 
                 <div className="space-y-4 mb-10 max-w-sm">
-                    <h1 className="text-3xl font-bold text-foreground">Opening Link...</h1>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent">
+                        Deeplink handoff
+                    </p>
+                    <h1 className="text-3xl font-bold text-foreground">
+                        {isAndroid ? "Opening your browser…" : `Continue outside ${browserName}`}
+                    </h1>
                     <p className="text-muted-foreground text-sm leading-relaxed">
-                        We are attempting to open this link in your system browser for a better experience.
+                        {isAndroid
+                            ? `Linktery is making one safe attempt to leave ${browserName}. If it is blocked, tap the button below.`
+                            : "Tap below to open the supported app or destination. iOS may still require the browser menu."}
                     </p>
                 </div>
 
                 <div className="w-full max-w-sm space-y-4">
                     <a
-                        href={destination}
-                        className="btn-primary-glow w-full flex items-center justify-center gap-2 py-4 text-lg"
+                        href={action.href}
+                        rel="noopener noreferrer"
+                        className="btn-primary-glow w-full min-h-14 flex items-center justify-center gap-2 py-4 text-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     >
                         <ExternalLink className="w-5 h-5" />
-                        Open in Browser
+                        {action.label}
                     </a>
 
                     <div className="bg-surface/50 border border-border rounded-2xl p-6 text-left space-y-4">
@@ -618,10 +556,10 @@ export default function RedirectHandler() {
 
                 <button
                     onClick={() => window.location.replace(destination)}
-                    className="mt-8 text-xs text-muted-foreground hover:text-accent transition-colors flex items-center gap-1.5"
+                    className="mt-8 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:text-accent transition-colors flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                     <Share2 className="w-3 h-3" />
-                    Skip optimization
+                    Continue inside {browserName}
                 </button>
             </div>
         );

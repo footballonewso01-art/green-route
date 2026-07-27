@@ -81,12 +81,8 @@ export function ProfileLinkCard({
   const minimal = cardStyle === "minimal" && !featured;
   const imageFirst = cardStyle === "image-first" && Boolean(backgroundUrl) && !featured;
   const fullBackground = Boolean(backgroundUrl) && !imageFirst;
+  const customIcon = iconType === "custom" && Boolean(iconValue);
   const textClass = fullBackground ? "text-white" : light ? "text-black" : "text-white";
-  const secondaryTextClass = fullBackground
-    ? "text-white/68"
-    : light
-      ? "text-black/48"
-      : "text-white/48";
   const radiusClass = getRadiusClass(template);
   const titleClass = getTitleClass(template);
 
@@ -150,20 +146,29 @@ export function ProfileLinkCard({
           <span
             className={`flex shrink-0 items-center justify-center overflow-hidden ${
               featured
-                ? "h-10 w-10 rounded-xl"
+                ? "h-12 w-12 rounded-[14px]"
                 : minimal
                   ? "h-10 w-10 rounded-[11px]"
                   : "h-10 w-10 rounded-[11px]"
             } ${iconSurfaceClass}`}
           >
-            <span className="flex h-[22px] w-[22px] items-center justify-center">
+            {customIcon ? (
               <IconRenderer
                 type={iconType}
                 value={iconValue}
                 url={destinationUrl}
                 className="h-full w-full"
               />
-            </span>
+            ) : (
+              <span className={`flex items-center justify-center ${featured ? "h-7 w-7" : "h-[22px] w-[22px]"}`}>
+                <IconRenderer
+                  type={iconType}
+                  value={iconValue}
+                  url={destinationUrl}
+                  className="h-full w-full"
+                />
+              </span>
+            )}
           </span>
         )}
 
@@ -175,21 +180,16 @@ export function ProfileLinkCard({
           }`}
         >
           <span
-            className={`block truncate ${titleClass} ${textClass} ${
+            className={`block ${titleClass} ${textClass} ${
               featured
-                ? "text-[18px] leading-tight"
+                ? "line-clamp-2 text-[22px] leading-[1.15]"
                 : imageFirst
-                  ? "text-[15px] leading-tight"
-                  : "text-[15px] leading-tight"
+                  ? "truncate text-[15px] leading-tight"
+                  : "truncate text-[15px] leading-tight"
             }`}
           >
             {title}
           </span>
-          {(featured || imageFirst) && destinationUrl && (
-            <span className={`mt-1 block truncate text-[11px] font-medium ${secondaryTextClass}`}>
-              {destinationUrl.replace(/^https?:\/\//i, "").replace(/\/$/, "")}
-            </span>
-          )}
         </span>
 
         <span

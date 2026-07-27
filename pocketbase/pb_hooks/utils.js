@@ -51,7 +51,9 @@ var PUBLIC_PROMOCODE_ERRORS = {
     "Promocode is required": true,
     "Invalid or inactive promocode": true,
     "This promocode has reached its usage limit": true,
-    "You have already used a promocode on this account": true
+    "You have already used a promocode on this account": true,
+    "This affiliate offer is only available to new accounts": true,
+    "You cannot use your own affiliate offer": true
 };
 
 var getSafePromocodeError = function(err) {
@@ -60,6 +62,176 @@ var getSafePromocodeError = function(err) {
         return message;
     }
     return "We couldn't process this promocode. Please check the code and try again.";
+};
+
+var normalizeAffiliateCode = function (value) {
+    return String(value || "").trim().replace(/[^a-zA-Z0-9_-]/g, "").substring(0, 40);
+};
+
+var getAccountAgeMs = function (record) {
+    var created = record ? String(record.get("created") || "") : "";
+    var createdMs = created ? new Date(created).getTime() : NaN;
+    if (!isFinite(createdMs)) return Number.MAX_SAFE_INTEGER;
+    return Math.max(0, new Date().getTime() - createdMs);
+};
+
+var ensureAffiliatePartner = function (app, userRecord) {
+    var existing = null;
+    try {
+        existing = app.findFirstRecordByFilter(
+            "affiliate_partners",
+            "user_id = {:userId}",
+            { userId: userRecord.id }
+        );
+    } catch (error) { }
+    if (existing) return existing;
+
+    var partners = app.findCollectionByNameOrId("affiliate_partners");
+    var referralCode = "lt" + userRecord.id;
+    var partner = new Record(partners, {
+        "user_id": userRecord.id,
+        "referral_code": referralCode,
+        "default_commission_rate_bps": 0,
+        "status": "active"
+    });
+    app.save(partner);
+    return partner;
+};
+
+var createAffiliateAttribution = function (app, options) {
+    var partnerId = String(options.partnerId || "");
+    var referredUserId = String(options.referredUserId || "");
+    if (!partnerId || !referredUserId) {
+        throw new Error("Affiliate attribution requires both accounts");
+    }
+    if (partnerId === referredUserId) {
+        throw new BadRequestError("You cannot use your own affiliate offer");
+    }
+
+    var existing = null;
+    try {
+        existing = app.findFirstRecordByFilter(
+            "affiliate_attributions",
+            "referred_user_id = {:userId}",
+            { userId: referredUserId }
+        );
+    } catch (error) { }
+    if (existing) {
+        return { record: existing, created: false };
+    }
+
+    var partner = app.findRecordById("users", partnerId);
+    var referred = app.findRecordById("users", referredUserId);
+    var partnerIp = String(partner.get("created_ip") || "");
+    var referredIp = String(referred.get("created_ip") || "");
+    var riskStatus = partnerIp && referredIp && partnerIp === referredIp ? "review" : "clear";
+    var bps = Math.max(0, Math.min(10000, parseInt(options.commissionRateBps, 10) || 0));
+    var collection = app.findCollectionByNameOrId("affiliate_attributions");
+    var attribution = new Record(collection, {
+        "partner_id": partnerId,
+        "referred_user_id": referredUserId,
+        "promocode_id": String(options.promocodeId || ""),
+        "source": options.source === "promocode" ? "promocode" : "referral_link",
+        "referral_code": normalizeAffiliateCode(options.referralCode),
+        "commission_rate_bps": bps,
+        "commission_eligible": options.commissionEligible === true,
+        "risk_status": riskStatus,
+        "status": "attributed",
+        "attributed_at": new DateTime()
+    });
+    app.save(attribution);
+    return { record: attribution, created: true };
+};
+
+// Creates exactly one commission for the referred account. Both unique database
+// indexes (attribution and Stripe invoice) are a second idempotency layer behind
+// the Stripe event dedup table.
+var createFirstPaymentCommission = function (app, options) {
+    var userId = String(options.referredUserId || "");
+    var invoiceId = String(options.stripeInvoiceId || "");
+    var amountPaidCents = Math.max(0, parseInt(options.amountPaidCents, 10) || 0);
+    if (!userId || !invoiceId || amountPaidCents <= 0) return null;
+
+    var attribution = null;
+    try {
+        attribution = app.findFirstRecordByFilter(
+            "affiliate_attributions",
+            "referred_user_id = {:userId} && commission_eligible = true",
+            { userId: userId }
+        );
+    } catch (error) {
+        return null;
+    }
+    if (!attribution) return null;
+
+    var rateBps = Math.max(0, Math.min(10000, parseInt(attribution.get("commission_rate_bps"), 10) || 0));
+    var commissionCents = Math.floor(amountPaidCents * rateBps / 10000);
+    if (commissionCents <= 0) return null;
+
+    try {
+        var alreadyCreated = app.findFirstRecordByFilter(
+            "affiliate_commissions",
+            "attribution_id = {:attributionId} || stripe_invoice_id = {:invoiceId}",
+            { attributionId: attribution.id, invoiceId: invoiceId }
+        );
+        if (alreadyCreated) return alreadyCreated;
+    } catch (error) { }
+
+    var collection = app.findCollectionByNameOrId("affiliate_commissions");
+    var commission = new Record(collection, {
+        "partner_id": attribution.get("partner_id"),
+        "referred_user_id": userId,
+        "attribution_id": attribution.id,
+        "promocode_id": attribution.get("promocode_id") || "",
+        "stripe_invoice_id": invoiceId,
+        "amount_paid_cents": amountPaidCents,
+        "refunded_cents": 0,
+        "commission_rate_bps": rateBps,
+        "commission_cents": commissionCents,
+        "currency": String(options.currency || "usd").toUpperCase().substring(0, 3),
+        "plan": String(options.plan || "pro").substring(0, 16),
+        "status": attribution.get("risk_status") === "review" ? "review" : "pending",
+        "available_at": new DateTime().addDate(0, 0, 30)
+    });
+    app.save(commission);
+
+    attribution.set("status", "commissioned");
+    attribution.set("first_paid_invoice_id", invoiceId);
+    app.save(attribution);
+    return commission;
+};
+
+var reconcileAffiliateRefund = function (app, stripeInvoiceId, refundedCents) {
+    var invoiceId = String(stripeInvoiceId || "");
+    var cumulativeRefundCents = Math.max(0, parseInt(refundedCents, 10) || 0);
+    if (!invoiceId || cumulativeRefundCents <= 0) return null;
+
+    var commission = null;
+    try {
+        commission = app.findFirstRecordByFilter(
+            "affiliate_commissions",
+            "stripe_invoice_id = {:invoiceId}",
+            { invoiceId: invoiceId }
+        );
+    } catch (error) {
+        return null;
+    }
+    if (!commission) return null;
+
+    var paidCents = Math.max(0, parseInt(commission.get("amount_paid_cents"), 10) || 0);
+    var normalizedRefund = Math.min(paidCents, cumulativeRefundCents);
+    var rateBps = Math.max(0, parseInt(commission.get("commission_rate_bps"), 10) || 0);
+    var remainingCents = Math.max(0, paidCents - normalizedRefund);
+    var adjustedCommission = Math.floor(remainingCents * rateBps / 10000);
+
+    commission.set("refunded_cents", normalizedRefund);
+    commission.set("commission_cents", adjustedCommission);
+    if (adjustedCommission <= 0) {
+        commission.set("status", "reversed");
+        commission.set("reversed_at", new DateTime());
+    }
+    app.save(commission);
+    return commission;
 };
 
 var analyticsRateLimitAllows = function (userId) {
@@ -631,6 +803,130 @@ var validateProfilePresentation = function(record) {
     record.set("social_link_style", socialLinkStyle);
 };
 
+var escapeHtml = function(value) {
+    return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+};
+
+var safeJsonForHtml = function(value) {
+    return JSON.stringify(String(value || ""))
+        .replace(/</g, "\\u003c")
+        .replace(/>/g, "\\u003e")
+        .replace(/&/g, "\\u0026");
+};
+
+var getInAppBrowser = function(userAgent) {
+    var ua = String(userAgent || "");
+    if (/Instagram/i.test(ua)) return "Instagram";
+    if (/TikTok/i.test(ua)) return "TikTok";
+    if (/FBAN|FBAV/i.test(ua)) return "Facebook";
+    return "";
+};
+
+var getDeeplinkDestinationName = function(destination) {
+    var value = String(destination || "");
+    var match = value.match(/^https?:\/\/([^\/?#]+)/i);
+    if (!match) return "";
+    var hostname = String(match[1] || "").toLowerCase().replace(/^www\./, "");
+    if (hostname === "youtu.be" || hostname === "youtube.com" || /\.youtube\.com$/.test(hostname)) return "YouTube";
+    if (hostname === "t.me" || hostname === "telegram.me" || /\.telegram\.me$/.test(hostname)) return "Telegram";
+    if (hostname === "open.spotify.com") return "Spotify";
+    if (hostname === "tiktok.com" || /\.tiktok\.com$/.test(hostname)) return "TikTok";
+    if (hostname === "instagram.com" || /\.instagram\.com$/.test(hostname)) return "Instagram";
+    return "";
+};
+
+var buildAndroidBrowserIntent = function(destination) {
+    var value = String(destination || "");
+    var match = value.match(/^(https?):\/\/([^\/?#]+)([^#]*)/i);
+    if (!match) return value;
+    var scheme = match[1].toLowerCase();
+    var target = match[2] + (match[3] || "/");
+    return "intent://" + target + "#Intent;scheme=" + scheme +
+        ";action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;" +
+        "package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(value) + ";end";
+};
+
+var getDeeplinkHandoffHtml = function(destination, userAgent, pixelScripts, attemptScope) {
+    var dest = String(destination || "");
+    var ua = String(userAgent || "");
+    var sourceApp = getInAppBrowser(ua) || "this app";
+    var isAndroid = /Android/i.test(ua);
+    var actionUrl = isAndroid ? buildAndroidBrowserIntent(dest) : dest;
+    var destinationName = getDeeplinkDestinationName(dest);
+    var actionLabel = isAndroid ? "Open in Chrome" : (destinationName ? "Open " + destinationName : "Open destination");
+    var safeDest = escapeHtml(dest);
+    var safeActionUrl = escapeHtml(actionUrl);
+    var attemptKey = "linktery_deeplink_v2_" + String(attemptScope || "link").replace(/[^a-zA-Z0-9_-]/g, "").substring(0, 40);
+    var automaticScript = isAndroid && actionUrl !== dest ? `
+    <script>
+        (function () {
+            var key = ${safeJsonForHtml(attemptKey)};
+            var action = ${safeJsonForHtml(actionUrl)};
+            var now = Date.now();
+            try {
+                var previous = Number(sessionStorage.getItem(key) || "0");
+                if (Number.isFinite(previous) && now - previous < 15000) return;
+                sessionStorage.setItem(key, String(now));
+            } catch (error) {
+                return;
+            }
+            setTimeout(function () { window.location.href = action; }, 120);
+        })();
+    </script>` : "";
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="robots" content="noindex,nofollow">
+    <title>Continue to destination</title>
+    ${pixelScripts || ""}
+    <style>
+        :root { color-scheme: dark; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        * { box-sizing: border-box; }
+        body { min-height: 100vh; margin: 0; padding: 28px; display: grid; place-items: center; background: #050806; color: #f7faf8; }
+        .card { width: min(100%, 420px); padding: 30px; border: 1px solid #20382d; border-radius: 28px; background: #0a120e; box-shadow: 0 24px 80px rgba(0,0,0,.45); }
+        .mark { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 16px; background: #22e58b; color: #03130b; font-size: 24px; font-weight: 900; }
+        h1 { margin: 0 0 10px; font-size: 28px; line-height: 1.08; letter-spacing: -.04em; }
+        p { margin: 0; color: #9dafaa; font-size: 15px; line-height: 1.55; }
+        .actions { display: grid; gap: 12px; margin-top: 26px; }
+        .button { min-height: 54px; display: flex; align-items: center; justify-content: center; padding: 0 20px; border-radius: 15px; text-decoration: none; font-weight: 800; }
+        .primary { background: #22e58b; color: #03130b; }
+        .secondary { border: 1px solid #294137; color: #e9f3ee; background: #101b16; }
+        .hint { margin-top: 22px; padding: 16px; border-radius: 16px; background: #0f1a15; border: 1px solid #1c3027; color: #9dafaa; font-size: 13px; line-height: 1.5; }
+        .hint strong { color: #e9f3ee; }
+        .eyebrow { margin: 24px 0 10px; color: #22e58b; font-size: 11px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+        .brand { margin-top: 24px; color: #61756c; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; text-align: center; }
+        .button:focus-visible { outline: 2px solid #22e58b; outline-offset: 3px; }
+        @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <div class="mark">&#8599;</div>
+        <div class="eyebrow">Deeplink handoff</div>
+        <h1>${isAndroid ? "Opening your browser&hellip;" : "Continue outside " + escapeHtml(sourceApp)}</h1>
+        <p>${isAndroid
+            ? "Linktery is making one safe attempt to leave " + escapeHtml(sourceApp) + ". If it is blocked, tap the button below."
+            : "Tap below to open the supported app or destination. iOS may still require the browser menu."}</p>
+        <div class="actions">
+            <a class="button primary" href="${safeActionUrl}" rel="noopener noreferrer">${actionLabel}</a>
+            <a class="button secondary" href="${safeDest}" rel="noopener noreferrer">Continue inside ${escapeHtml(sourceApp)}</a>
+        </div>
+        <div class="hint">If the first button stays inside ${escapeHtml(sourceApp)}, tap <strong>&#8942;</strong> and choose <strong>Open in browser</strong>. Linktery attempts the automatic handoff only once, so this page cannot create a redirect loop.</div>
+        <div class="brand">Powered by Linktery</div>
+    </main>
+    ${automaticScript}
+</body>
+</html>`;
+};
+
 module.exports = {
     RATE_LIMIT_STORE,
     RATE_LIMIT_LAST_RESET,
@@ -646,6 +942,12 @@ module.exports = {
     getCountryTierKey,
     getRedirectLoopHtml,
     getSafePromocodeError,
+    normalizeAffiliateCode,
+    getAccountAgeMs,
+    ensureAffiliatePartner,
+    createAffiliateAttribution,
+    createFirstPaymentCommission,
+    reconcileAffiliateRefund,
     analyticsRateLimitAllows,
     getAnalyticsCache,
     setAnalyticsCache,
@@ -677,5 +979,11 @@ module.exports = {
     validateProfileLinkComposition,
     validateProfileSocialLinks,
     validateProfileTemplate,
-    validateProfilePresentation
+    validateProfilePresentation,
+    escapeHtml,
+    safeJsonForHtml,
+    getInAppBrowser,
+    getDeeplinkDestinationName,
+    buildAndroidBrowserIntent,
+    getDeeplinkHandoffHtml
 };

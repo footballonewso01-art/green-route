@@ -56,6 +56,7 @@ describe("Public Profile design contracts", () => {
     expect(link).toHaveAttribute("href", "/latest?ref=profile");
     expect(link).toHaveAttribute("target", "_blank");
     expect(screen.getByText("My latest project")).toBeInTheDocument();
+    expect(screen.queryByText("example.com/latest")).not.toBeInTheDocument();
   });
 
   it("renders labeled social actions without changing their destinations", () => {
@@ -136,6 +137,44 @@ describe("Public Profile design contracts", () => {
       expect(screen.getByRole("link", { name: `${style} destination, opens in a new tab` }))
         .toHaveAttribute("href", `/${style}?ref=profile`);
     });
+  });
+
+  it("gives large cards a stronger two-line title hierarchy", () => {
+    render(
+      <ProfileLinkCard
+        title="A featured destination with a longer title"
+        href="/featured?ref=profile"
+        destinationUrl="https://example.com/featured"
+        iconType="preset"
+        iconValue="instagram"
+        size="large"
+        template="classic"
+        cardColor="#101311"
+      />,
+    );
+
+    const title = screen.getByText("A featured destination with a longer title");
+    expect(title).toHaveClass("line-clamp-2", "text-[22px]", "leading-[1.15]");
+    expect(title).not.toHaveClass("truncate");
+  });
+
+  it("lets custom artwork fill the icon surface while preset glyphs keep optical padding", () => {
+    const { container } = render(
+      <ProfileLinkCard
+        title="Custom icon destination"
+        href="/custom-icon?ref=profile"
+        destinationUrl="https://example.com/custom"
+        iconType="custom"
+        iconValue="data:image/png;base64,Y3VzdG9t"
+        template="classic"
+        cardColor="#101311"
+      />,
+    );
+
+    const customIcon = screen.getByAltText("Custom icon");
+    expect(customIcon).toHaveClass("h-full", "w-full", "object-cover");
+    expect(customIcon.parentElement).toHaveClass("h-10", "w-10", "overflow-hidden");
+    expect(container.querySelector(".h-\\[22px\\] .object-cover")).not.toBeInTheDocument();
   });
 
   it("keeps preview links non-interactive while using the shared canvas", () => {

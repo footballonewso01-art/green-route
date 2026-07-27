@@ -15,6 +15,10 @@
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     },
     {
+      "source": "/ref/:path*",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
       "source": "/auth",
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     },
@@ -71,6 +75,10 @@
     },
     {
       "source": "/register",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/ref/:path*",
       "destination": "/index.html"
     },
     {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Plus, Search, Users, AlertCircle, Copy, CheckCircle2, Ticket, TrendingUp, Activity, Archive, ChevronLeft, Gift, Zap, RefreshCw } from "lucide-react";
+import { Plus, Search, Users, AlertCircle, Copy, CheckCircle2, Ticket, TrendingUp, Activity, Archive, ChevronLeft, Gift, Zap, RefreshCw, BadgePercent, UserRound } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { format, isValid } from "date-fns";
@@ -20,15 +20,13 @@ type Promocode = {
   current_uses: number;
   reward_plan: string;
   reward_days: number;
+  reward_enabled?: boolean;
+  reward_months?: number;
+  partner_id?: string;
+  internal_name?: string;
+  commission_rate_bps?: number;
+  expand?: { partner_id?: { username?: string; email?: string } };
   is_active: boolean;
-  created: string;
-};
-
-type PromocodeLog = {
-  id: string;
-  expand?: { user_id?: { username: string; email: string } };
-  plan_awarded: string;
-  days_awarded: number;
   created: string;
 };
 
@@ -39,11 +37,13 @@ export default function AdminPromocodes() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "archived">("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [selectedPromo, setSelectedPromo] = useState<Promocode | null>(null);
   const [newCode, setNewCode] = useState("");
+  const [newInternalName, setNewInternalName] = useState("");
+  const [newPartnerIdentifier, setNewPartnerIdentifier] = useState("");
   const [newMaxUses, setNewMaxUses] = useState<number | "">("");
-  const [newRewardPlan, setNewRewardPlan] = useState("pro");
-  const [newRewardDays, setNewRewardDays] = useState<number | "">(30);
+  const [newRewardPlan, setNewRewardPlan] = useState<"none" | "pro" | "agency">("pro");
+  const [newRewardMonths, setNewRewardMonths] = useState<number | "">(1);
+  const [newCommissionRate, setNewCommissionRate] = useState<number | "">(20);
   const [isCreating, setIsCreating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -51,6 +51,7 @@ export default function AdminPromocodes() {
     try {
       const records = await pb.collection("promocodes").getFullList({
         sort: "-created",
+        expand: "partner_id",
         requestKey: "admin-promocodes-" + Date.now(),
       });
       setPromocodes(records as unknown as Promocode[]);
@@ -68,21 +69,34 @@ export default function AdminPromocodes() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCode.trim() || !newRewardDays) return;
+    if (!newCode.trim() || !newPartnerIdentifier.trim() || newCommissionRate === "") return;
+    if (newRewardPlan !== "none" && !newRewardMonths) return;
     setIsCreating(true);
     try {
-      await pb.collection("promocodes").create({
+      await pb.send("/api/admin/promocodes", {
+        method: "POST",
+        body: {
         code: newCode.trim().toUpperCase(),
+        internal_name: newInternalName.trim(),
+        partner_identifier: newPartnerIdentifier.trim(),
         max_uses: newMaxUses === "" ? 0 : newMaxUses,
-        current_uses: 0,
-        reward_plan: newRewardPlan,
-        reward_days: newRewardDays,
-        is_active: true,
+        reward_enabled: newRewardPlan !== "none",
+        reward_plan: newRewardPlan === "none" ? "" : newRewardPlan,
+        reward_months: newRewardPlan === "none" ? 0 : newRewardMonths,
+        commission_rate_bps: Math.round(Number(newCommissionRate) * 100),
+        },
+        requestKey: null,
       });
-      toast.success("Promocode generated successfully");
+      toast.success("Affiliate offer created");
       setIsCreateModalOpen(false);
       fetchPromocodes();
-      setNewCode(""); setNewMaxUses(""); setNewRewardPlan("pro"); setNewRewardDays(30);
+      setNewCode("");
+      setNewInternalName("");
+      setNewPartnerIdentifier("");
+      setNewMaxUses("");
+      setNewRewardPlan("pro");
+      setNewRewardMonths(1);
+      setNewCommissionRate(20);
     } catch (err: unknown) {
       toast.error(maskError(err, "Failed to create promocode"));
     } finally {
@@ -112,7 +126,13 @@ export default function AdminPromocodes() {
   };
 
   const filtered = promocodes.filter(p => {
-    const matchesSearch = p.code.toLowerCase().includes(searchQuery.toLowerCase());
+    const haystack = [
+      p.code,
+      p.internal_name,
+      p.expand?.partner_id?.email,
+      p.expand?.partner_id?.username,
+    ].filter(Boolean).join(" ").toLowerCase();
+    const matchesSearch = haystack.includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" ? true : statusFilter === "active" ? p.is_active : !p.is_active;
     return matchesSearch && matchesStatus;
   });
@@ -134,7 +154,7 @@ export default function AdminPromocodes() {
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Promocodes</h1>
             <p className="text-muted-foreground text-sm mt-0.5 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Manage campaigns and trial rewards
+              Manage partner attribution, rewards, and first-payment commission
             </p>
           </div>
         </div>
@@ -195,7 +215,8 @@ export default function AdminPromocodes() {
                 <thead className="text-xs text-muted-foreground uppercase bg-surface/80 border-b border-border/50">
                   <tr>
                     <th className="px-6 py-4 font-semibold">Code</th>
-                    <th className="px-6 py-4 font-semibold">Reward</th>
+                    <th className="px-6 py-4 font-semibold">Partner</th>
+                    <th className="px-6 py-4 font-semibold">Offer</th>
                     <th className="px-6 py-4 font-semibold">Redemptions</th>
                     <th className="px-6 py-4 font-semibold">Status</th>
                     <th className="px-6 py-4 font-semibold">Created</th>
@@ -217,9 +238,26 @@ export default function AdminPromocodes() {
                           </button>
                         </td>
                         <td className="px-6 py-4">
+                          <div className="max-w-[180px]">
+                            <p className="truncate font-medium text-foreground">
+                              {promo.expand?.partner_id?.username ? `@${promo.expand.partner_id.username}` : "Legacy code"}
+                            </p>
+                            <p className="truncate font-mono text-xs text-muted-foreground">{promo.expand?.partner_id?.email || promo.partner_id || "No partner attached"}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
                           <div className="flex flex-col gap-1">
-                            <span className={`w-fit px-2.5 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider border ${promo.reward_plan === 'agency' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>{promo.reward_plan}</span>
-                            <span className="text-xs text-muted-foreground flex items-center gap-1"><Zap className="w-3 h-3" />{promo.reward_days}d Trial</span>
+                            <span className="w-fit rounded-md border border-accent/20 bg-accent/10 px-2.5 py-0.5 text-[11px] font-bold text-accent">
+                              {(promo.commission_rate_bps || 0) / 100}% first payment
+                            </span>
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Gift className="h-3 w-3" />
+                              {promo.reward_enabled === false
+                                ? "No signup reward"
+                                : promo.reward_months
+                                  ? `${promo.reward_months}mo ${promo.reward_plan}`
+                                  : `${promo.reward_days}d ${promo.reward_plan}`}
+                            </span>
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -252,7 +290,7 @@ export default function AdminPromocodes() {
                     );
                   })}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={6} className="px-6 py-16 text-center">
+                    <tr><td colSpan={7} className="px-6 py-16 text-center">
                       <Ticket className="w-10 h-10 mx-auto mb-2 opacity-20" />
                       <p className="text-foreground font-medium">No promocodes found</p>
                       <p className="text-sm text-muted-foreground mt-1">Create a new code to get started.</p>
@@ -278,8 +316,12 @@ export default function AdminPromocodes() {
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${promo.reward_plan === 'agency' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>{promo.reward_plan}</span>
-                      <span className="text-muted-foreground text-xs">{promo.reward_days}d</span>
+                      <span className="rounded border border-accent/20 bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent">
+                        {(promo.commission_rate_bps || 0) / 100}%
+                      </span>
+                      <span className="max-w-[160px] truncate text-xs text-muted-foreground">
+                        {promo.expand?.partner_id?.email || promo.partner_id || "Legacy code"}
+                      </span>
                     </div>
                     <span className="text-muted-foreground text-xs">{promo.current_uses} / {isUnlimited ? '∞' : promo.max_uses} used</span>
                   </div>
@@ -309,50 +351,87 @@ export default function AdminPromocodes() {
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setIsCreateModalOpen(false)} />
-          <div className="glass-card w-full max-w-md relative z-10 animate-scale-in border border-border/50 shadow-2xl">
-            <div className="p-5 sm:p-6 border-b border-border/50 flex items-center justify-between bg-surface/30">
-              <h2 className="text-lg sm:text-xl font-bold text-foreground flex items-center gap-2"><Gift className="w-5 h-5 text-accent" />New Promocode</h2>
+          <div className="glass-card no-scrollbar relative z-10 max-h-[96vh] w-full max-w-2xl animate-scale-in overflow-y-auto border border-border/50 shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/50 bg-card/95 p-5 backdrop-blur-xl sm:p-6">
+              <div>
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-accent">Affiliate offer</p>
+                <h2 className="flex items-center gap-2 text-lg font-bold text-foreground sm:text-xl"><Gift className="h-5 w-5 text-accent" />New partner promocode</h2>
+              </div>
               <button onClick={() => setIsCreateModalOpen(false)} className="text-muted-foreground hover:text-foreground text-lg">✕</button>
             </div>
-            <form onSubmit={handleCreate} className="p-5 sm:p-6 space-y-4">
-              <div>
-                <label className="text-sm font-semibold text-foreground mb-1.5 block">Code</label>
+            <form onSubmit={handleCreate} className="space-y-4 p-5">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                <label className="mb-1.5 block text-sm font-semibold text-foreground">Code</label>
                 <div className="relative">
-                  <input type="text" required placeholder="e.g. SUMMER26" value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase().replace(/\s/g, ''))}
+                  <input type="text" required minLength={3} maxLength={32} placeholder="e.g. CREATOR20" value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))}
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-surface border border-border text-foreground font-mono font-medium focus:outline-none input-glow focus:border-accent/50 uppercase tracking-wider" />
                   <Ticket className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 </div>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-semibold text-foreground">Internal name <span className="font-normal text-muted-foreground">(optional)</span></label>
+                  <input type="text" maxLength={120} placeholder="July creator campaign" value={newInternalName} onChange={(e) => setNewInternalName(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-foreground focus:border-accent/50 focus:outline-none input-glow" />
+                </div>
               </div>
               <div>
+                <label className="mb-1.5 block text-sm font-semibold text-foreground">Partner account</label>
+                <div className="relative">
+                  <input type="text" required placeholder="User ID or partner@email.com" value={newPartnerIdentifier} onChange={(e) => setNewPartnerIdentifier(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-surface py-2.5 pl-10 pr-4 text-foreground focus:border-accent/50 focus:outline-none input-glow" />
+                  <UserRound className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                </div>
+                <p className="mt-1 text-[11px] leading-tight text-muted-foreground">No user picker: the server resolves and validates this ID or email.</p>
+              </div>
+              <div className="grid gap-4 border-t border-border/50 pt-4 sm:grid-cols-2">
+              <div>
                 <label className="text-sm font-semibold text-foreground mb-1.5 block">Redemption Limit</label>
-                <input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="Leave empty for unlimited" value={newMaxUses}
-                  onChange={(e) => { const v = e.target.value.replace(/\D/g, ''); setNewMaxUses(v === "" ? "" : parseInt(v)); }}
+                <input type="number" inputMode="numeric" min={0} max={1000000} placeholder="0 = unlimited" value={newMaxUses}
+                  onChange={(e) => setNewMaxUses(e.target.value === "" ? "" : Math.max(0, Number(e.target.value)))}
                   className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50" />
               </div>
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-foreground">First-payment commission</label>
+                <div className="relative">
+                  <input type="number" min={0} max={100} step={0.01} required value={newCommissionRate}
+                    onChange={(e) => setNewCommissionRate(e.target.value === "" ? "" : Number(e.target.value))}
+                    className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 pr-10 font-mono font-semibold text-foreground focus:border-accent/50 focus:outline-none input-glow" />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 font-mono text-sm text-muted-foreground">%</span>
+                </div>
+              </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 border-t border-border/50 pt-4 sm:gap-4">
                 <div>
-                  <label className="text-sm font-semibold text-foreground mb-1.5 block">Reward Tier</label>
-                  <select value={newRewardPlan} onChange={(e) => setNewRewardPlan(e.target.value)}
+                  <label className="text-sm font-semibold text-foreground mb-1.5 block">New-user benefit</label>
+                  <select value={newRewardPlan} onChange={(e) => setNewRewardPlan(e.target.value as "none" | "pro" | "agency")}
                     className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 appearance-none font-medium">
+                    <option value="none">No reward</option>
                     <option value="pro">Pro Plan</option>
                     <option value="agency">Agency Plan</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-foreground mb-1.5 block">Days</label>
-                  <input type="text" inputMode="numeric" pattern="[0-9]*" required value={newRewardDays}
-                    onChange={(e) => { const v = e.target.value.replace(/\D/g, ''); setNewRewardDays(v === "" ? "" : parseInt(v)); }}
-                    className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 font-medium" />
+                  <label className="text-sm font-semibold text-foreground mb-1.5 block">Duration in months</label>
+                  <input type="number" inputMode="numeric" min={1} max={36} required={newRewardPlan !== "none"} disabled={newRewardPlan === "none"} value={newRewardPlan === "none" ? "" : newRewardMonths}
+                    onChange={(e) => setNewRewardMonths(e.target.value === "" ? "" : Number(e.target.value))}
+                    placeholder={newRewardPlan === "none" ? "Not applicable" : "1"}
+                    className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:outline-none input-glow focus:border-accent/50 font-medium disabled:cursor-not-allowed disabled:opacity-45" />
                 </div>
               </div>
               <div className="bg-accent/5 border border-accent/20 rounded-xl p-3 flex gap-3">
                 <AlertCircle className="w-5 h-5 text-accent shrink-0" />
-                <p className="text-xs text-muted-foreground leading-relaxed">Users will receive <strong className="text-foreground">{newRewardDays} days</strong> of <strong className="text-foreground uppercase">{newRewardPlan}</strong>.</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Partner receives <strong className="text-foreground">{newCommissionRate || 0}%</strong> of the first successful payment.
+                  {newRewardPlan === "none"
+                    ? " The new user receives no subscription bonus."
+                    : <> The new user receives <strong className="text-foreground">{newRewardMonths || 0} month(s)</strong> of <strong className="text-foreground uppercase">{newRewardPlan}</strong>.</>}
+                </p>
               </div>
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/50">
+              <div className="sticky bottom-0 -mx-5 -mb-5 flex items-center justify-end gap-3 border-t border-border/50 bg-card/95 px-5 pb-5 pt-4 backdrop-blur-xl sm:-mx-6 sm:-mb-6 sm:px-6 sm:pb-6">
                 <button type="button" onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2.5 rounded-xl text-sm text-muted-foreground hover:bg-surface transition-colors">Cancel</button>
                 <button type="submit" disabled={isCreating} className="btn-primary-glow flex items-center gap-2 px-5 py-2.5">
-                  {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}Generate
+                  {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}Create affiliate offer
                 </button>
               </div>
             </form>

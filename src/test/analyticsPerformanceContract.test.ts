@@ -42,7 +42,27 @@ describe("analytics performance contract", () => {
     expect(links).toContain("/api/links/sparklines");
     expect(links).not.toContain("while (hasMore)");
     expect(dashboard).toContain("/api/dashboard/summary");
+    expect(dashboard).toContain("/api/dashboard/recent");
     expect(dashboard).not.toContain("collection('clicks').getList");
+  });
+
+  it("keeps Dashboard metrics independent and bounds recent-click work per link", () => {
+    const hook = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
+    const summaryStart = hook.indexOf('routerAdd("GET", "/api/dashboard/summary"');
+    const recentStart = hook.indexOf('routerAdd("GET", "/api/dashboard/recent"');
+    const adminStart = hook.indexOf("// Admin Dashboard telemetry", recentStart);
+    const summaryRoute = hook.slice(summaryStart, recentStart);
+    const recentRoute = hook.slice(recentStart, adminStart);
+
+    expect(summaryRoute).not.toContain("FROM clicks");
+    expect(summaryRoute).toContain("FROM analytics_hourly_rollup");
+    expect(recentRoute).toContain("idx_clicks_link_created");
+    expect(recentRoute).toContain("ORDER BY c.created DESC LIMIT 5");
+    expect(recentRoute).toContain('perLinkQueries.join(" UNION ALL ")');
+
+    const migration = readWorkspaceFile("pocketbase/pb_migrations/1785120000_optimize_dashboard_recent_clicks.js");
+    expect(migration).toContain("idx_clicks_link_created");
+    expect(migration).toContain("link_id, created DESC");
   });
 
   it("persists the production machine size needed for the SQLite working set", () => {

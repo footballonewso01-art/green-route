@@ -46,6 +46,7 @@ const QrCodeGenerator = lazy(() => import("./pages/QrCodeGenerator"));
 // Non-indexed, dynamic, or authenticated routes.
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
+const ReferralCapture = lazy(() => import("./pages/ReferralCapture"));
 const DashboardLayout = lazy(() => import("./components/DashboardLayout"));
 const DashboardHome = lazy(() => import("./pages/DashboardHome"));
 const LinksManager = lazy(() => import("./pages/LinksManager"));
@@ -59,6 +60,7 @@ const InterstitialPage = lazy(() => import("./pages/InterstitialPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const BillingPage = lazy(() => import("./pages/Billing"));
 const DashboardPricing = lazy(() => import("./pages/DashboardPricing"));
+const PartnerOverview = lazy(() => import("./pages/PartnerOverview"));
 const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
 const AdminUserProfile = lazy(() => import("./pages/admin/AdminUserProfile"));
@@ -134,6 +136,7 @@ const AppRoutes = () => (
     <Route path="/" element={<LandingPage />} />
     <Route path="/login" element={<LoginPage />} />
     <Route path="/register" element={<RegisterPage />} />
+    <Route path="/ref/:referralCode" element={<ReferralCapture />} />
     <Route path="/pricing" element={<PricingPage />} />
     <Route path="/privacy" element={<PrivacyPolicy />} />
     <Route path="/terms" element={<TermsAndConditions />} />
@@ -182,6 +185,7 @@ const AppRoutes = () => (
       <Route path="profile/:profileId" element={<DashboardProfile />} />
       <Route path="billing" element={<BillingPage />} />
       <Route path="pricing" element={<DashboardPricing />} />
+      <Route path="partner" element={<PartnerOverview />} />
       <Route path="settings" element={<SettingsPage />} />
       <Route path="help" element={<HelpCenter />} />
     </Route>

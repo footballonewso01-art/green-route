@@ -15,6 +15,8 @@ export default function DashboardHome() {
   });
   const [trendData, setTrendData] = useState<{ name: string; clicks: number }[]>([]);
   const [recentClicks, setRecentClicks] = useState<{ slug: string; country: string; device: string; time: string }[]>([]);
+  const [recentLoading, setRecentLoading] = useState(true);
+  const [recentUnavailable, setRecentUnavailable] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -27,7 +29,6 @@ export default function DashboardHome() {
           activeLinks?: number;
           totalLinks?: number;
           trend?: { day: string; clicks: number }[];
-          recent?: { slug: string; country: string; device: string; created: string }[];
         };
 
         const totalClicks = response.totalClicks || 0;
@@ -39,17 +40,6 @@ export default function DashboardHome() {
           activeLinks,
           clickRate: totalLinks > 0 ? Math.round((totalClicks / totalLinks) * 10) / 10 : 0,
         });
-
-        setRecentClicks((response.recent || []).map((click) => ({
-          slug: click.slug || "unknown",
-          country: (() => {
-            const raw = click.country || "Unknown";
-            if (raw === "Unknown" || raw.length !== 2) return raw;
-            try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(raw) || raw; } catch { return raw; }
-          })(),
-          device: click.device || "Other",
-          time: new Date(click.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        })));
 
         const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
         const trendByDay = new Map((response.trend || []).map((entry) => [entry.day, entry.clicks]));
@@ -71,6 +61,36 @@ export default function DashboardHome() {
     };
 
     fetchDashboardData();
+
+    const fetchRecentClicks = async () => {
+      try {
+        const response = await pb.send('/api/dashboard/recent', {
+          method: 'GET',
+          requestKey: 'dashboard-recent',
+        }) as {
+          items?: { slug: string; country: string; device: string; created: string }[];
+        };
+
+        setRecentClicks((response.items || []).map((click) => ({
+          slug: click.slug || "unknown",
+          country: (() => {
+            const raw = click.country || "Unknown";
+            if (raw === "Unknown" || raw.length !== 2) return raw;
+            try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(raw) || raw; } catch { return raw; }
+          })(),
+          device: click.device || "Other",
+          time: new Date(click.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        })));
+      } catch (error: unknown) {
+        if (!(error as { isAbort?: boolean }).isAbort) {
+          setRecentUnavailable(true);
+        }
+      } finally {
+        setRecentLoading(false);
+      }
+    };
+
+    fetchRecentClicks();
   }, []);
 
   if (loading) {
@@ -220,7 +240,19 @@ export default function DashboardHome() {
         <motion.div variants={itemVariants} className="glass-card p-6">
           <h2 className="text-lg font-semibold text-foreground mb-4">Recent Clicks</h2>
           <div className="space-y-3">
-            {recentClicks.length === 0 ? <p className="text-sm text-muted-foreground">No recent clicks</p> : recentClicks.map((c, i) => (
+            {recentLoading ? (
+              [1, 2, 3].map((item) => (
+                <div key={item} className="flex items-center justify-between py-2">
+                  <div className="space-y-1.5">
+                    <div className="h-4 w-20 rounded bg-surface animate-pulse" />
+                    <div className="h-3 w-28 rounded bg-surface animate-pulse" />
+                  </div>
+                  <div className="h-3 w-10 rounded bg-surface animate-pulse" />
+                </div>
+              ))
+            ) : recentUnavailable ? (
+              <p className="text-sm text-muted-foreground">Recent activity is temporarily unavailable.</p>
+            ) : recentClicks.length === 0 ? <p className="text-sm text-muted-foreground">No recent clicks</p> : recentClicks.map((c, i) => (
               <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                 <div>
                   <div className="text-sm font-medium text-foreground">/{c.slug}</div>
