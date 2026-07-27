@@ -143,10 +143,10 @@ var createAffiliateAttribution = function (app, options) {
     return { record: attribution, created: true };
 };
 
-// Creates exactly one commission for the referred account. Both unique database
-// indexes (attribution and Stripe invoice) are a second idempotency layer behind
-// the Stripe event dedup table.
-var createFirstPaymentCommission = function (app, options) {
+// Creates one commission per successfully paid subscription invoice. The
+// Stripe invoice id is the durable idempotency key, while the attribution keeps
+// the partner and rate frozen for the lifetime of the referred account.
+var createAffiliateCommission = function (app, options) {
     var userId = String(options.referredUserId || "");
     var invoiceId = String(options.stripeInvoiceId || "");
     var amountPaidCents = Math.max(0, parseInt(options.amountPaidCents, 10) || 0);
@@ -171,11 +171,29 @@ var createFirstPaymentCommission = function (app, options) {
     try {
         var alreadyCreated = app.findFirstRecordByFilter(
             "affiliate_commissions",
-            "attribution_id = {:attributionId} || stripe_invoice_id = {:invoiceId}",
-            { attributionId: attribution.id, invoiceId: invoiceId }
+            "stripe_invoice_id = {:invoiceId}",
+            { invoiceId: invoiceId }
         );
         if (alreadyCreated) return alreadyCreated;
     } catch (error) { }
+
+    var firstPaidInvoiceId = String(attribution.get("first_paid_invoice_id") || "");
+    if (!firstPaidInvoiceId) {
+        try {
+            var previousCommissions = app.findRecordsByFilter(
+                "affiliate_commissions",
+                "attribution_id = {:attributionId}",
+                "created",
+                1,
+                0,
+                { attributionId: attribution.id }
+            );
+            if (previousCommissions.length > 0) {
+                firstPaidInvoiceId = String(previousCommissions[0].get("stripe_invoice_id") || "");
+            }
+        } catch (error) { }
+    }
+    var commissionType = firstPaidInvoiceId ? "renewal" : "initial";
 
     var collection = app.findCollectionByNameOrId("affiliate_commissions");
     var commission = new Record(collection, {
@@ -190,13 +208,18 @@ var createFirstPaymentCommission = function (app, options) {
         "commission_cents": commissionCents,
         "currency": String(options.currency || "usd").toUpperCase().substring(0, 3),
         "plan": String(options.plan || "pro").substring(0, 16),
+        "stripe_subscription_id": String(options.stripeSubscriptionId || "").substring(0, 255),
+        "billing_reason": String(options.billingReason || "").substring(0, 40),
+        "commission_type": commissionType,
         "status": attribution.get("risk_status") === "review" ? "review" : "pending",
         "available_at": new DateTime().addDate(0, 0, 30)
     });
     app.save(commission);
 
     attribution.set("status", "commissioned");
-    attribution.set("first_paid_invoice_id", invoiceId);
+    if (!firstPaidInvoiceId) {
+        attribution.set("first_paid_invoice_id", invoiceId);
+    }
     app.save(attribution);
     return commission;
 };
@@ -946,7 +969,7 @@ module.exports = {
     getAccountAgeMs,
     ensureAffiliatePartner,
     createAffiliateAttribution,
-    createFirstPaymentCommission,
+    createAffiliateCommission,
     reconcileAffiliateRefund,
     analyticsRateLimitAllows,
     getAnalyticsCache,

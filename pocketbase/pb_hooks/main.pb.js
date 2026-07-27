@@ -629,15 +629,18 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                             txApp.save(newBRecord);
                         }
 
-                        // The first positive paid invoice is the authoritative
-                        // commission trigger. The attribution and commission are
-                        // persisted in this same transaction as the plan update.
-                        stripeUtils.createFirstPaymentCommission(txApp, {
+                        // Every positive paid subscription invoice earns a
+                        // commission, including renewals. Invoice-level
+                        // idempotency prevents duplicate Stripe deliveries from
+                        // creating duplicate earnings.
+                        stripeUtils.createAffiliateCommission(txApp, {
                             referredUserId: bUserId,
                             stripeInvoiceId: invoice.id,
                             amountPaidCents: invoice.amount_paid,
                             currency: invoice.currency || "usd",
-                            plan: planName
+                            plan: planName,
+                            stripeSubscriptionId: subscriptionId,
+                            billingReason: invoice.billing_reason || ""
                         });
                     });
                     $app.logger().info("Webhook: SUCCESS plan '" + planName + "' extended (interval=" + billingInterval + ") for user " + bUserId);
@@ -1464,7 +1467,7 @@ routerAdd("POST", "/api/admin/promocodes", (c) => {
             "max_uses": 0,
             "reward_enabled": false,
             "reward_plan": "",
-            "reward_months": 0,
+            "reward_days": 0,
             "commission_rate_bps": 0
         });
         c.bindBody(data);
@@ -1475,7 +1478,7 @@ routerAdd("POST", "/api/admin/promocodes", (c) => {
         var maxUses = Math.max(0, parseInt(data.max_uses, 10) || 0);
         var rewardEnabled = data.reward_enabled === true;
         var rewardPlan = rewardEnabled ? String(data.reward_plan || "").toLowerCase() : "creator";
-        var rewardMonths = rewardEnabled ? Math.max(0, parseInt(data.reward_months, 10) || 0) : 0;
+        var rewardDays = rewardEnabled ? Math.max(0, parseInt(data.reward_days, 10) || 0) : 0;
         var commissionRateBps = parseInt(data.commission_rate_bps, 10);
 
         if (!/^[A-Z0-9][A-Z0-9_-]{2,31}$/.test(code)) {
@@ -1490,8 +1493,8 @@ routerAdd("POST", "/api/admin/promocodes", (c) => {
         if (rewardEnabled && rewardPlan !== "pro" && rewardPlan !== "agency") {
             throw new BadRequestError("Choose Pro or Agency for the signup reward.");
         }
-        if (rewardEnabled && (rewardMonths < 1 || rewardMonths > 36)) {
-            throw new BadRequestError("Reward duration must be between 1 and 36 months.");
+        if (rewardEnabled && (rewardDays < 1 || rewardDays > 1095)) {
+            throw new BadRequestError("Reward duration must be between 1 and 1095 days.");
         }
         if (!isFinite(commissionRateBps) || commissionRateBps < 0 || commissionRateBps > 10000) {
             throw new BadRequestError("Commission must be between 0% and 100%.");
@@ -1526,8 +1529,8 @@ routerAdd("POST", "/api/admin/promocodes", (c) => {
                 "current_uses": 0,
                 "reward_enabled": rewardEnabled,
                 "reward_plan": rewardPlan,
-                "reward_months": rewardMonths,
-                "reward_days": rewardEnabled ? rewardMonths * 30 : 0,
+                "reward_months": 0,
+                "reward_days": rewardDays,
                 "commission_rate_bps": commissionRateBps,
                 "is_active": true
             });
@@ -1695,7 +1698,8 @@ routerAdd("GET", "/api/affiliate/overview", (c) => {
                 commission_rate_bps: promo.get("commission_rate_bps") || 0,
                 reward_enabled: promo.get("reward_enabled") === true,
                 reward_plan: promo.get("reward_plan") || "",
-                reward_months: promo.get("reward_months") || 0
+                reward_days: (parseInt(promo.get("reward_days")) || 0) ||
+                    ((parseInt(promo.get("reward_months")) || 0) * 30)
             });
         }
 
@@ -1708,9 +1712,12 @@ routerAdd("GET", "/api/affiliate/overview", (c) => {
         $app.db().newQuery(`
             SELECT
                 count(*) AS total,
-                sum(CASE WHEN coalesce(nullif(u.plan, ''), 'creator') = 'creator' THEN 1 ELSE 0 END) AS creator,
-                sum(CASE WHEN u.plan = 'pro' THEN 1 ELSE 0 END) AS pro,
-                sum(CASE WHEN u.plan = 'agency' THEN 1 ELSE 0 END) AS agency
+                coalesce(sum(CASE
+                    WHEN coalesce(nullif(u.plan, ''), 'creator') = 'creator'
+                    THEN 1 ELSE 0
+                END), 0) AS creator,
+                coalesce(sum(CASE WHEN u.plan = 'pro' THEN 1 ELSE 0 END), 0) AS pro,
+                coalesce(sum(CASE WHEN u.plan = 'agency' THEN 1 ELSE 0 END), 0) AS agency
             FROM affiliate_attributions a
             JOIN users u ON u.id = a.referred_user_id
             WHERE a.partner_id = {:partnerId}
@@ -1719,7 +1726,9 @@ routerAdd("GET", "/api/affiliate/overview", (c) => {
 
         var moneyRows = arrayOf(new DynamicModel({
             earned_cents: 0,
-            matured_cents: 0
+            matured_cents: 0,
+            commission_payments: 0,
+            renewal_payments: 0
         }));
         $app.db().newQuery(`
             SELECT
@@ -1728,7 +1737,12 @@ routerAdd("GET", "/api/affiliate/overview", (c) => {
                     WHEN status IN ('pending', 'approved')
                       AND available_at != '' AND available_at <= datetime('now')
                     THEN commission_cents ELSE 0
-                END), 0) AS matured_cents
+                END), 0) AS matured_cents,
+                coalesce(sum(CASE WHEN status != 'reversed' THEN 1 ELSE 0 END), 0) AS commission_payments,
+                coalesce(sum(CASE
+                    WHEN status != 'reversed' AND commission_type = 'renewal'
+                    THEN 1 ELSE 0
+                END), 0) AS renewal_payments
             FROM affiliate_commissions
             WHERE partner_id = {:partnerId}
         `).bind({ partnerId: user.id }).all(moneyRows);
@@ -1788,6 +1802,8 @@ routerAdd("GET", "/api/affiliate/overview", (c) => {
                 pending_cents: Math.max(0, earnedCents - paidCents),
                 available_cents: Math.max(0, maturedCents - paidCents),
                 paid_cents: paidCents,
+                commission_payments: Number(moneyRows.length ? moneyRows[0].commission_payments : 0),
+                renewal_payments: Number(moneyRows.length ? moneyRows[0].renewal_payments : 0),
                 currency: "USD"
             },
             codes: codes,
@@ -1937,8 +1953,9 @@ routerAdd("POST", "/api/promocodes/validate", (c) => {
             valid: true,
             reward_enabled: promo.get("reward_enabled") === true,
             plan: promo.get("reward_plan"),
-            months: parseInt(promo.get("reward_months")) || 0,
-            days: parseInt(promo.get("reward_days")) || 0
+            months: 0,
+            days: (parseInt(promo.get("reward_days")) || 0) ||
+                ((parseInt(promo.get("reward_months")) || 0) * 30)
         });
     } catch (err) {
         const safeError = utils.getSafePromocodeError(err);
@@ -2023,8 +2040,8 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
             }
 
             const txRewardPlan = txPromo.get("reward_plan") || "creator";
-            const txRewardDays = parseInt(txPromo.get("reward_days")) || 0;
-            const txRewardMonths = parseInt(txPromo.get("reward_months")) || 0;
+            const txRewardDays = (parseInt(txPromo.get("reward_days")) || 0) ||
+                ((parseInt(txPromo.get("reward_months")) || 0) * 30);
             const txRewardEnabled = txPromo.get("reward_enabled") === true;
             const txPartnerId = txPromo.get("partner_id") || "";
             if (txPartnerId && txPartnerId === txUser.id) {
@@ -2038,6 +2055,10 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
             const now = new DateTime();
 
             if (txRewardEnabled) {
+                if (txRewardDays < 1 || txRewardDays > 1095) {
+                    throw new BadRequestError("Invalid reward duration");
+                }
+
                 // Validation hierarchy: agency > pro > creator
                 const planWeights = { "creator": 0, "pro": 1, "agency": 2 };
                 const currentWeight = planWeights[currentPlan] || 0;
@@ -2055,9 +2076,7 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
                     txUser.set("fallback_expires_at", txUser.get("plan_expires_at"));
                 }
 
-                const expiry = txRewardMonths > 0
-                    ? now.addDate(0, txRewardMonths, 0)
-                    : now.addDate(0, 0, txRewardDays);
+                const expiry = now.addDate(0, 0, txRewardDays);
                 txUser.set("plan", txRewardPlan);
                 txUser.set("plan_expires_at", expiry);
 
@@ -2087,7 +2106,7 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
                 "promocode_id": txPromo.id,
                 "user_id": txUser.id,
                 "plan_awarded": txRewardEnabled ? txRewardPlan : "",
-                "days_awarded": txRewardEnabled ? (txRewardMonths > 0 ? txRewardMonths * 30 : txRewardDays) : 0
+                "days_awarded": txRewardEnabled ? txRewardDays : 0
             });
             txApp.save(log);
 
@@ -2104,7 +2123,7 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
             }
 
             txMessage = txRewardEnabled
-                ? "Promocode applied: " + (txRewardMonths > 0 ? txRewardMonths + " month" + (txRewardMonths === 1 ? "" : "s") : txRewardDays + " days") + " of " + txRewardPlan + "!"
+                ? "Promocode applied: " + txRewardDays + " day" + (txRewardDays === 1 ? "" : "s") + " of " + txRewardPlan + "!"
                 : "Promocode activated successfully.";
         });
 

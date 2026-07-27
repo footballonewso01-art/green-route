@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpRight,
   BadgeDollarSign,
@@ -26,7 +27,7 @@ type PartnerCode = {
   commission_rate_bps: number;
   reward_enabled: boolean;
   reward_plan: string;
-  reward_months: number;
+  reward_days: number;
 };
 
 type RecentReferral = {
@@ -50,6 +51,8 @@ type PartnerOverviewData = {
     pending_cents: number;
     available_cents: number;
     paid_cents: number;
+    commission_payments: number;
+    renewal_payments: number;
     currency: string;
   };
   codes: PartnerCode[];
@@ -76,8 +79,6 @@ function formatRate(bps: number) {
 }
 
 export default function PartnerOverview() {
-  const [data, setData] = useState<PartnerOverviewData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState("");
 
   useSeo({
@@ -86,25 +87,37 @@ export default function PartnerOverview() {
     noIndex: true,
   });
 
-  const loadOverview = async () => {
-    setLoading(true);
-    try {
-      const response = await pb.send("/api/affiliate/overview", {
-        method: "GET",
-        requestKey: null,
-      });
-      setData(response as PartnerOverviewData);
-    } catch (error) {
-      console.error("Partner overview fetch failed:", error);
+  const {
+    data,
+    error,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery<PartnerOverviewData>({
+    queryKey: ["affiliate-overview", pb.authStore.model?.id || "anonymous"],
+    queryFn: async () => {
+      try {
+        return await pb.send("/api/affiliate/overview", {
+          method: "GET",
+          requestKey: "affiliate-overview",
+        }) as PartnerOverviewData;
+      } catch (requestError) {
+        console.error("Partner overview fetch failed:", requestError);
+        throw requestError;
+      }
+    },
+    retry: false,
+    retryOnMount: false,
+    refetchOnWindowFocus: false,
+    staleTime: 15_000,
+  });
+
+  const retryOverview = async () => {
+    const result = await refetch();
+    if (result.error) {
       toast.error("Partner analytics are temporarily unavailable.");
-    } finally {
-      setLoading(false);
     }
   };
-
-  useEffect(() => {
-    loadOverview();
-  }, []);
 
   const planMix = useMemo(() => {
     const stats = data?.stats;
@@ -130,7 +143,7 @@ export default function PartnerOverview() {
     }
   };
 
-  if (loading && !data) {
+  if (isLoading && !data) {
     return (
       <div className="grid min-h-[60vh] place-items-center">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -141,13 +154,17 @@ export default function PartnerOverview() {
     );
   }
 
-  if (!data) {
+  if (error || !data) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
         <h1 className="text-2xl font-bold text-foreground">Partner analytics are unavailable</h1>
         <p className="mt-2 text-sm text-muted-foreground">Try loading the workspace again in a moment.</p>
-        <button onClick={loadOverview} className="btn-primary-glow mt-6 inline-flex items-center gap-2 px-5 py-2.5">
-          <RefreshCw className="h-4 w-4" />
+        <button
+          onClick={retryOverview}
+          disabled={isFetching}
+          className="btn-primary-glow mt-6 inline-flex items-center gap-2 px-5 py-2.5 disabled:cursor-wait disabled:opacity-70"
+        >
+          <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           Try again
         </button>
       </div>
@@ -167,7 +184,7 @@ export default function PartnerOverview() {
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Partner Overview</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            First-payment commissions and referral performance in one place.
+            Initial and renewal commissions from your referrals in one place.
           </p>
         </div>
         <span className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${
@@ -196,6 +213,11 @@ export default function PartnerOverview() {
             <p className="mt-3 max-w-md text-sm leading-6 text-emerald-50/55">
               Commissions unlock after the refund-protection hold. {formatMoney(stats.pending_cents, stats.currency)} is earned and not yet paid.
             </p>
+            <p className="mt-1.5 text-xs text-emerald-50/40">
+              {stats.commission_payments.toLocaleString()} commission payment{stats.commission_payments === 1 ? "" : "s"}
+              {" · "}
+              {stats.renewal_payments.toLocaleString()} from renewals
+            </p>
           </div>
 
           <div className="min-w-0 rounded-2xl border border-white/10 bg-black/20 p-3.5 backdrop-blur-sm sm:p-4">
@@ -214,7 +236,7 @@ export default function PartnerOverview() {
               </button>
             </div>
             <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-xs">
-              <span className="text-white/45">Default first-payment rate</span>
+              <span className="text-white/45">Recurring commission rate</span>
               <span className="font-mono font-bold text-emerald-300">{formatRate(data.default_commission_rate_bps)}</span>
             </div>
           </div>
@@ -275,7 +297,7 @@ export default function PartnerOverview() {
                   <p className="mt-2 truncate text-sm text-muted-foreground">
                     {code.name || "Affiliate campaign"}
                     <span className="mx-2 text-border">•</span>
-                    {code.reward_enabled ? `${code.reward_months}mo ${code.reward_plan} reward` : "No signup reward"}
+                    {code.reward_enabled ? `${code.reward_days}d ${code.reward_plan} reward` : "No signup reward"}
                   </p>
                 </div>
                 <div className="flex items-center gap-5 sm:justify-end">
