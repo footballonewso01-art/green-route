@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowUpRight,
   Check,
@@ -31,7 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { pb } from "@/lib/pocketbase";
+import { pb, publicApiBaseUrl } from "@/lib/pocketbase";
 import { maskError } from "@/lib/utils";
 
 interface ApiKeyItem {
@@ -98,10 +98,6 @@ export function ApiAccessSettings() {
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [revokeTarget, setRevokeTarget] = useState<ApiKeyItem | null>(null);
 
-  const apiBaseUrl = useMemo(
-    () => `${pb.baseURL.replace(/\/$/, "")}/api/v1`,
-    [],
-  );
   const activeKeys = keys.filter((key) => key.status === "active");
   const canCreate = maxActiveKeys > 0 && activeKeys.length < maxActiveKeys;
 
@@ -112,7 +108,7 @@ export function ApiAccessSettings() {
         method: "GET",
         requestKey: null,
       })) as ApiKeysResponse;
-      setKeys(response.data || []);
+      setKeys(Array.isArray(response?.data) ? response.data : []);
       setMaxActiveKeys(Number(response.meta?.max_active_keys || 0));
       setRateLimit(Number(response.meta?.api_rate_limit_per_minute || 0));
     } catch (error) {
@@ -223,11 +219,11 @@ export function ApiAccessSettings() {
         <div className="flex min-w-0 items-center gap-3 px-4 py-4">
           <SquareTerminal className="h-4 w-4 shrink-0 text-accent" />
           <code className="min-w-0 flex-1 truncate font-mono text-xs text-white/75 sm:text-sm">
-            {apiBaseUrl}
+            {publicApiBaseUrl}
           </code>
           <button
             type="button"
-            onClick={() => void copy(apiBaseUrl)}
+            onClick={() => void copy(publicApiBaseUrl)}
             aria-label="Copy API base URL"
             className="rounded-lg border border-white/10 p-2 text-white/45 transition-colors hover:border-accent/30 hover:bg-accent/10 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >

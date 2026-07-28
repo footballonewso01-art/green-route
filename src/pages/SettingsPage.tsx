@@ -26,9 +26,18 @@ const sections: SettingsSection[] = [
   { id: "domains", label: "Custom Domain", icon: Globe, comingSoon: true },
 ];
 
+const SETTINGS_SECTION_PARAM = "section";
+
+const resolveSettingsSection = (value: string | null) =>
+  sections.some((section) => !section.comingSoon && section.id === value)
+    ? value as string
+    : "account";
+
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
-  const [active, setActive] = useState("account");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const active = resolveSettingsSection(searchParams.get(SETTINGS_SECTION_PARAM));
+  const stripeSessionId = searchParams.get("session_id");
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -67,7 +76,6 @@ export default function SettingsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Billing state
-  const [searchParams, setSearchParams] = useSearchParams();
   const [billingLogs, setBillingLogs] = useState<BillingRecord[]>([]);
   const [billingLoading, setBillingLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -107,19 +115,22 @@ export default function SettingsPage() {
 
   // Verify Stripe session on return from checkout
   useEffect(() => {
-    const sessionId = searchParams.get("session_id");
-    if (!sessionId || !user) return;
+    if (!stripeSessionId || !user) return;
 
     const verifySession = async () => {
       setVerifying(true);
       try {
         const result = await pb.send("/api/stripe/verify-session", {
           method: "POST",
-          body: { sessionId }
+          body: { sessionId: stripeSessionId }
         });
         if (result.activated) {
           // Keep session_id on transient failures so a reload can retry.
-          setSearchParams({}, { replace: true });
+          setSearchParams((current) => {
+            const next = new URLSearchParams(current);
+            next.delete("session_id");
+            return next;
+          }, { replace: true });
           toast.success(`🎉 ${result.plan.charAt(0).toUpperCase() + result.plan.slice(1)} plan activated!`);
           if (refreshUser) await refreshUser();
         } else {
@@ -133,7 +144,7 @@ export default function SettingsPage() {
       }
     };
     verifySession();
-  }, [refreshUser, searchParams, setSearchParams, user]);
+  }, [refreshUser, setSearchParams, stripeSessionId, user]);
 
   // Fetch billing logs
   useEffect(() => {
@@ -204,7 +215,15 @@ export default function SettingsPage() {
       toast.info(`${section.label} is coming soon!`);
       return;
     }
-    setActive(section.id);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (section.id === "account") {
+        next.delete(SETTINGS_SECTION_PARAM);
+      } else {
+        next.set(SETTINGS_SECTION_PARAM, section.id);
+      }
+      return next;
+    }, { replace: true });
     setSidebarOpen(false);
   };
 
