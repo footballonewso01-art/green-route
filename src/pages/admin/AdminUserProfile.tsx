@@ -48,8 +48,16 @@ interface AdminClick {
     os: string;
     country: string;
     created: string;
-    link_id?: { user_id: string };
     [key: string]: unknown;
+}
+
+interface AdminUserActivityResponse {
+    data: {
+        total_clicks: number;
+        recent: AdminClick[];
+        trend: Array<{ date: string; clicks: number }>;
+    };
+    request_id: string;
 }
 
 export default function AdminUserProfile() {
@@ -77,42 +85,61 @@ export default function AdminUserProfile() {
     const fetchUserData = async () => {
         setLoading(true);
         try {
-            // Fetch User
             const userData = await pb.collection("users").getOne<AdminUser>(id as string, { requestKey: null });
             setUser(userData);
             setInternalNotes(userData.internal_notes || "");
             setSelectedPlan(userData.plan || "creator");
 
-            // Fetch Links
-            const linksData = await pb.collection("links").getList(1, 50, {
-                filter: `user_id="${id}"`,
-                sort: "-created",
-                requestKey: null
-            });
-            setLinks(linksData.items as unknown as AdminLink[]);
+            const [linksResult, activityResult] = await Promise.allSettled([
+                pb.collection("links").getList(1, 50, {
+                    filter: `user_id="${id}"`,
+                    sort: "-created",
+                    requestKey: null
+                }),
+                pb.send(`/api/admin/users/${encodeURIComponent(id as string)}/activity`, {
+                    method: "GET",
+                    requestKey: null
+                }) as Promise<AdminUserActivityResponse>
+            ]);
 
-            // Fetch Clicks
-            const clicksData = await pb.collection("clicks").getList(1, 100, {
-                filter: `link_id.user_id="${id}"`,
-                sort: "-created",
-                expand: "link_id",
-                requestKey: null
-            });
-            setClicks(clicksData.items as unknown as AdminClick[]);
-            setClicksTotalItems(clicksData.totalItems);
+            let partialFailure = false;
+            if (linksResult.status === "fulfilled") {
+                setLinks(linksResult.value.items as unknown as AdminLink[]);
+            } else {
+                partialFailure = true;
+                setLinks([]);
+                console.error("Failed to load user links:", linksResult.reason);
+            }
 
-            // Generate Chart Data (Last 7 days)
-            const data = [];
+            const activity = activityResult.status === "fulfilled"
+                ? activityResult.value.data
+                : { total_clicks: 0, recent: [], trend: [] };
+            if (activityResult.status === "rejected") {
+                partialFailure = true;
+                console.error("Failed to load user activity:", activityResult.reason);
+            }
+
+            setClicks(activity.recent);
+            setClicksTotalItems(activity.total_clicks);
+
+            const clicksByDay = new Map(
+                activity.trend.map((point) => [point.date, Number(point.clicks || 0)])
+            );
+            const data: Array<{ time: string; clicks: number }> = [];
             const now = new Date();
             for (let i = 6; i >= 0; i--) {
                 const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+                const dateKey = d.toISOString().substring(0, 10);
                 data.push({
                     time: d.toLocaleDateString('en-US', { weekday: 'short' }),
-                    clicks: clicksData.items.filter(c => new Date(c.created).getDate() === d.getDate() && new Date(c.created).getMonth() === d.getMonth()).length
+                    clicks: clicksByDay.get(dateKey) || 0
                 });
             }
             setChartData(data);
 
+            if (partialFailure) {
+                toast.error("Some user activity could not be loaded. Try refreshing the page.");
+            }
         } catch (err) {
             console.error("Failed to load user data:", err);
             toast.error("User not found or error loading data");

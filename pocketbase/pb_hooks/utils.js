@@ -25,8 +25,9 @@ var CLICK_UNIQUE_LAST_SWEEP = new Date().getTime();
 var CLICK_UNIQUE_TTL_MS = 24 * 60 * 60 * 1000;
 var CLICK_UNIQUE_CACHE_MAX = 100000;
 
-// Public API authentication state. Secrets are never stored here or in the
-// database; only their keyed digest and a non-secret lookup prefix persist.
+// Public API authentication state. Raw secrets are never stored here. The
+// database keeps a keyed digest for authentication, a non-secret lookup
+// prefix, and an AES-GCM encrypted copy for the authenticated reveal screen.
 var API_RATE_WINDOWS = {};
 var API_LAST_USED_WRITES = {};
 var API_ALLOWED_SCOPES = {
@@ -205,6 +206,74 @@ var hashApiToken = function(token) {
     var pepper = getApiKeyPepper();
     if (!pepper) return "";
     return $security.sha256(pepper + ":" + String(token || ""));
+};
+
+var getApiKeyEncryptionKey = function() {
+    var key = String($os.getenv("API_KEY_ENCRYPTION_KEY") || "");
+    // PocketBase's AES-256-GCM helper requires an exact 32-character key.
+    // Keep this independent from API_KEY_PEPPER so either secret can be
+    // rotated without reusing key material for a different purpose.
+    return key.length === 32 ? key : "";
+};
+
+var encryptApiToken = function(token) {
+    var key = getApiKeyEncryptionKey();
+    if (!key || !token) return "";
+    try {
+        return String($security.encrypt(String(token), key) || "");
+    } catch (err) {
+        return "";
+    }
+};
+
+var decryptApiToken = function(cipherText) {
+    var key = getApiKeyEncryptionKey();
+    if (!key || !cipherText) return "";
+    try {
+        return String($security.decrypt(String(cipherText), key) || "");
+    } catch (err) {
+        return "";
+    }
+};
+
+var revealApiToken = function(record) {
+    if (!record) return "";
+    var token = decryptApiToken(record.get("encrypted_secret"));
+    if (!/^ltk_live_[A-Za-z0-9]{10}_[A-Za-z0-9]{40}$/.test(token)) return "";
+    if (token.substring(0, token.lastIndexOf("_")) !== String(record.get("key_prefix") || "")) return "";
+    var digest = hashApiToken(token);
+    if (!digest || digest !== String(record.get("secret_hash") || "")) return "";
+    return token;
+};
+
+var createManagedApiKey = function(app, userId) {
+    if (!getApiKeyPepper() || !getApiKeyEncryptionKey()) {
+        throw new Error("API key encryption is not configured.");
+    }
+
+    var keyPrefix = "ltk_live_" + $security.randomString(10);
+    var token = keyPrefix + "_" + $security.randomString(40);
+    var digest = hashApiToken(token);
+    var encryptedSecret = encryptApiToken(token);
+    if (!digest || !encryptedSecret) {
+        throw new Error("Unable to protect the API key.");
+    }
+
+    var collection = app.findCollectionByNameOrId("api_keys");
+    var record = new Record(collection, {
+        user_id: String(userId || ""),
+        name: "Account API key",
+        key_prefix: keyPrefix,
+        secret_hash: digest,
+        encrypted_secret: encryptedSecret,
+        scopes: "links:read",
+        status: "active",
+        expires_at: "",
+        last_used_at: "",
+        revoked_at: ""
+    });
+    app.save(record);
+    return { record: record, secret: token };
 };
 
 var serializeApiKey = function(record) {
@@ -732,7 +801,7 @@ var setAnalyticsCache = function (key, data, ttlMs) {
 var PLAN_CATALOG = {
     "creator": { "links": 3, "publicProfiles": 1, "monthlyPrice": 0, "analytics": false, "apiKeys": 0, "apiRatePerMinute": 0 },
     "pro": { "links": 15, "publicProfiles": 3, "monthlyPrice": 11, "analytics": true, "apiKeys": 1, "apiRatePerMinute": 60 },
-    "agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29, "analytics": true, "apiKeys": 5, "apiRatePerMinute": 300 }
+    "agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29, "analytics": true, "apiKeys": 1, "apiRatePerMinute": 300 }
 };
 
 var PROFILE_TEMPLATES = {
@@ -1397,6 +1466,11 @@ module.exports = {
     normalizeApiScopes,
     getApiKeyPepper,
     hashApiToken,
+    getApiKeyEncryptionKey,
+    encryptApiToken,
+    decryptApiToken,
+    revealApiToken,
+    createManagedApiKey,
     serializeApiKey,
     serializeApiLink,
     authenticateApiRequest,

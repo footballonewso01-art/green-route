@@ -2,14 +2,12 @@
 
 Status: beta, read-only first slice.
 
-The API is served by the PocketBase application origin under `/api/v1`.
-The Settings → API Access screen shows the exact base URL for the current
-environment.
+The API is served by the Linktery API origin under `/api/v1`.
 
 ## Authentication
 
-Create a key in Settings → API Access. The complete key is shown once and has
-this shape:
+Open Settings → API Access to view the single key assigned to your account.
+The key can be revealed and copied at any time and has this shape:
 
 ```text
 ltk_live_<public-prefix>_<secret>
@@ -22,7 +20,17 @@ Authorization: Bearer ltk_live_...
 ```
 
 Keys in query parameters are not accepted. Linktery stores a peppered SHA-256
-digest and a non-secret lookup prefix, never the complete key.
+digest for authentication and an AES-256-GCM encrypted copy for the
+authenticated Settings screen. Raw API key access is not available through
+PocketBase collection endpoints.
+
+Refreshing the key atomically revokes the previous credential. Requests made
+with the old key return `401 invalid_api_key` immediately after a successful
+refresh.
+
+Legacy beta keys that were created before repeat reveal was supported are
+replaced once when API Access is first opened. The Settings screen warns the
+account owner to update existing integrations.
 
 ## Scopes
 
@@ -104,8 +112,16 @@ Include `request_id` when reporting a failed request. Responses also include:
 
 - Creator: no API keys.
 - Creator Pro: 1 active key, 60 requests per minute.
-- Agency: 5 active keys, 300 requests per minute.
+- Agency: 1 active key, 300 requests per minute.
 
-Every key expires within one year and can be revoked immediately. Downgrading
-to a plan without API access makes existing keys unusable while keeping them
-visible so they can still be revoked.
+Account API keys do not expire automatically. Downgrading to a plan without
+API access makes the existing key unusable. Refresh the key immediately if it
+may have been exposed.
+
+## Server configuration
+
+API key management fails closed unless both server secrets are configured:
+
+- `API_KEY_PEPPER`: at least 32 characters, used for authentication digests.
+- `API_KEY_ENCRYPTION_KEY`: exactly 32 characters, used only for AES-256-GCM
+  encryption of revealable account keys.

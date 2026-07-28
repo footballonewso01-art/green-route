@@ -4,7 +4,6 @@ const configuredPocketBaseUrl =
   import.meta.env.VITE_POCKETBASE_URL || 'http://127.0.0.1:8090';
 
 export const pocketBaseUrl = configuredPocketBaseUrl.replace(/\/+$/, '');
-export const publicApiBaseUrl = `${pocketBaseUrl}/api/v1`;
 
 export const pb = new PocketBase(pocketBaseUrl);
 

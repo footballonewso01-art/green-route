@@ -1361,6 +1361,199 @@ routerAdd("POST", "/api/track-click", (c) => {
 // ============================================
 // Key management uses the signed-in PocketBase user session. External v1
 // routes accept only Authorization: Bearer ltk_live_... and never query params.
+// Every eligible account has exactly one revealable key. GET creates it lazily
+// when first opened; refresh atomically replaces it and revokes the old token.
+routerAdd("GET", "/api/developer/key", (c) => {
+    var requestId = $security.randomString(12);
+    try {
+        var user = c.auth;
+        if (!user || user.collection().name !== "users") {
+            c.response.header().add("Cache-Control", "no-store");
+            return c.json(401, {
+                error: { code: "unauthorized", message: "Sign in to view your API key." },
+                request_id: requestId
+            });
+        }
+
+        var utils = require(__hooks + '/utils.js');
+        var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
+        var hasAccess = user.get("role") === "admin" || Number(plan.apiKeys || 0) > 0;
+        c.response.header().add("Cache-Control", "no-store");
+        c.response.header().add("Pragma", "no-cache");
+
+        if (!hasAccess) {
+            return c.json(200, {
+                data: null,
+                secret: "",
+                meta: {
+                    enabled: false,
+                    key_limit: 0,
+                    api_rate_limit_per_minute: 0,
+                    scope: "links:read"
+                },
+                request_id: requestId
+            });
+        }
+
+        if (!utils.getApiKeyPepper() || !utils.getApiKeyEncryptionKey()) {
+            $app.logger().error("Single API key unavailable: API key secrets are not configured.");
+            return c.json(503, {
+                error: { code: "api_unavailable", message: "API Access is temporarily unavailable." },
+                request_id: requestId
+            });
+        }
+
+        var activeKeyId = "";
+        var activeSecret = "";
+        var replacedUnrecoverableKey = false;
+        $app.runInTransaction((txApp) => {
+            var records = txApp.findRecordsByFilter(
+                "api_keys",
+                "user_id = {:userId} && status = 'active'",
+                "-created",
+                100,
+                0,
+                { userId: user.id }
+            );
+            var selected = null;
+            var selectedSecret = "";
+            var hadUnrecoverableActiveKey = false;
+            var now = new Date().getTime();
+
+            for (var i = 0; i < records.length; i++) {
+                var expiresAt = String(records[i].get("expires_at") || "");
+                var expired = expiresAt && (
+                    !isFinite(new Date(expiresAt).getTime()) ||
+                    new Date(expiresAt).getTime() <= now
+                );
+                var revealed = expired ? "" : utils.revealApiToken(records[i]);
+                if (!expired && !revealed) {
+                    hadUnrecoverableActiveKey = true;
+                }
+                if (!selected && revealed) {
+                    selected = records[i];
+                    selectedSecret = revealed;
+                    continue;
+                }
+                records[i].set("status", "revoked");
+                records[i].set("revoked_at", new Date().toISOString());
+                txApp.save(records[i]);
+            }
+
+            if (!selected) {
+                var created = utils.createManagedApiKey(txApp, user.id);
+                activeKeyId = created.record.id;
+                activeSecret = created.secret;
+                replacedUnrecoverableKey = hadUnrecoverableActiveKey;
+            } else {
+                activeKeyId = selected.id;
+                activeSecret = selectedSecret;
+            }
+        });
+
+        var activeRecord = $app.findRecordById("api_keys", activeKeyId);
+        return c.json(200, {
+            data: utils.serializeApiKey(activeRecord),
+            secret: activeSecret,
+            meta: {
+                enabled: true,
+                key_limit: 1,
+                api_rate_limit_per_minute: Number(plan.apiRatePerMinute || 60),
+                scope: "links:read",
+                replaced_unrecoverable_key: replacedUnrecoverableKey
+            },
+            request_id: requestId
+        });
+    } catch (err) {
+        $app.logger().error("Single API key load failed request_id=" + requestId + ": " + err);
+        c.response.header().add("Cache-Control", "no-store");
+        return c.json(500, {
+            error: { code: "internal_error", message: "Unable to load the API key." },
+            request_id: requestId
+        });
+    }
+});
+
+routerAdd("POST", "/api/developer/key/refresh", (c) => {
+    var requestId = $security.randomString(12);
+    try {
+        var user = c.auth;
+        if (!user || user.collection().name !== "users") {
+            c.response.header().add("Cache-Control", "no-store");
+            return c.json(401, {
+                error: { code: "unauthorized", message: "Sign in to refresh your API key." },
+                request_id: requestId
+            });
+        }
+
+        var utils = require(__hooks + '/utils.js');
+        var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
+        var hasAccess = user.get("role") === "admin" || Number(plan.apiKeys || 0) > 0;
+        c.response.header().add("Cache-Control", "no-store");
+        c.response.header().add("Pragma", "no-cache");
+
+        if (!hasAccess) {
+            return c.json(403, {
+                error: { code: "api_plan_required", message: "API access requires Creator Pro or Agency." },
+                request_id: requestId
+            });
+        }
+        if (!utils.getApiKeyPepper() || !utils.getApiKeyEncryptionKey()) {
+            $app.logger().error("API key refresh unavailable: API key secrets are not configured.");
+            return c.json(503, {
+                error: { code: "api_unavailable", message: "API Access is temporarily unavailable." },
+                request_id: requestId
+            });
+        }
+
+        var newKeyId = "";
+        var newSecret = "";
+        $app.runInTransaction((txApp) => {
+            var activeRecords = txApp.findRecordsByFilter(
+                "api_keys",
+                "user_id = {:userId} && status = 'active'",
+                "-created",
+                100,
+                0,
+                { userId: user.id }
+            );
+            for (var i = 0; i < activeRecords.length; i++) {
+                activeRecords[i].set("status", "revoked");
+                activeRecords[i].set("revoked_at", new Date().toISOString());
+                txApp.save(activeRecords[i]);
+            }
+
+            // If creation fails, PocketBase rolls the transaction back and the
+            // previous key remains active.
+            var created = utils.createManagedApiKey(txApp, user.id);
+            newKeyId = created.record.id;
+            newSecret = created.secret;
+        });
+
+        var newRecord = $app.findRecordById("api_keys", newKeyId);
+        return c.json(200, {
+            data: utils.serializeApiKey(newRecord),
+            secret: newSecret,
+            meta: {
+                enabled: true,
+                key_limit: 1,
+                api_rate_limit_per_minute: Number(plan.apiRatePerMinute || 60),
+                scope: "links:read"
+            },
+            request_id: requestId
+        });
+    } catch (err) {
+        $app.logger().error("API key refresh failed request_id=" + requestId + ": " + err);
+        c.response.header().add("Cache-Control", "no-store");
+        return c.json(500, {
+            error: { code: "internal_error", message: "Unable to refresh the API key." },
+            request_id: requestId
+        });
+    }
+});
+
+// Compatibility lifecycle routes for already-deployed clients. Plan limits
+// and the partial unique index still enforce one active key per account.
 routerAdd("GET", "/api/developer/keys", (c) => {
     var requestId = $security.randomString(12);
     try {
@@ -1388,7 +1581,7 @@ routerAdd("GET", "/api/developer/keys", (c) => {
         }
 
         var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
-        var maxKeys = user.get("role") === "admin" ? 5 : Number(plan.apiKeys || 0);
+        var maxKeys = user.get("role") === "admin" ? 1 : Number(plan.apiKeys || 0);
         c.response.header().add("Cache-Control", "no-store");
         return c.json(200, {
             data: items,
@@ -1422,7 +1615,7 @@ routerAdd("POST", "/api/developer/keys", (c) => {
 
         var utils = require(__hooks + '/utils.js');
         var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
-        var maxKeys = user.get("role") === "admin" ? 5 : Number(plan.apiKeys || 0);
+        var maxKeys = user.get("role") === "admin" ? 1 : Number(plan.apiKeys || 0);
         if (maxKeys < 1) {
             c.response.header().add("Cache-Control", "no-store");
             return c.json(403, {
@@ -1469,8 +1662,9 @@ routerAdd("POST", "/api/developer/keys", (c) => {
         var keyPrefix = "ltk_live_" + $security.randomString(10);
         var token = keyPrefix + "_" + $security.randomString(40);
         var digest = utils.hashApiToken(token);
-        if (!digest) {
-            $app.logger().error("API key creation disabled: API_KEY_PEPPER is missing or too short.");
+        var encryptedSecret = utils.encryptApiToken(token);
+        if (!digest || !encryptedSecret) {
+            $app.logger().error("API key creation disabled: API key secrets are not configured.");
             c.response.header().add("Cache-Control", "no-store");
             return c.json(503, {
                 error: {
@@ -1490,6 +1684,7 @@ routerAdd("POST", "/api/developer/keys", (c) => {
             name: name,
             key_prefix: keyPrefix,
             secret_hash: digest,
+            encrypted_secret: encryptedSecret,
             scopes: scopes.join(","),
             status: "active",
             expires_at: expiresAt,
@@ -1681,6 +1876,142 @@ routerAdd("GET", "/api/v1/links/{id}", (c) => {
             message: "Unable to load the link.",
             requestId: auth.requestId,
             rate: auth.rate
+        });
+    }
+});
+
+// Admin: bounded activity summary for a single user.
+// Raw clicks stay closed at the collection-rule level. Totals and chart data
+// come from maintained aggregates, while recent activity reads at most five
+// indexed rows per link before applying a global LIMIT 5.
+routerAdd("GET", "/api/admin/users/{id}/activity", (c) => {
+    var requestId = $security.randomString(12);
+    try {
+        var admin = c.auth;
+        c.response.header().add("Cache-Control", "no-store");
+        if (!admin || admin.collection().name !== "users") {
+            return c.json(401, {
+                error: { code: "unauthorized", message: "Sign in to continue." },
+                request_id: requestId
+            });
+        }
+        if (admin.get("role") !== "admin") {
+            return c.json(403, {
+                error: { code: "forbidden", message: "Administrator access is required." },
+                request_id: requestId
+            });
+        }
+
+        var userId = String(c.request.pathValue("id") || "");
+        if (!/^[a-z0-9]{15}$/.test(userId)) {
+            return c.json(404, {
+                error: { code: "not_found", message: "User not found." },
+                request_id: requestId
+            });
+        }
+        try {
+            $app.findRecordById("users", userId);
+        } catch (err) {
+            return c.json(404, {
+                error: { code: "not_found", message: "User not found." },
+                request_id: requestId
+            });
+        }
+
+        var totalRow = new DynamicModel({ "total": 0 });
+        $app.db().newQuery(`
+            SELECT COALESCE(SUM(clicks_count), 0) AS total
+            FROM links INDEXED BY idx_links_user
+            WHERE user_id = {:userId}
+        `).bind({ userId: userId }).one(totalRow);
+
+        var start = new Date();
+        start.setUTCHours(0, 0, 0, 0);
+        start.setUTCDate(start.getUTCDate() - 6);
+        var startDay = start.toISOString().substring(0, 10) + " 00:00:00.000Z";
+        var TrendModel = new DynamicModel({ "day": "", "clicks": 0 });
+        var trendRows = arrayOf(TrendModel);
+        $app.db().newQuery(`
+            SELECT substr(ad.day, 1, 10) AS day,
+                   COALESCE(SUM(ad.count), 0) AS clicks
+            FROM analytics_daily ad INDEXED BY idx_analytics_daily_link_day
+            WHERE ad.link_id IN (
+                SELECT id
+                FROM links INDEXED BY idx_links_user
+                WHERE user_id = {:userId}
+            )
+              AND ad.day >= {:startDay}
+            GROUP BY substr(ad.day, 1, 10)
+            ORDER BY day ASC
+        `).bind({ userId: userId, startDay: startDay }).all(trendRows);
+
+        var LinkModel = new DynamicModel({ "id": "" });
+        var linkRows = arrayOf(LinkModel);
+        $app.db().newQuery(`
+            SELECT id
+            FROM links INDEXED BY idx_links_user
+            WHERE user_id = {:userId}
+        `).bind({ userId: userId }).all(linkRows);
+
+        var recent = [];
+        if (linkRows.length > 0) {
+            var params = {};
+            var perLinkQueries = [];
+            for (var i = 0; i < linkRows.length; i++) {
+                var linkParam = "adminLink" + i;
+                params[linkParam] = linkRows[i].id;
+                perLinkQueries.push(
+                    "SELECT * FROM (" +
+                    "SELECT c.id, c.country, c.os, c.created " +
+                    "FROM clicks c INDEXED BY idx_clicks_link_created " +
+                    "WHERE c.link_id = {:" + linkParam + "} " +
+                    "ORDER BY c.created DESC LIMIT 5" +
+                    ")"
+                );
+            }
+
+            var RecentModel = new DynamicModel({
+                "id": "", "country": "", "os": "", "created": ""
+            });
+            var recentRows = arrayOf(RecentModel);
+            $app.db().newQuery(
+                "SELECT id, country, os, created FROM (" +
+                perLinkQueries.join(" UNION ALL ") +
+                ") ORDER BY created DESC LIMIT 5"
+            ).bind(params).all(recentRows);
+
+            for (var j = 0; j < recentRows.length; j++) {
+                recent.push({
+                    id: recentRows[j].id,
+                    country: recentRows[j].country,
+                    os: recentRows[j].os,
+                    created: recentRows[j].created
+                });
+            }
+        }
+
+        var trend = [];
+        for (var k = 0; k < trendRows.length; k++) {
+            trend.push({
+                date: trendRows[k].day,
+                clicks: Number(trendRows[k].clicks || 0)
+            });
+        }
+
+        return c.json(200, {
+            data: {
+                total_clicks: Number(totalRow.total || 0),
+                recent: recent,
+                trend: trend
+            },
+            request_id: requestId
+        });
+    } catch (err) {
+        $app.logger().error("Admin user activity failed request_id=" + requestId + ": " + err);
+        c.response.header().add("Cache-Control", "no-store");
+        return c.json(500, {
+            error: { code: "internal_error", message: "Unable to load user activity." },
+            request_id: requestId
         });
     }
 });

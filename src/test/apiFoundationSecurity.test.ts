@@ -15,6 +15,9 @@ describe("public API foundation hardening", () => {
   const apiKeyMigration = readWorkspaceFile(
     "pocketbase/pb_migrations/1785201100_create_api_keys.js",
   );
+  const singleKeyMigration = readWorkspaceFile(
+    "pocketbase/pb_migrations/1785290000_enable_single_revealable_api_key.js",
+  );
 
   it("locks every raw clicks collection operation", () => {
     expect(migration).toContain("clicks.listRule = null");
@@ -45,7 +48,7 @@ describe("public API foundation hardening", () => {
     expect(migration).toContain("prevent_reserved_profile_slug_on_insert");
   });
 
-  it("keeps API key secrets behind custom lifecycle routes", () => {
+  it("keeps one revealable API key behind custom lifecycle routes", () => {
     expect(apiKeyMigration).toContain("name: \"api_keys\"");
     expect(apiKeyMigration).toContain("listRule: null");
     expect(apiKeyMigration).toContain("viewRule: null");
@@ -53,9 +56,17 @@ describe("public API foundation hardening", () => {
     expect(apiKeyMigration).toContain("updateRule: null");
     expect(apiKeyMigration).toContain("deleteRule: null");
     expect(apiKeyMigration).toContain("idx_api_keys_hash");
-    expect(hook).toContain('routerAdd("POST", "/api/developer/keys"');
-    expect(hook).toContain('routerAdd("DELETE", "/api/developer/keys/{id}"');
+    expect(singleKeyMigration).toContain('name: "encrypted_secret"');
+    expect(singleKeyMigration).toContain("idx_api_keys_one_active_per_user");
+    expect(hook).toContain('routerAdd("GET", "/api/developer/key"');
+    expect(hook).toContain('routerAdd("POST", "/api/developer/key/refresh"');
+    expect(hook).toContain("txApp.findRecordsByFilter");
+    expect(hook).toContain("utils.createManagedApiKey(txApp, user.id)");
     expect(utils).toContain("$security.sha256(pepper + \":\" + String(token || \"\"))");
+    expect(utils).toContain("$security.encrypt");
+    expect(utils).toContain("$security.decrypt");
+    expect(utils).toContain("API_KEY_ENCRYPTION_KEY");
+    expect(utils).toContain('"agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29, "analytics": true, "apiKeys": 1');
   });
 
   it("authenticates v1 exclusively with scoped Bearer keys", () => {
