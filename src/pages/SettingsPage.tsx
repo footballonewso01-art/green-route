@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { User, Globe, ChevronRight, Gift, CheckCircle, Camera, Zap, Calendar, Receipt, Lock, Building2, AtSign, Mail } from "lucide-react";
+import { User, Globe, ChevronRight, Gift, CheckCircle, Camera, Zap, Calendar, Receipt, Lock, Building2, AtSign, Mail, KeyRound } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { PLANS, PlanType } from "@/lib/plans";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { maskError } from "@/lib/utils";
 import { BillingRecord, formatBillingDate } from "@/lib/billing";
 import { CancelRenewalButton } from "@/components/billing/CancelRenewalButton";
+import { ApiAccessSettings } from "@/components/settings/ApiAccessSettings";
 
 interface SettingsSection {
   id: string;
@@ -20,6 +21,7 @@ interface SettingsSection {
 const sections: SettingsSection[] = [
   { id: "account", label: "Account", icon: User },
   { id: "security", label: "Security", icon: Lock },
+  { id: "api", label: "API Access", icon: KeyRound },
   { id: "billing", label: "Plan & Billing", icon: Receipt },
   { id: "domains", label: "Custom Domain", icon: Globe, comingSoon: true },
 ];
@@ -599,6 +601,9 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+
+            {/* ============ API ACCESS ============ */}
+            {active === "api" && <ApiAccessSettings />}
 
             {/* ============ BILLING ============ */}
             {active === "billing" && (

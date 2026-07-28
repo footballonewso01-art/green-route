@@ -14,6 +14,433 @@ var ANALYTICS_RESPONSE_CACHE = {};
 var ANALYTICS_INFLIGHT = {};
 var ANALYTICS_RATE_WINDOWS = {};
 
+// Click ingestion is intentionally protected separately from redirect
+// requests. Dropping excess telemetry must never prevent navigation.
+var CLICK_RATE_WINDOW_STARTED_AT = new Date().getTime();
+var CLICK_RATE_BY_IP = {};
+var CLICK_RATE_BY_IP_AND_LINK = {};
+var CLICK_UNIQUE_CACHE = {};
+var CLICK_UNIQUE_CACHE_SIZE = 0;
+var CLICK_UNIQUE_LAST_SWEEP = new Date().getTime();
+var CLICK_UNIQUE_TTL_MS = 24 * 60 * 60 * 1000;
+var CLICK_UNIQUE_CACHE_MAX = 100000;
+
+// Public API authentication state. Secrets are never stored here or in the
+// database; only their keyed digest and a non-secret lookup prefix persist.
+var API_RATE_WINDOWS = {};
+var API_LAST_USED_WRITES = {};
+var API_ALLOWED_SCOPES = {
+    "links:read": true
+};
+
+// One-segment application routes share the same namespace as Links and Public
+// Profiles. Keep the server authoritative; the frontend has a contract test
+// that must remain synchronized with this list.
+var SYSTEM_ROUTE_SLUGS = {
+    "404": true,
+    "admin": true,
+    "alternatives": true,
+    "api": true,
+    "assets": true,
+    "auth": true,
+    "compare": true,
+    "dashboard": true,
+    "features": true,
+    "guides": true,
+    "login": true,
+    "open-in-browser": true,
+    "pricing": true,
+    "privacy": true,
+    "ref": true,
+    "register": true,
+    "solutions": true,
+    "templates": true,
+    "terms": true,
+    "tools": true
+};
+
+var isReservedPublicSlug = function(value) {
+    return SYSTEM_ROUTE_SLUGS[String(value || "").trim().toLowerCase()] === true;
+};
+
+var validatePublicSlug = function(value) {
+    var slug = String(value || "").trim().toLowerCase();
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug)) {
+        throw new BadRequestError("Slug must be 1-64 characters and use only lowercase letters, numbers, or hyphens.");
+    }
+    if (isReservedPublicSlug(slug)) {
+        throw new BadRequestError("This address is reserved by Linktery. Please choose another slug.");
+    }
+    return slug;
+};
+
+var getClientIP = function(eventOrRequest) {
+    var event = eventOrRequest || null;
+    var request = event && event.request ? event.request : event;
+
+    // Fly sets this header at the trusted edge. Prefer it over user-controlled
+    // forwarding headers when the backend is directly reachable.
+    try {
+        var flyIP = request && request.header ? request.header.get("Fly-Client-IP") : "";
+        if (flyIP) return String(flyIP).trim();
+    } catch (err) {}
+
+    try {
+        if (event && typeof event.realIP === "function") {
+            var realIP = event.realIP();
+            if (realIP) return String(realIP).trim();
+        }
+    } catch (err) {}
+
+    try {
+        var remoteIP = request && request.remoteIP;
+        if (typeof remoteIP === "function") remoteIP = remoteIP();
+        if (remoteIP) return String(remoteIP).trim();
+    } catch (err) {}
+
+    return "unknown";
+};
+
+var clickRateLimitAllows = function(eventOrRequest, linkId) {
+    var now = new Date().getTime();
+    if (now - CLICK_RATE_WINDOW_STARTED_AT >= 60000) {
+        CLICK_RATE_WINDOW_STARTED_AT = now;
+        CLICK_RATE_BY_IP = {};
+        CLICK_RATE_BY_IP_AND_LINK = {};
+    }
+
+    var ip = getClientIP(eventOrRequest);
+    var safeLinkId = String(linkId || "");
+    var ipKey = $security.sha256(ip);
+    var pairKey = ipKey + ":" + safeLinkId;
+    var ipCount = CLICK_RATE_BY_IP[ipKey] || 0;
+    var pairCount = CLICK_RATE_BY_IP_AND_LINK[pairKey] || 0;
+
+    // A shared/mobile NAT still has enough room for normal bursts. When the
+    // threshold is reached only telemetry is dropped; redirecting continues.
+    if (ipCount >= 240 || pairCount >= 60) return false;
+
+    CLICK_RATE_BY_IP[ipKey] = ipCount + 1;
+    CLICK_RATE_BY_IP_AND_LINK[pairKey] = pairCount + 1;
+    return true;
+};
+
+var isUniqueTrackedClick = function(eventOrRequest, linkId) {
+    var now = new Date().getTime();
+
+    if (CLICK_UNIQUE_CACHE_SIZE >= CLICK_UNIQUE_CACHE_MAX || now - CLICK_UNIQUE_LAST_SWEEP >= 60 * 60 * 1000) {
+        var keys = Object.keys(CLICK_UNIQUE_CACHE);
+        var next = {};
+        var nextSize = 0;
+        for (var i = 0; i < keys.length; i++) {
+            var key = keys[i];
+            if (CLICK_UNIQUE_CACHE[key] > now && nextSize < CLICK_UNIQUE_CACHE_MAX) {
+                next[key] = CLICK_UNIQUE_CACHE[key];
+                nextSize++;
+            }
+        }
+        CLICK_UNIQUE_CACHE = next;
+        CLICK_UNIQUE_CACHE_SIZE = nextSize;
+        CLICK_UNIQUE_LAST_SWEEP = now;
+    }
+
+    var event = eventOrRequest || null;
+    var request = event && event.request ? event.request : event;
+    var userAgent = "";
+    try {
+        userAgent = request && request.header ? request.header.get("User-Agent") || "" : "";
+    } catch (err) {}
+
+    // The cache stores only a digest, never the visitor IP or User-Agent.
+    var fingerprint = $security.sha256(
+        String(linkId || "") + "|" + getClientIP(eventOrRequest) + "|" + String(userAgent).substring(0, 300)
+    );
+    var existingExpiry = CLICK_UNIQUE_CACHE[fingerprint] || 0;
+    if (existingExpiry > now) return false;
+
+    CLICK_UNIQUE_CACHE[fingerprint] = now + CLICK_UNIQUE_TTL_MS;
+    CLICK_UNIQUE_CACHE_SIZE++;
+    return true;
+};
+
+var normalizeApiScopes = function(raw) {
+    var values = [];
+    if (Array.isArray(raw)) {
+        values = raw;
+    } else {
+        var source = String(raw || "").trim();
+        if (source.charAt(0) === "[") {
+            try {
+                var parsed = JSON.parse(source);
+                if (Array.isArray(parsed)) values = parsed;
+            } catch (err) {}
+        }
+        if (values.length === 0 && source) values = source.split(",");
+    }
+
+    var seen = {};
+    var normalized = [];
+    for (var i = 0; i < values.length; i++) {
+        var scope = String(values[i] || "").trim().toLowerCase();
+        if (!scope || seen[scope]) continue;
+        if (!API_ALLOWED_SCOPES[scope]) {
+            throw new BadRequestError("Unsupported API scope.");
+        }
+        seen[scope] = true;
+        normalized.push(scope);
+    }
+    normalized.sort();
+    if (normalized.length === 0) normalized.push("links:read");
+    return normalized;
+};
+
+var getApiKeyPepper = function() {
+    var pepper = String($os.getenv("API_KEY_PEPPER") || "");
+    // A missing/weak pepper must fail closed. It is intentionally not derived
+    // from another application secret so key rotation remains independent.
+    return pepper.length >= 32 ? pepper : "";
+};
+
+var hashApiToken = function(token) {
+    var pepper = getApiKeyPepper();
+    if (!pepper) return "";
+    return $security.sha256(pepper + ":" + String(token || ""));
+};
+
+var serializeApiKey = function(record) {
+    return {
+        id: record.id,
+        name: String(record.get("name") || ""),
+        prefix: String(record.get("key_prefix") || ""),
+        scopes: normalizeApiScopes(record.get("scopes")),
+        status: String(record.get("status") || "revoked"),
+        expires_at: String(record.get("expires_at") || ""),
+        last_used_at: String(record.get("last_used_at") || ""),
+        revoked_at: String(record.get("revoked_at") || ""),
+        created: String(record.get("created") || ""),
+        updated: String(record.get("updated") || "")
+    };
+};
+
+var serializeApiLink = function(record) {
+    var domain = String(record.get("domain") || "linktery.com").trim().toLowerCase();
+    if (!domain) domain = "linktery.com";
+    var slug = String(record.get("slug") || "");
+    return {
+        id: record.id,
+        title: String(record.get("title") || ""),
+        slug: slug,
+        domain: domain,
+        short_url: "https://" + domain + "/" + slug,
+        destination_url: String(record.get("destination_url") || ""),
+        active: record.get("active") === true,
+        mode: String(record.get("mode") || "direct"),
+        clicks_count: Number(record.get("clicks_count") || 0),
+        created: String(record.get("created") || ""),
+        updated: String(record.get("updated") || "")
+    };
+};
+
+var consumeApiRateLimit = function(keyId, limitPerMinute) {
+    var now = new Date().getTime();
+    var safeLimit = Math.max(1, parseInt(limitPerMinute, 10) || 1);
+    var state = API_RATE_WINDOWS[keyId];
+    if (!state || now - state.startedAt >= 60000) {
+        state = { startedAt: now, count: 0 };
+        API_RATE_WINDOWS[keyId] = state;
+    }
+
+    var resetAt = state.startedAt + 60000;
+    if (state.count >= safeLimit) {
+        return {
+            allowed: false,
+            limit: safeLimit,
+            remaining: 0,
+            resetAt: Math.ceil(resetAt / 1000)
+        };
+    }
+
+    state.count++;
+    return {
+        allowed: true,
+        limit: safeLimit,
+        remaining: Math.max(0, safeLimit - state.count),
+        resetAt: Math.ceil(resetAt / 1000)
+    };
+};
+
+var authenticateApiRequest = function(c, requiredScope) {
+    var requestId = $security.randomString(12);
+    var authHeader = "";
+    try {
+        authHeader = String(c.request.header.get("Authorization") || "");
+    } catch (err) {}
+
+    var match = authHeader.match(/^Bearer (ltk_live_[A-Za-z0-9]{10}_[A-Za-z0-9]{40})$/);
+    if (!match) {
+        return {
+            ok: false,
+            status: 401,
+            code: "invalid_api_key",
+            message: "Provide a valid API key in the Authorization Bearer header.",
+            requestId: requestId
+        };
+    }
+
+    var token = match[1];
+    var prefix = token.substring(0, token.lastIndexOf("_"));
+    var digest = hashApiToken(token);
+    if (!digest) {
+        $app.logger().error("Public API disabled: API_KEY_PEPPER must contain at least 32 characters.");
+        return {
+            ok: false,
+            status: 503,
+            code: "api_unavailable",
+            message: "Public API authentication is temporarily unavailable.",
+            requestId: requestId
+        };
+    }
+
+    var keyRecord = null;
+    try {
+        keyRecord = $app.findFirstRecordByFilter(
+            "api_keys",
+            "key_prefix = {:prefix} && secret_hash = {:digest} && status = 'active'",
+            { prefix: prefix, digest: digest }
+        );
+    } catch (err) {}
+    if (!keyRecord) {
+        return {
+            ok: false,
+            status: 401,
+            code: "invalid_api_key",
+            message: "The API key is invalid or inactive.",
+            requestId: requestId
+        };
+    }
+
+    var expiresAt = String(keyRecord.get("expires_at") || "");
+    if (expiresAt) {
+        var expiresMs = new Date(expiresAt).getTime();
+        if (!isFinite(expiresMs) || expiresMs <= new Date().getTime()) {
+            return {
+                ok: false,
+                status: 401,
+                code: "expired_api_key",
+                message: "The API key has expired.",
+                requestId: requestId
+            };
+        }
+    }
+
+    var user = null;
+    try {
+        user = $app.findRecordById("users", keyRecord.get("user_id"));
+    } catch (err) {}
+    if (!user || user.get("banned") === true) {
+        return {
+            ok: false,
+            status: 401,
+            code: "invalid_api_key",
+            message: "The API key is invalid or inactive.",
+            requestId: requestId
+        };
+    }
+
+    var plan = getPlanCatalogEntry(user.get("plan") || "creator");
+    if (!plan.apiKeys || plan.apiKeys < 1) {
+        return {
+            ok: false,
+            status: 403,
+            code: "api_plan_required",
+            message: "Public API access is not included in the current plan.",
+            requestId: requestId
+        };
+    }
+
+    var scopes;
+    try {
+        scopes = normalizeApiScopes(keyRecord.get("scopes"));
+    } catch (err) {
+        return {
+            ok: false,
+            status: 401,
+            code: "invalid_api_key",
+            message: "The API key is invalid or inactive.",
+            requestId: requestId
+        };
+    }
+    if (requiredScope && scopes.indexOf(requiredScope) === -1) {
+        return {
+            ok: false,
+            status: 403,
+            code: "insufficient_scope",
+            message: "This API key does not include the required scope.",
+            requestId: requestId
+        };
+    }
+
+    var rate = consumeApiRateLimit(keyRecord.id, plan.apiRatePerMinute || 60);
+    if (!rate.allowed) {
+        return {
+            ok: false,
+            status: 429,
+            code: "rate_limit_exceeded",
+            message: "Too many API requests. Retry after the current rate-limit window.",
+            requestId: requestId,
+            rate: rate
+        };
+    }
+
+    var now = new Date().getTime();
+    if (!API_LAST_USED_WRITES[keyRecord.id] || now - API_LAST_USED_WRITES[keyRecord.id] >= 300000) {
+        API_LAST_USED_WRITES[keyRecord.id] = now;
+        try {
+            $app.db().newQuery(
+                "UPDATE api_keys SET last_used_at = {:lastUsedAt} WHERE id = {:id}"
+            ).bind({
+                id: keyRecord.id,
+                lastUsedAt: new Date(now).toISOString()
+            }).execute();
+        } catch (err) {
+            $app.logger().warn("Unable to update API key last_used_at for key " + keyRecord.id);
+        }
+    }
+
+    return {
+        ok: true,
+        requestId: requestId,
+        key: keyRecord,
+        user: user,
+        scopes: scopes,
+        rate: rate
+    };
+};
+
+var applyApiResponseHeaders = function(c, authResult) {
+    c.response.header().add("Cache-Control", "no-store");
+    c.response.header().add("X-Request-Id", authResult.requestId || "");
+    if (authResult.rate) {
+        c.response.header().add("X-RateLimit-Limit", String(authResult.rate.limit));
+        c.response.header().add("X-RateLimit-Remaining", String(authResult.rate.remaining));
+        c.response.header().add("X-RateLimit-Reset", String(authResult.rate.resetAt));
+    }
+};
+
+var apiErrorResponse = function(c, authResult) {
+    applyApiResponseHeaders(c, authResult);
+    if ((authResult.status || 500) === 401) {
+        c.response.header().add("WWW-Authenticate", 'Bearer realm="Linktery API"');
+    }
+    return c.json(authResult.status || 500, {
+        error: {
+            code: authResult.code || "internal_error",
+            message: authResult.message || "The request could not be completed."
+        },
+        request_id: authResult.requestId || ""
+    });
+};
+
 // Linktery marketing GEO presets. Exact country rules always win; these
 // compact keys avoid persisting hundreds of duplicate country URLs per link.
 var TIER_1_COUNTRIES = {
@@ -303,9 +730,9 @@ var setAnalyticsCache = function (key, data, ttlMs) {
 // Single server-side source of truth for entitlements and monthly list prices.
 // -1 denotes an unlimited resource.
 var PLAN_CATALOG = {
-    "creator": { "links": 3, "publicProfiles": 1, "monthlyPrice": 0, "analytics": false },
-    "pro": { "links": 15, "publicProfiles": 3, "monthlyPrice": 11, "analytics": true },
-    "agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29, "analytics": true }
+    "creator": { "links": 3, "publicProfiles": 1, "monthlyPrice": 0, "analytics": false, "apiKeys": 0, "apiRatePerMinute": 0 },
+    "pro": { "links": 15, "publicProfiles": 3, "monthlyPrice": 11, "analytics": true, "apiKeys": 1, "apiRatePerMinute": 60 },
+    "agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29, "analytics": true, "apiKeys": 5, "apiRatePerMinute": 300 }
 };
 
 var PROFILE_TEMPLATES = {
@@ -960,6 +1387,21 @@ module.exports = {
     ANALYTICS_RESPONSE_CACHE,
     ANALYTICS_INFLIGHT,
     ANALYTICS_RATE_WINDOWS,
+    SYSTEM_ROUTE_SLUGS,
+    isReservedPublicSlug,
+    validatePublicSlug,
+    getClientIP,
+    clickRateLimitAllows,
+    isUniqueTrackedClick,
+    API_ALLOWED_SCOPES,
+    normalizeApiScopes,
+    getApiKeyPepper,
+    hashApiToken,
+    serializeApiKey,
+    serializeApiLink,
+    authenticateApiRequest,
+    applyApiResponseHeaders,
+    apiErrorResponse,
     TIER_1_COUNTRIES,
     TIER_2_COUNTRIES,
     getCountryTierKey,

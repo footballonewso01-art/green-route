@@ -23,6 +23,7 @@ import { pb } from "@/lib/pocketbase";
 import { PLANS, PlanType } from "@/lib/plans";
 import { getAvailableDomains } from "@/lib/siteConfig";
 import { maskError } from "@/lib/utils";
+import { isReservedPublicSlug } from "@/lib/systemRoutes";
 
 interface ProfileRecord {
   id: string;
@@ -144,9 +145,17 @@ export default function ProfileHub() {
   };
 
   const handleCreateProfile = async () => {
-    const cleanSlug = newProfileSlug.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    const cleanSlug = newProfileSlug.toLowerCase().replace(/[^a-z0-9-]/g, "");
     if (!cleanSlug) {
       toast.error("Enter a public profile URL");
+      return;
+    }
+    if (cleanSlug.length > 64) {
+      toast.error("Public profile URL must be 64 characters or fewer");
+      return;
+    }
+    if (isReservedPublicSlug(cleanSlug)) {
+      toast.error("This address is reserved by Linktery. Please choose another slug.");
       return;
     }
 

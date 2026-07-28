@@ -24,8 +24,9 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { pb } from "@/lib/pocketbase";
+import { isReservedPublicSlug } from "@/lib/systemRoutes";
 
-type SlugAvailability = "idle" | "checking" | "available" | "taken" | "unknown";
+type SlugAvailability = "idle" | "checking" | "available" | "taken" | "reserved" | "unknown";
 
 interface CreateProfileDialogProps {
   open: boolean;
@@ -45,7 +46,7 @@ interface CreateProfileDialogProps {
 }
 
 function normalizeSlug(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+  return value.toLowerCase().replace(/[^a-z0-9-]/g, "");
 }
 
 export function CreateProfileDialog({
@@ -71,6 +72,10 @@ export function CreateProfileDialog({
   useEffect(() => {
     if (!open || !normalizedSlug) {
       setAvailability("idle");
+      return;
+    }
+    if (isReservedPublicSlug(normalizedSlug)) {
+      setAvailability("reserved");
       return;
     }
 
@@ -109,7 +114,8 @@ export function CreateProfileDialog({
   const submitDisabled = loading
     || !normalizedSlug
     || availability === "checking"
-    || availability === "taken";
+    || availability === "taken"
+    || availability === "reserved";
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -195,6 +201,7 @@ export function CreateProfileDialog({
                   type="text"
                   value={slug}
                   onChange={(event) => onSlugChange(normalizeSlug(event.target.value))}
+                  maxLength={64}
                   placeholder="your-profile"
                   autoCapitalize="none"
                   autoCorrect="off"
@@ -221,6 +228,12 @@ export function CreateProfileDialog({
                   <p className="flex items-center gap-1.5 text-xs font-medium text-red-400">
                     <CircleAlert className="h-3.5 w-3.5" />
                     This public URL is already in use
+                  </p>
+                )}
+                {availability === "reserved" && (
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-red-400">
+                    <CircleAlert className="h-3.5 w-3.5" />
+                    This address is reserved by Linktery
                   </p>
                 )}
                 {availability === "unknown" && (

@@ -17,6 +17,7 @@ import { ProfileLinkEditorCard } from "@/components/profile/ProfileLinkEditorCar
 import { ProfileCanvas } from "@/components/profile/ProfileCanvas";
 import { getAvailableDomains } from "@/lib/siteConfig";
 import { maskError } from "@/lib/utils";
+import { isReservedPublicSlug } from "@/lib/systemRoutes";
 import { buildProfileLinkUpdateFormData } from "@/lib/profileLinkPersistence";
 import { CoreLinkRecord, getProfileLinkTitle, ProfileLinkItem, ProfileLinkRecord } from "@/lib/profileLinks";
 import {
@@ -383,9 +384,17 @@ export default function DashboardProfile() {
       return;
     }
 
-    const cleanSlug = newProfileSlug.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    const cleanSlug = newProfileSlug.toLowerCase().replace(/[^a-z0-9-]/g, "");
     if (!cleanSlug) {
-      toast.error("Slug must contain only alphanumeric characters, underscores or dashes");
+      toast.error("Slug must contain only letters, numbers, or hyphens");
+      return;
+    }
+    if (cleanSlug.length > 64) {
+      toast.error("Profile slug must be 64 characters or fewer");
+      return;
+    }
+    if (isReservedPublicSlug(cleanSlug)) {
+      toast.error("This address is reserved by Linktery. Please choose another slug.");
       return;
     }
 
@@ -553,9 +562,19 @@ export default function DashboardProfile() {
     setProfileLoading(true);
 
     try {
-      const cleanSlug = username.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+      const cleanSlug = username.toLowerCase().replace(/[^a-z0-9-]/g, "");
       if (!cleanSlug) {
         toast.error("Profile slug is required");
+        setProfileLoading(false);
+        return;
+      }
+      if (cleanSlug.length > 64) {
+        toast.error("Profile slug must be 64 characters or fewer");
+        setProfileLoading(false);
+        return;
+      }
+      if (isReservedPublicSlug(cleanSlug)) {
+        toast.error("This address is reserved by Linktery. Please choose another slug.");
         setProfileLoading(false);
         return;
       }
@@ -1084,7 +1103,8 @@ export default function DashboardProfile() {
                 <label className="text-sm font-medium text-muted-foreground mb-1 block">Profile Slug</label>
                 <input
                   value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                  maxLength={64}
                   disabled={!canCustomize}
                   placeholder="username"
                   className="w-full px-4 py-2 rounded-xl bg-surface border border-border focus:outline-none input-glow focus:border-accent/50 transition-colors disabled:opacity-50 text-white"
@@ -1466,7 +1486,8 @@ export default function DashboardProfile() {
                 <input
                   type="text"
                   value={newProfileSlug}
-                  onChange={(e) => setNewProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+                  onChange={(e) => setNewProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                  maxLength={64}
                   placeholder="e.g. business-card"
                   className="w-full px-4 py-3 rounded-xl bg-black/40 border border-border text-sm text-white focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/50 transition-all placeholder:text-white/20"
                 />

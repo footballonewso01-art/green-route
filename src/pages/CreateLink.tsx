@@ -24,6 +24,7 @@ import {
   isCountryTierKey,
 } from '@/lib/countryTiers';
 import { maskError } from '@/lib/utils';
+import { isReservedPublicSlug } from "@/lib/systemRoutes";
 
 const generateRandomSlug = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -266,6 +267,14 @@ export default function CreateLink() {
     }
 
     if (form.slug) {
+      if (form.slug.length > 64) {
+        toast.error("Slug must be 64 characters or fewer");
+        return;
+      }
+      if (isReservedPublicSlug(form.slug)) {
+        toast.error("This address is reserved by Linktery. Please choose another slug.");
+        return;
+      }
       try {
         const [existingLinks, existingProfiles] = await Promise.all([
           pb.collection('links').getList(1, 1, { filter: `slug="${form.slug}" && id!="${id || ''}"` }),
@@ -494,6 +503,7 @@ export default function CreateLink() {
                 required
                 value={form.slug}
                 onChange={(e) => update("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                maxLength={64}
                 disabled={!checkPlan(userPlan, "custom_slug")}
                 placeholder="my-link"
                 className={`flex-1 px-4 py-2 sm:py-2.5 rounded-b-xl sm:rounded-xl bg-surface border border-border sm:border-l-0 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent/50 transition-colors sm:rounded-l-none ${!checkPlan(userPlan, "custom_slug") ? "opacity-60 cursor-not-allowed" : ""}`}

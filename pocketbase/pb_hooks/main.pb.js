@@ -919,7 +919,7 @@ routerAdd("GET", "/{slug}", (c) => {
     const utils = require(__hooks + '/utils.js');
     let slug = c.request.pathValue("slug");
     if (slug) {
-        slug = slug.split('?')[0].split('%3F')[0];
+        slug = slug.split('?')[0].split('%3F')[0].toLowerCase();
     }
 
     // Strict validation: Only alphanumeric and hyphens.
@@ -927,8 +927,7 @@ routerAdd("GET", "/{slug}", (c) => {
         return c.next();
     }
 
-    const reserved = ["dashboard", "login", "register", "privacy", "terms", "api", "assets"];
-    if (reserved.some(r => slug.startsWith(r))) {
+    if (utils.isReservedPublicSlug(slug)) {
         return c.next();
     }
 
@@ -938,11 +937,11 @@ routerAdd("GET", "/{slug}", (c) => {
         utils.RATE_LIMIT_STORE = {};
         utils.RATE_LIMIT_LAST_RESET = nowMs;
     }
-    const ip = c.request.remoteIP || c.request.header.get("Fly-Client-IP") || c.request.header.get("CF-Connecting-IP") || "unknown";
+    const ip = utils.getClientIP(c);
     if (ip !== "unknown") {
         const cacheKey = ip + "_" + slug;
         let count = utils.RATE_LIMIT_STORE[cacheKey] || 0;
-        if (count > 60) {
+        if (count >= 60) {
             return c.json(429, { message: "Too many requests. Please try again in a minute." });
         }
         utils.RATE_LIMIT_STORE[cacheKey] = count + 1;
@@ -1071,7 +1070,7 @@ routerAdd("GET", "/{slug}", (c) => {
         }
 
         // 4. CLICK LOGGING
-        if (!isBot) {
+        if (!isBot && utils.clickRateLimitAllows(c, link.id)) {
             try {
                 let country = utils.resolveCountryFromIP(request);
                 let device = "Desktop";
@@ -1114,14 +1113,6 @@ routerAdd("GET", "/{slug}", (c) => {
                     }
                 }
 
-                const cookieHeader = request.header.get("Cookie") || "";
-                const cookieName = "gr_visit_" + link.id;
-                const isUnique = !cookieHeader.includes(cookieName);
-
-                if (isUnique) {
-                    c.response.header().add("Set-Cookie", cookieName + "=1; Path=/; Max-Age=86400; HttpOnly");
-                }
-
                 const clicksColl = $app.findCollectionByNameOrId("clicks");
                 const clickRecord = new Record(clicksColl, {
                     "link_id": link.id,
@@ -1130,7 +1121,7 @@ routerAdd("GET", "/{slug}", (c) => {
                     "os": os,
                     "browser": browser,
                     "referrer": referrer,
-                    "is_unique": isUnique,
+                    "is_unique": utils.isUniqueTrackedClick(c, link.id),
                     "user_agent": uaStr.length > 200 ? uaStr.substring(0, 200) : uaStr,
                     "ip": "masked"
                 });
@@ -1291,8 +1282,7 @@ routerAdd("POST", "/api/track-click", (c) => {
         const utils = require(__hooks + '/utils.js');
         const data = new DynamicModel({
             "link_id": "",
-            "referrer": "Direct",
-            "is_unique": false
+            "referrer": "Direct"
         });
         c.bindBody(data);
 
@@ -1310,6 +1300,10 @@ routerAdd("POST", "/api/track-click", (c) => {
         const uaStr = request.header.get("User-Agent") || "";
         const isBot = /bot|crawler|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(uaStr);
         if (isBot) {
+            return c.json(202, { accepted: false });
+        }
+
+        if (!utils.clickRateLimitAllows(c, link.id)) {
             return c.json(202, { accepted: false });
         }
 
@@ -1345,7 +1339,9 @@ routerAdd("POST", "/api/track-click", (c) => {
             "os": os,
             "browser": browser,
             "referrer": referrer,
-            "is_unique": data.is_unique === true,
+            // Uniqueness is derived server-side from a privacy-preserving
+            // 24-hour visitor digest. Never trust a client-provided boolean.
+            "is_unique": utils.isUniqueTrackedClick(c, link.id),
             "user_agent": uaStr.length > 200 ? uaStr.substring(0, 200) : uaStr,
             "ip": "masked"
         });
@@ -1357,6 +1353,335 @@ routerAdd("POST", "/api/track-click", (c) => {
     } catch (err) {
         $app.logger().error("Track click endpoint error: " + err);
         return c.json(500, { message: "Unable to record click" });
+    }
+});
+
+// ============================================
+// PUBLIC API: key lifecycle and v1 read surface
+// ============================================
+// Key management uses the signed-in PocketBase user session. External v1
+// routes accept only Authorization: Bearer ltk_live_... and never query params.
+routerAdd("GET", "/api/developer/keys", (c) => {
+    var requestId = $security.randomString(12);
+    try {
+        var user = c.auth;
+        if (!user || user.collection().name !== "users") {
+            c.response.header().add("Cache-Control", "no-store");
+            return c.json(401, {
+                error: { code: "unauthorized", message: "Sign in to manage API keys." },
+                request_id: requestId
+            });
+        }
+
+        var utils = require(__hooks + '/utils.js');
+        var records = $app.findRecordsByFilter(
+            "api_keys",
+            "user_id = {:userId}",
+            "-created",
+            100,
+            0,
+            { userId: user.id }
+        );
+        var items = [];
+        for (var i = 0; i < records.length; i++) {
+            items.push(utils.serializeApiKey(records[i]));
+        }
+
+        var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
+        var maxKeys = user.get("role") === "admin" ? 5 : Number(plan.apiKeys || 0);
+        c.response.header().add("Cache-Control", "no-store");
+        return c.json(200, {
+            data: items,
+            meta: {
+                max_active_keys: maxKeys,
+                api_rate_limit_per_minute: Number(plan.apiRatePerMinute || 0),
+                request_id: requestId
+            }
+        });
+    } catch (err) {
+        $app.logger().error("API key list failed request_id=" + requestId + ": " + err);
+        c.response.header().add("Cache-Control", "no-store");
+        return c.json(500, {
+            error: { code: "internal_error", message: "Unable to load API keys." },
+            request_id: requestId
+        });
+    }
+});
+
+routerAdd("POST", "/api/developer/keys", (c) => {
+    var requestId = $security.randomString(12);
+    try {
+        var user = c.auth;
+        if (!user || user.collection().name !== "users") {
+            c.response.header().add("Cache-Control", "no-store");
+            return c.json(401, {
+                error: { code: "unauthorized", message: "Sign in to create an API key." },
+                request_id: requestId
+            });
+        }
+
+        var utils = require(__hooks + '/utils.js');
+        var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
+        var maxKeys = user.get("role") === "admin" ? 5 : Number(plan.apiKeys || 0);
+        if (maxKeys < 1) {
+            c.response.header().add("Cache-Control", "no-store");
+            return c.json(403, {
+                error: {
+                    code: "api_plan_required",
+                    message: "API access requires Creator Pro or Agency."
+                },
+                request_id: requestId
+            });
+        }
+
+        var data = new DynamicModel({
+            "name": "",
+            "scopes": "",
+            "expires_in_days": 90
+        });
+        c.bindBody(data);
+
+        var name = String(data.name || "").trim();
+        if (name.length < 1 || name.length > 64) {
+            throw new BadRequestError("API key name must be between 1 and 64 characters.");
+        }
+        var scopes = utils.normalizeApiScopes(data.scopes || "links:read");
+        var expiresInDays = parseInt(data.expires_in_days, 10);
+        if (!isFinite(expiresInDays) || expiresInDays < 1 || expiresInDays > 365) {
+            throw new BadRequestError("API key expiry must be between 1 and 365 days.");
+        }
+
+        var count = new DynamicModel({ "total": 0 });
+        $app.db().newQuery(
+            "SELECT count(*) AS total FROM api_keys WHERE user_id = {:userId} AND status = 'active'"
+        ).bind({ userId: user.id }).one(count);
+        if (Number(count.total || 0) >= maxKeys) {
+            c.response.header().add("Cache-Control", "no-store");
+            return c.json(409, {
+                error: {
+                    code: "api_key_limit_reached",
+                    message: "Revoke an active API key before creating another one."
+                },
+                request_id: requestId
+            });
+        }
+
+        var keyPrefix = "ltk_live_" + $security.randomString(10);
+        var token = keyPrefix + "_" + $security.randomString(40);
+        var digest = utils.hashApiToken(token);
+        if (!digest) {
+            $app.logger().error("API key creation disabled: API_KEY_PEPPER is missing or too short.");
+            c.response.header().add("Cache-Control", "no-store");
+            return c.json(503, {
+                error: {
+                    code: "api_unavailable",
+                    message: "API key creation is temporarily unavailable."
+                },
+                request_id: requestId
+            });
+        }
+
+        var collection = $app.findCollectionByNameOrId("api_keys");
+        var expiresAt = new Date(
+            new Date().getTime() + expiresInDays * 24 * 60 * 60 * 1000
+        ).toISOString();
+        var record = new Record(collection, {
+            user_id: user.id,
+            name: name,
+            key_prefix: keyPrefix,
+            secret_hash: digest,
+            scopes: scopes.join(","),
+            status: "active",
+            expires_at: expiresAt,
+            last_used_at: "",
+            revoked_at: ""
+        });
+        $app.save(record);
+
+        c.response.header().add("Cache-Control", "no-store");
+        return c.json(201, {
+            // This is the only response that contains the complete secret.
+            secret: token,
+            data: utils.serializeApiKey(record),
+            request_id: requestId
+        });
+    } catch (err) {
+        if (err instanceof BadRequestError) {
+            c.response.header().add("Cache-Control", "no-store");
+            return c.json(400, {
+                error: { code: "invalid_request", message: String(err.message || err) },
+                request_id: requestId
+            });
+        }
+        $app.logger().error("API key creation failed request_id=" + requestId + ": " + err);
+        c.response.header().add("Cache-Control", "no-store");
+        return c.json(500, {
+            error: { code: "internal_error", message: "Unable to create the API key." },
+            request_id: requestId
+        });
+    }
+});
+
+routerAdd("DELETE", "/api/developer/keys/{id}", (c) => {
+    var requestId = $security.randomString(12);
+    try {
+        var user = c.auth;
+        if (!user || user.collection().name !== "users") {
+            c.response.header().add("Cache-Control", "no-store");
+            return c.json(401, {
+                error: { code: "unauthorized", message: "Sign in to revoke an API key." },
+                request_id: requestId
+            });
+        }
+
+        var keyId = String(c.request.pathValue("id") || "");
+        if (!/^[a-z0-9]{15}$/.test(keyId)) {
+            c.response.header().add("Cache-Control", "no-store");
+            return c.json(404, {
+                error: { code: "not_found", message: "API key not found." },
+                request_id: requestId
+            });
+        }
+
+        var record = null;
+        try {
+            record = $app.findFirstRecordByFilter(
+                "api_keys",
+                "id = {:id} && user_id = {:userId}",
+                { id: keyId, userId: user.id }
+            );
+        } catch (err) {}
+        if (!record) {
+            c.response.header().add("Cache-Control", "no-store");
+            return c.json(404, {
+                error: { code: "not_found", message: "API key not found." },
+                request_id: requestId
+            });
+        }
+
+        if (record.get("status") !== "revoked") {
+            record.set("status", "revoked");
+            record.set("revoked_at", new Date().toISOString());
+            $app.save(record);
+        }
+
+        c.response.header().add("Cache-Control", "no-store");
+        return c.json(200, {
+            data: require(__hooks + '/utils.js').serializeApiKey(record),
+            request_id: requestId
+        });
+    } catch (err) {
+        $app.logger().error("API key revocation failed request_id=" + requestId + ": " + err);
+        c.response.header().add("Cache-Control", "no-store");
+        return c.json(500, {
+            error: { code: "internal_error", message: "Unable to revoke the API key." },
+            request_id: requestId
+        });
+    }
+});
+
+routerAdd("GET", "/api/v1/links", (c) => {
+    var utils = require(__hooks + '/utils.js');
+    var auth = utils.authenticateApiRequest(c, "links:read");
+    if (!auth.ok) return utils.apiErrorResponse(c, auth);
+
+    try {
+        var query = c.request.url.query();
+        var page = Math.max(1, parseInt(query.get("page") || "1", 10) || 1);
+        var perPage = Math.max(1, Math.min(100, parseInt(query.get("per_page") || "25", 10) || 25));
+        var offset = (page - 1) * perPage;
+
+        var count = new DynamicModel({ "total": 0 });
+        $app.db().newQuery(
+            "SELECT count(*) AS total FROM links WHERE user_id = {:userId}"
+        ).bind({ userId: auth.user.id }).one(count);
+        var total = Number(count.total || 0);
+
+        var records = $app.findRecordsByFilter(
+            "links",
+            "user_id = {:userId}",
+            "-created",
+            perPage,
+            offset,
+            { userId: auth.user.id }
+        );
+        var items = [];
+        for (var i = 0; i < records.length; i++) {
+            items.push(utils.serializeApiLink(records[i]));
+        }
+
+        utils.applyApiResponseHeaders(c, auth);
+        return c.json(200, {
+            data: items,
+            meta: {
+                page: page,
+                per_page: perPage,
+                total: total,
+                total_pages: Math.ceil(total / perPage),
+                request_id: auth.requestId
+            }
+        });
+    } catch (err) {
+        $app.logger().error("Public API links list failed request_id=" + auth.requestId + ": " + err);
+        return utils.apiErrorResponse(c, {
+            status: 500,
+            code: "internal_error",
+            message: "Unable to load links.",
+            requestId: auth.requestId,
+            rate: auth.rate
+        });
+    }
+});
+
+routerAdd("GET", "/api/v1/links/{id}", (c) => {
+    var utils = require(__hooks + '/utils.js');
+    var auth = utils.authenticateApiRequest(c, "links:read");
+    if (!auth.ok) return utils.apiErrorResponse(c, auth);
+
+    try {
+        var linkId = String(c.request.pathValue("id") || "");
+        if (!/^[a-z0-9]{15}$/.test(linkId)) {
+            return utils.apiErrorResponse(c, {
+                status: 404,
+                code: "not_found",
+                message: "Link not found.",
+                requestId: auth.requestId,
+                rate: auth.rate
+            });
+        }
+
+        var record = null;
+        try {
+            record = $app.findFirstRecordByFilter(
+                "links",
+                "id = {:id} && user_id = {:userId}",
+                { id: linkId, userId: auth.user.id }
+            );
+        } catch (err) {}
+        if (!record) {
+            return utils.apiErrorResponse(c, {
+                status: 404,
+                code: "not_found",
+                message: "Link not found.",
+                requestId: auth.requestId,
+                rate: auth.rate
+            });
+        }
+
+        utils.applyApiResponseHeaders(c, auth);
+        return c.json(200, {
+            data: utils.serializeApiLink(record),
+            request_id: auth.requestId
+        });
+    } catch (err) {
+        $app.logger().error("Public API link detail failed request_id=" + auth.requestId + ": " + err);
+        return utils.apiErrorResponse(c, {
+            status: 500,
+            code: "internal_error",
+            message: "Unable to load the link.",
+            requestId: auth.requestId,
+            rate: auth.rate
+        });
     }
 });
 
@@ -2281,7 +2606,8 @@ onRecordCreateRequest((e) => {
     try {
         const utils = require(__hooks + '/utils.js');
         const authInfo = utils.getAuthInfo(e);
-        const slug = e.record.get("slug");
+        const slug = utils.validatePublicSlug(e.record.get("slug"));
+        e.record.set("slug", slug);
         let userId = e.record.get("user_id");
 
         if (!authInfo.isAdmin) {
@@ -2624,6 +2950,8 @@ onRecordUpdateRequest((e) => {
     }
 
     // Validate all redirect and targeting URLs
+    const normalizedSlug = utils.validatePublicSlug(e.record.get("slug"));
+    e.record.set("slug", normalizedSlug);
     utils.validateTargetingUrls(e.record);
     utils.validateLinkProfileAssignment(e.record);
     e.next();
@@ -2704,7 +3032,8 @@ onRecordCreateRequest((e) => {
             }
         }
 
-        const slug = e.record.get("slug");
+        const slug = utils.validatePublicSlug(e.record.get("slug"));
+        e.record.set("slug", slug);
         let linkWithSameSlug = null;
         try {
             linkWithSameSlug = $app.findFirstRecordByFilter("links", "slug = {:slug}", { slug: slug });
@@ -2764,6 +3093,8 @@ onRecordUpdateRequest((e) => {
                 e.record.set("user_id", original.get("user_id"));
             }
         }
+        const normalizedSlug = utils.validatePublicSlug(e.record.get("slug"));
+        e.record.set("slug", normalizedSlug);
         utils.validateProfileSocialLinks(e.record);
         utils.validateProfileTemplate(e.record);
         utils.validateProfilePresentation(e.record);
