@@ -157,3 +157,7 @@ the image as a manual maintenance tool, but it must not run automatically during
 deploys or restarts: the legacy script can delete an oversized
 `auxiliary.db` request-log database. Take a fresh Fly volume snapshot and review
 the script before any deliberate manual repair.
+
+The Alpine base image is digest-pinned, and both Fly environments gate traffic
+on `GET /api/health`. Promote the exact image tested on staging to production
+instead of rebuilding it from a moving base tag.
