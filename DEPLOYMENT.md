@@ -149,3 +149,11 @@ The production Go/No-Go checkpoint must record:
 Rollback is to remove/disable the Cloudflare Worker route while the Vercel
 deployment and origin DNS records remain intact. Do not delete the Vercel
 project until the Cloudflare observation period is complete.
+
+## PocketBase container startup
+
+The production container starts PocketBase directly. `repair_db.py` remains in
+the image as a manual maintenance tool, but it must not run automatically during
+deploys or restarts: the legacy script can delete an oversized
+`auxiliary.db` request-log database. Take a fresh Fly volume snapshot and review
+the script before any deliberate manual repair.
