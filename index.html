@@ -9,7 +9,8 @@
   <meta name="description" content="Linktery - Smart Link Management and Traffic Routing" />
   <meta name="author" content="Linktery" />
   <link rel="canonical" href="https://linktery.com" />
-  <meta name="robots" content="index, follow" />
+  <!-- The SPA shell is never indexable. Prerender replaces this value on SEO pages. -->
+  <meta name="robots" content="noindex, nofollow" />
 
   <meta property="og:site_name" content="Linktery" />
   <meta property="og:title" content="Linktery — Link in Bio & Traffic Analytics Platform" />
@@ -29,8 +30,8 @@
   <meta name="twitter:image:alt" content="Linktery smart links and analytics" />
 
   <!-- Performance preconnections and font preloading -->
-  <link rel="preconnect" href="https://greenroute-pb.fly.dev" />
-  <link rel="dns-prefetch" href="https://greenroute-pb.fly.dev" />
+  <link rel="preconnect" href="%VITE_POCKETBASE_URL%" />
+  <link rel="dns-prefetch" href="%VITE_POCKETBASE_URL%" />
 
 
 

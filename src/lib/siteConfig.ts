@@ -15,6 +15,18 @@ export const DEFAULT_AVAILABLE_DOMAINS = [
   ...REDIRECT_ALIAS_DOMAINS,
 ];
 
+export function isPrimaryWwwDomain(hostname: string): boolean {
+  return hostname.trim().toLowerCase() === `www.${PRIMARY_DOMAIN}`;
+}
+
+export function isRedirectAliasDomain(hostname: string): boolean {
+  const normalizedHostname = hostname.trim().toLowerCase();
+  return (
+    isPrimaryWwwDomain(normalizedHostname) ||
+    REDIRECT_ALIAS_DOMAINS.some((domain) => domain === normalizedHostname)
+  );
+}
+
 export function getAvailableDomains(configuredDomains?: string): string[] {
   const configured = (configuredDomains || "")
     .split(",")

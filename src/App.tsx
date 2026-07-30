@@ -6,7 +6,11 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AdminRoute } from "./components/AdminRoute";
-import { PRIMARY_DOMAIN } from "./lib/siteConfig";
+import {
+  isPrimaryWwwDomain,
+  isRedirectAliasDomain,
+  PRIMARY_DOMAIN,
+} from "./lib/siteConfig";
 import { isSystemRoute } from "./lib/systemRoutes";
 
 import RedirectHandler from "./pages/RedirectHandler";
@@ -84,21 +88,24 @@ function ScrollToTop() {
 // Redirects alternate domains to the main domain if they access system pages
 function DomainGuard() {
   const location = useLocation();
+  const isProductionBuild = import.meta.env.VITE_DEPLOY_ENV === "production";
   
   useEffect(() => {
+    // Preview and local builds must stay on their own host. Production builds
+    // enforce the canonical host for product/SEO routes on redirect aliases.
+    if (!isProductionBuild) return;
+
     const hostname = window.location.hostname;
     const MAIN_DOMAIN = PRIMARY_DOMAIN;
     
-    // If not main domain, not localhost, and not a vercel preview URL
-    if (hostname !== MAIN_DOMAIN && hostname !== 'localhost' && !hostname.includes('vercel.app')) {
-      // System paths that should NOT be accessed on alternate domains
-      const isSystemPath = isSystemRoute(location.pathname);
-                          
-      if (isSystemPath) {
-        window.location.replace(`https://${MAIN_DOMAIN}${location.pathname}${location.search}`);
-      }
+    const mustUsePrimaryHost =
+      isPrimaryWwwDomain(hostname) ||
+      (isRedirectAliasDomain(hostname) && isSystemRoute(location.pathname));
+
+    if (mustUsePrimaryHost) {
+      window.location.replace(`https://${MAIN_DOMAIN}${location.pathname}${location.search}`);
     }
-  }, [location.pathname, location.search]);
+  }, [isProductionBuild, location.pathname, location.search]);
 
   return null;
 }

@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef, useCallback, lazy, Suspense } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { pb } from "@/lib/pocketbase";
 import { Loader2, AlertTriangle, Smartphone, ExternalLink, MoreVertical, Share2, Compass, Lock } from "lucide-react";
 import { DEFAULT_AVAILABLE_DOMAINS, PRIMARY_DOMAIN, PRIMARY_ORIGIN } from "@/lib/siteConfig";
 import { getCountryTierKey } from "@/lib/countryTiers";
+import { isValidPublicSlug } from "@/lib/systemRoutes";
 import {
     detectInAppBrowser,
     getDeeplinkPrimaryAction,
@@ -109,11 +110,10 @@ const fetchCountryCode = async (): Promise<string> => {
  * 4. HISTORY CLEAN — Use `window.location.replace()` to keep history stack clean.
  */
 export default function RedirectHandler() {
-    let { username } = useParams();
-    if (username) {
-        username = username.split('?')[0].split('%3F')[0];
-    }
-    const navigate = useNavigate();
+    const { username: rawUsername } = useParams();
+    const username = rawUsername && isValidPublicSlug(rawUsername)
+        ? rawUsername
+        : undefined;
     const [status, setStatus] = useState<"loading" | "verifying" | "error" | "deeplink" | "profile">("loading");
     const [error, setError] = useState<string | null>(null);
     const [destination, setDestination] = useState<string>("");
@@ -239,13 +239,12 @@ export default function RedirectHandler() {
         if (status !== "loading") return;
 
         const handleRedirect = async () => {
-            if (!username) return;
-            if (redirected.current) return;
-
-            if (username.startsWith("u/")) {
-                navigate(`/${username.replace("u/", "")}`, { replace: true });
+            if (!username) {
+                setError("This link does not exist or is no longer available.");
+                setStatus("error");
                 return;
             }
+            if (redirected.current) return;
 
             try {
                 const currentDomain = window.location.host;
@@ -473,7 +472,7 @@ export default function RedirectHandler() {
         };
 
         handleRedirect();
-    }, [username, navigate, status, trackClick]);
+    }, [username, status, trackClick]);
 
     if (status === "profile") {
         return (

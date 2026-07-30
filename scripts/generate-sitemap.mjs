@@ -21,10 +21,10 @@ const entries = routes.map((route) => {
 }).join("\n");
 
 const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>\n`;
-const publicPath = path.join(process.cwd(), "public", "sitemap.xml");
-fs.writeFileSync(publicPath, sitemap, "utf8");
-
 const distPath = path.join(process.cwd(), "dist", "sitemap.xml");
-if (fs.existsSync(path.dirname(distPath))) fs.writeFileSync(distPath, sitemap, "utf8");
+if (!fs.existsSync(path.dirname(distPath))) {
+  throw new Error("Client build output is missing; generate the sitemap after Vite.");
+}
+fs.writeFileSync(distPath, sitemap, "utf8");
 
 console.log(`Generated sitemap with ${routes.length} unique URLs.`);

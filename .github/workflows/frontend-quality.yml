@@ -1,0 +1,53 @@
+name: Frontend quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "codex/**"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Use locked npm
+        run: npm install --global npm@10.9.3
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit and contract tests
+        run: npm test
+
+      - name: Build and package production candidate
+        run: |
+          npm run build:production
+          npm run cf:dry-run:production
+          npm run cf:smoke:local:alias
+
+      - name: Build and smoke-test staging candidate
+        run: |
+          npm run build:staging
+          npm run cf:dry-run:staging
+          npm run cf:smoke:local

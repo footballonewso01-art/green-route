@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(() => ({
   server: {
     host: "0.0.0.0",
     port: 8085,
@@ -16,16 +16,5 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-  },
-  // On Vercel Preview deploys, auto-point to staging PocketBase
-  // VERCEL_ENV is set automatically by Vercel: "production" | "preview" | "development"
-  define: {
-    ...(process.env.VERCEL_ENV === "preview"
-      ? {
-          "import.meta.env.VITE_POCKETBASE_URL": JSON.stringify(
-            "https://greenroute-pb-staging.fly.dev"
-          ),
-        }
-      : {}),
   },
 }));

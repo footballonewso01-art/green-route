@@ -56,8 +56,8 @@ migrate((app) => {
   // A system route must never become an unreachable Link/Profile slug, even
   // through an internal script that doesn't execute request hooks.
   const reserved = [
-    "404", "admin", "alternatives", "api", "assets", "auth", "compare",
-    "dashboard", "features", "guides", "login", "open-in-browser",
+    "404", "admin", "alternatives", "api", "assets", "auth", "cdn-cgi",
+    "compare", "dashboard", "features", "guides", "login", "open-in-browser",
     "pricing", "privacy", "ref", "register", "solutions", "templates",
     "terms", "tools"
   ];

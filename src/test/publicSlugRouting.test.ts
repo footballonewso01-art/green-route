@@ -5,12 +5,22 @@ import { describe, expect, it } from "vitest";
 const readWorkspaceFile = (relativePath: string) => fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
 
 describe("public /slug routing contract", () => {
-  it("keeps the Vercel single-segment rewrite used by short links and public profiles", () => {
+  it("keeps the Vercel hot-fallback rewrite during the Cloudflare migration", () => {
     const vercel = JSON.parse(readWorkspaceFile("vercel.json")) as {
       rewrites: Array<{ source: string; destination: string }>;
     };
 
     expect(vercel.rewrites).toContainEqual({ source: "/:slug", destination: "/index.html" });
+  });
+
+  it("keeps Cloudflare on the explicit edge router instead of a catch-all SPA fallback", () => {
+    const wrangler = JSON.parse(readWorkspaceFile("wrangler.jsonc")) as {
+      main: string;
+      assets: { not_found_handling: string };
+    };
+
+    expect(wrangler.main).toBe("./cloudflare/worker.ts");
+    expect(wrangler.assets.not_found_handling).toBe("none");
   });
 
   it("keeps SEO namespaces ahead of the public username catch-all", () => {

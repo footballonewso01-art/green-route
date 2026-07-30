@@ -44,6 +44,7 @@ var SYSTEM_ROUTE_SLUGS = {
     "api": true,
     "assets": true,
     "auth": true,
+    "cdn-cgi": true,
     "compare": true,
     "dashboard": true,
     "features": true,

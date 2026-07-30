@@ -4,6 +4,12 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    "import.meta.env.VITE_DEPLOY_ENV": JSON.stringify("test"),
+    "import.meta.env.VITE_POCKETBASE_URL": JSON.stringify(
+      "http://127.0.0.1:8090",
+    ),
+  },
   test: {
     environment: "jsdom",
     globals: true,

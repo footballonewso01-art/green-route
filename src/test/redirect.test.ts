@@ -91,4 +91,13 @@ describe("Redirect Loop Detection", () => {
     expect(client).not.toContain("x-safari-https://");
     expect(client).not.toContain("googlechrome://navigate");
   });
+
+  it("rejects malformed encoded slugs without a client-side navigation gadget", () => {
+    const client = readWorkspaceFile("src/pages/RedirectHandler.tsx");
+
+    expect(client).toContain("isValidPublicSlug(rawUsername)");
+    expect(client).not.toContain('username.startsWith("u/")');
+    expect(client).not.toContain('username.replace("u/", "")');
+    expect(client).not.toContain("useNavigate");
+  });
 });

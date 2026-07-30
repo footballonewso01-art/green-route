@@ -1,9 +1,17 @@
 import PocketBase from 'pocketbase';
 
-const configuredPocketBaseUrl =
-  import.meta.env.VITE_POCKETBASE_URL || 'http://127.0.0.1:8090';
+const configuredPocketBaseUrl = import.meta.env.VITE_POCKETBASE_URL?.trim();
 
-export const pocketBaseUrl = configuredPocketBaseUrl.replace(/\/+$/, '');
+if (!configuredPocketBaseUrl) {
+  throw new Error("Linktery API configuration is unavailable.");
+}
+
+const parsedPocketBaseUrl = new URL(configuredPocketBaseUrl);
+if (!["http:", "https:"].includes(parsedPocketBaseUrl.protocol)) {
+  throw new Error("Linktery API configuration is invalid.");
+}
+
+export const pocketBaseUrl = parsedPocketBaseUrl.origin;
 
 export const pb = new PocketBase(pocketBaseUrl);
 

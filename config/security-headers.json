@@ -1,0 +1,7 @@
+{
+  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://*.google-analytics.com https://connect.facebook.net https://analytics.tiktok.com https://*.clarity.ms; connect-src 'self' https://greenroute-pb.fly.dev https://greenroute-pb-staging.fly.dev https://www.googletagmanager.com https://*.google-analytics.com https://api.stripe.com https://connect.facebook.net https://www.facebook.com https://analytics.tiktok.com https://*.tiktok.com https://*.clarity.ms https://*.bing.com https://cloudflare.com; img-src 'self' data: blob: https://images.unsplash.com https://greenroute-pb.fly.dev https://greenroute-pb-staging.fly.dev https://*.google-analytics.com https://connect.facebook.net https://www.facebook.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; frame-src 'self' https://api.stripe.com; frame-ancestors 'none';",
+  "X-Frame-Options": "DENY",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload"
+}

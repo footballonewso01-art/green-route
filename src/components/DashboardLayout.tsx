@@ -90,7 +90,7 @@ export default function DashboardLayout() {
     ]
   };
 
-  const partnerNavGroups = partnerEligible
+  const partnerNavGroups: NavGroup[] = partnerEligible
     ? navGroups.map((group) => group.label === "Main"
       ? {
           ...group,

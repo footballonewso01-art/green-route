@@ -1,0 +1,91 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "linktery-frontend",
+  "main": "./cloudflare/worker.ts",
+  "compatibility_date": "2026-07-29",
+  "minify": true,
+  "send_metrics": false,
+  "workers_dev": false,
+  "preview_urls": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.01
+  },
+  "version_metadata": {
+    "binding": "WORKER_VERSION"
+  },
+  "assets": {
+    "directory": "./dist-cloudflare",
+    "binding": "ASSETS",
+    "html_handling": "drop-trailing-slash",
+    "not_found_handling": "none",
+    "run_worker_first": [
+      "/*",
+      "!/assets/*",
+      "!/*.png",
+      "!/*.webp",
+      "!/*.mp4",
+      "!/*.svg",
+      "!/robots.txt",
+      "!/sitemap.xml"
+    ]
+  },
+  "vars": {
+    "DEPLOY_ENV": "production",
+    "ROUTING_MODE": "primary"
+  },
+  "env": {
+    "staging": {
+      "name": "linktery-frontend-staging",
+      "workers_dev": true,
+      "preview_urls": true,
+      "version_metadata": {
+        "binding": "WORKER_VERSION"
+      },
+      "assets": {
+        "directory": "./dist-cloudflare",
+        "binding": "ASSETS",
+        "html_handling": "drop-trailing-slash",
+        "not_found_handling": "none",
+        "run_worker_first": [
+          "/*",
+          "!/assets/*",
+          "!/*.png",
+          "!/*.webp",
+          "!/*.mp4",
+          "!/*.svg"
+        ]
+      },
+      "vars": {
+        "DEPLOY_ENV": "staging",
+        "ROUTING_MODE": "primary"
+      }
+    },
+    "alias": {
+      "name": "linktery-frontend-alias",
+      "workers_dev": false,
+      "preview_urls": true,
+      "version_metadata": {
+        "binding": "WORKER_VERSION"
+      },
+      "assets": {
+        "directory": "./dist-cloudflare",
+        "binding": "ASSETS",
+        "html_handling": "drop-trailing-slash",
+        "not_found_handling": "none",
+        "run_worker_first": [
+          "/*",
+          "!/assets/*",
+          "!/*.png",
+          "!/*.webp",
+          "!/*.mp4",
+          "!/*.svg"
+        ]
+      },
+      "vars": {
+        "DEPLOY_ENV": "production",
+        "ROUTING_MODE": "alias"
+      }
+    }
+  }
+}
