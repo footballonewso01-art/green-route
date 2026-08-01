@@ -78,7 +78,10 @@ async function waitUntilReady() {
       throw new Error(`Wrangler exited before startup.\n${runtimeOutput}`);
     }
     try {
-      const response = await fetch(baseUrl, { redirect: "manual" });
+      const response = await fetch(baseUrl, {
+        redirect: "manual",
+        signal: AbortSignal.timeout(2_000),
+      });
       if (response.status === expectedStatus) return;
     } catch {
       // The local port is not ready yet.
@@ -89,14 +92,28 @@ async function waitUntilReady() {
 }
 
 function stopRuntime() {
-  if (runtime.exitCode !== null || !runtime.pid) return;
-  if (process.platform === "win32") {
-    spawnSync("taskkill", ["/pid", String(runtime.pid), "/T", "/F"], {
-      stdio: "ignore",
-    });
-  } else {
+  if (runtime.exitCode === null && runtime.pid && process.platform === "win32") {
+    const termination = spawnSync(
+      "taskkill",
+      ["/pid", String(runtime.pid), "/T", "/F"],
+      {
+        stdio: "ignore",
+        timeout: 10_000,
+        windowsHide: true,
+      },
+    );
+    if (termination.error) {
+      runtime.kill();
+    }
+  } else if (runtime.exitCode === null && runtime.pid) {
     runtime.kill("SIGTERM");
   }
+
+  for (const stream of [runtime.stdout, runtime.stderr]) {
+    stream.removeAllListeners("data");
+    stream.destroy();
+  }
+  runtime.unref();
 }
 
 try {

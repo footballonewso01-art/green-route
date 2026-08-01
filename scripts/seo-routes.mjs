@@ -63,7 +63,7 @@ export const getSeoPageConfigs = () => {
 
   // Every competitor in the catalog is an intentional SEO entity. Generate
   // every canonical pair so previously published comparison URLs never fall
-  // through to Vercel's static 404 page.
+  // through to the frontend's static 404 page.
   for (let i = 0; i < competitors.length; i += 1) {
     for (let j = i + 1; j < competitors.length; j += 1) {
       const [competitorA, competitorB] = [competitors[i], competitors[j]]

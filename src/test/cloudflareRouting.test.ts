@@ -209,5 +209,33 @@ describe("Cloudflare edge routing contract", () => {
     expect(packageJson.scripts["rollback:vercel:prod"]).toContain(
       "vercel --prod",
     );
+
+    const deployWorkflow = readWorkspaceFile(".agent/workflows/deploy.md");
+    expect(deployWorkflow).toContain("Cloudflare Workers Static Assets");
+    expect(deployWorkflow).toContain("npm run deploy:prod");
+    expect(deployWorkflow).not.toContain("*.vercel.app");
+    expect(deployWorkflow).not.toContain("Hot-patch hooks only");
+  });
+
+  it("bounds Windows Wrangler shutdown during local smoke tests", () => {
+    const localSmokeRunner = readWorkspaceFile(
+      "scripts/run-cloudflare-smoke.mjs",
+    );
+
+    expect(localSmokeRunner).toContain('spawnSync(\n      "taskkill"');
+    expect(localSmokeRunner).toContain("timeout: 10_000");
+    expect(localSmokeRunner).toContain("windowsHide: true");
+    expect(localSmokeRunner).toContain("AbortSignal.timeout(2_000)");
+    expect(localSmokeRunner).toContain('stream.removeAllListeners("data")');
+    expect(localSmokeRunner).toContain("runtime.unref()");
+
+    for (const smokeScript of [
+      "scripts/smoke-cloudflare.mjs",
+      "scripts/smoke-cloudflare-alias.mjs",
+    ]) {
+      expect(readWorkspaceFile(smokeScript)).toContain(
+        "AbortSignal.timeout(10_000)",
+      );
+    }
   });
 });

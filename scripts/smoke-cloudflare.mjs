@@ -15,6 +15,7 @@ const failures = [];
 async function request(pathname, options = {}) {
   return fetch(new URL(pathname, baseUrl), {
     redirect: "manual",
+    signal: AbortSignal.timeout(10_000),
     ...options,
   });
 }

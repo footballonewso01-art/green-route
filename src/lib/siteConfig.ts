@@ -33,8 +33,8 @@ export function getAvailableDomains(configuredDomains?: string): string[] {
     .map((domain) => domain.trim().toLowerCase())
     .filter(Boolean);
 
-  // Keep the primary domain first even if Vercel has an empty or differently
-  // ordered VITE_AVAILABLE_DOMAINS value.
+  // Keep the primary domain first even if the deployment environment has an
+  // empty or differently ordered VITE_AVAILABLE_DOMAINS value.
   return Array.from(new Set([
     PRIMARY_DOMAIN,
     ...(configured.length ? configured : DEFAULT_AVAILABLE_DOMAINS),

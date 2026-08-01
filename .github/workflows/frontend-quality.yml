@@ -44,6 +44,8 @@ jobs:
         run: |
           npm run build:production
           npm run cf:dry-run:production
+          npm run cf:dry-run:alias
+          npm run cf:smoke:local
           npm run cf:smoke:local:alias
 
       - name: Build and smoke-test staging candidate
