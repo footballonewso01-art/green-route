@@ -1,73 +1,63 @@
-# Welcome to your Lovable project
+# Linktery
 
-## Project info
+Linktery is a smart-link, URL-shortening, analytics, and Link-in-Bio platform.
+The frontend is a React/Vite application; PocketBase provides the API,
+redirect business logic, billing hooks, and SQLite-backed data services.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Production architecture
 
-## How can I edit this code?
+- Frontend: Cloudflare Workers Static Assets
+- Primary Worker: `linktery-frontend`
+- Alias Worker: `linktery-frontend-alias`
+- Primary domain: `https://linktery.com`
+- Alias domains: `linktery.bio`, `hotme.online`, `hotmylinks.cc`
+- Backend: PocketBase on Fly.io (`greenroute-pb`)
+- Payments: Stripe
 
-There are several ways of editing your application.
+Vercel is no longer the normal frontend host. It is temporarily retained only
+as an emergency rollback origin. See [DEPLOYMENT.md](./DEPLOYMENT.md) before any
+release or infrastructure change.
 
-**Use Lovable**
+## Local development
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+Requirements: Node.js 24 and npm 10.9.3.
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```text
+npm ci
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Useful checks:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```text
+npm run lint
+npm run typecheck
+npm test
+npm run build:production
+npm run cf:smoke:local
+npm run cf:smoke:local:alias
+```
 
-**Use GitHub Codespaces**
+## Deployments
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Cloudflare is the frontend deployment target:
 
-## What technologies are used for this project?
+```text
+npm run deploy:staging
+npm run deploy:prod
+```
 
-This project is built with:
+Production deploys must run from a clean committed release checkout and deploy
+the primary and alias Workers from the same artifact. The production command
+runs the release gates and live smoke tests automatically.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+The old Vercel workflow must not be used for routine releases. Commands named
+`rollback:vercel:*` exist only for an explicitly chosen emergency rollback.
 
-## How can I deploy this project?
+Full DNS invariants, smoke checks, rollback procedures, and PocketBase rules
+are documented in [DEPLOYMENT.md](./DEPLOYMENT.md).
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Public API
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Developer API behavior and authentication are documented in
+[docs/public-api-v1.md](./docs/public-api-v1.md).

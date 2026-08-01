@@ -1,163 +1,241 @@
-# Linktery frontend deployment
+# Linktery deployment runbook
 
-## Current production state
+This is the authoritative deployment document for Linktery. If another file,
+an old chat, or a hosting dashboard suggests a different frontend process,
+follow this runbook.
 
-Vercel remains the active production frontend and the immediate rollback target.
-Cloudflare Workers Static Assets is prepared as a candidate platform, but the
-repository intentionally contains no production Worker routes and no DNS
-changes. Pushing this branch cannot move production traffic to Cloudflare.
+## Production architecture
 
-PocketBase remains on Fly.io and is not part of the frontend hosting migration.
-The browser continues to call PocketBase directly.
+The production frontend runs on **Cloudflare Workers Static Assets**. Vercel is
+not the normal production deployment target anymore.
 
-## Required tooling
+| Traffic | Cloudflare Worker |
+| --- | --- |
+| `linktery.com/*` | `linktery-frontend` |
+| `www.linktery.com/*` | `linktery-frontend` |
+| `linktery.bio/*` | `linktery-frontend-alias` |
+| `hotme.online/*` | `linktery-frontend-alias` |
+| `hotmylinks.cc/*` | `linktery-frontend-alias` |
 
-- Node.js 24
+`www.linktery.com` redirects to the apex domain. Alias domains continue to
+serve customer `/{slug}` URLs, but product, account, and SEO routes redirect to
+`linktery.com`.
+
+PocketBase remains a separate Fly.io service at
+`https://greenroute-pb.fly.dev`. A frontend deploy does not deploy PocketBase,
+run database migrations, or change Stripe webhooks.
+
+The Cloudflare account is on Workers Paid. Production zones use Cloudflare
+nameservers, proxied apex records, Universal SSL, and `Full (strict)` TLS.
+
+## Temporary Vercel rollback origin
+
+Vercel is retained only as a temporary rollback origin during the Cloudflare
+observation period. The proxied DNS records still point at the previous Vercel
+origin behind the Worker routes, so disabling a Worker route can fall through
+to the last known-good Vercel deployment.
+
+Do not use Vercel for routine staging or production deploys. Do not delete the
+Vercel project, its domains, or its last healthy deployment until the rollback
+window has been explicitly closed. The only npm commands that target Vercel
+are intentionally named `rollback:vercel:*`.
+
+## Required tooling and credentials
+
+- Node.js 24 (see `.nvmrc`)
 - npm 10.9.3
-- Wrangler is installed from the lockfile; do not use a floating global version
-- An authenticated Cloudflare account is required only for remote preview or deployment
+- the lockfile-pinned Wrangler version; do not depend on a floating global CLI
+- either an authenticated Wrangler OAuth session or protected CI secrets
+  `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
+- Fly.io credentials only when the backend is being deployed separately
 
-The frontend uses public build-time configuration only:
+Cloudflare tokens must be scoped to the Linktery account and Workers. Never
+commit tokens, Wrangler credentials, Stripe secrets, PocketBase admin tokens,
+or Fly access tokens.
+
+The frontend only uses public build-time values:
 
 - `VITE_DEPLOY_ENV`
 - `VITE_POCKETBASE_URL`
 - `VITE_AVAILABLE_DOMAINS`
 
-Production and staging values are defined in `.env.production` and
-`.env.staging`. Do not put credentials or API secrets in a `VITE_*` variable;
-Vite embeds these values in browser JavaScript.
+Production and staging values live in `.env.production` and `.env.staging`.
+Never put a secret in a `VITE_*` variable because Vite embeds it in browser
+JavaScript.
 
-For Cloudflare automation, store `CLOUDFLARE_API_TOKEN` and
-`CLOUDFLARE_ACCOUNT_ID` as protected CI secrets. The token must be scoped to the
-Linktery Worker/account and must not be committed.
+## Non-negotiable deployment rules
 
-## Quality gate
+1. Production deploys must run from a clean committed checkout. Prefer a fresh
+   release worktree at the exact Git SHA being released.
+2. `linktery-frontend` and `linktery-frontend-alias` must be built from the same
+   commit and the same `dist-cloudflare` artifact.
+3. Run lint, tests, type checking, a production build, a Wrangler dry run, and
+   both local routing smoke suites before publishing.
+4. Do not edit Worker source or static assets in the Cloudflare dashboard.
+   Repository code and `wrangler.jsonc` are the source of truth.
+5. Worker routes and DNS are infrastructure. A normal code deploy must not
+   add, remove, or toggle DNS records, nameservers, proxy status, or routes.
+6. Do not add production routes or custom domains to `wrangler.jsonc` without
+   an explicit infrastructure migration plan. They are intentionally managed
+   separately so a code deploy cannot seize or detach production traffic.
+7. Keep frontend and backend releases separate. When both must change, use a
+   backwards-compatible sequence and verify Fly health before publishing the
+   frontend.
+8. Never use `npm run rollback:vercel:prod` as a normal deploy command.
+
+## Build artifacts and routing
+
+`npm run build:production` generates both:
+
+- `dist` for the temporary Vercel rollback deployment;
+- `dist-cloudflare` for Cloudflare Workers Static Assets.
+
+The Cloudflare artifact stores the landing page, SPA shell, and branded 404
+under `/_linktery`. The Worker blocks direct public access to that namespace.
+This prevents implementation filenames such as `/index` and `/landing` from
+stealing valid customer slugs.
+
+The Worker handles HTML navigation, canonical redirects, application routes,
+SEO pages, and public `/{slug}` resolution. Hashed `/assets/*` files and root
+media bypass Worker execution and are served as Static Assets. Hashed assets
+must retain immutable caching; HTML must remain revalidated.
+
+## Staging frontend deploy
 
 Run:
 
 ```text
-npm ci
-npm run lint
-npm run typecheck
-npm test
-npm run build:production
-npm run cf:dry-run:production
-npm run build:staging
-npm run cf:dry-run:staging
-npm run cf:smoke:local
+npm run deploy:staging
 ```
 
-The release build fails when it detects:
+This runs lint, type checking, the full test suite, a staging build, the
+Wrangler dry run, the local primary smoke suite, and then deploys
+`linktery-frontend-staging`.
 
-- a production bundle pointing to staging or localhost;
-- a staging bundle pointing to production or localhost;
-- missing/incorrect SEO prerenders, canonical tags, or sitemap entries;
-- an indexable SPA shell or 404 page;
-- Cloudflare artifacts above the file-count or single-file limits;
-- drift between the Vercel fallback CSP and the shared security policy.
-
-`dist` remains the Vercel artifact. `dist-cloudflare` is a separate generated
-artifact with private copies of the landing page, SPA shell, and 404 page under
-`/_linktery`. The Worker blocks public access to this namespace. This separation
-prevents build files from stealing valid customer slugs such as `/index` and
-`/landing`.
-
-Cloudflare invokes the Worker for HTML navigation, application routes, and
-public `/{slug}` resolution. Hashed `/assets/*` files and root media files bypass
-the Worker and remain free Static Asset requests. This preserves explicit
-status/canonical handling without turning JS, CSS, font, image, or video traffic
-into billable Worker invocations.
-
-## Remote staging
-
-After Cloudflare authentication:
+After deployment, run the remote smoke test against the URL printed by
+Wrangler:
 
 ```text
-npm run build:staging
-npm run cf:deploy:staging
 npm run cf:smoke -- https://<staging-worker>.workers.dev staging
 ```
 
-The staging build and all `workers.dev` responses receive
-`X-Robots-Tag: noindex, nofollow`. Preview URLs are still public unless
+Staging and every `workers.dev` preview must send
+`X-Robots-Tag: noindex, nofollow`. Preview URLs are publicly reachable unless
 Cloudflare Access is enabled.
 
-## Production candidate without traffic
+## Production frontend deploy
 
-After Cloudflare authentication:
+Start from a clean committed release checkout, authenticate Wrangler, and run:
 
 ```text
-npm run build:production
-npm run cf:upload:candidate
+npm run deploy:prod
 ```
 
-This uploads a version and creates a candidate preview alias. It does not bind
-`linktery.com`, create a production route, change DNS, or turn off Vercel.
-On the first run only, the command creates the dormant production Worker with
-`workers_dev=false`; it refuses to bootstrap if the config contains a route or
-custom domain that could receive production traffic.
-The upload command intentionally refuses a dirty checkout or an artifact whose
-manifest Git SHA differs from `HEAD`.
+The command performs this sequence:
 
-Verify at minimum:
+1. refuse a dirty checkout;
+2. run lint, TypeScript checks, and all tests;
+3. build the production release and validate SEO/artifact invariants;
+4. run Wrangler dry runs for the primary and alias configurations;
+5. run local primary and alias Worker smoke tests;
+6. deploy `linktery-frontend`;
+7. deploy `linktery-frontend-alias` from the same artifact;
+8. run live smoke tests on the primary domain and all three aliases.
 
-- `/` returns the prerendered landing page with HTTP 200;
-- all 231 canonical SEO routes return static HTTP 200 responses;
-- legacy roots return HTTP 308 and preserve query parameters;
-- `/{slug}`, `/dashboard/*`, `/admin/*`, and `/ref/:code` return the SPA shell;
-- invalid nested routes return a real HTTP 404;
-- `/index` and `/landing` still resolve as customer slugs;
+The two Workers publish atomically per Worker, but not as one cross-Worker
+transaction. If the primary deploy succeeds and the alias deploy fails, stop,
+record both active version IDs, and either finish the alias deploy with the same
+artifact or roll the primary Worker back. Do not rebuild between the two.
+
+For a manual production release, the equivalent commands are:
+
+```text
+npm run release:check:production
+npm run cf:deploy:production:primary
+npm run cf:deploy:production:alias
+npm run cf:smoke:production
+```
+
+## Required post-deploy checks
+
+Record the Git SHA plus the active version ID for both Workers. Verify:
+
+- `/` is a prerendered `200` landing page;
+- every sitemap URL is `200`, indexable, prerendered, and canonical to
+  `https://linktery.com/...`;
+- `/dashboard/*`, `/admin/*`, `/login`, and `/ref/:code` serve the SPA shell
+  with `noindex` where required;
+- a valid short link resolves and a valid Public Profile renders on every
+  selectable domain;
+- unknown nested/system paths return a real `404`;
+- legacy and `www` redirects are permanent and preserve path/query values;
+- POST requests to frontend routes return `405` with `Allow: GET, HEAD`;
 - hashed assets are immutable and media Range requests work;
-- production JavaScript contains only the production PocketBase origin.
+- `robots.txt` and `sitemap.xml` are served from the primary domain;
+- `https://greenroute-pb.fly.dev/api/health` returns `200`;
+- Worker errors remain zero and CPU/cache metrics are within their normal
+  range.
 
-## DNS and zero-downtime cutover
+Always inspect the **live** `robots.txt`, not only `public/robots.txt`.
+Cloudflare Managed Content Signals can prepend crawler rules at the edge.
 
-Do not change nameservers until all of the following are complete:
+## DNS invariants
 
-1. Export the full Vercel and registrar DNS zones.
-2. Import and diff every A/AAAA/CNAME/TXT/MX/CAA record in Cloudflare.
-3. Preserve Google Search Console verification.
-4. Preserve all Namecheap email-forwarding MX and SPF records on alias domains.
-5. Validate the Worker candidate and create a rollback checklist.
-6. Lower relevant TTLs ahead of the cutover.
+Do not change these during a routine frontend deploy:
 
-Move the primary domain first. Keep Vercel deployed and healthy throughout the
-observation window. Alias domains move one at a time afterward. They use the
-`alias` Wrangler environment because aliases must serve customer slugs and
-assets while redirecting product/SEO routes to `linktery.com`.
+- `linktery.com` apex and wildcard remain proxied;
+- `linktery.bio`, `hotme.online`, and `hotmylinks.cc` apex records remain
+  proxied;
+- alias `www` and wildcard records remain absent unless product requirements
+  explicitly change;
+- alias MX records remain DNS-only with priorities `10/10/10/15/20` for
+  Namecheap email forwarding;
+- alias SPF remains
+  `v=spf1 include:spf.efwd.registrar-servers.com ~all`;
+- the main Google Search Console verification TXT and CAA records remain
+  intact.
 
-Before moving any alias, build the production artifact and run:
+DNSSEC is currently disabled. Enable it only as a separate change after the
+cutover observation window, with the registrar DS record verified before and
+after activation.
+
+## Rollback
+
+### Preferred: roll back Worker versions
+
+List deployments and promote the previous known-good version:
 
 ```text
-npm run cf:smoke:local:alias
+npx wrangler deployments list --name linktery-frontend --json
+npx wrangler deployments list --name linktery-frontend-alias --json
+npx wrangler versions deploy <previous-primary-version>@100% --name linktery-frontend --yes
+npx wrangler versions deploy <previous-alias-version>@100% --name linktery-frontend-alias --yes
+npm run cf:smoke:production
 ```
 
-`www.linktery.com` is not a selectable Linktery link domain and always redirects
-the complete path and query string to the apex host. `linktery.bio`,
-`hotme.online`, and `hotmylinks.cc` keep serving public `/{slug}` routes while
-redirecting product and SEO routes to `linktery.com`.
+Roll back both Workers when the release artifact or shared routing contract is
+the cause. Record the before/after version IDs.
 
-The production Go/No-Go checkpoint must record:
+### Emergency: fall through to Vercel
 
-- candidate Worker version ID and Git SHA;
-- DNS export and diff result;
-- HTTP smoke-test result for primary, `www`, and each alias;
-- SEO/canonical/robots result;
-- login, registration, dashboard, short-link, public-profile, and Stripe smoke result;
-- rollback owner and exact rollback action.
+If Worker routing itself is unavailable, disable/remove the affected Worker
+route while leaving Cloudflare DNS proxied. Requests will fall through to the
+retained Vercel origin. If the fallback artifact must first be refreshed, use
+the explicitly named emergency command:
 
-Rollback is to remove/disable the Cloudflare Worker route while the Vercel
-deployment and origin DNS records remain intact. Do not delete the Vercel
-project until the Cloudflare observation period is complete.
+```text
+npm run rollback:vercel:prod
+```
 
-## PocketBase container startup
+Deploying to Vercel alone does not move traffic while Cloudflare Worker routes
+are active. Do not change nameservers as part of rollback.
 
-The production container starts PocketBase directly. `repair_db.py` remains in
-the image as a manual maintenance tool, but it must not run automatically during
-deploys or restarts: the legacy script can delete an oversized
-`auxiliary.db` request-log database. Take a fresh Fly volume snapshot and review
-the script before any deliberate manual repair.
+## PocketBase deployment
 
-The Alpine base image is digest-pinned, and both Fly environments gate traffic
-on `GET /api/health`. Promote the exact image tested on staging to production
-instead of rebuilding it from a moving base tag.
+PocketBase production remains on Fly.io and has its own release process. Its
+container must start PocketBase directly. `repair_db.py` is a manual maintenance
+tool and must not run automatically during deploys or restarts.
+
+Before a production backend deploy, take or verify a current volume snapshot,
+test migrations and hooks against staging, verify `GET /api/health`, and then
+deploy the exact reviewed image/configuration to `greenroute-pb`.

@@ -189,4 +189,25 @@ describe("Cloudflare edge routing contract", () => {
       'baseUrl.hostname.toLowerCase().endsWith(".workers.dev")',
     );
   });
+
+  it("keeps routine frontend deploys on Cloudflare", () => {
+    const packageJson = JSON.parse(readWorkspaceFile("package.json")) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts["deploy:prod"]).toContain(
+      "cf:deploy:production",
+    );
+    expect(packageJson.scripts["deploy:staging"]).toContain(
+      "cf:deploy:staging",
+    );
+    expect(packageJson.scripts["deploy:prod"]).not.toContain("vercel");
+    expect(packageJson.scripts["deploy:staging"]).not.toContain("vercel");
+    expect(packageJson.scripts["release:check:production"]).toContain(
+      "cf:dry-run:alias",
+    );
+    expect(packageJson.scripts["rollback:vercel:prod"]).toContain(
+      "vercel --prod",
+    );
+  });
 });
