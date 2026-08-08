@@ -223,7 +223,7 @@ describe("Cloudflare edge routing contract", () => {
   it("bounds Windows Wrangler shutdown during local smoke tests", () => {
     const localSmokeRunner = readWorkspaceFile(
       "scripts/run-cloudflare-smoke.mjs",
-    );
+    ).replace(/\r\n/g, "\n");
 
     expect(localSmokeRunner).toContain('spawnSync(\n      "taskkill"');
     expect(localSmokeRunner).toContain("timeout: 10_000");
