@@ -16,6 +16,7 @@ not the normal production deployment target anymore.
 | `linktery.bio/*` | `linktery-frontend-alias` |
 | `hotme.online/*` | `linktery-frontend-alias` |
 | `hotmylinks.cc/*` | `linktery-frontend-alias` |
+| `api.linktery.com/v1/*` | `linktery-public-api` |
 
 `www.linktery.com` redirects to the apex domain. Alias domains continue to
 serve customer `/{slug}` URLs, but product, account, and SEO routes redirect to
@@ -24,6 +25,13 @@ serve customer `/{slug}` URLs, but product, account, and SEO routes redirect to
 PocketBase remains a separate Fly.io service at
 `https://greenroute-pb.fly.dev`. A frontend deploy does not deploy PocketBase,
 run database migrations, or change Stripe webhooks.
+
+The public developer API is exposed only as
+`https://api.linktery.com/v1`. The dedicated `linktery-public-api` Worker maps
+that allowlisted surface to PocketBase's internal `/api/v1` routes. It does not
+proxy PocketBase collection, admin, authentication, or file endpoints. The
+Fly.io hostname is an implementation origin and must not be published in
+customer-facing API documentation or code examples.
 
 The Cloudflare account is on Workers Paid. Production zones use Cloudflare
 nameservers, proxied apex records, Universal SSL, and `Full (strict)` TLS.
@@ -82,6 +90,9 @@ JavaScript.
    backwards-compatible sequence and verify Fly health before publishing the
    frontend.
 8. Never use `npm run rollback:vercel:prod` as a normal deploy command.
+9. Deploy the API gateway separately from the frontend. A frontend release
+   must not silently change API routing, allowed methods, or the API custom
+   domain.
 
 ## Build artifacts and routing
 
@@ -99,6 +110,42 @@ The Worker handles HTML navigation, canonical redirects, application routes,
 SEO pages, and public `/{slug}` resolution. Hashed `/assets/*` files and root
 media bypass Worker execution and are served as Static Assets. Hashed assets
 must retain immutable caching; HTML must remain revalidated.
+
+## Public API gateway deploy
+
+The API gateway uses `wrangler.api.jsonc` and has its own release command. Its
+production custom domain is declared in that dedicated config; do not attach
+`api.linktery.com` to either frontend Worker.
+
+For staging, run:
+
+```text
+npm run deploy:api:staging
+```
+
+Use the printed `workers.dev` URL to verify staging explicitly. It proxies only
+to `greenroute-pb-staging`.
+
+For production, start from a clean committed release checkout and run:
+
+```text
+npm run deploy:api:prod
+```
+
+The command runs lint, type checking, all tests, and a Wrangler API dry run;
+deploys `linktery-public-api`; and verifies the branded production domain.
+Deploy the API Worker before publishing frontend documentation that references
+a new API path. A successful production smoke check must prove that:
+
+- unauthenticated `GET /v1/links` reaches API authentication and returns `401`;
+- `/api/collections/*` is blocked at the gateway with `404`;
+- unsupported methods return `405` with the correct `Allow` header;
+- responses are `no-store`, carry `X-Linktery-API-Version`, and do not expose
+  origin cookies or server headers.
+
+API keys are server credentials. Do not enable wildcard browser CORS or put an
+API key in frontend JavaScript. Browser dashboards must use their own backend
+or another trusted server-side integration.
 
 ## Staging frontend deploy
 
@@ -194,6 +241,9 @@ Do not change these during a routine frontend deploy:
   `v=spf1 include:spf.efwd.registrar-servers.com ~all`;
 - the main Google Search Console verification TXT and CAA records remain
   intact.
+- `api.linktery.com` remains a Worker Custom Domain owned only by
+  `linktery-public-api`; it must not be pointed at the frontend Worker or
+  exposed as a direct PocketBase custom domain.
 
 DNSSEC is currently disabled. Enable it only as a separate change after the
 cutover observation window, with the registrar DS record verified before and
@@ -229,6 +279,21 @@ npm run rollback:vercel:prod
 
 Deploying to Vercel alone does not move traffic while Cloudflare Worker routes
 are active. Do not change nameservers as part of rollback.
+
+### Public API gateway rollback
+
+Promote the previous known-good API Worker version, then run the branded API
+smoke test:
+
+```text
+npx wrangler deployments list --name linktery-public-api --json
+npx wrangler versions deploy <previous-api-version>@100% --name linktery-public-api --yes
+npm run cf:api:smoke:production
+```
+
+Do not move `api.linktery.com` directly to Fly.io as a rollback shortcut. That
+would expose the PocketBase route namespace and change the public `/v1`
+contract.
 
 ## PocketBase deployment
 

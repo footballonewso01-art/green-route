@@ -3,6 +3,9 @@
 // host for system pages, SEO metadata or safe fallbacks.
 export const PRIMARY_DOMAIN = "linktery.com";
 export const PRIMARY_ORIGIN = `https://${PRIMARY_DOMAIN}`;
+export const PUBLIC_API_DOMAIN = `api.${PRIMARY_DOMAIN}`;
+export const PUBLIC_API_ORIGIN = `https://${PUBLIC_API_DOMAIN}`;
+export const PUBLIC_API_BASE_URL = `${PUBLIC_API_ORIGIN}/v1`;
 
 export const REDIRECT_ALIAS_DOMAINS = [
   "linktery.bio",

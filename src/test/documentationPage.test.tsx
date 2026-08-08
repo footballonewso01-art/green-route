@@ -44,7 +44,7 @@ describe("public API documentation", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Linktery API documentation" }))
       .toBeInTheDocument();
-    expect(screen.getByText("https://api.example.test/api/v1")).toBeInTheDocument();
+    expect(screen.getByText("https://api.linktery.com/v1")).toBeInTheDocument();
     expect(screen.getByText("/links/{id}/analytics?period=30d")).toBeInTheDocument();
     expect(screen.getByText("/profiles/{id}/links")).toBeInTheDocument();
     expect(screen.getByText(/never returns raw click rows/i)).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe("public API documentation", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Copy API base URL" }));
     await waitFor(() => {
-      expect(writeTextMock).toHaveBeenCalledWith("https://api.example.test/api/v1");
+      expect(writeTextMock).toHaveBeenCalledWith("https://api.linktery.com/v1");
     });
     expect(screen.getByRole("button", { name: "Copy API base URL copied" }))
       .toBeInTheDocument();
@@ -109,5 +109,18 @@ describe("public API documentation", () => {
     ]) {
       expect(page).toContain(publishedLimit);
     }
+  });
+
+  it("publishes only the branded API gateway URL", () => {
+    const page = readWorkspaceFile("src/pages/DocumentationPage.tsx");
+    const openApi = readWorkspaceFile("docs/openapi-v1.yaml");
+    const guide = readWorkspaceFile("docs/public-api-v1.md");
+
+    for (const artifact of [page, openApi, guide]) {
+      expect(artifact).not.toContain("greenroute-pb.fly.dev");
+      expect(artifact).not.toContain("greenroute-pb-staging.fly.dev");
+    }
+    expect(openApi).toContain("url: https://api.linktery.com/v1");
+    expect(guide).toContain("https://api.linktery.com/v1");
   });
 });

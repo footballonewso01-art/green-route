@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "linktery-public-api",
+  "main": "./cloudflare/api-worker.ts",
+  "compatibility_date": "2026-07-29",
+  "minify": true,
+  "send_metrics": false,
+  "workers_dev": false,
+  "preview_urls": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.01
+  },
+  "routes": [
+    {
+      "pattern": "api.linktery.com",
+      "custom_domain": true
+    }
+  ],
+  "vars": {
+    "DEPLOY_ENV": "production",
+    "UPSTREAM_API_ORIGIN": "https://greenroute-pb.fly.dev"
+  },
+  "env": {
+    "staging": {
+      "name": "linktery-public-api-staging",
+      "workers_dev": true,
+      "preview_urls": true,
+      "routes": [],
+      "vars": {
+        "DEPLOY_ENV": "staging",
+        "UPSTREAM_API_ORIGIN": "https://greenroute-pb-staging.fly.dev"
+      }
+    }
+  }
+}

@@ -15,6 +15,8 @@ compact command reference and must not override it.
 /deploy            -> Cloudflare staging Worker
 /deploy staging    -> Cloudflare staging Worker
 /deploy prod       -> Cloudflare production Workers after staging validation
+/deploy api staging -> dedicated Public API staging Worker
+/deploy api prod    -> dedicated Public API production Worker
 ```
 
 ## Environment architecture
@@ -30,6 +32,11 @@ Production uses two Workers built from the same artifact:
 - `linktery-frontend` for `linktery.com` and `www.linktery.com`;
 - `linktery-frontend-alias` for `linktery.bio`, `hotme.online`, and
   `hotmylinks.cc`.
+
+The branded developer API is a third, separately released Worker:
+
+- `linktery-public-api` for `api.linktery.com/v1/*`, proxying only the
+  allowlisted API contract to PocketBase `/api/v1/*`.
 
 Vercel is a temporary emergency rollback origin only. Never use a Vercel
 command for a routine staging or production release.
@@ -65,6 +72,21 @@ alias Workers, and then runs live smoke tests on all production domains.
 
 Do not rebuild between the primary and alias Worker deploys. Record the Git
 SHA and both active Cloudflare Worker version IDs.
+
+## Public API gateway
+
+The public API gateway is not part of a routine frontend deploy. Use:
+
+```text
+npm run deploy:api:staging
+npm run deploy:api:prod
+```
+
+Production must be released from a clean commit. Deploy the gateway before a
+frontend documentation release that begins using a new branded path, then
+verify `https://api.linktery.com/v1/*` with the API smoke suite. Never publish
+the Fly.io origin in customer documentation or point `api.linktery.com`
+directly at PocketBase.
 
 ## Backend releases are separate
 
@@ -103,3 +125,5 @@ emergency fall-through procedure is deliberately chosen.
    normal code deploy.
 5. Frontend and PocketBase releases remain separate and backwards compatible.
 6. Verify production health and Cloudflare error metrics after every release.
+7. Release `linktery-public-api` separately and never attach its custom domain
+   to a frontend Worker.

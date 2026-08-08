@@ -26,10 +26,8 @@ info:
     Set `active` to `false` with PATCH to deactivate a Link without cascading
     through analytics and Public Profile composition.
 servers:
-  - url: https://greenroute-pb.fly.dev
+  - url: https://api.linktery.com/v1
     description: Production
-  - url: https://greenroute-pb-staging.fly.dev
-    description: Staging
 security:
   - BearerApiKey: []
 tags:
@@ -41,7 +39,7 @@ tags:
     description: Owner-scoped, aggregate Link analytics without raw visitor records.
 
 paths:
-  /api/v1/links:
+  /links:
     get:
       tags: [Links]
       operationId: listLinks
@@ -142,7 +140,7 @@ paths:
               description: Relative API path of the created Link.
               schema:
                 type: string
-                example: /api/v1/links/1sdk9od3pe38u7p
+                example: /v1/links/1sdk9od3pe38u7p
             ETag:
               $ref: '#/components/headers/LinkEtag'
             X-Request-Id:
@@ -197,7 +195,7 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /api/v1/links/{id}:
+  /links/{id}:
     parameters:
       - $ref: '#/components/parameters/ResourceId'
     get:
@@ -312,7 +310,7 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /api/v1/links/{id}/analytics:
+  /links/{id}/analytics:
     parameters:
       - $ref: '#/components/parameters/ResourceId'
     get:
@@ -363,7 +361,7 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /api/v1/profiles:
+  /profiles:
     get:
       tags: [Public Profiles]
       operationId: listProfiles
@@ -402,7 +400,7 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /api/v1/profiles/{id}:
+  /profiles/{id}:
     parameters:
       - $ref: '#/components/parameters/ResourceId'
     get:
@@ -442,7 +440,7 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /api/v1/profiles/{id}/links:
+  /profiles/{id}/links:
     parameters:
       - $ref: '#/components/parameters/ResourceId'
     get:

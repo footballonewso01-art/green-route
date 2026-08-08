@@ -5,9 +5,10 @@ Link analytics are available.
 
 The machine-readable contract is available in [`openapi-v1.yaml`](./openapi-v1.yaml).
 
-The API is served by the Linktery API origin under `/api/v1`. API keys are
-server credentials: never embed one in browser JavaScript, a mobile bundle, a
-public repository, an analytics tool, or a URL.
+The public API base URL is `https://api.linktery.com/v1`. API keys are server
+credentials: never embed one in browser JavaScript, a mobile bundle, a public
+repository, an analytics tool, or a URL. Browser-based dashboards must call
+the API through their own backend so the key never reaches visitors.
 
 ## Authentication
 
@@ -57,7 +58,7 @@ limits still apply server-side.
 ### List Links
 
 ```http
-GET /api/v1/links?page=1&per_page=25
+GET /v1/links?page=1&per_page=25
 ```
 
 `per_page` accepts `1–100`; `page` is capped at `1000`. Results are newest
@@ -66,7 +67,7 @@ first and are always filtered to the API key owner.
 ### Read one Link
 
 ```http
-GET /api/v1/links/{id}
+GET /v1/links/{id}
 ```
 
 The response includes an `ETag` header and the same value in `data.etag`.
@@ -78,7 +79,7 @@ to fail with a stale precondition.
 ### Create a Link
 
 ```http
-POST /api/v1/links
+POST /v1/links
 Content-Type: application/json
 Authorization: Bearer ltk_live_...
 Idempotency-Key: order-2026-08-02-001
@@ -116,7 +117,7 @@ custom `slug`. Supported domains are:
 Fetch the Link first, then send its current ETag:
 
 ```http
-PATCH /api/v1/links/{id}
+PATCH /v1/links/{id}
 Content-Type: application/json
 Authorization: Bearer ltk_live_...
 If-Match: "ltk-link-..."
@@ -155,7 +156,7 @@ Deactivate safely with:
 ## Link analytics
 
 ```http
-GET /api/v1/links/{id}/analytics?period=30d
+GET /v1/links/{id}/analytics?period=30d
 Authorization: Bearer ltk_live_...
 ```
 
@@ -217,16 +218,16 @@ Example response:
 ## Public Profile endpoints
 
 ```http
-GET /api/v1/profiles?page=1&per_page=25
-GET /api/v1/profiles/{id}
-GET /api/v1/profiles/{id}/links?page=1&per_page=25
+GET /v1/profiles?page=1&per_page=25
+GET /v1/profiles/{id}
+GET /v1/profiles/{id}/links?page=1&per_page=25
 ```
 
 These endpoints expose only Profiles owned by the key's account. Profile
 mutation, profile composition mutation, and file upload are not part of this
 release. Because the composition endpoint embeds the private Link response
 (including its destination and click counter),
-`GET /api/v1/profiles/{id}/links` requires both `profiles:read` and
+`GET /v1/profiles/{id}/links` requires both `profiles:read` and
 `links:read`.
 
 ## Response shape

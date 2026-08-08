@@ -13,10 +13,10 @@ import { Link } from "react-router-dom";
 import Footer from "@/components/Footer";
 import MarketingHeader from "@/components/MarketingHeader";
 import { useSeo } from "@/hooks/useSeo";
-import { pocketBaseUrl } from "@/lib/pocketbase";
 import { SEO_PAGES } from "@/lib/seo-config";
+import { PUBLIC_API_BASE_URL } from "@/lib/siteConfig";
 
-const API_BASE_URL = `${pocketBaseUrl}/api/v1`;
+const API_BASE_URL = PUBLIC_API_BASE_URL;
 
 const documentationSections = [
   { id: "quickstart", label: "Quickstart" },
