@@ -15,6 +15,7 @@ describe("system route namespace policy", () => {
     expect(isSystemRoute("/templates/link-in-bio")).toBe(true);
     expect(isSystemRoute("/guides/what-is-link-management")).toBe(true);
     expect(isSystemRoute("/ref/lt_partner123")).toBe(true);
+    expect(isSystemRoute("/documentation")).toBe(true);
   });
 
   it("does not reserve similar single-segment user slugs", () => {
@@ -28,6 +29,7 @@ describe("system route namespace policy", () => {
     expect(isReservedPublicSlug("api")).toBe(true);
     expect(isReservedPublicSlug("assets")).toBe(true);
     expect(isReservedPublicSlug("features")).toBe(true);
+    expect(isReservedPublicSlug("documentation")).toBe(true);
     expect(isReservedPublicSlug("api-creator")).toBe(false);
     expect(isReservedPublicSlug("features-nasty")).toBe(false);
   });

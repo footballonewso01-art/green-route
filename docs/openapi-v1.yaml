@@ -1,0 +1,1389 @@
+openapi: 3.1.0
+info:
+  title: Linktery Public API
+  version: 1.1.0-beta
+  description: |
+    Owner-scoped API for reading and managing Linktery Links and reading Public
+    Profiles. Authenticate every request with the single API key shown in
+    Settings > API Access.
+
+    Current scopes:
+
+    - `links:read` — list and read Links owned by the API key account.
+    - `links:write` — create and update Links owned by the API key account.
+    - `profiles:read` — list and read Public Profiles and profile composition
+      owned by the API key account.
+    - `analytics:read` — read aggregate analytics for Links owned by the API
+      key account without exposing individual click records.
+
+    Creator accounts do not have Public API access. Creator Pro and Agency use
+    the same endpoints, while resource limits and plan features remain enforced
+    per account, so credential rotation cannot reset request or daily safety
+    limits. Existing keys retain their original scopes and must be refreshed
+    in Settings before they can use newly released capabilities.
+
+    This release intentionally exposes no permanent Link deletion endpoint.
+    Set `active` to `false` with PATCH to deactivate a Link without cascading
+    through analytics and Public Profile composition.
+servers:
+  - url: https://greenroute-pb.fly.dev
+    description: Production
+  - url: https://greenroute-pb-staging.fly.dev
+    description: Staging
+security:
+  - BearerApiKey: []
+tags:
+  - name: Links
+    description: Owner-scoped Link reads and non-destructive mutations.
+  - name: Public Profiles
+    description: Owner-scoped, read-only Public Profile access.
+  - name: Analytics
+    description: Owner-scoped, aggregate Link analytics without raw visitor records.
+
+paths:
+  /api/v1/links:
+    get:
+      tags: [Links]
+      operationId: listLinks
+      summary: List Links
+      description: |
+        Returns Links owned by the API key account, ordered newest first.
+        Requires the `links:read` scope.
+      x-required-scope: links:read
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200':
+          description: Paginated owner-scoped Link list.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkListResponse'
+              examples:
+                links:
+                  value:
+                    data:
+                      - id: 1sdk9od3pe38u7p
+                        title: Campaign
+                        slug: campaign
+                        domain: linktery.com
+                        short_url: https://linktery.com/campaign
+                        destination_url: https://example.com/offer
+                        active: true
+                        mode: redirect
+                        clicks_count: 42
+                        etag: '"ltk-link-1sdk9od3pe38u7p-47a028aa26f77eb8f40a239d"'
+                        created: 2026-08-02 10:00:00.000Z
+                        updated: 2026-08-02 10:00:00.000Z
+                    meta:
+                      page: 1
+                      per_page: 25
+                      total: 1
+                      total_pages: 1
+                      request_id: reqA1b2C3d4
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+    post:
+      tags: [Links]
+      operationId: createLink
+      summary: Create a Link
+      description: |
+        Atomically validates the plan quota, allocates or validates the slug,
+        creates the Link, and stores the idempotency result. Requires the
+        `links:write` scope.
+
+        Creator Pro receives a server-generated slug. Agency may provide a
+        custom `slug`. Reusing the same `Idempotency-Key` with the same canonical
+        JSON payload returns the original resource and sets
+        `meta.idempotent_replay` to `true`. Reusing it with a different payload
+        returns `409 idempotency_conflict`.
+      x-required-scope: links:write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLinkRequest'
+            examples:
+              basic:
+                value:
+                  title: Campaign
+                  destination_url: https://example.com/offer
+                  domain: linktery.com
+                  active: true
+      responses:
+        '201':
+          description: |
+            Link created, or the original successful result returned for an
+            idempotent replay.
+          headers:
+            Location:
+              description: Relative API path of the created Link.
+              schema:
+                type: string
+                example: /api/v1/links/1sdk9od3pe38u7p
+            ETag:
+              $ref: '#/components/headers/LinkEtag'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateLinkResponse'
+              examples:
+                created:
+                  value:
+                    data:
+                      id: 1sdk9od3pe38u7p
+                      title: Campaign
+                      slug: 9z3f6q7k2p
+                      domain: linktery.com
+                      short_url: https://linktery.com/9z3f6q7k2p
+                      destination_url: https://example.com/offer
+                      active: true
+                      mode: redirect
+                      clicks_count: 0
+                      etag: '"ltk-link-1sdk9od3pe38u7p-47a028aa26f77eb8f40a239d"'
+                      created: 2026-08-02 10:00:00.000Z
+                      updated: 2026-08-02 10:00:00.000Z
+                    meta:
+                      idempotent_replay: false
+                      request_id: reqA1b2C3d4
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '411':
+          $ref: '#/components/responses/LengthRequired'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/links/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [Links]
+      operationId: getLink
+      summary: Read a Link
+      description: |
+        Returns an owned Link and its current ETag. Missing and foreign-owned
+        Links both return `404`. Requires the `links:read` scope.
+      x-required-scope: links:read
+      responses:
+        '200':
+          description: Owner-scoped Link.
+          headers:
+            ETag:
+              $ref: '#/components/headers/LinkEtag'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+    patch:
+      tags: [Links]
+      operationId: updateLink
+      summary: Update a Link
+      description: |
+        Partially updates an owned Link. Fetch the Link first and send its exact
+        current ETag in `If-Match`. A missing precondition returns `428`; a stale
+        ETag returns `412`. Requires the `links:write` scope.
+
+        Set `active` to `false` to deactivate a Link safely. Permanent deletion
+        is not exposed by Public API v1.
+      x-required-scope: links:write
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLinkRequest'
+            examples:
+              changeDestination:
+                value:
+                  destination_url: https://example.com/new-offer
+                  active: true
+              deactivate:
+                value:
+                  active: false
+      responses:
+        '200':
+          description: Updated Link.
+          headers:
+            ETag:
+              $ref: '#/components/headers/LinkEtag'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '411':
+          $ref: '#/components/responses/LengthRequired'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/links/{id}/analytics:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [Analytics]
+      operationId: getLinkAnalytics
+      summary: Read aggregate Link analytics
+      description: |
+        Returns total and unique clicks, a complete UTC time series, and the
+        top country, referrer, device, browser, and operating-system values for
+        an owned Link. Requires `analytics:read`.
+
+        Data comes only from compact hourly rollups. Individual click records,
+        IP data, User-Agent strings, and visitor identifiers are never exposed.
+        Results may be served from a 30-second server cache.
+      x-required-scope: analytics:read
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsPeriod'
+      responses:
+        '200':
+          description: Owner-scoped aggregate Link analytics.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkAnalyticsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/profiles:
+    get:
+      tags: [Public Profiles]
+      operationId: listProfiles
+      summary: List Public Profiles
+      description: |
+        Returns Public Profiles owned by the API key account, newest first.
+        Requires the `profiles:read` scope.
+      x-required-scope: profiles:read
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200':
+          description: Paginated owner-scoped Public Profile list.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/profiles/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [Public Profiles]
+      operationId: getProfile
+      summary: Read a Public Profile
+      description: |
+        Returns a Public Profile owned by the API key account. Missing and
+        foreign-owned Profiles both return `404`. Requires `profiles:read`.
+      x-required-scope: profiles:read
+      responses:
+        '200':
+          description: Owner-scoped Public Profile.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/profiles/{id}/links:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [Public Profiles]
+      operationId: listProfileLinks
+      summary: List a Public Profile's Links
+      description: |
+        Returns the complete owner-visible composition records for an owned
+        Public Profile, including hidden assignments and their nested core Link.
+        Results are ordered by profile order and creation time. Requires the
+        `profiles:read` and `links:read` scopes because the nested Link includes
+        its private destination and click counter.
+      x-required-scopes: [profiles:read, links:read]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200':
+          description: Paginated Public Profile composition.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileLinkListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+components:
+  securitySchemes:
+    BearerApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: ltk_live_<public-prefix>_<secret>
+      description: |
+        Send the account API key only in the Authorization header as
+        `Bearer ltk_live_...`. Query-string credentials are not accepted.
+      x-scopes:
+        links:read: Read Links owned by the API key account.
+        links:write: Create and update Links owned by the API key account.
+        profiles:read: Read owned Public Profiles and their composition.
+        analytics:read: Read aggregate analytics for owned Links.
+
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      description: PocketBase resource identifier.
+      schema:
+        type: string
+        pattern: '^[a-z0-9]{15}$'
+        example: 1sdk9od3pe38u7p
+    Page:
+      name: page
+      in: query
+      required: false
+      description: One-based page number. Values above 1000 are capped at 1000.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 1
+    PerPage:
+      name: per_page
+      in: query
+      required: false
+      description: Number of items per page. Values are clamped to 1-100.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    AnalyticsPeriod:
+      name: period
+      in: query
+      required: false
+      description: |
+        UTC aggregation window. `24h` returns 24 hourly buckets; the other
+        values return 7, 30, or 90 calendar-day buckets including today.
+      schema:
+        type: string
+        enum: [24h, 7d, 30d, 90d]
+        default: 30d
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Client-generated mutation identifier retained for seven days. Reuse it
+        only when retrying the exact same JSON request body.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]{8,128}$'
+        example: order-2026-08-02-001
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: Exact ETag from the latest GET, POST, or PATCH Link response.
+      schema:
+        type: string
+        pattern: '^"ltk-link-[a-z0-9]{15}-[a-f0-9]{24}"$'
+        example: '"ltk-link-1sdk9od3pe38u7p-47a028aa26f77eb8f40a239d"'
+
+  headers:
+    RequestId:
+      description: Stable request identifier to include in support reports.
+      schema:
+        type: string
+        example: reqA1b2C3d4
+    RateLimitLimit:
+      description: Maximum requests in the current one-minute bucket.
+      schema:
+        type: integer
+        minimum: 1
+        example: 60
+    RateLimitRemaining:
+      description: Requests remaining in the current one-minute bucket.
+      schema:
+        type: integer
+        minimum: 0
+        example: 59
+    RateLimitReset:
+      description: Unix timestamp when the current rate-limit bucket resets.
+      schema:
+        type: integer
+        format: int64
+        example: 1785690060
+    RetryAfter:
+      description: Seconds until the rate-limit bucket resets.
+      schema:
+        type: integer
+        minimum: 1
+        example: 27
+    LinkEtag:
+      description: >-
+        Strong version token for writable Link configuration, used by
+        `If-Match` on PATCH. Live clicks_count changes do not invalidate it.
+      schema:
+        type: string
+        pattern: '^"ltk-link-[a-z0-9]{15}-[a-f0-9]{24}"$'
+        example: '"ltk-link-1sdk9od3pe38u7p-47a028aa26f77eb8f40a239d"'
+
+  schemas:
+    SupportedDomain:
+      type: string
+      enum:
+        - linktery.com
+        - linktery.bio
+        - hotme.online
+        - hotmylinks.cc
+
+    LinkSlug:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: '^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$'
+      description: |
+        Globally unique public slug. Reserved system routes and slugs used by a
+        Link or Public Profile are rejected.
+      example: campaign
+
+    Link:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - slug
+        - domain
+        - short_url
+        - destination_url
+        - active
+        - mode
+        - clicks_count
+        - etag
+        - created
+        - updated
+      properties:
+        id:
+          type: string
+          pattern: '^[a-z0-9]{15}$'
+          readOnly: true
+          example: 1sdk9od3pe38u7p
+        title:
+          type: string
+          maxLength: 100
+          example: Campaign
+        slug:
+          $ref: '#/components/schemas/LinkSlug'
+        domain:
+          $ref: '#/components/schemas/SupportedDomain'
+        short_url:
+          type: string
+          format: uri
+          readOnly: true
+          example: https://linktery.com/campaign
+        destination_url:
+          type: string
+          format: uri
+          minLength: 1
+          maxLength: 2048
+          pattern: '^https?://'
+          example: https://example.com/offer
+        active:
+          type: boolean
+          example: true
+        mode:
+          type: string
+          readOnly: true
+          description: Redirect mode stored on the Link. New API-created Links use `redirect`.
+          example: redirect
+        clicks_count:
+          type: integer
+          minimum: 0
+          readOnly: true
+          example: 42
+        etag:
+          type: string
+          readOnly: true
+          pattern: '^"ltk-link-[a-z0-9]{15}-[a-f0-9]{24}"$'
+          example: '"ltk-link-1sdk9od3pe38u7p-47a028aa26f77eb8f40a239d"'
+        created:
+          type: string
+          readOnly: true
+          description: UTC PocketBase timestamp.
+          example: 2026-08-02 10:00:00.000Z
+        updated:
+          type: string
+          readOnly: true
+          description: UTC PocketBase timestamp included in the configuration ETag.
+          example: 2026-08-02 10:00:00.000Z
+
+    CreateLinkRequest:
+      type: object
+      additionalProperties: false
+      required: [destination_url]
+      properties:
+        title:
+          type: string
+          maxLength: 100
+          default: ''
+          example: Campaign
+        slug:
+          allOf:
+            - $ref: '#/components/schemas/LinkSlug'
+          description: Agency-only custom slug. Omit to allocate one server-side.
+        domain:
+          allOf:
+            - $ref: '#/components/schemas/SupportedDomain'
+          default: linktery.com
+        destination_url:
+          type: string
+          format: uri
+          minLength: 1
+          maxLength: 2048
+          pattern: '^https?://'
+          description: |
+            Final HTTP(S) destination. Another managed Linktery short Link is
+            rejected to prevent slow redirects and redirect loops.
+          example: https://example.com/offer
+        active:
+          type: boolean
+          default: true
+
+    UpdateLinkRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          maxLength: 100
+        slug:
+          allOf:
+            - $ref: '#/components/schemas/LinkSlug'
+          description: Agency-only custom slug.
+        domain:
+          $ref: '#/components/schemas/SupportedDomain'
+        destination_url:
+          type: string
+          format: uri
+          minLength: 1
+          maxLength: 2048
+          pattern: '^https?://'
+        active:
+          type: boolean
+
+    SocialLink:
+      type: object
+      description: Public social-link presentation data saved on the Profile.
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          format: uri
+        icon_type:
+          type: string
+        icon_value:
+          type: string
+        label:
+          type: string
+
+    PublicProfile:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - bio
+        - slug
+        - domain
+        - public_url
+        - avatar
+        - theme
+        - card_color
+        - online_counter
+        - profile_template
+        - link_card_style
+        - social_link_style
+        - social_links
+        - created
+        - updated
+      properties:
+        id:
+          type: string
+          pattern: '^[a-z0-9]{15}$'
+          example: 0ab1cd2ef3gh4ij
+        name:
+          type: string
+          example: Creator Studio
+        bio:
+          type: string
+          example: Latest releases and community links.
+        slug:
+          $ref: '#/components/schemas/LinkSlug'
+        domain:
+          $ref: '#/components/schemas/SupportedDomain'
+        public_url:
+          type: string
+          format: uri
+          example: https://linktery.bio/creator-studio
+        avatar:
+          type: string
+          description: PocketBase file name, or an empty string when no avatar is set.
+          example: avatar_4f9c2.webp
+        theme:
+          type: string
+          example: sunset
+        card_color:
+          type: string
+          example: '#111827'
+        online_counter:
+          type: boolean
+        profile_template:
+          type: string
+          enum: [classic, compact, banner, hero, cutout]
+        link_card_style:
+          type: string
+          enum: [minimal, solid, outline, glass, image-first]
+        social_link_style:
+          type: string
+          enum: [icons, branded-pills]
+        social_links:
+          type: array
+          items:
+            $ref: '#/components/schemas/SocialLink'
+        created:
+          type: string
+          description: UTC PocketBase timestamp.
+          example: 2026-08-02 10:00:00.000Z
+        updated:
+          type: string
+          description: UTC PocketBase timestamp.
+          example: 2026-08-02 10:00:00.000Z
+
+    ProfileLinkAssignment:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - profile_id
+        - link_id
+        - order
+        - visible
+        - title_override
+        - size
+        - background_image
+        - link
+        - created
+        - updated
+      properties:
+        id:
+          type: string
+          pattern: '^[a-z0-9]{15}$'
+        profile_id:
+          type: string
+          pattern: '^[a-z0-9]{15}$'
+        link_id:
+          type: string
+          pattern: '^[a-z0-9]{15}$'
+        order:
+          type: integer
+          minimum: 0
+        visible:
+          type: boolean
+        title_override:
+          type: string
+          maxLength: 200
+        size:
+          type: string
+          enum: [regular, large]
+        background_image:
+          type: string
+          description: PocketBase file name, or an empty string when unset.
+        link:
+          $ref: '#/components/schemas/Link'
+        created:
+          type: string
+          description: UTC PocketBase timestamp.
+        updated:
+          type: string
+          description: UTC PocketBase timestamp.
+
+    PaginationMeta:
+      type: object
+      additionalProperties: false
+      required: [page, per_page, total, total_pages, request_id]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        per_page:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+        total_pages:
+          type: integer
+          minimum: 0
+        request_id:
+          type: string
+
+    LinkListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Link'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    LinkResponse:
+      type: object
+      additionalProperties: false
+      required: [data, request_id]
+      properties:
+        data:
+          $ref: '#/components/schemas/Link'
+        request_id:
+          type: string
+
+    CreateLinkMeta:
+      type: object
+      additionalProperties: false
+      required: [idempotent_replay, request_id]
+      properties:
+        idempotent_replay:
+          type: boolean
+        request_id:
+          type: string
+
+    CreateLinkResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/Link'
+        meta:
+          $ref: '#/components/schemas/CreateLinkMeta'
+
+    ProfileListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicProfile'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    ProfileResponse:
+      type: object
+      additionalProperties: false
+      required: [data, request_id]
+      properties:
+        data:
+          $ref: '#/components/schemas/PublicProfile'
+        request_id:
+          type: string
+
+    ProfileLinkListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileLinkAssignment'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    AnalyticsLink:
+      type: object
+      additionalProperties: false
+      required: [id, title, slug, domain, short_url]
+      properties:
+        id:
+          type: string
+          pattern: '^[a-z0-9]{15}$'
+        title:
+          type: string
+        slug:
+          $ref: '#/components/schemas/LinkSlug'
+        domain:
+          $ref: '#/components/schemas/SupportedDomain'
+        short_url:
+          type: string
+          format: uri
+
+    AnalyticsWindow:
+      type: object
+      additionalProperties: false
+      required: [from, to]
+      properties:
+        from:
+          type: string
+          description: First returned UTC bucket.
+          example: '2026-07-04'
+        to:
+          type: string
+          description: Last returned UTC bucket.
+          example: '2026-08-02'
+
+    AnalyticsSummary:
+      type: object
+      additionalProperties: false
+      required: [clicks, unique_clicks]
+      properties:
+        clicks:
+          type: integer
+          minimum: 0
+          example: 12500
+        unique_clicks:
+          type: integer
+          minimum: 0
+          description: Sum of server-derived 24-hour unique visitor signals.
+          example: 8300
+
+    AnalyticsPoint:
+      type: object
+      additionalProperties: false
+      required: [bucket, clicks, unique_clicks]
+      properties:
+        bucket:
+          type: string
+          description: UTC hour timestamp for `24h`, otherwise a UTC date.
+          example: '2026-08-02'
+        clicks:
+          type: integer
+          minimum: 0
+          example: 412
+        unique_clicks:
+          type: integer
+          minimum: 0
+          example: 301
+
+    AnalyticsBreakdownItem:
+      type: object
+      additionalProperties: false
+      required: [name, clicks, percentage]
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          example: US
+        clicks:
+          type: integer
+          minimum: 0
+          example: 4375
+        percentage:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          example: 35
+
+    AnalyticsBreakdowns:
+      type: object
+      additionalProperties: false
+      required: [countries, referrers, devices, browsers, operating_systems]
+      properties:
+        countries:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/AnalyticsBreakdownItem'
+        referrers:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/AnalyticsBreakdownItem'
+        devices:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/AnalyticsBreakdownItem'
+        browsers:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/AnalyticsBreakdownItem'
+        operating_systems:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/AnalyticsBreakdownItem'
+
+    LinkAnalytics:
+      type: object
+      additionalProperties: false
+      required:
+        - link
+        - period
+        - timezone
+        - granularity
+        - window
+        - summary
+        - timeseries
+        - breakdowns
+      properties:
+        link:
+          $ref: '#/components/schemas/AnalyticsLink'
+        period:
+          type: string
+          enum: [24h, 7d, 30d, 90d]
+        timezone:
+          type: string
+          const: UTC
+        granularity:
+          type: string
+          enum: [hour, day]
+        window:
+          $ref: '#/components/schemas/AnalyticsWindow'
+        summary:
+          $ref: '#/components/schemas/AnalyticsSummary'
+        timeseries:
+          type: array
+          minItems: 7
+          maxItems: 90
+          items:
+            $ref: '#/components/schemas/AnalyticsPoint'
+        breakdowns:
+          $ref: '#/components/schemas/AnalyticsBreakdowns'
+
+    AnalyticsMeta:
+      type: object
+      additionalProperties: false
+      required: [generated_at, request_id]
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+
+    LinkAnalyticsResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/LinkAnalytics'
+        meta:
+          $ref: '#/components/schemas/AnalyticsMeta'
+
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable error code.
+          examples:
+            - invalid_api_key
+            - insufficient_scope
+            - invalid_request
+            - slug_conflict
+            - precondition_failed
+            - rate_limit_exceeded
+            - daily_create_limit_exceeded
+            - daily_write_limit_exceeded
+            - length_required
+        message:
+          type: string
+          description: Safe human-readable explanation.
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error, request_id]
+      properties:
+        error:
+          $ref: '#/components/schemas/ApiError'
+        request_id:
+          type: string
+
+    PocketBaseErrorResponse:
+      type: object
+      description: Safe framework-level error returned when the raw body limit rejects a request before the route handler.
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+          example: 413
+        message:
+          type: string
+          example: Request entity too large.
+        data:
+          type: object
+          additionalProperties: true
+
+  responses:
+    BadRequest:
+      description: |
+        Invalid JSON, missing or unknown field, invalid value, invalid period, or invalid
+        Idempotency-Key. Typical codes include `invalid_json`,
+        `invalid_request`, `missing_field`, `unknown_field`, `empty_update`, and
+        `invalid_idempotency_key`.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing, malformed, expired, revoked, or otherwise invalid API key.
+      headers:
+        WWW-Authenticate:
+          description: Bearer authentication challenge.
+          schema:
+            type: string
+            example: Bearer realm="Linktery API"
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: invalid_api_key
+              message: The API key is invalid or inactive.
+            request_id: reqA1b2C3d4
+    Forbidden:
+      description: |
+        The current plan or API-key scope does not allow this operation. Typical
+        codes are `api_plan_required`, `insufficient_scope`, and
+        `feature_not_available`.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found. Foreign-owned resources are masked by the same response.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: not_found
+              message: Link not found.
+            request_id: reqA1b2C3d4
+    Conflict:
+      description: |
+        Resource state or idempotency conflict. Typical codes include
+        `slug_conflict`, `link_limit_reached`, `idempotency_conflict`,
+        `idempotency_resource_gone`, and `request_in_progress`.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PreconditionFailed:
+      description: The Link changed after the ETag supplied in `If-Match` was issued.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: precondition_failed
+              message: The link changed since it was read. Fetch it again and retry.
+            request_id: reqA1b2C3d4
+    PayloadTooLarge:
+      description: JSON body exceeds 64 KB.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ErrorResponse'
+              - $ref: '#/components/schemas/PocketBaseErrorResponse'
+    LengthRequired:
+      description: Mutation body omitted an accurate Content-Length or used chunked transfer encoding.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: length_required
+              message: Send a Content-Length header with the JSON request body.
+            request_id: reqA1b2C3d4
+    UnsupportedMediaType:
+      description: Request body is not `application/json`.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PreconditionRequired:
+      description: PATCH request omitted the required `If-Match` header.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: precondition_required
+              message: Send the current link etag in the If-Match header.
+            request_id: reqA1b2C3d4
+    TooManyRequests:
+      description: Current one-minute bucket or daily mutation safety ceiling is exhausted.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: rate_limit_exceeded
+              message: Too many API requests. Retry after the current rate-limit window.
+            request_id: reqA1b2C3d4
+    InternalError:
+      description: The request could not be completed due to an internal error.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailable:
+      description: Public API authentication, rate limiting, analytics rollup, or service layer is unavailable.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: api_unavailable
+              message: Public API is temporarily unavailable.
+            request_id: reqA1b2C3d4

@@ -18,6 +18,7 @@ import RedirectHandler from "./pages/RedirectHandler";
 // Route-level chunks keep unrelated landing pages out of the initial download.
 // The streaming SSR entry waits for these modules during prerendering.
 const LandingPage = lazy(() => import("./pages/LandingPage"));
+const DocumentationPage = lazy(() => import("./pages/DocumentationPage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsAndConditions = lazy(() => import("./pages/TermsAndConditions"));
@@ -141,6 +142,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 const AppRoutes = () => (
   <Routes>
     <Route path="/" element={<LandingPage />} />
+    <Route path="/documentation" element={<DocumentationPage />} />
     <Route path="/login" element={<LoginPage />} />
     <Route path="/register" element={<RegisterPage />} />
     <Route path="/ref/:referralCode" element={<ReferralCapture />} />

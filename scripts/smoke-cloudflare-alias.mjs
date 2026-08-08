@@ -40,6 +40,7 @@ async function expectPrimaryRedirect(pathname, expectedPathname) {
 
 await expectPrimaryRedirect("/?utm_source=alias-smoke", "/");
 await expectPrimaryRedirect("/pricing?utm_source=alias-smoke", "/pricing");
+await expectPrimaryRedirect("/documentation?utm_source=alias-smoke", "/documentation");
 await expectPrimaryRedirect("/dashboard/settings?tab=api", "/dashboard/settings");
 
 for (const pathname of ["/nasty", "/index", "/landing"]) {

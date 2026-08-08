@@ -84,6 +84,7 @@ describe("Cloudflare edge routing contract", () => {
     "/404",
     "/api",
     "/assets",
+    "/documentation",
     "/compare",
     "/compare/not-real",
     "/features/not-real",
@@ -105,6 +106,7 @@ describe("Cloudflare edge routing contract", () => {
   it.each([
     ["/Nasty", "/nasty"],
     ["/Pricing", "/pricing"],
+    ["/Documentation/", "/documentation"],
     ["/dashboard/settings/", "/dashboard/settings"],
     ["/landing/", "/landing"],
   ])("canonicalizes %s with a 308", (source, destination) => {
@@ -123,6 +125,7 @@ describe("Cloudflare edge routing contract", () => {
     expect(isValidPublicSlug("bad-")).toBe(false);
     expect(isValidPublicSlug("a".repeat(65))).toBe(false);
     expect(isValidPublicSlug("pricing")).toBe(false);
+    expect(isValidPublicSlug("documentation")).toBe(false);
     expect(isValidPublicSlug("cdn-cgi")).toBe(false);
     expect(isValidPublicSlug("_linktery")).toBe(false);
   });

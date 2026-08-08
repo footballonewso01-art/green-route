@@ -12,14 +12,16 @@ import {
     prepareAutomaticExternalHandoff,
 } from "@/lib/deeplink";
 import { useSeo } from "@/hooks/useSeo";
+import { normalizeTrackingPixels } from "@/lib/trackingPixels";
 const PublicProfile = lazy(() => import("./PublicProfile"));
 
 // Utility to inject tracking pixels and allow them 400ms to fire before the page is destroyed by a redirect
 /* eslint-disable @typescript-eslint/no-explicit-any, prefer-rest-params, prefer-spread, no-var, @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-expressions */
 const fireTrackingPixels = (link: Record<string, any>): Promise<void> => {
-    const hasFb = typeof link.fb_pixel === 'string' && link.fb_pixel.trim().length > 0;
-    const hasGoogle = typeof link.google_pixel === 'string' && link.google_pixel.trim().length > 0;
-    const hasTiktok = typeof link.tiktok_pixel === 'string' && link.tiktok_pixel.trim().length > 0;
+    const pixels = normalizeTrackingPixels(link);
+    const hasFb = pixels.valid && pixels.meta.length > 0;
+    const hasGoogle = pixels.valid && pixels.google.length > 0;
+    const hasTiktok = pixels.valid && pixels.tiktok.length > 0;
 
     if (!hasFb && !hasGoogle && !hasTiktok) {
         return Promise.resolve(); // Fast resolution if no pixels are present
@@ -37,7 +39,7 @@ const fireTrackingPixels = (link: Record<string, any>): Promise<void> => {
                 if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
                 t.src=v;s=b.getElementsByTagName(e)[0];s?.parentNode?.insertBefore(t,s)})(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
                 // @ts-ignore
-                window.fbq('init', link.fb_pixel.trim());
+                window.fbq('init', pixels.meta);
                 // @ts-ignore
                 window.fbq('track', 'PageView');
             }
@@ -45,7 +47,7 @@ const fireTrackingPixels = (link: Record<string, any>): Promise<void> => {
             // Google Pixel (gtag)
             if (hasGoogle) {
                 const s = document.createElement('script');
-                s.src = `https://www.googletagmanager.com/gtag/js?id=${link.google_pixel.trim()}`;
+                s.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(pixels.google)}`;
                 s.async = true;
                 document.head.appendChild(s);
                 // @ts-ignore
@@ -55,7 +57,7 @@ const fireTrackingPixels = (link: Record<string, any>): Promise<void> => {
                 // @ts-ignore
                 gtag('js', new Date());
                 // @ts-ignore
-                gtag('config', link.google_pixel.trim());
+                gtag('config', pixels.google);
             }
 
             // TikTok Pixel
@@ -63,7 +65,7 @@ const fireTrackingPixels = (link: Record<string, any>): Promise<void> => {
                 (function (w:any, d:any, t:any) {
                 w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];ttq.setAndDefer=function(t:any,e:any){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t:any){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e:any,n?:any){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};var o=d.createElement("script");o.type="text/javascript";o.async=!0;o.src=i+"?sdkid="+e+"&lib="+t;var a=d.getElementsByTagName("script")[0];a?.parentNode?.insertBefore(o,a)};
                 // @ts-ignore
-                ttq.load(link.tiktok_pixel.trim());
+                ttq.load(pixels.tiktok);
                 // @ts-ignore
                 ttq.page();
                 // @ts-ignore
@@ -415,7 +417,12 @@ export default function RedirectHandler() {
                     isSamePage = isOurDomain && destUrlObj.pathname.toLowerCase().replace(/\/$/, "") === window.location.pathname.toLowerCase().replace(/\/$/, "");
 
                     if (isManagedDestination && /^\/[a-z0-9_-]+\/?$/i.test(destUrlObj.pathname)) {
-                        const nextTrace = [...trace, String(link.id)].slice(-8);
+                        if (trace.length >= 8) {
+                            setStatus("error");
+                            setError("This redirect chain exceeded the safe hop limit and was stopped.");
+                            return;
+                        }
+                        const nextTrace = [...trace, String(link.id)].slice(0, 8);
                         destUrlObj.searchParams.set("lr_trace", nextTrace.join("."));
                         finalDestination = destUrlObj.toString();
                         setDestination(finalDestination);

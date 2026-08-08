@@ -29,6 +29,7 @@ describe("public /slug routing contract", () => {
 
     expect(publicSlugRoute).toBeGreaterThan(-1);
     for (const route of [
+      '<Route path="/documentation"',
       '<Route path="/features/:resourceSlug"',
       '<Route path="/templates/:resourceSlug"',
       '<Route path="/guides/:resourceSlug"',

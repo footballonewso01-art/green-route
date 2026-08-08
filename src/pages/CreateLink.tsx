@@ -25,6 +25,7 @@ import {
 } from '@/lib/countryTiers';
 import { maskError } from '@/lib/utils';
 import { isReservedPublicSlug } from "@/lib/systemRoutes";
+import { normalizeTrackingPixels } from "@/lib/trackingPixels";
 
 const generateRandomSlug = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -255,6 +256,12 @@ export default function CreateLink() {
     }
     const validatedUrl = urlValidation.data;
 
+    const trackingPixels = normalizeTrackingPixels(form);
+    if (!trackingPixels.valid) {
+      toast.error(trackingPixels.error);
+      return;
+    }
+
     const invalidGeoRule = form.geo_targeting
       ? geoData.find((rule) => rule.code && rule.url && !urlSchema.safeParse(rule.url).success)
       : null;
@@ -316,9 +323,9 @@ export default function CreateLink() {
         safe_page_url: form.safe_page_url,
         interstitial_enabled: form.interstitial_enabled,
         mode: form.mode,
-        fb_pixel: form.fb_pixel,
-        google_pixel: form.google_pixel,
-        tiktok_pixel: form.tiktok_pixel,
+        fb_pixel: trackingPixels.meta,
+        google_pixel: trackingPixels.google,
+        tiktok_pixel: trackingPixels.tiktok,
         user_id: user.id,
         active: true,
       };

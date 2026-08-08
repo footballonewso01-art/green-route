@@ -86,6 +86,50 @@ describe("API Access settings", () => {
     expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
   });
 
+  it("shows expanded capabilities and independent read/write limits", async () => {
+    sendMock.mockResolvedValue({
+      ...enabledResponse,
+      data: {
+        ...existingKey,
+        scopes: ["links:read", "links:write", "profiles:read", "analytics:read"],
+      },
+      meta: {
+        ...enabledResponse.meta,
+        api_write_rate_limit_per_minute: 15,
+        api_analytics_rate_limit_per_minute: 20,
+        api_write_daily_limit: 1000,
+        api_create_daily_limit: 100,
+        scope: "links:read links:write profiles:read analytics:read",
+        scopes: ["links:read", "links:write", "profiles:read", "analytics:read"],
+        capability_upgrade_available: false,
+      },
+    });
+
+    renderSettings();
+
+    expect(await screen.findByText("Links · Read + write")).toBeInTheDocument();
+    expect(screen.getByText("Public Profiles · Read")).toBeInTheDocument();
+    expect(screen.getByText("Analytics · Read · 20/min")).toBeInTheDocument();
+    expect(screen.getByText("60 reads/min · 15 writes/min")).toBeInTheDocument();
+    expect(screen.getByText("100 creates/day · 1000 mutations/day")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Read docs" })).toHaveAttribute("href", "/documentation");
+  });
+
+  it("offers an explicit refresh instead of silently elevating a beta key", async () => {
+    sendMock.mockResolvedValue({
+      ...enabledResponse,
+      meta: {
+        ...enabledResponse.meta,
+        capability_upgrade_available: true,
+      },
+    });
+
+    renderSettings();
+
+    expect(await screen.findByText(/does not include the latest API capabilities/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Enable new capabilities" })).toBeInTheDocument();
+  });
+
   it("refreshes the single key and replaces the displayed credential", async () => {
     sendMock
       .mockResolvedValueOnce(enabledResponse)

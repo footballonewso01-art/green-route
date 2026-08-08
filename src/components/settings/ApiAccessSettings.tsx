@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowUpRight,
+  BookOpen,
   Check,
   Clock3,
   Copy,
@@ -49,7 +50,13 @@ interface ApiCredentialResponse {
     enabled: boolean;
     key_limit: number;
     api_rate_limit_per_minute: number;
+    api_write_rate_limit_per_minute?: number;
+    api_analytics_rate_limit_per_minute?: number;
+    api_write_daily_limit?: number;
+    api_create_daily_limit?: number;
     scope: string;
+    scopes?: string[];
+    capability_upgrade_available?: boolean;
     replaced_unrecoverable_key?: boolean;
   };
   request_id: string;
@@ -72,6 +79,11 @@ export function ApiAccessSettings() {
   const [secret, setSecret] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [rateLimit, setRateLimit] = useState(0);
+  const [writeRateLimit, setWriteRateLimit] = useState(0);
+  const [analyticsRateLimit, setAnalyticsRateLimit] = useState(0);
+  const [dailyWriteLimit, setDailyWriteLimit] = useState(0);
+  const [dailyCreateLimit, setDailyCreateLimit] = useState(0);
+  const [capabilityUpgradeAvailable, setCapabilityUpgradeAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [revealed, setRevealed] = useState(false);
@@ -83,6 +95,11 @@ export function ApiAccessSettings() {
     const hasAccess = response?.meta?.enabled === true;
     setEnabled(hasAccess);
     setRateLimit(Number(response?.meta?.api_rate_limit_per_minute || 0));
+    setWriteRateLimit(Number(response?.meta?.api_write_rate_limit_per_minute || 0));
+    setAnalyticsRateLimit(Number(response?.meta?.api_analytics_rate_limit_per_minute || 0));
+    setDailyWriteLimit(Number(response?.meta?.api_write_daily_limit || 0));
+    setDailyCreateLimit(Number(response?.meta?.api_create_daily_limit || 0));
+    setCapabilityUpgradeAvailable(response?.meta?.capability_upgrade_available === true);
 
     if (!hasAccess) {
       setCredential(null);
@@ -96,6 +113,11 @@ export function ApiAccessSettings() {
     setCredential(response.data);
     setSecret(response.secret);
   };
+
+  const credentialScopes = Array.isArray(credential?.scopes) ? credential.scopes : [];
+  const canWriteLinks = credentialScopes.includes("links:write");
+  const canReadProfiles = credentialScopes.includes("profiles:read");
+  const canReadAnalytics = credentialScopes.includes("analytics:read");
 
   const loadKey = useCallback(async () => {
     setLoading(true);
@@ -277,27 +299,53 @@ export function ApiAccessSettings() {
 
             <div className="mt-3 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
               <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
-              <p>Keep this key private. It grants read access to links owned by your account.</p>
+              <p>
+                Keep this key private and use it only in server-side integrations. It can access only resources owned by your account.
+              </p>
             </div>
+
+            {capabilityUpgradeAvailable && (
+              <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/[0.07] px-3.5 py-3 text-xs leading-5 text-amber-100/80">
+                This key does not include the latest API capabilities. Refresh it to enable Link management, Public Profile reads, and aggregated analytics.
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-3 border-t border-border/40 bg-background/20 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-muted-foreground">
-              <span>Links · Read only</span>
-              <span>{rateLimit} requests per minute</span>
+              <span>Links · {canWriteLinks ? "Read + write" : "Read only"}</span>
+              {canReadProfiles && <span>Public Profiles · Read</span>}
+              {canReadAnalytics && (
+                <span>Analytics · Read{analyticsRateLimit > 0 ? ` · ${analyticsRateLimit}/min` : ""}</span>
+              )}
+              <span>
+                {rateLimit} reads/min{canWriteLinks && writeRateLimit > 0 ? ` · ${writeRateLimit} writes/min` : ""}
+              </span>
+              {canWriteLinks && dailyWriteLimit > 0 && dailyCreateLimit > 0 && (
+                <span>{dailyCreateLimit} creates/day · {dailyWriteLimit} mutations/day</span>
+              )}
               <span className="inline-flex items-center gap-1.5">
                 <Clock3 className="h-3 w-3" />
                 {formatLastUsed(credential.last_used_at)}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setRefreshDialogOpen(true)}
-              className="inline-flex min-h-9 items-center justify-center gap-1.5 self-start rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:self-auto"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Refresh key
-            </button>
+            <div className="flex items-center gap-1 self-start sm:self-auto">
+              <Link
+                to="/documentation"
+                className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                Read docs
+              </Link>
+              <button
+                type="button"
+                onClick={() => setRefreshDialogOpen(true)}
+                className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                {capabilityUpgradeAvailable ? "Enable new capabilities" : "Refresh key"}
+              </button>
+            </div>
           </div>
         </section>
       ) : null}
@@ -307,7 +355,7 @@ export function ApiAccessSettings() {
           <AlertDialogHeader>
             <AlertDialogTitle>Refresh your API key?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your current key will stop working immediately. Update every integration that uses it with the new key.
+              Your current key will stop working immediately. The replacement key includes the latest account API capabilities, so update every integration that uses the old key.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

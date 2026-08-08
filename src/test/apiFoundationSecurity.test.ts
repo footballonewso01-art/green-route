@@ -42,8 +42,11 @@ describe("public API foundation hardening", () => {
   });
 
   it("validates reserved slugs on all public resource mutations", () => {
+    expect(utils).toContain("var validateLinkRecordForMutation");
+    expect(hook.match(/utils\.validateLinkRecordForMutation\(\$app, e\.record\)/g))
+      .toHaveLength(2);
     expect(hook.match(/utils\.validatePublicSlug\(e\.record\.get\("slug"\)\)/g))
-      .toHaveLength(4);
+      .toHaveLength(2);
     expect(migration).toContain("prevent_reserved_link_slug_on_insert");
     expect(migration).toContain("prevent_reserved_profile_slug_on_insert");
   });
@@ -66,7 +69,7 @@ describe("public API foundation hardening", () => {
     expect(utils).toContain("$security.encrypt");
     expect(utils).toContain("$security.decrypt");
     expect(utils).toContain("API_KEY_ENCRYPTION_KEY");
-    expect(utils).toContain('"agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29, "analytics": true, "apiKeys": 1');
+    expect(utils).toContain('"agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29, "analytics": true, "customSlug": true, "apiKeys": 1');
   });
 
   it("authenticates v1 exclusively with scoped Bearer keys", () => {
@@ -74,7 +77,7 @@ describe("public API foundation hardening", () => {
     expect(hook).toContain('routerAdd("GET", "/api/v1/links/{id}"');
     expect(hook).toContain('utils.authenticateApiRequest(c, "links:read")');
     expect(utils).toContain('c.request.header.get("Authorization")');
-    expect(utils).toContain("consumeApiRateLimit(keyRecord.id");
+    expect(utils).toContain("consumeApiRateLimit(user.id");
     expect(utils).toContain("key_prefix = {:prefix} && secret_hash = {:digest}");
     expect(utils).not.toContain('query.get("api_key")');
   });

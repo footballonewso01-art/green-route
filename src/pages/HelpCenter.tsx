@@ -453,6 +453,7 @@ const helpCategories: Category[] = [
                                 </thead>
                                 <tbody className="text-muted-foreground">
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Smart Links</td><td className="text-center">3</td><td className="text-center">15</td><td className="text-center">Unlimited</td></tr>
+                                    <tr className="border-b border-border/50"><td className="py-2.5 px-4">Public API Access</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Analytics</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Deeplinks</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Geo Targeting</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>

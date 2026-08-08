@@ -13,9 +13,14 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     description: "Linktery is a professional link-in-bio and traffic management platform. Design premium custom profiles, set geo & device targeting, and track dynamic analytics in real-time.",
     canonical: "/",
   },
+  documentation: {
+    title: "Linktery API Documentation | Smart Links & Analytics",
+    description: "Use the Linktery API to create and update smart links, read Public Profiles, and connect aggregate link analytics to your own dashboards.",
+    canonical: "/documentation",
+  },
   pricing: {
     title: "Pricing & Plans | Linktery",
-    description: "Find the perfect plan for your links and traffic. Start free with the Creator plan or upgrade to Creator Pro or Agency for advanced targeting, custom domains, and zero branding.",
+    description: "Find the perfect plan for your links and traffic. Upgrade to Creator Pro or Agency for Public API access, advanced targeting, analytics, custom domains, and zero branding.",
     canonical: "/pricing",
   },
   login: {

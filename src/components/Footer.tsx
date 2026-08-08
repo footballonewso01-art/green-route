@@ -27,6 +27,7 @@ export default function Footer() {
         <div className="flex flex-col gap-3.5">
           <h4 className="text-xs font-bold text-foreground tracking-wider uppercase">Resources</h4>
           <ul className="flex flex-col gap-2.5">
+            <li><Link to="/documentation" className="text-sm text-muted-foreground hover:text-accent transition-colors">API Documentation</Link></li>
             <li><Link to="/templates/link-in-bio" className="text-sm text-muted-foreground hover:text-accent transition-colors">Profile Templates</Link></li>
             <li><Link to="/tools/utm-builder" className="text-sm text-muted-foreground hover:text-accent transition-colors">UTM Builder</Link></li>
             <li><Link to="/tools/qr-code-generator" className="text-sm text-muted-foreground hover:text-accent transition-colors">QR Generator</Link></li>

@@ -38,6 +38,7 @@ const plans = [
             { text: "Remove Linktery Branding", icon: "✨", tooltip: "Completely remove the branding badge from your public profile." },
             { text: "Deeplink", icon: "⚡", tooltip: "Bypass in-app social browsers to open your links directly in Safari or Chrome." },
             { text: "Advanced Analytics", icon: "📊", tooltip: "Detailed tracking: clicks over time, countries, referrers, and device types." },
+            { text: "Public API Access", icon: "🔌", tooltip: "Create and update links, read profiles, and connect aggregate analytics to your own tools." },
             { text: "Link Optimization", icon: "🛡️", tooltip: "Optimize traffic quality by filtering automated crawlers and verifying visitors." },
             { text: "Geo Targeting", icon: "🌍", tooltip: "Route visitors to different destination URLs based on their country." }
         ],
@@ -56,6 +57,7 @@ const plans = [
             { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
             { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
             { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
+            { text: "Public API Access", icon: "🔌", tooltip: "API v1 access with higher rate and daily usage limits." },
             { text: "Everything in Creator Pro", icon: "✅" }
         ],
         buttonText: "Upgrade to Agency",

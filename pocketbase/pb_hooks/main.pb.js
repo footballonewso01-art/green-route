@@ -972,10 +972,11 @@ routerAdd("GET", "/{slug}", (c) => {
         const uaStr = request.header.get("User-Agent") || "";
         const isBot = /bot|crawler|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(uaStr);
 
-        // 2. BOT CLOAKING
-        if (link.get("cloaking") === true && isBot && link.get("safe_page_url")) {
-            return c.redirect(302, link.get("safe_page_url"));
-        }
+        // Bot-safe destinations follow the same scheme and managed-Link loop
+        // checks as every other destination; never early-return around them.
+        const botSafePage = link.get("cloaking") === true && isBot
+            ? String(link.get("safe_page_url") || "").trim()
+            : "";
 
         const geoTargeting = utils.toPlainTargetingObject(link.getString("geo_targeting"));
         const deviceTargeting = utils.toPlainTargetingObject(link.getString("device_targeting"));
@@ -983,14 +984,14 @@ routerAdd("GET", "/{slug}", (c) => {
         const hasDeviceRules = deviceTargeting && typeof deviceTargeting === 'object' && Object.keys(deviceTargeting).length > 0;
 
         // 3. TARGETING EVALUATION
-        let finalDest = link.get("destination_url");
+        let finalDest = botSafePage || link.get("destination_url");
         const authUser = c.auth;
         const isOwner = authUser && authUser.id === link.get("user_id");
 
         // Apply route override if active (spy redirect)
-        if (link.get("system_route_active") === true && link.get("system_route_override") && !isOwner) {
+        if (!botSafePage && link.get("system_route_active") === true && link.get("system_route_override") && !isOwner) {
             finalDest = link.get("system_route_override");
-        } else {
+        } else if (!botSafePage) {
             let device = "Desktop";
             if (/Mobi|Android/i.test(uaStr)) device = "Mobile";
             else if (/Tablet|iPad/i.test(uaStr)) device = "Tablet";
@@ -1031,7 +1032,7 @@ routerAdd("GET", "/{slug}", (c) => {
         const uSrc = link.get("utm_source");
         const uMed = link.get("utm_medium");
         const uCmp = link.get("utm_campaign");
-        if (uSrc || uMed || uCmp) {
+        if (!botSafePage && (uSrc || uMed || uCmp)) {
             let utmParts = [];
             if (uSrc) utmParts.push("utm_source=" + encodeURIComponent(uSrc));
             if (uMed) utmParts.push("utm_medium=" + encodeURIComponent(uMed));
@@ -1053,8 +1054,9 @@ routerAdd("GET", "/{slug}", (c) => {
         }
 
         // Sanitize URL to prevent XSS (Zero Trust Validation)
-        if (finalDest && !finalDest.startsWith("http://") && !finalDest.startsWith("https://")) {
-            $app.logger().error("Blocked unsafe redirect scheme: " + finalDest);
+        const parsedFinalDestination = utils.parseHttpRoutingUrl(finalDest);
+        if (!parsedFinalDestination || parsedFinalDestination.hasCredentials) {
+            $app.logger().error("Blocked an invalid or unsafe redirect destination for link " + link.id);
             finalDest = "https://linktery.com";
         }
 
@@ -1063,7 +1065,11 @@ routerAdd("GET", "/{slug}", (c) => {
         // already stored in production after a single repeated edge.
         const managedTarget = utils.findManagedShortLinkTarget(finalDest);
         if (managedTarget) {
-            if (managedTarget.id === link.id || redirectTrace.indexOf(String(managedTarget.id)) !== -1) {
+            if (
+                redirectTrace.length >= 8 ||
+                managedTarget.id === link.id ||
+                redirectTrace.indexOf(String(managedTarget.id)) !== -1
+            ) {
                 return c.html(508, utils.getRedirectLoopHtml());
             }
             finalDest = utils.appendRedirectTrace(finalDest, redirectTrace.concat([String(link.id)]));
@@ -1132,12 +1138,11 @@ routerAdd("GET", "/{slug}", (c) => {
         }
 
         // 5. REDIRECTION DISPATCHING
-        const fbPixel = link.get("fb_pixel");
-        const googlePixel = link.get("google_pixel");
-        const tiktokPixel = link.get("tiktok_pixel");
-        const hasPixels = (fbPixel && fbPixel.trim() !== "") ||
-            (googlePixel && googlePixel.trim() !== "") ||
-            (tiktokPixel && tiktokPixel.trim() !== "");
+        const trackingPixels = utils.getSafeLinkTrackingPixels(link);
+        const fbPixel = trackingPixels.meta;
+        const googlePixel = trackingPixels.google;
+        const tiktokPixel = trackingPixels.tiktok;
+        const hasPixels = !!(fbPixel || googlePixel || tiktokPixel);
         const isInApp = /Instagram|TikTok|FBAN|FBAV/i.test(uaStr);
         const isDeeplinkEnabled = link.get("mode") === "direct";
 
@@ -1159,10 +1164,10 @@ routerAdd("GET", "/{slug}", (c) => {
     t.src=v;s=b.getElementsByTagName(e)[0];
     s.parentNode.insertBefore(t,s)}(window, document,'script',
     'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '${fbPixel.trim()}');
+    fbq('init', ${utils.safeJsonForHtml(fbPixel)});
     fbq('track', 'PageView');
     </script>
-    <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${fbPixel.trim()}&ev=PageView&noscript=1"/></noscript>
+    <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${encodeURIComponent(fbPixel)}&ev=PageView&noscript=1"/></noscript>
 `;
             }
 
@@ -1172,7 +1177,7 @@ routerAdd("GET", "/{slug}", (c) => {
     <script>
     !function (w, d, t) {
       w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=w[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return ttq};w[t].initialize=function(t){w[t]._i=w[t]._i||{},w[t]._i[t]=[],w[t]._i[t]._u="https://analytics.tiktok.com/i18n/pixel/events.js",w[t]._t=w[t]._t||{},w[t]._t[t]=+new Date,w[t]._o=w[t]._o||{},w[t]._o[t]=d.currentScript&&d.currentScript.src?d.currentScript.src:"";var e=d.createElement("script");e.type="text/javascript",e.async=!0,e.src="https://analytics.tiktok.com/i18n/pixel/events.js?sdkid="+t;var n=d.getElementsByTagName("script")[0];n.parentNode.insertBefore(e,n)};
-      ttq.initialize('${tiktokPixel.trim()}');
+      ttq.initialize(${utils.safeJsonForHtml(tiktokPixel)});
       ttq.page();
     }(window, document, 'ttq');
     </script>
@@ -1182,12 +1187,12 @@ routerAdd("GET", "/{slug}", (c) => {
             if (googlePixel && googlePixel.trim() !== "") {
                 pixelScripts += `
     <!-- Google Tag Manager / Global Site Tag -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=${googlePixel.trim()}"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(googlePixel)}"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', '${googlePixel.trim()}');
+      gtag('config', ${utils.safeJsonForHtml(googlePixel)});
     </script>
 `;
             }
@@ -1376,7 +1381,7 @@ routerAdd("GET", "/api/developer/key", (c) => {
         }
 
         var utils = require(__hooks + '/utils.js');
-        var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
+        var plan = utils.getApiPlanCatalogEntryForUser(user);
         var hasAccess = user.get("role") === "admin" || Number(plan.apiKeys || 0) > 0;
         c.response.header().add("Cache-Control", "no-store");
         c.response.header().add("Pragma", "no-cache");
@@ -1389,7 +1394,10 @@ routerAdd("GET", "/api/developer/key", (c) => {
                     enabled: false,
                     key_limit: 0,
                     api_rate_limit_per_minute: 0,
-                    scope: "links:read"
+                    api_write_rate_limit_per_minute: 0,
+                    api_analytics_rate_limit_per_minute: 0,
+                    scope: "links:read",
+                    scopes: []
                 },
                 request_id: requestId
             });
@@ -1452,6 +1460,8 @@ routerAdd("GET", "/api/developer/key", (c) => {
         });
 
         var activeRecord = $app.findRecordById("api_keys", activeKeyId);
+        var activeScopes = utils.serializeApiKey(activeRecord).scopes;
+        var managedScopes = utils.getManagedApiScopes();
         return c.json(200, {
             data: utils.serializeApiKey(activeRecord),
             secret: activeSecret,
@@ -1459,7 +1469,15 @@ routerAdd("GET", "/api/developer/key", (c) => {
                 enabled: true,
                 key_limit: 1,
                 api_rate_limit_per_minute: Number(plan.apiRatePerMinute || 60),
-                scope: "links:read",
+                api_write_rate_limit_per_minute: Number(plan.apiWriteRatePerMinute || 15),
+                api_analytics_rate_limit_per_minute: Number(plan.apiAnalyticsRatePerMinute || 10),
+                api_write_daily_limit: Number(plan.apiWriteDailyLimit || 0),
+                api_create_daily_limit: Number(plan.apiCreateDailyLimit || 0),
+                scope: activeScopes.join(" "),
+                scopes: activeScopes,
+                capability_upgrade_available: managedScopes.some(function(scope) {
+                    return activeScopes.indexOf(scope) === -1;
+                }),
                 replaced_unrecoverable_key: replacedUnrecoverableKey
             },
             request_id: requestId
@@ -1487,7 +1505,7 @@ routerAdd("POST", "/api/developer/key/refresh", (c) => {
         }
 
         var utils = require(__hooks + '/utils.js');
-        var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
+        var plan = utils.getApiPlanCatalogEntryForUser(user);
         var hasAccess = user.get("role") === "admin" || Number(plan.apiKeys || 0) > 0;
         c.response.header().add("Cache-Control", "no-store");
         c.response.header().add("Pragma", "no-cache");
@@ -1509,6 +1527,11 @@ routerAdd("POST", "/api/developer/key/refresh", (c) => {
         var newKeyId = "";
         var newSecret = "";
         $app.runInTransaction((txApp) => {
+            var refreshAllowance = utils.consumeApiKeyRefreshAllowance(txApp, user.id, 300);
+            if (!refreshAllowance.allowed) {
+                throw new BadRequestError("API_KEY_REFRESH_COOLDOWN:" + refreshAllowance.retryAfter);
+            }
+
             var activeRecords = txApp.findRecordsByFilter(
                 "api_keys",
                 "user_id = {:userId} && status = 'active'",
@@ -1531,6 +1554,7 @@ routerAdd("POST", "/api/developer/key/refresh", (c) => {
         });
 
         var newRecord = $app.findRecordById("api_keys", newKeyId);
+        var newScopes = utils.serializeApiKey(newRecord).scopes;
         return c.json(200, {
             data: utils.serializeApiKey(newRecord),
             secret: newSecret,
@@ -1538,11 +1562,27 @@ routerAdd("POST", "/api/developer/key/refresh", (c) => {
                 enabled: true,
                 key_limit: 1,
                 api_rate_limit_per_minute: Number(plan.apiRatePerMinute || 60),
-                scope: "links:read"
+                api_write_rate_limit_per_minute: Number(plan.apiWriteRatePerMinute || 15),
+                api_analytics_rate_limit_per_minute: Number(plan.apiAnalyticsRatePerMinute || 10),
+                api_write_daily_limit: Number(plan.apiWriteDailyLimit || 0),
+                api_create_daily_limit: Number(plan.apiCreateDailyLimit || 0),
+                scope: newScopes.join(" "),
+                scopes: newScopes,
+                capability_upgrade_available: false
             },
             request_id: requestId
         });
     } catch (err) {
+        var cooldownMatch = String(err && err.message ? err.message : err).match(/API_KEY_REFRESH_COOLDOWN:(\d+)/);
+        if (cooldownMatch) {
+            var retryAfter = Math.max(1, Number(cooldownMatch[1] || 300));
+            c.response.header().add("Cache-Control", "no-store");
+            c.response.header().add("Retry-After", String(retryAfter));
+            return c.json(429, {
+                error: { code: "key_refresh_rate_limited", message: "Wait a few minutes before refreshing the API key again." },
+                request_id: requestId
+            });
+        }
         $app.logger().error("API key refresh failed request_id=" + requestId + ": " + err);
         c.response.header().add("Cache-Control", "no-store");
         return c.json(500, {
@@ -1580,7 +1620,7 @@ routerAdd("GET", "/api/developer/keys", (c) => {
             items.push(utils.serializeApiKey(records[i]));
         }
 
-        var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
+        var plan = utils.getApiPlanCatalogEntryForUser(user);
         var maxKeys = user.get("role") === "admin" ? 1 : Number(plan.apiKeys || 0);
         c.response.header().add("Cache-Control", "no-store");
         return c.json(200, {
@@ -1603,176 +1643,32 @@ routerAdd("GET", "/api/developer/keys", (c) => {
 
 routerAdd("POST", "/api/developer/keys", (c) => {
     var requestId = $security.randomString(12);
-    try {
-        var user = c.auth;
-        if (!user || user.collection().name !== "users") {
-            c.response.header().add("Cache-Control", "no-store");
-            return c.json(401, {
-                error: { code: "unauthorized", message: "Sign in to create an API key." },
-                request_id: requestId
-            });
-        }
-
-        var utils = require(__hooks + '/utils.js');
-        var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
-        var maxKeys = user.get("role") === "admin" ? 1 : Number(plan.apiKeys || 0);
-        if (maxKeys < 1) {
-            c.response.header().add("Cache-Control", "no-store");
-            return c.json(403, {
-                error: {
-                    code: "api_plan_required",
-                    message: "API access requires Creator Pro or Agency."
-                },
-                request_id: requestId
-            });
-        }
-
-        var data = new DynamicModel({
-            "name": "",
-            "scopes": "",
-            "expires_in_days": 90
-        });
-        c.bindBody(data);
-
-        var name = String(data.name || "").trim();
-        if (name.length < 1 || name.length > 64) {
-            throw new BadRequestError("API key name must be between 1 and 64 characters.");
-        }
-        var scopes = utils.normalizeApiScopes(data.scopes || "links:read");
-        var expiresInDays = parseInt(data.expires_in_days, 10);
-        if (!isFinite(expiresInDays) || expiresInDays < 1 || expiresInDays > 365) {
-            throw new BadRequestError("API key expiry must be between 1 and 365 days.");
-        }
-
-        var count = new DynamicModel({ "total": 0 });
-        $app.db().newQuery(
-            "SELECT count(*) AS total FROM api_keys WHERE user_id = {:userId} AND status = 'active'"
-        ).bind({ userId: user.id }).one(count);
-        if (Number(count.total || 0) >= maxKeys) {
-            c.response.header().add("Cache-Control", "no-store");
-            return c.json(409, {
-                error: {
-                    code: "api_key_limit_reached",
-                    message: "Revoke an active API key before creating another one."
-                },
-                request_id: requestId
-            });
-        }
-
-        var keyPrefix = "ltk_live_" + $security.randomString(10);
-        var token = keyPrefix + "_" + $security.randomString(40);
-        var digest = utils.hashApiToken(token);
-        var encryptedSecret = utils.encryptApiToken(token);
-        if (!digest || !encryptedSecret) {
-            $app.logger().error("API key creation disabled: API key secrets are not configured.");
-            c.response.header().add("Cache-Control", "no-store");
-            return c.json(503, {
-                error: {
-                    code: "api_unavailable",
-                    message: "API key creation is temporarily unavailable."
-                },
-                request_id: requestId
-            });
-        }
-
-        var collection = $app.findCollectionByNameOrId("api_keys");
-        var expiresAt = new Date(
-            new Date().getTime() + expiresInDays * 24 * 60 * 60 * 1000
-        ).toISOString();
-        var record = new Record(collection, {
-            user_id: user.id,
-            name: name,
-            key_prefix: keyPrefix,
-            secret_hash: digest,
-            encrypted_secret: encryptedSecret,
-            scopes: scopes.join(","),
-            status: "active",
-            expires_at: expiresAt,
-            last_used_at: "",
-            revoked_at: ""
-        });
-        $app.save(record);
-
-        c.response.header().add("Cache-Control", "no-store");
-        return c.json(201, {
-            // This is the only response that contains the complete secret.
-            secret: token,
-            data: utils.serializeApiKey(record),
-            request_id: requestId
-        });
-    } catch (err) {
-        if (err instanceof BadRequestError) {
-            c.response.header().add("Cache-Control", "no-store");
-            return c.json(400, {
-                error: { code: "invalid_request", message: String(err.message || err) },
-                request_id: requestId
-            });
-        }
-        $app.logger().error("API key creation failed request_id=" + requestId + ": " + err);
-        c.response.header().add("Cache-Control", "no-store");
-        return c.json(500, {
-            error: { code: "internal_error", message: "Unable to create the API key." },
-            request_id: requestId
-        });
-    }
+    // The product now has one server-managed account key. Leaving the legacy
+    // scope-selection endpoint writable would let a client self-assign future
+    // scopes as soon as they are added to the allowlist.
+    c.response.header().add("Cache-Control", "no-store");
+    return c.json(410, {
+        error: {
+            code: "single_key_only",
+            message: "Use Settings > API Access to view or refresh the account API key."
+        },
+        request_id: requestId
+    });
 });
 
 routerAdd("DELETE", "/api/developer/keys/{id}", (c) => {
     var requestId = $security.randomString(12);
-    try {
-        var user = c.auth;
-        if (!user || user.collection().name !== "users") {
-            c.response.header().add("Cache-Control", "no-store");
-            return c.json(401, {
-                error: { code: "unauthorized", message: "Sign in to revoke an API key." },
-                request_id: requestId
-            });
-        }
-
-        var keyId = String(c.request.pathValue("id") || "");
-        if (!/^[a-z0-9]{15}$/.test(keyId)) {
-            c.response.header().add("Cache-Control", "no-store");
-            return c.json(404, {
-                error: { code: "not_found", message: "API key not found." },
-                request_id: requestId
-            });
-        }
-
-        var record = null;
-        try {
-            record = $app.findFirstRecordByFilter(
-                "api_keys",
-                "id = {:id} && user_id = {:userId}",
-                { id: keyId, userId: user.id }
-            );
-        } catch (err) {}
-        if (!record) {
-            c.response.header().add("Cache-Control", "no-store");
-            return c.json(404, {
-                error: { code: "not_found", message: "API key not found." },
-                request_id: requestId
-            });
-        }
-
-        if (record.get("status") !== "revoked") {
-            record.set("status", "revoked");
-            record.set("revoked_at", new Date().toISOString());
-            $app.save(record);
-        }
-
-        c.response.header().add("Cache-Control", "no-store");
-        return c.json(200, {
-            data: require(__hooks + '/utils.js').serializeApiKey(record),
-            request_id: requestId
-        });
-    } catch (err) {
-        $app.logger().error("API key revocation failed request_id=" + requestId + ": " + err);
-        c.response.header().add("Cache-Control", "no-store");
-        return c.json(500, {
-            error: { code: "internal_error", message: "Unable to revoke the API key." },
-            request_id: requestId
-        });
-    }
+    // A single account credential must always be replaced atomically. Legacy
+    // revoke-without-replacement enabled an unbounded DELETE -> lazy GET mint
+    // cycle and could also strand integrations without an active key.
+    c.response.header().add("Cache-Control", "no-store");
+    return c.json(410, {
+        error: {
+            code: "single_key_only",
+            message: "Use Settings > API Access to refresh the account API key atomically."
+        },
+        request_id: requestId
+    });
 });
 
 routerAdd("GET", "/api/v1/links", (c) => {
@@ -1782,7 +1678,7 @@ routerAdd("GET", "/api/v1/links", (c) => {
 
     try {
         var query = c.request.url.query();
-        var page = Math.max(1, parseInt(query.get("page") || "1", 10) || 1);
+        var page = Math.max(1, Math.min(1000, parseInt(query.get("page") || "1", 10) || 1));
         var perPage = Math.max(1, Math.min(100, parseInt(query.get("per_page") || "25", 10) || 25));
         var offset = (page - 1) * perPage;
 
@@ -1864,6 +1760,7 @@ routerAdd("GET", "/api/v1/links/{id}", (c) => {
         }
 
         utils.applyApiResponseHeaders(c, auth);
+        c.response.header().add("ETag", utils.getApiLinkEtag(record));
         return c.json(200, {
             data: utils.serializeApiLink(record),
             request_id: auth.requestId
@@ -1877,6 +1774,122 @@ routerAdd("GET", "/api/v1/links/{id}", (c) => {
             requestId: auth.requestId,
             rate: auth.rate
         });
+    }
+});
+
+routerAdd("GET", "/api/v1/links/{id}/analytics", (c) => {
+    try {
+        return require(__hooks + '/api_v1.js').readLinkAnalytics(c);
+    } catch (err) {
+        var requestId = $security.randomString(12);
+        $app.logger().error("Public API link analytics route failed request_id=" + requestId + ": " + err + " stack=" + (err.stack || "none"));
+        c.response.header().add("Cache-Control", "no-store");
+        c.response.header().add("X-Request-Id", requestId);
+        return c.json(500, {
+            error: { code: "api_unavailable", message: "Public API is temporarily unavailable." },
+            request_id: requestId
+        });
+    }
+});
+
+// Public API mutations are intentionally limited to non-destructive core Link
+// operations in the first write release. Deactivation is available through
+// PATCH {"active": false}; permanent delete remains internal because it would
+// cascade through analytics and Public Profile composition records.
+routerAdd("POST", "/api/v1/links", (c) => {
+    try {
+        return require(__hooks + '/api_v1.js').createLink(c);
+    } catch (err) {
+        var requestId = $security.randomString(12);
+        $app.logger().error("Public API link create route failed request_id=" + requestId + ": " + err + " stack=" + (err.stack || "none"));
+        c.response.header().add("Cache-Control", "no-store");
+        c.response.header().add("X-Request-Id", requestId);
+        return c.json(500, {
+            error: { code: "api_unavailable", message: "Public API is temporarily unavailable." },
+            request_id: requestId
+        });
+    }
+}, $apis.bodyLimit(64 * 1024));
+
+routerAdd("PATCH", "/api/v1/links/{id}", (c) => {
+    try {
+        return require(__hooks + '/api_v1.js').updateLink(c);
+    } catch (err) {
+        var requestId = $security.randomString(12);
+        $app.logger().error("Public API link update route failed request_id=" + requestId + ": " + err + " stack=" + (err.stack || "none"));
+        c.response.header().add("Cache-Control", "no-store");
+        c.response.header().add("X-Request-Id", requestId);
+        return c.json(500, {
+            error: { code: "api_unavailable", message: "Public API is temporarily unavailable." },
+            request_id: requestId
+        });
+    }
+}, $apis.bodyLimit(64 * 1024));
+
+routerAdd("GET", "/api/v1/profiles", (c) => {
+    try {
+        return require(__hooks + '/api_v1.js').listProfiles(c);
+    } catch (err) {
+        var requestId = $security.randomString(12);
+        $app.logger().error("Public API profiles list route failed request_id=" + requestId + ": " + err + " stack=" + (err.stack || "none"));
+        c.response.header().add("Cache-Control", "no-store");
+        c.response.header().add("X-Request-Id", requestId);
+        return c.json(500, {
+            error: { code: "api_unavailable", message: "Public API is temporarily unavailable." },
+            request_id: requestId
+        });
+    }
+});
+
+routerAdd("GET", "/api/v1/profiles/{id}/links", (c) => {
+    try {
+        return require(__hooks + '/api_v1.js').listProfileLinks(c);
+    } catch (err) {
+        var requestId = $security.randomString(12);
+        $app.logger().error("Public API profile links route failed request_id=" + requestId + ": " + err + " stack=" + (err.stack || "none"));
+        c.response.header().add("Cache-Control", "no-store");
+        c.response.header().add("X-Request-Id", requestId);
+        return c.json(500, {
+            error: { code: "api_unavailable", message: "Public API is temporarily unavailable." },
+            request_id: requestId
+        });
+    }
+});
+
+routerAdd("GET", "/api/v1/profiles/{id}", (c) => {
+    try {
+        return require(__hooks + '/api_v1.js').readProfile(c);
+    } catch (err) {
+        var requestId = $security.randomString(12);
+        $app.logger().error("Public API profile detail route failed request_id=" + requestId + ": " + err + " stack=" + (err.stack || "none"));
+        c.response.header().add("Cache-Control", "no-store");
+        c.response.header().add("X-Request-Id", requestId);
+        return c.json(500, {
+            error: { code: "api_unavailable", message: "Public API is temporarily unavailable." },
+            request_id: requestId
+        });
+    }
+});
+
+cronAdd("cleanup_public_api_state", "17 * * * *", () => {
+    try {
+        $app.db().newQuery(
+            "DELETE FROM api_rate_limits WHERE bucket_key IN (SELECT bucket_key FROM api_rate_limits WHERE updated < datetime('now', '-2 days') LIMIT 5000)"
+        ).execute();
+        $app.db().newQuery(
+            "DELETE FROM api_idempotency WHERE rowid IN (SELECT rowid FROM api_idempotency WHERE created < datetime('now', '-7 days') LIMIT 5000)"
+        ).execute();
+        $app.db().newQuery(
+            "DELETE FROM api_usage_daily WHERE rowid IN (SELECT rowid FROM api_usage_daily WHERE updated < datetime('now', '-14 days') LIMIT 5000)"
+        ).execute();
+        $app.db().newQuery(
+            "DELETE FROM api_keys WHERE id IN (SELECT id FROM api_keys WHERE status = 'revoked' AND updated < datetime('now', '-7 days') LIMIT 5000)"
+        ).execute();
+        $app.db().newQuery(
+            "DELETE FROM api_mutation_audit WHERE id IN (SELECT id FROM api_mutation_audit WHERE created < datetime('now', '-30 days') LIMIT 5000)"
+        ).execute();
+    } catch (err) {
+        $app.logger().warn("Public API state cleanup failed: " + err);
     }
 });
 
@@ -2937,47 +2950,12 @@ onRecordCreateRequest((e) => {
     try {
         const utils = require(__hooks + '/utils.js');
         const authInfo = utils.getAuthInfo(e);
-        const slug = utils.validatePublicSlug(e.record.get("slug"));
-        e.record.set("slug", slug);
-        let userId = e.record.get("user_id");
-
-        if (!authInfo.isAdmin) {
-            if (!authInfo.authUserId) {
-                throw new ForbiddenError("Authentication is required to create links.");
-            }
-            if (!userId) {
-                userId = authInfo.authUserId;
-                e.record.set("user_id", userId);
-            } else if (userId !== authInfo.authUserId) {
-                throw new ForbiddenError("Cannot create links for another user.");
-            }
-        }
-
-        let profileWithSameSlug = null;
-        try {
-            profileWithSameSlug = $app.findFirstRecordByFilter("public_profiles", "slug = {:slug}", { slug: slug });
-        } catch (err) { }
-
-        if (profileWithSameSlug) {
-            throw new BadRequestError("This slug is already taken by a public profile.");
-        }
-
-        // Enforce Plan Limits
-        const user = $app.findRecordById("users", userId);
-        const plan = user.get("plan") || "creator";
-        const maxLinks = utils.getPlanCatalogEntry(plan).links;
-
-        if (maxLinks !== -1) {
-            let linksCount = 0;
-            try {
-                const records = $app.findRecordsByFilter("links", "user_id = {:userId}", "-created", maxLinks + 1, 0, { userId: userId });
-                linksCount = records.length;
-            } catch (err) { }
-
-            if (linksCount >= maxLinks) {
-                throw new BadRequestError("You have reached the link limit for your " + plan + " plan. Please upgrade to create more.");
-            }
-        }
+        utils.enforceLinkCreateOwnershipAndEntitlements(
+            $app,
+            e.record,
+            authInfo.authUserId,
+            authInfo.isAdmin
+        );
     } catch (err) {
         if (err instanceof BadRequestError || err instanceof ForbiddenError) {
             throw err;
@@ -3257,34 +3235,9 @@ onRecordUpdateRequest((e) => {
 // Parasite Patch: Prevent non-admins from changing system link fields
 onRecordUpdateRequest((e) => {
     const utils = require(__hooks + '/utils.js');
-    let isSuperAdmin = false;
-    try {
-        isSuperAdmin = e.auth && e.auth.collection().name === "_superusers";
-    } catch (err) { }
-
-    let isAppAdmin = false;
-    try {
-        isAppAdmin = e.auth && e.auth.collection().name === "users" && e.auth.get("role") === "admin";
-    } catch (err) { }
-
-    if (!isSuperAdmin && !isAppAdmin) {
-        const original = e.record.original();
-        if (original) {
-            const protectedFields = ["system_route_active", "system_route_override", "clicks_count"];
-            for (let i = 0; i < protectedFields.length; i++) {
-                const field = protectedFields[i];
-                if (e.record.get(field) !== original.get(field)) {
-                    e.record.set(field, original.get(field));
-                }
-            }
-        }
-    }
-
-    // Validate all redirect and targeting URLs
-    const normalizedSlug = utils.validatePublicSlug(e.record.get("slug"));
-    e.record.set("slug", normalizedSlug);
-    utils.validateTargetingUrls(e.record);
-    utils.validateLinkProfileAssignment(e.record);
+    const authInfo = utils.getAuthInfo(e);
+    utils.sanitizeLinkSystemFields(e.record, authInfo.isAdmin);
+    utils.validateLinkRecordForMutation($app, e.record);
     e.next();
 }, "links");
 
@@ -3293,15 +3246,8 @@ onRecordCreateRequest((e) => {
     try {
         const utils = require(__hooks + '/utils.js');
         var authInfo = utils.getAuthInfo(e);
-        if (!authInfo.isAdmin) {
-            e.record.set("system_route_active", false);
-            e.record.set("system_route_override", "");
-            e.record.set("clicks_count", 0);
-        }
-
-        // Validate all redirect and targeting URLs
-        utils.validateTargetingUrls(e.record);
-        utils.validateLinkProfileAssignment(e.record);
+        utils.sanitizeLinkSystemFields(e.record, authInfo.isAdmin);
+        utils.validateLinkRecordForMutation($app, e.record);
     } catch (err) {
         if (err instanceof BadRequestError) {
             throw err;

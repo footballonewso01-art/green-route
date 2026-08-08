@@ -28,11 +28,21 @@ var CLICK_UNIQUE_CACHE_MAX = 100000;
 // Public API authentication state. Raw secrets are never stored here. The
 // database keeps a keyed digest for authentication, a non-secret lookup
 // prefix, and an AES-GCM encrypted copy for the authenticated reveal screen.
-var API_RATE_WINDOWS = {};
 var API_LAST_USED_WRITES = {};
+var API_RATE_DENY_UNTIL = {};
+var API_AUTH_WINDOW_STARTED_AT = new Date().getTime();
+var API_INVALID_AUTH_BY_IP = {};
+var API_INVALID_AUTH_TOTAL = 0;
+var API_INVALID_TOKEN_DENY = {};
+var API_VALID_TOKEN_HINTS = {};
+var API_VALID_TOKEN_HINTS_SIZE = 0;
 var API_ALLOWED_SCOPES = {
-    "links:read": true
+    "links:read": true,
+    "links:write": true,
+    "profiles:read": true,
+    "analytics:read": true
 };
+var API_DEFAULT_SCOPES = ["links:read", "links:write", "profiles:read", "analytics:read"];
 
 // One-segment application routes share the same namespace as Links and Public
 // Profiles. Keep the server authoritative; the frontend has a contract test
@@ -47,6 +57,7 @@ var SYSTEM_ROUTE_SLUGS = {
     "cdn-cgi": true,
     "compare": true,
     "dashboard": true,
+    "documentation": true,
     "features": true,
     "guides": true,
     "login": true,
@@ -101,6 +112,58 @@ var getClientIP = function(eventOrRequest) {
     } catch (err) {}
 
     return "unknown";
+};
+
+var resetApiAuthAbuseWindow = function(now) {
+    if (now - API_AUTH_WINDOW_STARTED_AT < 60000) return;
+    API_AUTH_WINDOW_STARTED_AT = now;
+    API_INVALID_AUTH_BY_IP = {};
+    API_INVALID_AUTH_TOTAL = 0;
+    API_INVALID_TOKEN_DENY = {};
+
+    var hints = Object.keys(API_VALID_TOKEN_HINTS);
+    var nextHints = {};
+    var nextSize = 0;
+    for (var i = 0; i < hints.length && nextSize < 10000; i++) {
+        if (Number(API_VALID_TOKEN_HINTS[hints[i]] || 0) > now) {
+            nextHints[hints[i]] = API_VALID_TOKEN_HINTS[hints[i]];
+            nextSize++;
+        }
+    }
+    API_VALID_TOKEN_HINTS = nextHints;
+    API_VALID_TOKEN_HINTS_SIZE = nextSize;
+};
+
+var apiAuthLookupAllows = function(eventOrRequest, digest) {
+    var now = new Date().getTime();
+    resetApiAuthAbuseWindow(now);
+    var safeDigest = String(digest || "");
+    if (safeDigest && Number(API_VALID_TOKEN_HINTS[safeDigest] || 0) > now) return true;
+    if (safeDigest && Number(API_INVALID_TOKEN_DENY[safeDigest] || 0) > now) return false;
+
+    var ipKey = $security.sha256(getClientIP(eventOrRequest));
+    return Number(API_INVALID_AUTH_BY_IP[ipKey] || 0) < 30 && API_INVALID_AUTH_TOTAL < 600;
+};
+
+var noteInvalidApiAuthentication = function(eventOrRequest, digest) {
+    var now = new Date().getTime();
+    resetApiAuthAbuseWindow(now);
+    var ipKey = $security.sha256(getClientIP(eventOrRequest));
+    API_INVALID_AUTH_BY_IP[ipKey] = Number(API_INVALID_AUTH_BY_IP[ipKey] || 0) + 1;
+    API_INVALID_AUTH_TOTAL++;
+    if (digest) API_INVALID_TOKEN_DENY[String(digest)] = API_AUTH_WINDOW_STARTED_AT + 60000;
+};
+
+var noteValidApiAuthentication = function(digest) {
+    var safeDigest = String(digest || "");
+    if (!safeDigest) return;
+    if (!API_VALID_TOKEN_HINTS[safeDigest] && API_VALID_TOKEN_HINTS_SIZE >= 10000) {
+        API_VALID_TOKEN_HINTS = {};
+        API_VALID_TOKEN_HINTS_SIZE = 0;
+    }
+    if (!API_VALID_TOKEN_HINTS[safeDigest]) API_VALID_TOKEN_HINTS_SIZE++;
+    API_VALID_TOKEN_HINTS[safeDigest] = new Date().getTime() + 120000;
+    if (API_INVALID_TOKEN_DENY[safeDigest]) delete API_INVALID_TOKEN_DENY[safeDigest];
 };
 
 var clickRateLimitAllows = function(eventOrRequest, linkId) {
@@ -165,7 +228,7 @@ var isUniqueTrackedClick = function(eventOrRequest, linkId) {
     return true;
 };
 
-var normalizeApiScopes = function(raw) {
+var normalizeApiScopes = function(raw, useReadDefault) {
     var values = [];
     if (Array.isArray(raw)) {
         values = raw;
@@ -192,8 +255,15 @@ var normalizeApiScopes = function(raw) {
         normalized.push(scope);
     }
     normalized.sort();
-    if (normalized.length === 0) normalized.push("links:read");
+    // Authentication must fail closed for a malformed/empty database value.
+    // The legacy links:read default is only used by explicitly opted-in key
+    // creation call sites while old beta records are migrated.
+    if (normalized.length === 0 && useReadDefault === true) normalized.push("links:read");
     return normalized;
+};
+
+var getManagedApiScopes = function() {
+    return API_DEFAULT_SCOPES.slice();
 };
 
 var getApiKeyPepper = function() {
@@ -267,7 +337,7 @@ var createManagedApiKey = function(app, userId) {
         key_prefix: keyPrefix,
         secret_hash: digest,
         encrypted_secret: encryptedSecret,
-        scopes: "links:read",
+        scopes: getManagedApiScopes().join(","),
         status: "active",
         expires_at: "",
         last_used_at: "",
@@ -278,11 +348,15 @@ var createManagedApiKey = function(app, userId) {
 };
 
 var serializeApiKey = function(record) {
+    var scopes = [];
+    try {
+        scopes = normalizeApiScopes(record.get("scopes"), false);
+    } catch (err) {}
     return {
         id: record.id,
         name: String(record.get("name") || ""),
         prefix: String(record.get("key_prefix") || ""),
-        scopes: normalizeApiScopes(record.get("scopes")),
+        scopes: scopes,
         status: String(record.get("status") || "revoked"),
         expires_at: String(record.get("expires_at") || ""),
         last_used_at: String(record.get("last_used_at") || ""),
@@ -292,36 +366,159 @@ var serializeApiKey = function(record) {
     };
 };
 
-var serializeApiLink = function(record) {
-    var domain = String(record.get("domain") || "linktery.com").trim().toLowerCase();
-    if (!domain) domain = "linktery.com";
-    var slug = String(record.get("slug") || "");
-    return {
+var getApiLinkEtagFromValues = function(values) {
+    var updated = String(values.updated || "");
+    // Include every field writable through Public API v1. PocketBase timestamps
+    // have finite precision, so `updated` alone is not a sufficient lost-update
+    // guard when two mutations land in the same clock tick.
+    var versionMaterial = [
+        String(values.id || ""),
+        updated,
+        String(values.title || ""),
+        String(values.slug || ""),
+        String(values.domain || ""),
+        String(values.destination_url || ""),
+        values.active === true || Number(values.active) === 1 ? "1" : "0",
+        String(values.mode || "redirect")
+    ].join("\u001f");
+    var digest = $security.sha256(versionMaterial).substring(0, 24);
+    return '"ltk-link-' + String(values.id || "") + '-' + digest + '"';
+};
+
+var getApiLinkEtag = function(record) {
+    return getApiLinkEtagFromValues({
         id: record.id,
-        title: String(record.get("title") || ""),
+        updated: record.get("updated"),
+        title: record.get("title"),
+        slug: record.get("slug"),
+        domain: record.get("domain"),
+        destination_url: record.get("destination_url"),
+        active: record.get("active"),
+        mode: record.get("mode")
+    });
+};
+
+var serializeApiLinkValues = function(values) {
+    var domain = String(values.domain || "linktery.com").trim().toLowerCase();
+    if (!domain) domain = "linktery.com";
+    var slug = String(values.slug || "");
+    return {
+        id: String(values.id || ""),
+        title: String(values.title || ""),
         slug: slug,
         domain: domain,
         short_url: "https://" + domain + "/" + slug,
-        destination_url: String(record.get("destination_url") || ""),
-        active: record.get("active") === true,
-        mode: String(record.get("mode") || "direct"),
-        clicks_count: Number(record.get("clicks_count") || 0),
+        destination_url: String(values.destination_url || ""),
+        active: values.active === true || Number(values.active) === 1,
+        mode: String(values.mode || "redirect"),
+        clicks_count: Number(values.clicks_count || 0),
+        etag: getApiLinkEtagFromValues(values),
+        created: String(values.created || ""),
+        updated: String(values.updated || "")
+    };
+};
+
+var serializeApiLink = function(record) {
+    return serializeApiLinkValues({
+        id: record.id,
+        title: record.get("title"),
+        slug: record.get("slug"),
+        domain: record.get("domain"),
+        destination_url: record.get("destination_url"),
+        active: record.get("active"),
+        mode: record.get("mode"),
+        clicks_count: record.get("clicks_count"),
+        created: record.get("created"),
+        updated: record.get("updated")
+    });
+};
+
+var serializeApiProfile = function(record) {
+    var domain = String(record.get("domain") || "linktery.com").trim().toLowerCase();
+    if (!domain) domain = "linktery.com";
+    var socialLinks = parseRecordJson(record.getString("social_links"));
+    if (!Array.isArray(socialLinks)) socialLinks = [];
+    return {
+        id: record.id,
+        name: String(record.get("name") || ""),
+        bio: String(record.get("bio") || ""),
+        slug: String(record.get("slug") || ""),
+        domain: domain,
+        public_url: "https://" + domain + "/" + String(record.get("slug") || ""),
+        avatar: String(record.get("avatar") || ""),
+        theme: String(record.get("theme") || "sunset"),
+        card_color: String(record.get("card_color") || "#000000"),
+        online_counter: record.get("online_counter") === true,
+        profile_template: String(record.get("profile_template") || "classic"),
+        link_card_style: String(record.get("link_card_style") || "glass"),
+        social_link_style: String(record.get("social_link_style") || "icons"),
+        social_links: socialLinks,
         created: String(record.get("created") || ""),
         updated: String(record.get("updated") || "")
     };
 };
 
-var consumeApiRateLimit = function(keyId, limitPerMinute) {
+var consumeApiRateLimit = function(keyId, limitPerMinute, bucketKind) {
     var now = new Date().getTime();
     var safeLimit = Math.max(1, parseInt(limitPerMinute, 10) || 1);
-    var state = API_RATE_WINDOWS[keyId];
-    if (!state || now - state.startedAt >= 60000) {
-        state = { startedAt: now, count: 0 };
-        API_RATE_WINDOWS[keyId] = state;
+    var windowStart = Math.floor(now / 60000) * 60000;
+    var resetAt = windowStart + 60000;
+    var bucketKey = String(keyId || "") + ":" + String(bucketKind || "read");
+    var result = new DynamicModel({ "request_count": 0 });
+
+    // Once a bucket is exhausted, reject from memory until the next window.
+    // This prevents an already-throttled credential from taking the SQLite
+    // write lock for every additional abusive request.
+    if (Number(API_RATE_DENY_UNTIL[bucketKey] || 0) > now) {
+        return {
+            allowed: false,
+            limit: safeLimit,
+            remaining: 0,
+            resetAt: Math.ceil(resetAt / 1000)
+        };
+    }
+    if (API_RATE_DENY_UNTIL[bucketKey]) delete API_RATE_DENY_UNTIL[bucketKey];
+
+    // SQLite is the shared authority across JSVM contexts in this PocketBase
+    // instance. The atomic UPSERT prevents double-spend at the rate-limit
+    // boundary and survives process restarts on the same persistent volume.
+    // A future multi-machine topology must move this to a shared edge/store.
+    try {
+        $app.db().newQuery(`
+            INSERT INTO api_rate_limits (bucket_key, window_start, request_count, updated)
+            VALUES ({:bucketKey}, {:windowStart}, 1, datetime('now'))
+            ON CONFLICT(bucket_key) DO UPDATE SET
+                window_start = excluded.window_start,
+                request_count = CASE
+                    WHEN api_rate_limits.window_start = excluded.window_start
+                    THEN CASE
+                        WHEN api_rate_limits.request_count < {:counterCap}
+                        THEN api_rate_limits.request_count + 1
+                        ELSE api_rate_limits.request_count
+                    END
+                    ELSE 1
+                END,
+                updated = datetime('now')
+            RETURNING request_count
+        `).bind({
+            bucketKey: bucketKey,
+            windowStart: windowStart,
+            counterCap: safeLimit + 1
+        }).one(result);
+    } catch (err) {
+        $app.logger().error("Public API rate limiter failed for bucket " + bucketKey + ": " + err);
+        return {
+            allowed: false,
+            unavailable: true,
+            limit: safeLimit,
+            remaining: 0,
+            resetAt: Math.ceil(resetAt / 1000)
+        };
     }
 
-    var resetAt = state.startedAt + 60000;
-    if (state.count >= safeLimit) {
+    var currentCount = Number(result.request_count || 0);
+    if (currentCount > safeLimit) {
+        API_RATE_DENY_UNTIL[bucketKey] = resetAt;
         return {
             allowed: false,
             limit: safeLimit,
@@ -330,16 +527,52 @@ var consumeApiRateLimit = function(keyId, limitPerMinute) {
         };
     }
 
-    state.count++;
     return {
         allowed: true,
         limit: safeLimit,
-        remaining: Math.max(0, safeLimit - state.count),
+        remaining: Math.max(0, safeLimit - currentCount),
         resetAt: Math.ceil(resetAt / 1000)
     };
 };
 
-var authenticateApiRequest = function(c, requiredScope) {
+var consumeApiKeyRefreshAllowance = function(app, userId, cooldownSeconds) {
+    var now = Math.floor(new Date().getTime() / 1000);
+    var safeCooldown = Math.max(60, parseInt(cooldownSeconds, 10) || 300);
+    var bucketKey = "key-refresh:" + String(userId || "");
+    var result = new DynamicModel({ "window_start": 0, "request_count": 0 });
+
+    // This UPSERT must run inside the same transaction that revokes and creates
+    // the credential. That makes concurrent refresh requests serialize on one
+    // account-scoped bucket without ever leaving the user with no active key.
+    (app || $app).db().newQuery(`
+        INSERT INTO api_rate_limits (bucket_key, window_start, request_count, updated)
+        VALUES ({:bucketKey}, {:now}, 1, datetime('now'))
+        ON CONFLICT(bucket_key) DO UPDATE SET
+            window_start = CASE
+                WHEN api_rate_limits.window_start <= {:cutoff} THEN excluded.window_start
+                ELSE api_rate_limits.window_start
+            END,
+            request_count = CASE
+                WHEN api_rate_limits.window_start <= {:cutoff} THEN 1
+                ELSE api_rate_limits.request_count + 1
+            END,
+            updated = datetime('now')
+        RETURNING window_start, request_count
+    `).bind({
+        bucketKey: bucketKey,
+        now: now,
+        cutoff: now - safeCooldown
+    }).one(result);
+
+    var windowStart = Number(result.window_start || now);
+    var allowed = Number(result.request_count || 0) === 1;
+    return {
+        allowed: allowed,
+        retryAfter: allowed ? 0 : Math.max(1, windowStart + safeCooldown - now)
+    };
+};
+
+var authenticateApiRequest = function(c, requiredScope, rateKind) {
     var requestId = $security.randomString(12);
     var authHeader = "";
     try {
@@ -371,6 +604,20 @@ var authenticateApiRequest = function(c, requiredScope) {
         };
     }
 
+    // Invalid random-looking Bearer tokens are rejected from process memory
+    // after a small per-IP/global budget, before they can cause unbounded
+    // indexed SQLite lookups. Recently verified credentials retain a short
+    // hint and still undergo the authoritative database/status checks below.
+    if (!apiAuthLookupAllows(c, digest)) {
+        return {
+            ok: false,
+            status: 429,
+            code: "auth_rate_limit_exceeded",
+            message: "Too many invalid API authentication attempts. Try again shortly.",
+            requestId: requestId
+        };
+    }
+
     var keyRecord = null;
     try {
         keyRecord = $app.findFirstRecordByFilter(
@@ -380,6 +627,7 @@ var authenticateApiRequest = function(c, requiredScope) {
         );
     } catch (err) {}
     if (!keyRecord) {
+        noteInvalidApiAuthentication(c, digest);
         return {
             ok: false,
             status: 401,
@@ -393,6 +641,7 @@ var authenticateApiRequest = function(c, requiredScope) {
     if (expiresAt) {
         var expiresMs = new Date(expiresAt).getTime();
         if (!isFinite(expiresMs) || expiresMs <= new Date().getTime()) {
+            noteInvalidApiAuthentication(c, digest);
             return {
                 ok: false,
                 status: 401,
@@ -408,6 +657,7 @@ var authenticateApiRequest = function(c, requiredScope) {
         user = $app.findRecordById("users", keyRecord.get("user_id"));
     } catch (err) {}
     if (!user || user.get("banned") === true) {
+        noteInvalidApiAuthentication(c, digest);
         return {
             ok: false,
             status: 401,
@@ -417,8 +667,9 @@ var authenticateApiRequest = function(c, requiredScope) {
         };
     }
 
-    var plan = getPlanCatalogEntry(user.get("plan") || "creator");
-    if (!plan.apiKeys || plan.apiKeys < 1) {
+    var plan = getApiPlanCatalogEntryForUser(user);
+    if (user.get("role") !== "admin" && (!plan.apiKeys || plan.apiKeys < 1)) {
+        noteInvalidApiAuthentication(c, digest);
         return {
             ok: false,
             status: 403,
@@ -430,8 +681,9 @@ var authenticateApiRequest = function(c, requiredScope) {
 
     var scopes;
     try {
-        scopes = normalizeApiScopes(keyRecord.get("scopes"));
+        scopes = normalizeApiScopes(keyRecord.get("scopes"), false);
     } catch (err) {
+        noteInvalidApiAuthentication(c, digest);
         return {
             ok: false,
             status: 401,
@@ -440,23 +692,51 @@ var authenticateApiRequest = function(c, requiredScope) {
             requestId: requestId
         };
     }
+    if (scopes.length === 0) {
+        noteInvalidApiAuthentication(c, digest);
+        return {
+            ok: false,
+            status: 401,
+            code: "invalid_api_key",
+            message: "The API key is invalid or inactive.",
+            requestId: requestId
+        };
+    }
+
+    noteValidApiAuthentication(digest);
+
+    var safeRateKind = rateKind === "write"
+        ? "write"
+        : (rateKind === "analytics" ? "analytics" : "read");
+    var rateLimit = safeRateKind === "write"
+        ? Number(plan.apiWriteRatePerMinute || 15)
+        : (safeRateKind === "analytics"
+            ? Number(plan.apiAnalyticsRatePerMinute || 10)
+            : Number(plan.apiRatePerMinute || 60));
+    // Account-scoped buckets survive credential rotation. Refreshing a key is
+    // a security operation, never a way to reset read/write/analytics limits.
+    var rate = consumeApiRateLimit(user.id, rateLimit, safeRateKind);
+    if (!rate.allowed) {
+        return {
+            ok: false,
+            status: rate.unavailable ? 503 : 429,
+            code: rate.unavailable ? "api_unavailable" : "rate_limit_exceeded",
+            message: rate.unavailable
+                ? "Public API rate limiting is temporarily unavailable."
+                : "Too many API requests. Retry after the current rate-limit window.",
+            requestId: requestId,
+            rate: rate
+        };
+    }
+
+    // Scope failures still consume the appropriate request budget so a valid
+    // low-privilege key cannot hammer a forbidden mutation route for free.
     if (requiredScope && scopes.indexOf(requiredScope) === -1) {
         return {
             ok: false,
             status: 403,
             code: "insufficient_scope",
             message: "This API key does not include the required scope.",
-            requestId: requestId
-        };
-    }
-
-    var rate = consumeApiRateLimit(keyRecord.id, plan.apiRatePerMinute || 60);
-    if (!rate.allowed) {
-        return {
-            ok: false,
-            status: 429,
-            code: "rate_limit_exceeded",
-            message: "Too many API requests. Retry after the current rate-limit window.",
             requestId: requestId,
             rate: rate
         };
@@ -482,6 +762,7 @@ var authenticateApiRequest = function(c, requiredScope) {
         requestId: requestId,
         key: keyRecord,
         user: user,
+        plan: plan,
         scopes: scopes,
         rate: rate
     };
@@ -501,6 +782,11 @@ var apiErrorResponse = function(c, authResult) {
     applyApiResponseHeaders(c, authResult);
     if ((authResult.status || 500) === 401) {
         c.response.header().add("WWW-Authenticate", 'Bearer realm="Linktery API"');
+    }
+    if ((authResult.status || 500) === 429 && (authResult.retryAfterResetAt || authResult.rate)) {
+        var retryResetAt = Number(authResult.retryAfterResetAt || (authResult.rate && authResult.rate.resetAt) || 0);
+        var retryAfter = Math.max(1, retryResetAt - Math.floor(new Date().getTime() / 1000));
+        c.response.header().add("Retry-After", String(retryAfter));
     }
     return c.json(authResult.status || 500, {
         error: {
@@ -783,16 +1069,24 @@ var getAnalyticsCache = function (key) {
 
 var setAnalyticsCache = function (key, data, ttlMs) {
     var keys = Object.keys(ANALYTICS_RESPONSE_CACHE);
-    if (keys.length > 500) {
-        var now = new Date().getTime();
-        for (var i = 0; i < keys.length; i++) {
-            if (ANALYTICS_RESPONSE_CACHE[keys[i]].expiresAt <= now) {
-                delete ANALYTICS_RESPONSE_CACHE[keys[i]];
-            }
+    var now = new Date().getTime();
+    for (var i = 0; i < keys.length; i++) {
+        if (ANALYTICS_RESPONSE_CACHE[keys[i]].expiresAt <= now) {
+            delete ANALYTICS_RESPONSE_CACHE[keys[i]];
         }
     }
+    keys = Object.keys(ANALYTICS_RESPONSE_CACHE);
+    if (!Object.prototype.hasOwnProperty.call(ANALYTICS_RESPONSE_CACHE, key) && keys.length >= 500) {
+        keys.sort(function(a, b) {
+            return ANALYTICS_RESPONSE_CACHE[a].expiresAt - ANALYTICS_RESPONSE_CACHE[b].expiresAt;
+        });
+        // Evict a small batch so high-cardinality API traffic cannot make the
+        // process cache grow without bound or sort on every single insertion.
+        var evictCount = Math.max(1, keys.length - 449);
+        for (var ei = 0; ei < evictCount; ei++) delete ANALYTICS_RESPONSE_CACHE[keys[ei]];
+    }
     ANALYTICS_RESPONSE_CACHE[key] = {
-        expiresAt: new Date().getTime() + ttlMs,
+        expiresAt: now + ttlMs,
         data: data
     };
 };
@@ -800,9 +1094,9 @@ var setAnalyticsCache = function (key, data, ttlMs) {
 // Single server-side source of truth for entitlements and monthly list prices.
 // -1 denotes an unlimited resource.
 var PLAN_CATALOG = {
-    "creator": { "links": 3, "publicProfiles": 1, "monthlyPrice": 0, "analytics": false, "apiKeys": 0, "apiRatePerMinute": 0 },
-    "pro": { "links": 15, "publicProfiles": 3, "monthlyPrice": 11, "analytics": true, "apiKeys": 1, "apiRatePerMinute": 60 },
-    "agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29, "analytics": true, "apiKeys": 1, "apiRatePerMinute": 300 }
+    "creator": { "links": 3, "publicProfiles": 1, "monthlyPrice": 0, "analytics": false, "customSlug": false, "apiKeys": 0, "apiRatePerMinute": 0, "apiWriteRatePerMinute": 0, "apiAnalyticsRatePerMinute": 0, "apiWriteDailyLimit": 0, "apiCreateDailyLimit": 0 },
+    "pro": { "links": 15, "publicProfiles": 3, "monthlyPrice": 11, "analytics": true, "customSlug": false, "apiKeys": 1, "apiRatePerMinute": 60, "apiWriteRatePerMinute": 15, "apiAnalyticsRatePerMinute": 20, "apiWriteDailyLimit": 1000, "apiCreateDailyLimit": 100 },
+    "agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29, "analytics": true, "customSlug": true, "apiKeys": 1, "apiRatePerMinute": 300, "apiWriteRatePerMinute": 60, "apiAnalyticsRatePerMinute": 60, "apiWriteDailyLimit": 10000, "apiCreateDailyLimit": 2000 }
 };
 
 var PROFILE_TEMPLATES = {
@@ -828,6 +1122,11 @@ var PROFILE_SOCIAL_LINK_STYLES = {
 
 var getPlanCatalogEntry = function(planName) {
     return PLAN_CATALOG[planName] || PLAN_CATALOG.creator;
+};
+
+var getApiPlanCatalogEntryForUser = function(user) {
+    if (user && user.get("role") === "admin") return PLAN_CATALOG.agency;
+    return getPlanCatalogEntry(user ? (user.get("plan") || "creator") : "creator");
 };
 
 // PocketBase executes router callbacks in isolated JSVM scopes. Keep Stripe
@@ -1070,9 +1369,114 @@ var assertSafePublicListFilter = function(e, collectionName, authInfo) {
 };
 
 var normalizeLinkHost = function(value) {
-    var host = String(value || "").trim().toLowerCase();
-    host = host.replace(/^https?:\/\//, "").split("/")[0].replace(/^www\./, "");
-    return host;
+    var raw = String(value || "").trim().replace(/\\/g, "/");
+    var scheme = "";
+    var schemeMatch = raw.match(/^(https?):\/\//i);
+    if (schemeMatch) {
+        scheme = schemeMatch[1].toLowerCase();
+        raw = raw.substring(schemeMatch[0].length);
+    }
+    var authority = raw.split(/[\/?#]/)[0];
+    for (var decodePass = 0; decodePass < 2; decodePass++) {
+        try {
+            var decodedAuthority = decodeURIComponent(authority);
+            if (decodedAuthority === authority) break;
+            authority = decodedAuthority;
+        } catch (err) {
+            return "";
+        }
+    }
+    // JSVM doesn't expose a WHATWG/IDNA hostname canonicalizer. Reject Unicode
+    // compatibility characters here and require IDNs in explicit punycode;
+    // otherwise browsers could turn a visually different host back into a
+    // Linktery domain after the server-side loop check.
+    if (!/^[\x21-\x7e]+$/.test(authority)) return "";
+    if (authority.indexOf("@") !== -1) {
+        authority = authority.substring(authority.lastIndexOf("@") + 1);
+    }
+
+    var host = authority;
+    var port = "";
+    if (host.charAt(0) === "[") {
+        var bracketEnd = host.indexOf("]");
+        if (bracketEnd === -1) return "";
+        var bracketSuffix = host.substring(bracketEnd + 1);
+        if (bracketSuffix && !/^:\d*$/.test(bracketSuffix)) return "";
+        port = bracketSuffix ? bracketSuffix.substring(1) : "";
+        host = host.substring(0, bracketEnd + 1);
+    } else {
+        var portMatch = host.match(/^(.*):(\d*)$/);
+        if (portMatch) {
+            host = portMatch[1];
+            port = portMatch[2];
+        } else if (host.indexOf(":") !== -1) {
+            return "";
+        }
+    }
+    host = host.trim().toLowerCase().replace(/\.+$/, "").replace(/^www\./, "");
+    if (!host) return "";
+    if (port) {
+        var numericPort = parseInt(port, 10);
+        if (numericPort < 1 || numericPort > 65535) return "";
+        port = String(numericPort);
+    }
+    if ((scheme === "https" && port === "443") || (scheme === "http" && port === "80")) {
+        port = "";
+    }
+    return port ? host + ":" + port : host;
+};
+
+var canonicalizeHttpPath = function(value) {
+    var path = String(value || "/").replace(/\\/g, "/");
+    for (var pass = 0; pass < 2; pass++) {
+        try {
+            var decodedPath = decodeURIComponent(path);
+            if (decodedPath === path) break;
+            path = decodedPath;
+        } catch (err) {
+            return "";
+        }
+    }
+
+    var sourceParts = path.split("/");
+    var normalizedParts = [];
+    for (var i = 0; i < sourceParts.length; i++) {
+        var part = sourceParts[i];
+        if (!part || part === ".") continue;
+        if (part === "..") {
+            if (normalizedParts.length > 0) normalizedParts.pop();
+            continue;
+        }
+        normalizedParts.push(part);
+    }
+    return "/" + normalizedParts.join("/");
+};
+
+var parseHttpRoutingUrl = function(value) {
+    var raw = String(value || "").trim().replace(/\\/g, "/");
+    var match = raw.match(/^(https?):\/\/([^\/?#]+)(\/[^?#]*)?(?:[?#].*)?$/i);
+    if (!match) return null;
+    var authority = String(match[2] || "");
+    var credentialProbe = authority;
+    for (var pass = 0; pass < 2; pass++) {
+        try {
+            var decodedProbe = decodeURIComponent(credentialProbe);
+            if (decodedProbe === credentialProbe) break;
+            credentialProbe = decodedProbe;
+        } catch (err) {
+            return null;
+        }
+    }
+    var hasCredentials = credentialProbe.indexOf("@") !== -1;
+    var host = normalizeLinkHost(match[1] + "://" + authority);
+    var path = canonicalizeHttpPath(match[3] || "/");
+    if (!host || !path) return null;
+    return {
+        scheme: String(match[1] || "").toLowerCase(),
+        host: host,
+        path: path,
+        hasCredentials: hasCredentials
+    };
 };
 
 var getPlatformLinkHosts = function() {
@@ -1088,18 +1492,166 @@ var getPlatformLinkHosts = function() {
     return hosts;
 };
 
+var normalizeLinkDomain = function(value) {
+    var raw = String(value || "linktery.com").trim().toLowerCase();
+    if (!/^[a-z0-9.-]+$/.test(raw)) {
+        throw new BadRequestError("Choose a supported Linktery domain.");
+    }
+    var domain = normalizeLinkHost(raw);
+    if (!domain) domain = "linktery.com";
+    var allowed = {
+        "linktery.com": true,
+        "linktery.bio": true,
+        "hotme.online": true,
+        "hotmylinks.cc": true
+    };
+    if (!allowed[domain]) {
+        throw new BadRequestError("Choose a supported Linktery domain.");
+    }
+    return domain;
+};
+
+// Shared by PocketBase Records API hooks and custom Public API routes. Custom
+// routes do not execute onRecordCreateRequest, so owner and quota checks must
+// be callable directly and (for Public API) inside the same transaction as the
+// insert.
+var enforceLinkCreateOwnershipAndEntitlements = function(app, record, actorUserId, isAdmin) {
+    var databaseApp = app || $app;
+    var slug = validatePublicSlug(record.get("slug"));
+    record.set("slug", slug);
+    var userId = String(record.get("user_id") || "");
+    var safeActorUserId = String(actorUserId || "");
+
+    if (!isAdmin) {
+        if (!safeActorUserId) {
+            throw new ForbiddenError("Authentication is required to create links.");
+        }
+        if (!userId) {
+            userId = safeActorUserId;
+            record.set("user_id", userId);
+        } else if (userId !== safeActorUserId) {
+            throw new ForbiddenError("Cannot create links for another user.");
+        }
+    }
+    if (!userId) throw new BadRequestError("A link owner is required.");
+
+    var profileWithSameSlug = null;
+    try {
+        profileWithSameSlug = databaseApp.findFirstRecordByFilter(
+            "public_profiles",
+            "slug = {:slug}",
+            { slug: slug }
+        );
+    } catch (err) {}
+    if (profileWithSameSlug) {
+        throw new BadRequestError("This slug is already taken by a public profile.");
+    }
+
+    var user = databaseApp.findRecordById("users", userId);
+    var planName = user.get("plan") || "creator";
+    var maxLinks = getPlanCatalogEntry(planName).links;
+    if (!isAdmin && maxLinks !== -1) {
+        var count = new DynamicModel({ "total": 0 });
+        databaseApp.db().newQuery(
+            "SELECT count(*) AS total FROM links WHERE user_id = {:userId}"
+        ).bind({ userId: userId }).one(count);
+        if (Number(count.total || 0) >= maxLinks) {
+            throw new BadRequestError(
+                "You have reached the link limit for your " + planName + " plan. Please upgrade to create more."
+            );
+        }
+    }
+
+    return { user: user, plan: getPlanCatalogEntry(planName), planName: planName };
+};
+
+var sanitizeLinkSystemFields = function(record, isAdmin) {
+    if (isAdmin) return;
+    var original = null;
+    try { original = record.original(); } catch (err) {}
+    var protectedFields = ["system_route_active", "system_route_override", "clicks_count"];
+    for (var i = 0; i < protectedFields.length; i++) {
+        var field = protectedFields[i];
+        if (original) record.set(field, original.get(field));
+        else if (field === "clicks_count") record.set(field, 0);
+        else if (field === "system_route_active") record.set(field, false);
+        else record.set(field, "");
+    }
+};
+
+var validateLinkRecordForMutation = function(app, record) {
+    var normalizedSlug = validatePublicSlug(record.get("slug"));
+    record.set("slug", normalizedSlug);
+    record.set("domain", normalizeLinkDomain(record.get("domain")));
+    validateLinkTrackingPixels(record);
+    validateTargetingUrls(record, app || $app);
+    validateLinkProfileAssignment(record, app || $app);
+};
+
+var normalizeTrackingPixelId = function(value, provider) {
+    var pixelId = String(value || "").trim();
+    if (!pixelId) return "";
+
+    if (provider === "meta") {
+        if (!/^[0-9]{5,32}$/.test(pixelId)) {
+            throw new BadRequestError("Meta Pixel ID must contain only 5-32 digits.");
+        }
+        return pixelId;
+    }
+
+    var normalized = pixelId.toUpperCase();
+    if (provider === "google") {
+        if (!/^(?:GT|G|AW|DC)-[A-Z0-9]{4,32}$/.test(normalized)) {
+            throw new BadRequestError("Google tag ID must use a supported GT-, G-, AW-, or DC- prefix.");
+        }
+        return normalized;
+    }
+    if (provider === "tiktok") {
+        if (!/^[A-Z0-9]{8,64}$/.test(normalized)) {
+            throw new BadRequestError("TikTok Pixel ID must contain only 8-64 letters or numbers.");
+        }
+        return normalized;
+    }
+    return "";
+};
+
+var validateLinkTrackingPixels = function(record) {
+    record.set("fb_pixel", normalizeTrackingPixelId(record.get("fb_pixel"), "meta"));
+    record.set("google_pixel", normalizeTrackingPixelId(record.get("google_pixel"), "google"));
+    record.set("tiktok_pixel", normalizeTrackingPixelId(record.get("tiktok_pixel"), "tiktok"));
+};
+
+// Runtime validation protects visitors from legacy rows created before the
+// record hooks enforced provider-specific IDs. Invalid values fail closed and
+// are never interpolated into a redirect HTML response.
+var getSafeLinkTrackingPixels = function(record) {
+    var safeValue = function(field, provider) {
+        try { return normalizeTrackingPixelId(record.get(field), provider); } catch (err) { return ""; }
+    };
+    return {
+        meta: safeValue("fb_pixel", "meta"),
+        google: safeValue("google_pixel", "google"),
+        tiktok: safeValue("tiktok_pixel", "tiktok")
+    };
+};
+
 // Returns the Link record addressed by a Linktery-owned short URL. Public
 // Profile URLs intentionally return null and remain valid destinations.
-var findManagedShortLinkTarget = function(url) {
+var findManagedShortLinkTarget = function(url, app) {
     if (!url || typeof url !== "string") return null;
-    var match = url.trim().match(/^https?:\/\/([^/?#]+)\/([a-z0-9_-]+)\/?(?:[?#].*)?$/i);
-    if (!match) return null;
+    var parsedUrl = parseHttpRoutingUrl(url);
+    // Save validation rejects embedded credentials, but legacy runtime rows
+    // must still resolve x@linktery.com as a managed host so the loop trace
+    // cannot be bypassed by browser userinfo syntax.
+    if (!parsedUrl) return null;
+    var pathMatch = parsedUrl.path.match(/^\/([a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)$/i);
+    if (!pathMatch) return null;
 
-    var targetHost = normalizeLinkHost(match[1]);
-    var targetSlug = match[2];
+    var targetHost = parsedUrl.host;
+    var targetSlug = pathMatch[1].toLowerCase();
     var targetLink = null;
     try {
-        targetLink = $app.findFirstRecordByFilter("links", "slug = {:slug}", { slug: targetSlug });
+        targetLink = (app || $app).findFirstRecordByFilter("links", "slug = {:slug}", { slug: targetSlug });
     } catch (err) {
         return null;
     }
@@ -1124,16 +1676,37 @@ var parseRedirectTrace = function(rawUrl) {
 var appendRedirectTrace = function(url, trace) {
     var cleanTrace = (trace || []).filter(function(value) {
         return /^[a-z0-9]{15}$/i.test(String(value));
-    }).slice(-8);
+    }).slice(0, 8);
     if (cleanTrace.length === 0) return url;
 
     var raw = String(url || "");
     var hashIndex = raw.indexOf("#");
     var base = hashIndex === -1 ? raw : raw.substring(0, hashIndex);
     var hash = hashIndex === -1 ? "" : raw.substring(hashIndex);
-    base = base.replace(/([?&])lr_trace=[^&#]*&?/i, function(full, separator) {
-        return separator === "?" && full.charAt(full.length - 1) === "&" ? "?" : "";
-    }).replace(/[?&]$/, "");
+    var queryIndex = base.indexOf("?");
+    if (queryIndex !== -1) {
+        var originAndPath = base.substring(0, queryIndex);
+        var rawQuery = base.substring(queryIndex + 1);
+        var keptParams = rawQuery.split("&").filter(function(param) {
+            if (!param) return false;
+            var equalsIndex = param.indexOf("=");
+            var rawName = equalsIndex === -1 ? param : param.substring(0, equalsIndex);
+            var decodedName = rawName.replace(/\+/g, " ");
+            // Decode twice so a legacy value cannot become lr_trace only after
+            // the browser/server performs another URL-decoding pass.
+            for (var i = 0; i < 2; i++) {
+                try {
+                    var nextName = decodeURIComponent(decodedName);
+                    if (nextName === decodedName) break;
+                    decodedName = nextName;
+                } catch (err) {
+                    break;
+                }
+            }
+            return decodedName.toLowerCase() !== "lr_trace";
+        });
+        base = originAndPath + (keptParams.length > 0 ? "?" + keptParams.join("&") : "");
+    }
     var separator = base.indexOf("?") === -1 ? "?" : "&";
     return base + separator + "lr_trace=" + encodeURIComponent(cleanTrace.join(".")) + hash;
 };
@@ -1168,21 +1741,29 @@ var toPlainStringArray = function(raw) {
     });
 };
 
-var validateTargetingUrls = function(record) {
+var validateTargetingUrls = function(record, app) {
     var checkUrl = function (url, fieldName) {
         // Skip nulls, undefined, empty strings, numbers, booleans
         if (!url || typeof url !== "string") return;
         var urlStr = url.trim();
         if (!urlStr) return;
-        if (urlStr.indexOf("http://") !== 0 && urlStr.indexOf("https://") !== 0) {
+        if (!/^https?:\/\//i.test(urlStr)) {
             throw new BadRequestError("All destination and targeting URLs must start with http:// or https://.");
         }
-        if (findManagedShortLinkTarget(urlStr)) {
+        var parsedUrl = parseHttpRoutingUrl(urlStr);
+        if (!parsedUrl) {
+            throw new BadRequestError("All destination and targeting URLs must be valid http or https URLs.");
+        }
+        if (parsedUrl.hasCredentials) {
+            throw new BadRequestError("Destination and targeting URLs cannot contain embedded credentials.");
+        }
+        if (findManagedShortLinkTarget(urlStr, app || $app)) {
             throw new BadRequestError("Use the final destination URL instead of another Linktery short URL. This prevents slow redirects and redirect loops.");
         }
     };
 
     checkUrl(record.get("destination_url"), "destination_url");
+    checkUrl(record.get("safe_page_url"), "safe_page_url");
 
     var devObj = toPlainTargetingObject(record.getString("device_targeting"));
     if (devObj) {
@@ -1211,7 +1792,7 @@ var validateTargetingUrls = function(record) {
 // A link shown on a Public Profile must point to a profile owned by the same
 // account. Keeping this invariant on the server prevents direct API requests
 // from attaching links to another user's page or creating half-linked records.
-var validateLinkProfileAssignment = function(record) {
+var validateLinkProfileAssignment = function(record, app) {
     var showOnProfile = record.get("show_on_profile") === true;
     var profileId = String(record.get("profile_id") || "").trim();
     var userId = String(record.get("user_id") || "").trim();
@@ -1227,7 +1808,7 @@ var validateLinkProfileAssignment = function(record) {
 
     var profile = null;
     try {
-        profile = $app.findRecordById("public_profiles", profileId);
+        profile = (app || $app).findRecordById("public_profiles", profileId);
     } catch (err) {
         throw new BadRequestError("The selected Public Profile does not exist.");
     }
@@ -1464,7 +2045,9 @@ module.exports = {
     clickRateLimitAllows,
     isUniqueTrackedClick,
     API_ALLOWED_SCOPES,
+    API_DEFAULT_SCOPES,
     normalizeApiScopes,
+    getManagedApiScopes,
     getApiKeyPepper,
     hashApiToken,
     getApiKeyEncryptionKey,
@@ -1474,6 +2057,10 @@ module.exports = {
     createManagedApiKey,
     serializeApiKey,
     serializeApiLink,
+    serializeApiLinkValues,
+    serializeApiProfile,
+    getApiLinkEtag,
+    consumeApiKeyRefreshAllowance,
     authenticateApiRequest,
     applyApiResponseHeaders,
     apiErrorResponse,
@@ -1496,6 +2083,7 @@ module.exports = {
     PROFILE_LINK_CARD_STYLES,
     PROFILE_SOCIAL_LINK_STYLES,
     getPlanCatalogEntry,
+    getApiPlanCatalogEntryForUser,
     getStripePeriodFromSubscription,
     fetchStripeSubscriptionPeriod,
     readerToString,
@@ -1508,6 +2096,14 @@ module.exports = {
     isSafePublicProfileCompositionFilter,
     isAuthenticatedOwnerFilter,
     assertSafePublicListFilter,
+    normalizeLinkDomain,
+    enforceLinkCreateOwnershipAndEntitlements,
+    sanitizeLinkSystemFields,
+    validateLinkRecordForMutation,
+    parseHttpRoutingUrl,
+    normalizeTrackingPixelId,
+    validateLinkTrackingPixels,
+    getSafeLinkTrackingPixels,
     findManagedShortLinkTarget,
     parseRedirectTrace,
     appendRedirectTrace,

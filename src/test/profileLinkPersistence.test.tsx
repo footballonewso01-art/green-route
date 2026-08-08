@@ -108,9 +108,10 @@ describe("Public Profile link persistence", () => {
     const utils = readWorkspaceFile("pocketbase/pb_hooks/utils.js");
     const migration = readWorkspaceFile("pocketbase/pb_migrations/1784520000_create_profile_links.js");
 
-    expect(hook.match(/validateLinkProfileAssignment/g)).toHaveLength(2);
+    expect(hook.match(/validateLinkRecordForMutation\(\$app, e\.record\)/g)).toHaveLength(2);
     expect(hook.match(/validateProfileLinkComposition/g)).toHaveLength(2);
-    expect(utils).toContain("var validateLinkProfileAssignment = function(record)");
+    expect(utils).toContain("var validateLinkProfileAssignment = function(record, app)");
+    expect(utils).toContain("validateLinkProfileAssignment(record, app || $app)");
     expect(utils).toContain("var validateProfileLinkComposition = function(record, authInfo)");
     expect(utils).toContain("The Public Profile and Link must belong to the same account.");
     expect(migration).toContain('name: "profile_links"');

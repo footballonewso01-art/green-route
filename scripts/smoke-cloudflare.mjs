@@ -65,6 +65,12 @@ await expectResponse({
   noIndex: globallyNoIndexed,
 });
 await expectResponse({
+  pathname: "/documentation",
+  status: 200,
+  contains: '<link rel="canonical" href="https://linktery.com/documentation" />',
+  noIndex: globallyNoIndexed,
+});
+await expectResponse({
   pathname: "/nasty",
   status: 200,
   contains: '<meta name="robots" content="noindex, nofollow" />',

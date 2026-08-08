@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, BarChart3, Shield, Zap, Globe, MousePointer, ExternalLink, User as UserIcon, Sparkles } from "lucide-react";
+import { ArrowRight, BarChart3, Shield, Zap, Globe, MousePointer, User as UserIcon, Sparkles } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
 import Footer from "@/components/Footer";
+import MarketingHeader from "@/components/MarketingHeader";
 
 const features = [
   {
@@ -73,6 +74,7 @@ const plans = [
       { text: "Remove Linktery Branding", icon: "✨", tooltip: "Completely remove the branding badge from your public profile." },
       { text: "Deeplink", icon: "⚡", tooltip: "Bypass in-app social browsers to open your links directly in Safari or Chrome." },
       { text: "Advanced Analytics", icon: "📊", tooltip: "Detailed tracking: clicks over time, countries, referrers, and device types." },
+      { text: "Public API Access", icon: "🔌", tooltip: "Create and update links, read profiles, and connect aggregate analytics to your own tools." },
       { text: "Link Optimization", icon: "🛡️", tooltip: "Optimize traffic quality by filtering automated crawlers and verifying visitors." },
       { text: "Geo Targeting", icon: "🌍", tooltip: "Route visitors to different destination URLs based on their country." }
     ],
@@ -91,6 +93,7 @@ const plans = [
       { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
       { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
       { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
+      { text: "Public API Access", icon: "🔌", tooltip: "API v1 access with higher rate and daily usage limits." },
       { text: "Everything in Creator Pro", icon: "✅" }
     ],
     buttonText: "Upgrade to Agency",
@@ -217,49 +220,9 @@ export default function LandingPage() {
   const showUser = mounted && !!user;
   const userPlan = (user as { plan?: PlanType })?.plan;
 
-  // Helper to get avatar URL
-  const getAvatarUrl = () => {
-    if (user?.avatar) {
-      return pb.files.getUrl(user, user.avatar, { thumb: '100x100' });
-    }
-    return null;
-  };
-
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Navbar */}
-      <nav className="fixed top-0 w-full z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3.5 hover:opacity-80 transition-opacity">
-            <img src="/logo.webp" alt="Linktery" className="h-[60px] w-auto mix-blend-screen" />
-            <span className="text-[22px] font-extrabold text-foreground tracking-tight">Linktery</span>
-          </Link>
-          <div className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
-            <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
-
-            {showUser ? (
-              <Link to="/dashboard" className="flex items-center gap-3 group">
-                <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">Dashboard</span>
-                <div className="w-8 h-8 rounded-full border border-accent/30 p-0.5 overflow-hidden group-hover:border-accent transition-colors">
-                  {getAvatarUrl() ? (
-                    <img src={getAvatarUrl()!} alt="Avatar" className="w-full h-full rounded-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full rounded-full bg-accent/10 flex items-center justify-center">
-                      <UserIcon className="w-4 h-4 text-accent" />
-                    </div>
-                  )}
-                </div>
-              </Link>
-            ) : (
-              <>
-                <Link to="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Login</Link>
-                <Link to="/register" className="btn-primary-glow text-sm !py-2 !px-4 inline-block">Get Started</Link>
-              </>
-            )}
-          </div>
-        </div>
-      </nav>
+      <MarketingHeader current="home" />
 
       {/* Hero */}
       <section className="relative pt-32 pb-20 px-6 min-h-[90vh] flex items-center overflow-hidden">

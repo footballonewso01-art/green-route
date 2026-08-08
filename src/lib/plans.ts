@@ -93,6 +93,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             { text: "Remove Linktery Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
             { text: "Deeplink", icon: "⚡", tooltip: "Smart route optimization for social app traffic." },
             { text: "Advanced Analytics", icon: "📊" },
+            { text: "Public API Access", icon: "🔌", tooltip: "Create and update Links, read Public Profiles, and pull aggregate analytics through API v1." },
             { text: "Link Optimization", icon: "🛡️" },
             { text: "Geo Targeting", icon: "🌍" }
         ],
@@ -127,6 +128,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
             { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
             { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
+            { text: "Public API Access", icon: "🔌", tooltip: "API v1 access with higher rate and daily usage limits." },
             { text: "Everything in Pro", icon: "✅" }
         ],
         limits: {
