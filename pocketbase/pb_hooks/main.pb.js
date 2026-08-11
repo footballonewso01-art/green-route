@@ -931,39 +931,121 @@ routerAdd("GET", "/{slug}", (c) => {
         return c.next();
     }
 
-    // SECURITY: Anti-DDoS Rate Limiting
-    const nowMs = new Date().getTime();
-    if (nowMs - utils.RATE_LIMIT_LAST_RESET > 60000) {
-        utils.RATE_LIMIT_STORE = {};
-        utils.RATE_LIMIT_LAST_RESET = nowMs;
+    const request = c.request;
+    const providedEdgeSecret = String(request.header.get("X-Linktery-Redirect-Secret") || "");
+    const trustedEdgeRequest = utils.isTrustedRedirectEdgeRequest(c);
+    if (providedEdgeSecret && !trustedEdgeRequest) {
+        // A Worker/backend secret mismatch must fail before any lookup,
+        // targeting choice, rate-limit mutation, or analytics write. The edge
+        // sees the missing attestation and safely falls back to the SPA.
+        return c.json(401, { message: "Redirect resolver authentication failed" });
     }
-    const ip = utils.getClientIP(c);
-    if (ip !== "unknown") {
-        const cacheKey = ip + "_" + slug;
-        let count = utils.RATE_LIMIT_STORE[cacheKey] || 0;
-        if (count >= 60) {
-            return c.json(429, { message: "Too many requests. Please try again in a minute." });
+    if (trustedEdgeRequest) {
+        // Attestation lets the Worker fail safely if backend and edge secrets
+        // are ever out of sync. No attestation means "do not trust this as a
+        // resolved public route", even when PocketBase returns an empty 200.
+        c.response.header().add("X-Linktery-Redirect-Origin", "v1");
+    }
+    const continueWithPublicFrontend = function() {
+        // PocketBase's final c.next() response is an empty 200, which an edge
+        // proxy cannot distinguish from a handled short link. Trusted edge
+        // calls get an explicit 404 signal; the Worker consumes it and serves
+        // the Public Profile SPA. Direct-origin behavior remains unchanged.
+        if (trustedEdgeRequest) {
+            return c.json(404, { message: "Public frontend route required" });
         }
-        utils.RATE_LIMIT_STORE[cacheKey] = count + 1;
+        return c.next();
+    };
+    let requestedHost = "";
+    if (trustedEdgeRequest) {
+        requestedHost = String(request.header.get("X-Linktery-Public-Host") || "")
+            .trim().toLowerCase().replace(/^www\./, "");
+        if (!/^[a-z0-9.-]{1,253}$/.test(requestedHost)) requestedHost = "";
     }
 
-    // 1. CHECK IF PUBLIC PROFILE EXISTS: If so, fall through to React SPA
-    try {
-        const profile = $app.findFirstRecordByFilter("public_profiles", "slug = {:slug}", { slug: slug });
-        if (profile) {
-            return c.next();
+    // Keep a direct-origin abuse guard, but never deny an edge-resolved visit.
+    // Many real visitors can share one carrier/office/Instagram proxy IP; a
+    // hard per-IP 429 would make a viral short link unavailable. Click writes
+    // are independently bounded later by clickRateLimitAllows().
+    if (!trustedEdgeRequest) {
+        const nowMs = new Date().getTime();
+        if (nowMs - utils.RATE_LIMIT_LAST_RESET > 60000) {
+            utils.RATE_LIMIT_STORE = {};
+            utils.RATE_LIMIT_LAST_RESET = nowMs;
         }
-    } catch (e) {
-        // Public profile not found, continue to check links
+        const ip = utils.getClientIP(c);
+        if (ip !== "unknown") {
+            const cacheKey = ip + "_" + slug;
+            let count = utils.RATE_LIMIT_STORE[cacheKey] || 0;
+            if (count >= 60) {
+                return c.json(429, { message: "Too many requests. Please try again in a minute." });
+            }
+            utils.RATE_LIMIT_STORE[cacheKey] = count + 1;
+        }
     }
 
     try {
-        const link = $app.findFirstRecordByFilter("links", "slug = {:slug} && active = true", { slug: slug });
+        let link = null;
+        if (requestedHost) {
+            try {
+                link = $app.findFirstRecordByFilter(
+                    "links",
+                    "slug = {:slug} && active = true && (domain = {:domain} || domain = '')",
+                    { slug: slug, domain: requestedHost }
+                );
+            } catch (e) {
+                // Preserve the legacy cross-domain lookup below for records
+                // created before domain-aware routing was enforced.
+            }
+        }
         if (!link) {
-            return c.next();
+            try {
+                link = $app.findFirstRecordByFilter("links", "slug = {:slug} && active = true", { slug: slug });
+            } catch (e) {
+                // No active link: Public Profiles and unknown slugs both remain
+                // owned by the frontend renderer.
+            }
+        }
+        if (!link) {
+            return continueWithPublicFrontend();
         }
 
-        const request = c.request;
+        // The existing SPA intentionally lets a signed-in owner preview the
+        // original destination instead of an admin system-route override. A
+        // top-level browser navigation carries no PocketBase auth token to the
+        // edge, so the server cannot make that owner distinction safely.
+        // Keep these rare links on the legacy frontend resolver for parity.
+        if (trustedEdgeRequest && link.get("system_route_active") === true) {
+            return continueWithPublicFrontend();
+        }
+        if (
+            trustedEdgeRequest &&
+            (link.get("mode") === "landing" || link.get("interstitial_enabled") === true)
+        ) {
+            // Preserve the existing branded React interstitial and its exact
+            // interaction semantics. The server hot path is for direct HTTP
+            // redirects and Deeplink handoffs, not a UI redesign.
+            return continueWithPublicFrontend();
+        }
+
+        const scheduleNow = new Date().getTime();
+        const startAtValue = String(link.get("start_at") || "");
+        const expireAtValue = String(link.get("expire_at") || "");
+        const startAtMs = startAtValue ? new Date(startAtValue).getTime() : NaN;
+        const expireAtMs = expireAtValue ? new Date(expireAtValue).getTime() : NaN;
+        if (isFinite(startAtMs) && startAtMs > scheduleNow) {
+            return c.html(410, utils.getLinkUnavailableHtml(
+                "Link not active yet",
+                "This link has been scheduled and is not available yet."
+            ));
+        }
+        if (isFinite(expireAtMs) && expireAtMs < scheduleNow) {
+            return c.html(410, utils.getLinkUnavailableHtml(
+                "Link expired",
+                "This link is no longer available."
+            ));
+        }
+
         const redirectTraceValue = request.url.query().get("lr_trace") || "";
         const redirectTrace = utils.parseRedirectTrace("?lr_trace=" + encodeURIComponent(redirectTraceValue));
         if (redirectTrace.indexOf(String(link.id)) !== -1) {
@@ -1033,24 +1115,11 @@ routerAdd("GET", "/{slug}", (c) => {
         const uMed = link.get("utm_medium");
         const uCmp = link.get("utm_campaign");
         if (!botSafePage && (uSrc || uMed || uCmp)) {
-            let utmParts = [];
-            if (uSrc) utmParts.push("utm_source=" + encodeURIComponent(uSrc));
-            if (uMed) utmParts.push("utm_medium=" + encodeURIComponent(uMed));
-            if (uCmp) utmParts.push("utm_campaign=" + encodeURIComponent(uCmp));
-
-            if (utmParts.length > 0) {
-                let utmStr = utmParts.join("&");
-                let hashIdx = finalDest.indexOf("#");
-                if (hashIdx !== -1) {
-                    let base = finalDest.substring(0, hashIdx);
-                    let hash = finalDest.substring(hashIdx);
-                    let sep = base.indexOf("?") === -1 ? "?" : "&";
-                    finalDest = base + sep + utmStr + hash;
-                } else {
-                    let sep = finalDest.indexOf("?") === -1 ? "?" : "&";
-                    finalDest = finalDest + sep + utmStr;
-                }
-            }
+            finalDest = utils.setHttpUrlQueryParams(finalDest, {
+                utm_source: uSrc,
+                utm_medium: uMed,
+                utm_campaign: uCmp
+            });
         }
 
         // Sanitize URL to prevent XSS (Zero Trust Validation)
@@ -1064,6 +1133,7 @@ routerAdd("GET", "/{slug}", (c) => {
         // domains. New ones are rejected by validation, but this stops cycles
         // already stored in production after a single repeated edge.
         const managedTarget = utils.findManagedShortLinkTarget(finalDest);
+        const managedPublicDestination = utils.isPlatformPublicUrl(finalDest);
         if (managedTarget) {
             if (
                 redirectTrace.length >= 8 ||
@@ -1091,8 +1161,9 @@ routerAdd("GET", "/{slug}", (c) => {
                 else if (/Linux/i.test(uaStr)) os = "Linux";
 
                 let browser = "Other";
-                if (/Instagram/i.test(uaStr)) browser = "Instagram";
-                else if (/TikTok/i.test(uaStr)) browser = "TikTok";
+                if (/Threads|Barcelona/i.test(uaStr)) browser = "Threads";
+                else if (/Instagram/i.test(uaStr)) browser = "Instagram";
+                else if (/TikTok|musical_ly/i.test(uaStr)) browser = "TikTok";
                 else if (/FBAN|FBAV/i.test(uaStr)) browser = "Facebook";
                 else if (/Chrome/i.test(uaStr)) browser = "Chrome";
                 else if (/Safari/i.test(uaStr)) browser = "Safari";
@@ -1143,7 +1214,7 @@ routerAdd("GET", "/{slug}", (c) => {
         const googlePixel = trackingPixels.google;
         const tiktokPixel = trackingPixels.tiktok;
         const hasPixels = !!(fbPixel || googlePixel || tiktokPixel);
-        const isInApp = /Instagram|TikTok|FBAN|FBAV/i.test(uaStr);
+        const isInApp = /Instagram|Threads|Barcelona|TikTok|musical_ly|FBAN|FBAV/i.test(uaStr);
         const isDeeplinkEnabled = link.get("mode") === "direct";
 
         // Standard links remain standard HTTP redirects in social WebViews.
@@ -1176,8 +1247,8 @@ routerAdd("GET", "/{slug}", (c) => {
     <!-- TikTok Pixel Code -->
     <script>
     !function (w, d, t) {
-      w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=w[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return ttq};w[t].initialize=function(t){w[t]._i=w[t]._i||{},w[t]._i[t]=[],w[t]._i[t]._u="https://analytics.tiktok.com/i18n/pixel/events.js",w[t]._t=w[t]._t||{},w[t]._t[t]=+new Date,w[t]._o=w[t]._o||{},w[t]._o[t]=d.currentScript&&d.currentScript.src?d.currentScript.src:"";var e=d.createElement("script");e.type="text/javascript",e.async=!0,e.src="https://analytics.tiktok.com/i18n/pixel/events.js?sdkid="+t;var n=d.getElementsByTagName("script")[0];n.parentNode.insertBefore(e,n)};
-      ttq.initialize(${utils.safeJsonForHtml(tiktokPixel)});
+      w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};var o=d.createElement("script");o.type="text/javascript";o.async=!0;o.src=i+"?sdkid="+e+"&lib="+t;var a=d.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};
+      ttq.load(${utils.safeJsonForHtml(tiktokPixel)});
       ttq.page();
     }(window, document, 'ttq');
     </script>
@@ -1197,7 +1268,7 @@ routerAdd("GET", "/{slug}", (c) => {
 `;
             }
 
-            if (isDeeplinkEnabled && isInApp && !managedTarget) {
+            if (isDeeplinkEnabled && isInApp && !managedTarget && !managedPublicDestination) {
                 return c.html(200, utils.getDeeplinkHandoffHtml(finalDest, uaStr, pixelScripts, link.id));
             }
 
@@ -1253,7 +1324,7 @@ routerAdd("GET", "/{slug}", (c) => {
     <div class="text">Redirecting securely...</div>
     <script>
         var dest = ${utils.safeJsonForHtml(finalDest)};
-        setTimeout(function() { window.location.replace(dest); }, 250);
+        setTimeout(function() { window.location.replace(dest); }, 450);
     </script>
 </body>
 </html>`;
@@ -1267,6 +1338,12 @@ routerAdd("GET", "/{slug}", (c) => {
         // Keep internals in server logs while returning the normal public route
         // fallback. This must never expose stack traces or repository paths.
         $app.logger().error("Server redirect error for slug '" + slug + "': " + e);
+        if (trustedEdgeRequest) {
+            // This is not a confirmed Profile/unknown slug. The Worker treats
+            // the attested 5xx as an ambiguous fallback and suppresses a second
+            // client analytics write if the server already persisted one.
+            return c.json(500, { message: "Redirect resolver temporarily unavailable" });
+        }
     }
 
     return c.next();
@@ -1324,8 +1401,9 @@ routerAdd("POST", "/api/track-click", (c) => {
         else if (/Linux/i.test(uaStr)) os = "Linux";
 
         let browser = "Other";
-        if (/Instagram/i.test(uaStr)) browser = "Instagram";
-        else if (/TikTok/i.test(uaStr)) browser = "TikTok";
+        if (/Threads|Barcelona/i.test(uaStr)) browser = "Threads";
+        else if (/Instagram/i.test(uaStr)) browser = "Instagram";
+        else if (/TikTok|musical_ly/i.test(uaStr)) browser = "TikTok";
         else if (/FBAN|FBAV/i.test(uaStr)) browser = "Facebook";
         else if (/Chrome/i.test(uaStr)) browser = "Chrome";
         else if (/Safari/i.test(uaStr)) browser = "Safari";

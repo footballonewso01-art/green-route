@@ -171,11 +171,21 @@ export default function RedirectHandler() {
 
     const trackClick = useCallback((link: Record<string, unknown>) => {
         if (hasTracked.current) return;
+        if ((window as Window & { __LINKTERY_SUPPRESS_CLIENT_CLICK__?: boolean })
+            .__LINKTERY_SUPPRESS_CLIENT_CLICK__) {
+            hasTracked.current = true;
+            return;
+        }
         // Defense-in-depth: sessionStorage guard survives React re-renders
         const trackKey = `gr_tracked_${link.id}`;
-        if (sessionStorage.getItem(trackKey)) return;
+        try {
+            if (sessionStorage.getItem(trackKey)) return;
+            sessionStorage.setItem(trackKey, "1");
+        } catch {
+            // Privacy-hardened WebViews may block storage. Analytics must never
+            // be able to stop the visitor from reaching the destination.
+        }
         hasTracked.current = true;
-        sessionStorage.setItem(trackKey, "1");
 
         const ua = navigator.userAgent;
         const isBot = /bot|crawler|spider|criteo|facebookexternalhit/i.test(ua);
@@ -509,6 +519,8 @@ export default function RedirectHandler() {
         const isAndroid = isAndroidUserAgent(userAgent);
         const browserName = inAppBrowser === "instagram"
             ? "Instagram"
+            : inAppBrowser === "threads"
+                ? "Threads"
             : inAppBrowser === "tiktok"
                 ? "TikTok"
                 : inAppBrowser === "facebook"

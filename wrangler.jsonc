@@ -32,7 +32,8 @@
   },
   "vars": {
     "DEPLOY_ENV": "production",
-    "ROUTING_MODE": "primary"
+    "ROUTING_MODE": "primary",
+    "POCKETBASE_ORIGIN": "https://greenroute-pb.fly.dev"
   },
   "env": {
     "staging": {
@@ -58,7 +59,8 @@
       },
       "vars": {
         "DEPLOY_ENV": "staging",
-        "ROUTING_MODE": "primary"
+        "ROUTING_MODE": "primary",
+        "POCKETBASE_ORIGIN": "https://greenroute-pb-staging.fly.dev"
       }
     },
     "alias": {
@@ -84,7 +86,8 @@
       },
       "vars": {
         "DEPLOY_ENV": "production",
-        "ROUTING_MODE": "alias"
+        "ROUTING_MODE": "alias",
+        "POCKETBASE_ORIGIN": "https://greenroute-pb.fly.dev"
       }
     }
   }

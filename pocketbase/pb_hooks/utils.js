@@ -87,9 +87,32 @@ var validatePublicSlug = function(value) {
     return slug;
 };
 
+var isTrustedRedirectEdgeRequest = function(eventOrRequest) {
+    var event = eventOrRequest || null;
+    var request = event && event.request ? event.request : event;
+    var expected = String($os.getenv("REDIRECT_ORIGIN_SECRET") || "");
+    if (expected.length < 32) return false;
+
+    try {
+        var provided = request && request.header
+            ? String(request.header.get("X-Linktery-Redirect-Secret") || "")
+            : "";
+        return provided.length === expected.length && $security.equal(provided, expected);
+    } catch (err) {
+        return false;
+    }
+};
+
 var getClientIP = function(eventOrRequest) {
     var event = eventOrRequest || null;
     var request = event && event.request ? event.request : event;
+
+    try {
+        if (isTrustedRedirectEdgeRequest(eventOrRequest)) {
+            var edgeIP = String(request.header.get("X-Linktery-Client-IP") || "").trim();
+            if (edgeIP && edgeIP.length <= 128 && /^[0-9a-fA-F:.]+$/.test(edgeIP)) return edgeIP;
+        }
+    } catch (err) {}
 
     // Fly sets this header at the trusted edge. Prefer it over user-controlled
     // forwarding headers when the backend is directly reachable.
@@ -1205,7 +1228,18 @@ var FLY_REGION_MAP = {
 };
 
 var resolveCountryFromIP = function (request) {
-    var country = request.header.get("CF-IPCountry") || "";
+    var country = "";
+    var trustedEdgeRequest = isTrustedRedirectEdgeRequest(request);
+    if (trustedEdgeRequest) {
+        country = String(request.header.get("X-Linktery-Country") || "").trim().toUpperCase();
+        if (/^[A-Z]{2}$/.test(country) && country !== "XX") return country;
+        // Never geolocate the Cloudflare-to-Fly subrequest or map Fly's region
+        // as the visitor country. If Cloudflare has no country (Tor/XX/T1), no
+        // geo override is safer and more accurate than a false destination.
+        return "Unknown";
+    }
+
+    country = request.header.get("CF-IPCountry") || "";
     if (country && country !== "XX" && country !== "T1") return country;
 
     country = request.header.get("X-Country-Code") || "";
@@ -1663,6 +1697,70 @@ var findManagedShortLinkTarget = function(url, app) {
     return null;
 };
 
+var isPlatformPublicUrl = function(url) {
+    var parsedUrl = parseHttpRoutingUrl(url);
+    if (!parsedUrl || parsedUrl.hasCredentials) return false;
+    return getPlatformLinkHosts()[parsedUrl.host] === true;
+};
+
+// URLSearchParams.set parity for the PocketBase runtime: replace existing
+// keys (including duplicates), preserve unrelated flag-style query entries,
+// and keep the fragment at the very end of the URL.
+var setHttpUrlQueryParams = function(url, params) {
+    var value = String(url || "");
+    if (!/^https?:\/\//i.test(value)) return value;
+
+    var hash = "";
+    var hashIndex = value.indexOf("#");
+    if (hashIndex !== -1) {
+        hash = value.substring(hashIndex);
+        value = value.substring(0, hashIndex);
+    }
+
+    var query = "";
+    var queryIndex = value.indexOf("?");
+    if (queryIndex !== -1) {
+        query = value.substring(queryIndex + 1);
+        value = value.substring(0, queryIndex);
+    }
+
+    var replacements = {};
+    Object.keys(params || {}).forEach(function(key) {
+        var paramValue = params[key];
+        if (paramValue !== null && paramValue !== undefined && String(paramValue) !== "") {
+            replacements[String(key)] = String(paramValue);
+        }
+    });
+
+    var seen = {};
+    var output = [];
+    if (query) {
+        query.split("&").forEach(function(part) {
+            if (!part) return;
+            var rawKey = part.split("=")[0];
+            var decodedKey = rawKey;
+            try { decodedKey = decodeURIComponent(rawKey.replace(/\+/g, " ")); } catch (err) {}
+
+            if (Object.prototype.hasOwnProperty.call(replacements, decodedKey)) {
+                if (!seen[decodedKey]) {
+                    output.push(encodeURIComponent(decodedKey) + "=" + encodeURIComponent(replacements[decodedKey]));
+                    seen[decodedKey] = true;
+                }
+                return;
+            }
+            output.push(part);
+        });
+    }
+
+    Object.keys(replacements).forEach(function(key) {
+        if (!seen[key]) {
+            output.push(encodeURIComponent(key) + "=" + encodeURIComponent(replacements[key]));
+        }
+    });
+
+    return value + (output.length ? "?" + output.join("&") : "") + hash;
+};
+
 var parseRedirectTrace = function(rawUrl) {
     var match = String(rawUrl || "").match(/[?&]lr_trace=([^&#]+)/i);
     if (!match || !match[1]) return [];
@@ -1922,8 +2020,9 @@ var safeJsonForHtml = function(value) {
 
 var getInAppBrowser = function(userAgent) {
     var ua = String(userAgent || "");
+    if (/Threads|Barcelona/i.test(ua)) return "Threads";
     if (/Instagram/i.test(ua)) return "Instagram";
-    if (/TikTok/i.test(ua)) return "TikTok";
+    if (/TikTok|musical_ly/i.test(ua)) return "TikTok";
     if (/FBAN|FBAV/i.test(ua)) return "Facebook";
     return "";
 };
@@ -1943,6 +2042,9 @@ var getDeeplinkDestinationName = function(destination) {
 
 var buildAndroidBrowserIntent = function(destination) {
     var value = String(destination || "");
+    // #Intent is the Android intent URI delimiter. Do not corrupt a real HTTP
+    // fragment merely to force Chrome; the visible HTTPS action remains safe.
+    if (value.indexOf("#") !== -1) return value;
     var match = value.match(/^(https?):\/\/([^\/?#]+)([^#]*)/i);
     if (!match) return value;
     var scheme = match[1].toLowerCase();
@@ -1952,31 +2054,70 @@ var buildAndroidBrowserIntent = function(destination) {
         "package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(value) + ";end";
 };
 
+var buildMetaExternalBrowserUrl = function(destination, userAgent) {
+    var value = String(destination || "");
+    var ua = String(userAgent || "");
+    if (!/iPhone|iPad|iPod/i.test(ua) || !/^https?:\/\//i.test(value)) return "";
+    if (value.length > 8192 || /[\u0000-\u001f\u007f]/.test(value)) return "";
+    var parsedDestination = parseHttpRoutingUrl(value);
+    if (!parsedDestination || parsedDestination.hasCredentials) return "";
+
+    // Emergency kill switch for an undocumented app-owned scheme. Meta can
+    // change this behavior independently of Linktery, so operations must be
+    // able to disable automatic escape without rebuilding the frontend.
+    try {
+        var enabled = String($os.getenv("DEEPLINK_META_ESCAPE_ENABLED") || "true").trim().toLowerCase();
+        if (enabled === "false" || enabled === "0" || enabled === "off") return "";
+    } catch (err) {
+        // Unit-test and non-PocketBase runtimes default to enabled.
+    }
+
+    var sourceApp = getInAppBrowser(ua);
+    if (sourceApp === "Instagram") {
+        return "instagram://extbrowser/?url=" + encodeURIComponent(value);
+    }
+    if (sourceApp === "Threads") {
+        return "barcelona://extbrowser/?url=" + encodeURIComponent(value);
+    }
+    return "";
+};
+
 var getDeeplinkHandoffHtml = function(destination, userAgent, pixelScripts, attemptScope) {
     var dest = String(destination || "");
     var ua = String(userAgent || "");
     var sourceApp = getInAppBrowser(ua) || "this app";
     var isAndroid = /Android/i.test(ua);
-    var actionUrl = isAndroid ? buildAndroidBrowserIntent(dest) : dest;
+    var metaExternalUrl = buildMetaExternalBrowserUrl(dest, ua);
+    var actionUrl = isAndroid ? buildAndroidBrowserIntent(dest) : (metaExternalUrl || dest);
     var destinationName = getDeeplinkDestinationName(dest);
-    var actionLabel = isAndroid ? "Open in Chrome" : (destinationName ? "Open " + destinationName : "Open destination");
+    var hasAndroidIntent = isAndroid && actionUrl !== dest;
+    var actionLabel = hasAndroidIntent ? "Open in Chrome" : (metaExternalUrl ? "Open in Browser" : (destinationName ? "Open " + destinationName : "Open destination"));
     var safeDest = escapeHtml(dest);
     var safeActionUrl = escapeHtml(actionUrl);
     var attemptKey = "linktery_deeplink_v2_" + String(attemptScope || "link").replace(/[^a-zA-Z0-9_-]/g, "").substring(0, 40);
-    var automaticScript = isAndroid && actionUrl !== dest ? `
+    // Preserve the previous client renderer's pixel delivery window. Core
+    // Linktery click analytics are already written server-side; this delay is
+    // only for optional third-party pixels loaded asynchronously in <head>.
+    var automaticDelayMs = String(pixelScripts || "").trim() ? 450 : (metaExternalUrl ? 0 : 120);
+    var automaticScript = actionUrl !== dest ? `
     <script>
         (function () {
             var key = ${safeJsonForHtml(attemptKey)};
             var action = ${safeJsonForHtml(actionUrl)};
-            var now = Date.now();
+            var useReplace = ${metaExternalUrl ? "true" : "false"};
+            var delay = ${automaticDelayMs};
             try {
-                var previous = Number(sessionStorage.getItem(key) || "0");
-                if (Number.isFinite(previous) && now - previous < 15000) return;
-                sessionStorage.setItem(key, String(now));
+                if (sessionStorage.getItem(key)) return;
+                sessionStorage.setItem(key, "attempted");
             } catch (error) {
                 return;
             }
-            setTimeout(function () { window.location.href = action; }, 120);
+            var navigate = function () {
+                if (useReplace) window.location.replace(action);
+                else window.location.href = action;
+            };
+            if (delay > 0) setTimeout(navigate, delay);
+            else navigate();
         })();
     </script>` : "";
 
@@ -2028,6 +2169,28 @@ var getDeeplinkHandoffHtml = function(destination, userAgent, pixelScripts, atte
 </html>`;
 };
 
+var getLinkUnavailableHtml = function(title, message) {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="robots" content="noindex,nofollow">
+    <title>${escapeHtml(title || "Link unavailable")}</title>
+    <style>
+        :root { color-scheme: dark; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        * { box-sizing: border-box; }
+        body { min-height: 100vh; margin: 0; padding: 28px; display: grid; place-items: center; background: #050806; color: #f7faf8; }
+        main { width: min(100%, 420px); padding: 30px; border: 1px solid #20382d; border-radius: 28px; background: #0a120e; text-align: center; }
+        h1 { margin: 0 0 12px; font-size: 28px; letter-spacing: -.04em; }
+        p { margin: 0; color: #9dafaa; line-height: 1.6; }
+        a { display: inline-flex; margin-top: 24px; min-height: 50px; align-items: center; padding: 0 20px; border-radius: 14px; background: #22e58b; color: #03130b; text-decoration: none; font-weight: 800; }
+    </style>
+</head>
+<body><main><h1>${escapeHtml(title || "Link unavailable")}</h1><p>${escapeHtml(message || "This link is not available right now.")}</p><a href="https://linktery.com">Go to Linktery</a></main></body>
+</html>`;
+};
+
 module.exports = {
     RATE_LIMIT_STORE,
     RATE_LIMIT_LAST_RESET,
@@ -2041,6 +2204,7 @@ module.exports = {
     SYSTEM_ROUTE_SLUGS,
     isReservedPublicSlug,
     validatePublicSlug,
+    isTrustedRedirectEdgeRequest,
     getClientIP,
     clickRateLimitAllows,
     isUniqueTrackedClick,
@@ -2105,6 +2269,8 @@ module.exports = {
     validateLinkTrackingPixels,
     getSafeLinkTrackingPixels,
     findManagedShortLinkTarget,
+    isPlatformPublicUrl,
+    setHttpUrlQueryParams,
     parseRedirectTrace,
     appendRedirectTrace,
     parseRecordJson,
@@ -2121,5 +2287,7 @@ module.exports = {
     getInAppBrowser,
     getDeeplinkDestinationName,
     buildAndroidBrowserIntent,
-    getDeeplinkHandoffHtml
+    buildMetaExternalBrowserUrl,
+    getDeeplinkHandoffHtml,
+    getLinkUnavailableHtml
 };

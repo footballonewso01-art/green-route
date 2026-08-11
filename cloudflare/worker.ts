@@ -24,6 +24,8 @@ interface Env {
   ASSETS: AssetBinding;
   DEPLOY_ENV: "production" | "staging";
   ROUTING_MODE: "primary" | "alias";
+  POCKETBASE_ORIGIN: string;
+  REDIRECT_ORIGIN_SECRET?: string;
   WORKER_VERSION?: VersionMetadata;
 }
 
@@ -125,6 +127,36 @@ async function serveInternalHtml(
   });
 }
 
+async function serveAmbiguousOriginFallback(
+  request: Request,
+  env: Env,
+): Promise<Response> {
+  const assetResponse = await fetchAsset(request, env, INTERNAL_ASSETS.spa);
+  if (!assetResponse.ok) {
+    throw new Error("Required frontend artifact is unavailable.");
+  }
+
+  const marker = "<script>window.__LINKTERY_SUPPRESS_CLIENT_CLICK__=true;</script>";
+  const source = await assetResponse.text();
+  const html = source.includes("</head>")
+    ? source.replace("</head>", `${marker}</head>`)
+    : `${marker}${source}`;
+  const headers = new Headers(assetResponse.headers);
+  headers.delete("Content-Length");
+  headers.delete("Content-Encoding");
+  headers.delete("ETag");
+  headers.delete("Last-Modified");
+
+  return applyResponseHeaders(request, env, new Response(html, {
+    status: 200,
+    headers,
+  }), {
+    noIndex: true,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: "private, no-store, max-age=0",
+  });
+}
+
 async function serveRequestedAsset(
   request: Request,
   env: Env,
@@ -132,6 +164,102 @@ async function serveRequestedAsset(
   const assetResponse = await env.ASSETS.fetch(request);
   if (assetResponse.status === 404) return null;
   return applyResponseHeaders(request, env, assetResponse);
+}
+
+function getEdgeCountry(request: Request): string {
+  const runtimeCountry = (request as Request & { cf?: { country?: string } }).cf?.country;
+  const headerCountry = request.headers.get("CF-IPCountry") || "";
+  const country = String(runtimeCountry || headerCountry).trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(country) && country !== "XX" ? country : "";
+}
+
+/**
+ * Resolve short links before booting the SPA. This preserves the original
+ * social-app navigation context for deeplink handoffs and removes the React +
+ * Records API round trips from the redirect hot path. A 404 means that the
+ * slug may be a Public Profile (or missing), so the normal SPA resolver keeps
+ * ownership of that response.
+ */
+async function resolvePublicSlugAtOrigin(
+  request: Request,
+  env: Env,
+): Promise<Response | null> {
+  if (request.method !== "GET") return null;
+
+  const secret = String(env.REDIRECT_ORIGIN_SECRET || "");
+  if (secret.length < 32) return null;
+
+  let origin: URL;
+  try {
+    origin = new URL(env.POCKETBASE_ORIGIN);
+    if (origin.protocol !== "https:") return null;
+  } catch {
+    return null;
+  }
+
+  const incomingUrl = new URL(request.url);
+  const upstreamUrl = new URL(incomingUrl.pathname + incomingUrl.search, origin);
+  const headers = new Headers();
+
+  for (const name of ["Accept", "Accept-Language", "Referer", "User-Agent"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+
+  headers.set("X-Linktery-Redirect-Secret", secret);
+  headers.set("X-Linktery-Public-Host", incomingUrl.hostname.toLowerCase());
+
+  const clientIp = request.headers.get("CF-Connecting-IP") || "";
+  if (clientIp) headers.set("X-Linktery-Client-IP", clientIp.slice(0, 128));
+  const country = getEdgeCountry(request);
+  if (country) headers.set("X-Linktery-Country", country);
+
+  try {
+    const timeoutSignal = typeof AbortSignal.timeout === "function"
+      ? AbortSignal.timeout(5_000)
+      : undefined;
+    const upstream = await fetch(upstreamUrl.toString(), {
+      method: "GET",
+      headers,
+      redirect: "manual",
+      signal: timeoutSignal,
+    });
+
+    // Require an authenticated backend acknowledgement. PocketBase's
+    // unhandled c.next() response is an empty 200, so status alone cannot prove
+    // that the shared secret was accepted or that the slug was resolved.
+    if (upstream.headers.get("X-Linktery-Redirect-Origin") !== "v1") {
+      return serveAmbiguousOriginFallback(request, env);
+    }
+    if (upstream.status === 404) return null;
+    if (upstream.status >= 500) return serveAmbiguousOriginFallback(request, env);
+
+    const publicHeaders = new Headers(upstream.headers);
+    for (const name of [
+      "X-Linktery-Redirect-Origin",
+      "Fly-Request-Id",
+      "Server",
+      "Via",
+      "X-Powered-By",
+    ]) {
+      publicHeaders.delete(name);
+    }
+    const publicUpstream = new Response(upstream.body, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: publicHeaders,
+    });
+
+    return applyResponseHeaders(request, env, publicUpstream, {
+      noIndex: true,
+      cacheControl: "private, no-store, max-age=0",
+    });
+  } catch {
+    // The origin may have persisted the click before a timeout/reset. Keep the
+    // redirect available through React, but mark that fallback so its telemetry
+    // cannot write the same click a second time.
+    return serveAmbiguousOriginFallback(request, env);
+  }
 }
 
 function redirectResponse(
@@ -255,6 +383,10 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     case "landing":
       return serveInternalHtml(request, env, INTERNAL_ASSETS.landing);
     case "spa":
+      if (decision.routeType === "public") {
+        const resolved = await resolvePublicSlugAtOrigin(request, env);
+        if (resolved) return resolved;
+      }
       return serveInternalHtml(request, env, INTERNAL_ASSETS.spa, {
         noIndex: decision.noIndex,
       });

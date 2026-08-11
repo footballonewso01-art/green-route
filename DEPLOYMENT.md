@@ -71,6 +71,26 @@ Production and staging values live in `.env.production` and `.env.staging`.
 Never put a secret in a `VITE_*` variable because Vite embeds it in browser
 JavaScript.
 
+### Redirect resolver secret
+
+Public `/{slug}` requests use a private Worker-to-PocketBase resolver before
+falling back to the SPA. It is authenticated with `REDIRECT_ORIGIN_SECRET`.
+Use separate random values of at least 32 bytes for production and staging:
+
+- production: the same value on `greenroute-pb`, `linktery-frontend`, and
+  `linktery-frontend-alias`;
+- staging: a different value on `greenroute-pb-staging` and the staging Worker.
+
+Store it only with Fly secrets and Wrangler secrets; never place it in
+`wrangler.jsonc`, `.env*`, a `VITE_*` value, CI logs, or this repository. The
+backend attests successful authentication in its private response. The Worker
+rejects an unattested response and falls back safely, so a secret mismatch
+cannot turn a Public Profile into PocketBase's empty `200` response.
+
+`DEEPLINK_META_ESCAPE_ENABLED=false` on PocketBase is the emergency kill
+switch for automatic Instagram/Threads iOS handoff. It leaves ordinary HTTPS
+redirects and the manual fallback available.
+
 ## Non-negotiable deployment rules
 
 1. Production deploys must run from a clean committed checkout. Prefer a fresh
@@ -93,6 +113,10 @@ JavaScript.
 9. Deploy the API gateway separately from the frontend. A frontend release
    must not silently change API routing, allowed methods, or the API custom
    domain.
+10. A redirect-resolver change is deployed backend-first: deploy/verify the
+    PocketBase hook and secret, verify the matching Worker secrets, then deploy
+    staging and finally both production frontend Workers. Never rotate only one
+    side of the shared secret.
 
 ## Build artifacts and routing
 
@@ -214,6 +238,12 @@ Record the Git SHA plus the active version ID for both Workers. Verify:
   with `noindex` where required;
 - a valid short link resolves and a valid Public Profile renders on every
   selectable domain;
+- Geo individual/Tier targeting, Device targeting, A/B, UTM replacement, and
+  click analytics still resolve once through the server hot path;
+- an Instagram iOS User-Agent on a Deeplink-enabled test link receives the
+  guarded handoff HTML, while a normal link remains a standard HTTP redirect;
+- a simulated missing resolver attestation still renders the SPA and does not
+  duplicate client-side click telemetry;
 - unknown nested/system paths return a real `404`;
 - legacy and `www` redirects are permanent and preserve path/query values;
 - POST requests to frontend routes return `405` with `Allow: GET, HEAD`;

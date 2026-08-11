@@ -4,18 +4,46 @@ import { runInNewContext } from "node:vm";
 import { describe, it, expect } from "vitest";
 
 const readWorkspaceFile = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
+const redirectOriginSecret = "test-redirect-origin-secret-at-least-32-chars";
 
-function loadRedirectTraceHelpers(): {
+function loadRedirectTraceHelpers(metaEscapeValue = "true"): {
   appendRedirectTrace: (url: string, trace: string[]) => string;
+  setHttpUrlQueryParams: (url: string, params: Record<string, string>) => string;
+  resolveCountryFromIP: (request: { header: { get: (name: string) => string } }) => string;
+  buildAndroidBrowserIntent: (destination: string) => string;
+  buildMetaExternalBrowserUrl: (destination: string, userAgent: string) => string;
+  getDeeplinkHandoffHtml: (
+    destination: string,
+    userAgent: string,
+    pixelScripts: string,
+    attemptScope: string,
+  ) => string;
 } {
   const moduleContainer = { exports: {} };
   runInNewContext(readWorkspaceFile("pocketbase/pb_hooks/utils.js"), {
     module: moduleContainer,
     exports: moduleContainer.exports,
     console,
+    $os: { getenv: (name: string) => {
+      if (name === "DEEPLINK_META_ESCAPE_ENABLED") return metaEscapeValue;
+      if (name === "REDIRECT_ORIGIN_SECRET") return redirectOriginSecret;
+      return "";
+    } },
+    $security: { equal: (left: string, right: string) => left === right },
+    $http: { send: () => { throw new Error("Geo HTTP fallback must not run"); } },
   });
   return moduleContainer.exports as {
     appendRedirectTrace: (url: string, trace: string[]) => string;
+    setHttpUrlQueryParams: (url: string, params: Record<string, string>) => string;
+    resolveCountryFromIP: (request: { header: { get: (name: string) => string } }) => string;
+    buildAndroidBrowserIntent: (destination: string) => string;
+    buildMetaExternalBrowserUrl: (destination: string, userAgent: string) => string;
+    getDeeplinkHandoffHtml: (
+      destination: string,
+      userAgent: string,
+      pixelScripts: string,
+      attemptScope: string,
+    ) => string;
   };
 }
 
@@ -118,21 +146,117 @@ describe("Redirect Loop Detection", () => {
 
     expect(server).toContain("hasPixels && !isBot");
     expect(server).toContain("facebookexternalhit");
+    expect(server).toContain("ttq.load(${utils.safeJsonForHtml(tiktokPixel)})");
+    expect(server).not.toContain("ttq.initialize(${utils.safeJsonForHtml(tiktokPixel)})");
+    expect(server).toContain("window.location.replace(dest); }, 450)");
   });
 
-  it("uses a one-shot Android handoff without browser-scheme retry loops", () => {
+  it("uses one-shot external handoffs without browser-scheme retry loops", () => {
     const utils = readWorkspaceFile("pocketbase/pb_hooks/utils.js");
     const client = readWorkspaceFile("src/pages/RedirectHandler.tsx");
     const server = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
 
     expect(utils).toContain("getDeeplinkHandoffHtml");
     expect(utils).toContain("package=com.android.chrome");
-    expect(utils).toContain("now - previous < 15000");
+    expect(utils).toContain('sessionStorage.setItem(key, "attempted")');
     expect(utils).toContain("attempts the automatic handoff only once");
     expect(server).toContain("isDeeplinkEnabled && isInApp && !managedTarget");
     expect(client).not.toContain("redirect_attempts_");
+    expect(client).toContain("__LINKTERY_SUPPRESS_CLIENT_CLICK__");
     expect(client).not.toContain("x-safari-https://");
     expect(client).not.toContain("googlechrome://navigate");
+    expect(utils).toContain("instagram://extbrowser/?url=");
+  });
+
+  it("renders a guarded iOS Instagram escape without exposing an unsafe destination", () => {
+    const helpers = loadRedirectTraceHelpers();
+    const destination = "https://example.com/checkout?a=1&b=2";
+    const userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Instagram 390.0";
+
+    expect(helpers.buildMetaExternalBrowserUrl(destination, userAgent)).toBe(
+      `instagram://extbrowser/?url=${encodeURIComponent(destination)}`,
+    );
+    expect(helpers.buildMetaExternalBrowserUrl("javascript:alert(1)", userAgent)).toBe("");
+    expect(helpers.buildMetaExternalBrowserUrl("https://user:pass@example.com/private", userAgent)).toBe("");
+    expect(helpers.buildMetaExternalBrowserUrl("https://example.com/\r\nprivate", userAgent)).toBe("");
+    expect(loadRedirectTraceHelpers("false").buildMetaExternalBrowserUrl(destination, userAgent)).toBe("");
+    expect(helpers.buildAndroidBrowserIntent("https://example.com/app#checkout"))
+      .toBe("https://example.com/app#checkout");
+
+    const html = helpers.getDeeplinkHandoffHtml(destination, userAgent, "", "link-id");
+    expect(html).toContain("instagram://extbrowser/?url=");
+    expect(html).toContain("sessionStorage.getItem(key)");
+    expect(html).toContain("window.location.replace(action)");
+    expect(html).toContain("Continue inside Instagram");
+    expect(html).not.toContain("x-safari-");
+    expect(html).not.toContain("googlechromes://");
+
+    const htmlWithPixel = helpers.getDeeplinkHandoffHtml(
+      destination,
+      userAgent,
+      "<script>window.pixelLoaded = true;</script>",
+      "link-id",
+    );
+    expect(html).toContain("var delay = 0;");
+    expect(htmlWithPixel).toContain("var delay = 450;");
+    expect(helpers.getDeeplinkHandoffHtml(
+      destination,
+      "Mozilla/5.0 Android Instagram",
+      "",
+      "link-id",
+    )).toContain("var delay = 120;");
+  });
+
+  it("replaces UTM parameters without duplicates and preserves flags and fragments", () => {
+    const helpers = loadRedirectTraceHelpers();
+    const result = helpers.setHttpUrlQueryParams(
+      "https://example.com/path?flag&utm_source=old&utm_source=older&utm%5Fmedium=legacy#section",
+      {
+        utm_source: "new source",
+        utm_medium: "social/media",
+        utm_campaign: "launch",
+      },
+    );
+
+    expect(result).toBe(
+      "https://example.com/path?flag&utm_source=new%20source&utm_medium=social%2Fmedia&utm_campaign=launch#section",
+    );
+  });
+
+  it("does not mistake Cloudflare/Fly egress for a visitor country", () => {
+    const helpers = loadRedirectTraceHelpers();
+    const makeRequest = (country: string) => ({
+      header: {
+        get: (name: string) => ({
+          "X-Linktery-Redirect-Secret": redirectOriginSecret,
+          "X-Linktery-Country": country,
+          "Fly-Client-IP": "203.0.113.10",
+          "Fly-Region": "fra",
+        }[name] || ""),
+      },
+    });
+
+    expect(helpers.resolveCountryFromIP(makeRequest("US"))).toBe("US");
+    expect(helpers.resolveCountryFromIP(makeRequest("XX"))).toBe("Unknown");
+    expect(helpers.resolveCountryFromIP(makeRequest("T1"))).toBe("Unknown");
+  });
+
+  it("signals Public Profile fallthrough explicitly to the trusted edge", () => {
+    const server = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
+
+    const secretRejectionIndex = server.indexOf("if (providedEdgeSecret && !trustedEdgeRequest)");
+    const firstLinkLookupIndex = server.indexOf('$app.findFirstRecordByFilter(', secretRejectionIndex);
+    expect(secretRejectionIndex).toBeGreaterThan(-1);
+    expect(firstLinkLookupIndex).toBeGreaterThan(secretRejectionIndex);
+    expect(server.slice(secretRejectionIndex, firstLinkLookupIndex)).not.toContain("clickRecord");
+    expect(server).toContain("const continueWithPublicFrontend = function()");
+    expect(server).toContain('c.response.header().add("X-Linktery-Redirect-Origin", "v1")');
+    expect(server).toContain('return c.json(404, { message: "Public frontend route required" })');
+    expect(server).toContain("return continueWithPublicFrontend()");
+    expect(server).toContain('trustedEdgeRequest && link.get("system_route_active") === true');
+    expect(server).toContain('link.get("mode") === "landing" || link.get("interstitial_enabled") === true');
+    expect(server).toContain("if (!trustedEdgeRequest)");
+    expect(server).toContain('return c.json(500, { message: "Redirect resolver temporarily unavailable" })');
   });
 
   it("rejects malformed encoded slugs without a client-side navigation gadget", () => {

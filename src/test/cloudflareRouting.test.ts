@@ -165,6 +165,8 @@ describe("Cloudflare edge routing contract", () => {
       '"single-page-application"',
     );
     expect(readWorkspaceFile("wrangler.jsonc")).not.toContain('"404-page"');
+    expect(readWorkspaceFile("wrangler.jsonc")).toContain('"POCKETBASE_ORIGIN"');
+    expect(readWorkspaceFile("wrangler.jsonc")).not.toContain('"REDIRECT_ORIGIN_SECRET"');
   });
 
   it("generates the release sitemap without mutating tracked source files", () => {
