@@ -9,6 +9,14 @@ import {
   decideEdgeRoute,
   isLikelyStaticAssetPath,
 } from "./router";
+import {
+  createSocialPreviewCardHtml,
+  isValidSocialPreviewProfile,
+  parseSocialPreviewImagePath,
+  type SocialPreviewAssetPath,
+  type SocialPreviewProfile,
+} from "./socialPreview";
+import { readBoundedBody } from "./requestBody";
 
 interface AssetBinding {
   fetch(request: Request): Promise<Response>;
@@ -20,13 +28,100 @@ interface VersionMetadata {
   timestamp?: string;
 }
 
+interface BrowserRunBinding {
+  quickAction(action: "screenshot", options: Record<string, unknown>): Promise<Response>;
+}
+
+interface R2ObjectBody {
+  body: ReadableStream<Uint8Array>;
+  size: number;
+  httpEtag: string;
+}
+
+interface R2ObjectMetadata {
+  size: number;
+  httpEtag: string;
+}
+
+interface R2ListedObject {
+  key: string;
+}
+
+interface R2BucketBinding {
+  get(key: string): Promise<R2ObjectBody | null>;
+  head(key: string): Promise<R2ObjectMetadata | null>;
+  put(
+    key: string,
+    value: ArrayBuffer,
+    options?: {
+      httpMetadata?: { contentType?: string; cacheControl?: string };
+      customMetadata?: Record<string, string>;
+    },
+  ): Promise<unknown>;
+  list(options?: {
+    prefix?: string;
+    cursor?: string;
+    limit?: number;
+  }): Promise<{
+    objects: R2ListedObject[];
+    truncated: boolean;
+    cursor?: string;
+  }>;
+  delete(keys: string | string[]): Promise<void>;
+}
+
+interface DurableObjectStub {
+  fetch(request: Request): Promise<Response>;
+}
+
+interface DurableObjectNamespaceBinding {
+  idFromName(name: string): object;
+  get(id: object): DurableObjectStub;
+}
+
+interface DurableObjectTransaction {
+  get<T>(key: string): Promise<T | undefined>;
+  put<T>(key: string, value: T): Promise<void>;
+}
+
+interface DurableObjectStorage {
+  transaction<T>(callback: (transaction: DurableObjectTransaction) => Promise<T>): Promise<T>;
+}
+
+interface DurableObjectState {
+  storage: DurableObjectStorage;
+}
+
+interface WorkerExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+}
+
+interface RateLimitBinding {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
+interface WorkerCacheStorage {
+  default: Cache;
+}
+
 interface Env {
   ASSETS: AssetBinding;
   DEPLOY_ENV: "production" | "staging";
   ROUTING_MODE: "primary" | "alias";
   POCKETBASE_ORIGIN: string;
   REDIRECT_ORIGIN_SECRET?: string;
+  EDGE_TELEMETRY_RATE_LIMITER?: RateLimitBinding;
+  BROWSER?: BrowserRunBinding;
+  SOCIAL_PREVIEWS?: R2BucketBinding;
+  SOCIAL_PREVIEW_COORDINATOR?: DurableObjectNamespaceBinding;
+  SOCIAL_PREVIEW_MAX_DAILY_RENDERS?: string;
   WORKER_VERSION?: VersionMetadata;
+}
+
+interface GeneratedPreview {
+  bytes: ArrayBuffer;
+  etag: string;
+  source: "r2" | "generated";
 }
 
 const INTERNAL_ASSETS = {
@@ -173,6 +268,514 @@ function getEdgeCountry(request: Request): string {
   return /^[A-Z]{2}$/.test(country) && country !== "XX" ? country : "";
 }
 
+function getEdgeClientIp(request: Request): string {
+  const value = String(request.headers.get("CF-Connecting-IP") || "").trim();
+  return value && value.length <= 128 && /^[0-9a-f:.]+$/i.test(value) ? value : "unknown";
+}
+
+async function handleFirstPartyServiceRequest(
+  request: Request,
+  env: Env,
+): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (url.pathname === "/api/geo") {
+    if (request.method !== "GET") {
+      return applyResponseHeaders(request, env, new Response("Method not allowed.", {
+        status: 405,
+        headers: { Allow: "GET" },
+      }), { noIndex: true, cacheControl: "no-store" });
+    }
+    return applyResponseHeaders(request, env, new Response(JSON.stringify({
+      country: getEdgeCountry(request) || "Unknown",
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+    }), { noIndex: true, cacheControl: "no-store" });
+  }
+
+  const isClick = url.pathname === "/api/track-click";
+  const isTelemetry = url.pathname === "/api/telemetry";
+  if (!isClick && !isTelemetry) return null;
+  if (request.method !== "POST") {
+    return applyResponseHeaders(request, env, new Response("Method not allowed.", {
+      status: 405,
+      headers: { Allow: "POST" },
+    }), { noIndex: true, cacheControl: "no-store" });
+  }
+
+  const secret = String(env.REDIRECT_ORIGIN_SECRET || "");
+  if (secret.length < 32 || !env.EDGE_TELEMETRY_RATE_LIMITER) {
+    return applyResponseHeaders(request, env, new Response(null, { status: 503 }), {
+      noIndex: true,
+      cacheControl: "no-store",
+    });
+  }
+
+  const contentType = String(request.headers.get("Content-Type") || "").toLowerCase();
+  const validContentType = isClick
+    ? contentType.startsWith("application/x-www-form-urlencoded")
+    : contentType.startsWith("application/json");
+  if (!validContentType) {
+    return applyResponseHeaders(request, env, new Response(null, { status: 415 }), {
+      noIndex: true,
+      cacheControl: "no-store",
+    });
+  }
+
+  try {
+    const rate = await env.EDGE_TELEMETRY_RATE_LIMITER.limit({ key: getEdgeClientIp(request) });
+    if (!rate.success) {
+      // Analytics must never block navigation or expose an abuse-control
+      // oracle. A dropped event is still acknowledged to the browser.
+      return applyResponseHeaders(request, env, new Response(null, { status: 202 }), {
+        noIndex: true,
+        cacheControl: "no-store",
+      });
+    }
+  } catch {
+    return applyResponseHeaders(request, env, new Response(null, { status: 202 }), {
+      noIndex: true,
+      cacheControl: "no-store",
+    });
+  }
+
+  const bodyResult = await readBoundedBody(request, isClick ? 4 * 1024 : 8 * 1024);
+  if (bodyResult.ok === false) {
+    return applyResponseHeaders(request, env, new Response(null, {
+      status: bodyResult.reason === "too_large" ? 413 : 400,
+    }), { noIndex: true, cacheControl: "no-store" });
+  }
+
+  const origin = new URL(env.POCKETBASE_ORIGIN);
+  const upstreamUrl = new URL(url.pathname, origin);
+  const headers = new Headers({
+    "Accept": "application/json",
+    "Content-Type": contentType,
+    "X-Linktery-Redirect-Secret": secret,
+    "X-Linktery-Public-Host": url.hostname.toLowerCase(),
+    "X-Linktery-Request-Id": (request.headers.get("CF-Ray") || crypto.randomUUID()).slice(0, 128),
+    "X-Linktery-Client-IP": getEdgeClientIp(request),
+  });
+  const country = getEdgeCountry(request);
+  if (country) headers.set("X-Linktery-Country", country);
+  for (const name of ["Authorization", "Referer", "Sec-Fetch-Dest", "User-Agent"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+
+  try {
+    const upstream = await fetch(upstreamUrl, {
+      method: "POST",
+      headers,
+      body: bodyResult.body,
+      redirect: "manual",
+      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(3_000) : undefined,
+    });
+    if (upstream.headers.get("X-Linktery-Telemetry-Origin") !== "v1") {
+      return applyResponseHeaders(request, env, new Response(null, { status: 502 }), {
+        noIndex: true,
+        cacheControl: "no-store",
+      });
+    }
+    return applyResponseHeaders(request, env, new Response(null, {
+      status: upstream.status >= 200 && upstream.status < 300 ? 202 : 502,
+    }), { noIndex: true, cacheControl: "no-store" });
+  } catch {
+    return applyResponseHeaders(request, env, new Response(null, { status: 202 }), {
+      noIndex: true,
+      cacheControl: "no-store",
+    });
+  }
+}
+
+function isSocialPreviewRequest(request: Request): boolean {
+  return /facebookexternalhit|Facebot|Twitterbot|LinkedInBot|Slackbot(?:-LinkExpanding)?|Discordbot|TelegramBot|WhatsApp|SkypeUriPreview|Pinterestbot|Snap URL Preview|Viber|vkShare/i
+    .test(request.headers.get("User-Agent") || "");
+}
+
+async function fetchSocialPreviewProfile(
+  env: Env,
+  asset: SocialPreviewAssetPath,
+): Promise<SocialPreviewProfile | null> {
+  const secret = String(env.REDIRECT_ORIGIN_SECRET || "");
+  if (secret.length < 32) return null;
+
+  let origin: URL;
+  try {
+    origin = new URL(env.POCKETBASE_ORIGIN);
+    if (origin.protocol !== "https:") return null;
+  } catch {
+    return null;
+  }
+
+  const metadataUrl = new URL(
+    `/api/internal/social-preview/profile/${asset.profileId}`,
+    origin,
+  );
+  metadataUrl.searchParams.set("version", asset.version);
+
+  try {
+    const response = await fetch(metadataUrl.toString(), {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+        "X-Linktery-Redirect-Secret": secret,
+      },
+      redirect: "manual",
+      signal: typeof AbortSignal.timeout === "function"
+        ? AbortSignal.timeout(3_000)
+        : undefined,
+    });
+    if (
+      !response.ok ||
+      response.headers.get("X-Linktery-Social-Preview-Origin") !== "v1"
+    ) {
+      return null;
+    }
+
+    const payload: unknown = await response.json();
+    if (!isValidSocialPreviewProfile(payload)) return null;
+    if (payload.id !== asset.profileId || payload.version !== asset.version) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function getSocialPreviewAvatarUrl(env: Env, profile: SocialPreviewProfile): string {
+  if (!profile.avatarFile) return "";
+  try {
+    const origin = new URL(env.POCKETBASE_ORIGIN);
+    origin.pathname = `/api/files/pbc_pub_profiles/${profile.id}/${encodeURIComponent(profile.avatarFile)}`;
+    origin.search = "";
+    origin.hash = "";
+    return origin.toString();
+  } catch {
+    return "";
+  }
+}
+
+async function serveSocialPreviewFallback(
+  request: Request,
+  env: Env,
+): Promise<Response> {
+  const assetResponse = await fetchAsset(request, env, "/og-image.png");
+  if (!assetResponse.ok) {
+    return applyResponseHeaders(request, env, new Response("Preview unavailable", {
+      status: 503,
+    }), {
+      noIndex: true,
+      cacheControl: "no-store",
+    });
+  }
+  return applyResponseHeaders(request, env, assetResponse, {
+    noIndex: true,
+    cacheControl: "no-store",
+  });
+}
+
+function getSocialPreviewObjectKey(asset: SocialPreviewAssetPath): string {
+  return `profiles/${asset.profileId}/${asset.version}.png`;
+}
+
+function getSocialPreviewObjectPrefix(asset: SocialPreviewAssetPath): string {
+  return `profiles/${asset.profileId}/`;
+}
+
+function getSocialPreviewResponseHeaders(
+  asset: SocialPreviewAssetPath,
+  etag: string,
+  contentLength?: number,
+): Headers {
+  const headers = new Headers({
+    "Content-Type": "image/png",
+    // A bounded edge TTL lets profile deletion or privacy changes retire a
+    // previously shared avatar promptly. R2 still prevents browser rerenders.
+    "Cache-Control": "public, max-age=21600",
+    "CDN-Cache-Control": "public, max-age=21600",
+    "ETag": etag || `"social-${asset.profileId}-${asset.version}"`,
+  });
+  if (contentLength !== undefined) {
+    headers.set("Content-Length", String(contentLength));
+  }
+  return headers;
+}
+
+async function cleanupOlderSocialPreviews(
+  bucket: R2BucketBinding,
+  asset: SocialPreviewAssetPath,
+  currentKey: string,
+): Promise<void> {
+  let cursor: string | undefined;
+  do {
+    const page = await bucket.list({
+      prefix: getSocialPreviewObjectPrefix(asset),
+      cursor,
+      limit: 100,
+    });
+    const obsolete = page.objects
+      .map((object) => object.key)
+      .filter((key) => key !== currentKey);
+    if (obsolete.length > 0) await bucket.delete(obsolete);
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+}
+
+function getDailyPreviewRenderLimit(env: Env): number {
+  const parsed = Number.parseInt(String(env.SOCIAL_PREVIEW_MAX_DAILY_RENDERS || ""), 10);
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(25_000, parsed)) : 1_000;
+}
+
+async function claimSocialPreviewRenderBudget(env: Env): Promise<boolean> {
+  const namespace = env.SOCIAL_PREVIEW_COORDINATOR;
+  if (!namespace) return false;
+  const day = new Date().toISOString().slice(0, 10);
+  const id = namespace.idFromName(`budget:${env.DEPLOY_ENV}:${day}`);
+  const response = await namespace.get(id).fetch(new Request("https://preview.internal/budget/claim", {
+    method: "POST",
+    headers: {
+      "X-Linktery-Preview-Limit": String(getDailyPreviewRenderLimit(env)),
+    },
+  }));
+  return response.status === 204;
+}
+
+async function renderAndStoreSocialPreview(
+  env: Env,
+  asset: SocialPreviewAssetPath,
+  profile: SocialPreviewProfile,
+): Promise<GeneratedPreview | null> {
+  const bucket = env.SOCIAL_PREVIEWS;
+  if (!bucket) return null;
+  const objectKey = getSocialPreviewObjectKey(asset);
+  const stored = await bucket.get(objectKey);
+  if (stored) {
+    return {
+      bytes: await new Response(stored.body).arrayBuffer(),
+      etag: stored.httpEtag,
+      source: "r2",
+    };
+  }
+
+  if (!env.BROWSER) return null;
+  if (!(await claimSocialPreviewRenderBudget(env))) return null;
+
+  const profileHost = profile.domain || "linktery.com";
+  const profileUrl = `https://${profileHost}/${profile.slug}`;
+  const cardHtml = createSocialPreviewCardHtml(
+    profile,
+    getSocialPreviewAvatarUrl(env, profile),
+    profileUrl,
+  );
+  const screenshot = await env.BROWSER.quickAction("screenshot", {
+    html: cardHtml,
+    viewport: {
+      width: 1200,
+      height: 630,
+      deviceScaleFactor: 1,
+    },
+    screenshotOptions: {
+      type: "png",
+      captureBeyondViewport: false,
+    },
+    // Raw HTML has no application boot. This short wait only gives the
+    // PocketBase avatar enough time to load; the card has a styled fallback
+    // initial if the image origin is unavailable.
+    waitForTimeout: 900,
+    actionTimeout: 10_000,
+  });
+  const contentType = String(screenshot.headers.get("Content-Type") || "").toLowerCase();
+  if (!screenshot.ok || !contentType.startsWith("image/")) return null;
+
+  const bytes = await screenshot.arrayBuffer();
+  if (bytes.byteLength < 1_000 || bytes.byteLength > 5_000_000) return null;
+
+  const etag = `"social-${asset.profileId}-${asset.version}"`;
+  await bucket.put(objectKey, bytes.slice(0), {
+    httpMetadata: {
+      contentType: "image/png",
+      cacheControl: "public, max-age=21600",
+    },
+    customMetadata: {
+      profileId: asset.profileId,
+      version: asset.version,
+    },
+  });
+  try {
+    await cleanupOlderSocialPreviews(bucket, asset, objectKey);
+  } catch {
+    // The current immutable image is already durable. Stale-version cleanup is
+    // best-effort and must never turn a successful render into a failure.
+  }
+
+  return { bytes, etag, source: "generated" };
+}
+
+export class SocialPreviewCoordinator {
+  private generationQueue: Promise<unknown> = Promise.resolve();
+  private validatedProfile: {
+    version: string;
+    value: SocialPreviewProfile;
+    expiresAt: number;
+  } | null = null;
+
+  constructor(
+    private readonly state: DurableObjectState,
+    private readonly env: Env,
+  ) {}
+
+  private async claimBudget(request: Request): Promise<Response> {
+    const requestedLimit = Number.parseInt(
+      request.headers.get("X-Linktery-Preview-Limit") || "",
+      10,
+    );
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(25_000, requestedLimit))
+      : 1_000;
+    const allowed = await this.state.storage.transaction(async (transaction) => {
+      const used = (await transaction.get<number>("renders")) || 0;
+      if (used >= limit) return false;
+      await transaction.put("renders", used + 1);
+      return true;
+    });
+    return new Response(null, { status: allowed ? 204 : 429 });
+  }
+
+  private async getValidatedProfile(
+    asset: SocialPreviewAssetPath,
+  ): Promise<SocialPreviewProfile | null> {
+    if (
+      this.validatedProfile?.version === asset.version &&
+      this.validatedProfile.expiresAt > Date.now()
+    ) {
+      return this.validatedProfile.value;
+    }
+    const profile = await fetchSocialPreviewProfile(this.env, asset);
+    if (!profile) {
+      this.validatedProfile = null;
+      return null;
+    }
+    this.validatedProfile = {
+      version: asset.version,
+      value: profile,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    };
+    return profile;
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname === "/budget/claim" && request.method === "POST") {
+      return this.claimBudget(request);
+    }
+
+    const asset = parseSocialPreviewImagePath(url.pathname);
+    if (!asset || (request.method !== "GET" && request.method !== "HEAD")) {
+      return new Response("Not found", { status: 404 });
+    }
+
+    const objectKey = getSocialPreviewObjectKey(asset);
+    if (request.method === "HEAD") {
+      const stored = await this.env.SOCIAL_PREVIEWS?.head(objectKey);
+      if (!stored) return new Response(null, { status: 404 });
+      return new Response(null, {
+        status: 200,
+        headers: getSocialPreviewResponseHeaders(asset, stored.httpEtag, stored.size),
+      });
+    }
+
+    // One Durable Object owns every version of a profile. Queueing requests
+    // prevents an old and newly edited profile from rendering simultaneously;
+    // repeated requests for the same version hit R2 when their turn begins.
+    const generation = this.generationQueue.then(async () => {
+      const profile = await this.getValidatedProfile(asset);
+      if (!profile) return null;
+      return renderAndStoreSocialPreview(this.env, asset, profile);
+    });
+    this.generationQueue = generation.then(
+      () => undefined,
+      () => undefined,
+    );
+    const result = await generation;
+    if (!result) return new Response("Preview unavailable", { status: 503 });
+
+    return new Response(result.bytes.slice(0), {
+      status: 200,
+      headers: getSocialPreviewResponseHeaders(asset, result.etag, result.bytes.byteLength),
+    });
+  }
+}
+
+async function serveSocialPreviewImage(
+  request: Request,
+  env: Env,
+  context: WorkerExecutionContext,
+  asset: SocialPreviewAssetPath,
+): Promise<Response> {
+  const cacheUrl = new URL(request.url);
+  cacheUrl.search = "";
+  const cacheKey = new Request(cacheUrl.toString(), { method: "GET" });
+
+  try {
+    const cached = await (caches as unknown as WorkerCacheStorage).default.match(cacheKey);
+    if (cached) {
+      return applyResponseHeaders(request, env, cached, {
+        noIndex: true,
+        contentType: "image/png",
+        cacheControl: "public, max-age=21600",
+      });
+    }
+  } catch {
+    // Cache availability must never decide whether a shared link works.
+  }
+
+  try {
+    const namespace = env.SOCIAL_PREVIEW_COORDINATOR;
+    if (!namespace || !env.SOCIAL_PREVIEWS) {
+      return serveSocialPreviewFallback(request, env);
+    }
+    const id = namespace.idFromName(`${env.DEPLOY_ENV}:profile:${asset.profileId}`);
+    const coordinatorUrl = new URL(request.url);
+    coordinatorUrl.hostname = "preview.internal";
+    coordinatorUrl.protocol = "https:";
+    const response = await namespace.get(id).fetch(new Request(coordinatorUrl, {
+      method: request.method,
+    }));
+    if (!response.ok) return serveSocialPreviewFallback(request, env);
+
+    if (request.method === "HEAD") {
+      return applyResponseHeaders(request, env, response, {
+        noIndex: true,
+        contentType: "image/png",
+        cacheControl: "public, max-age=21600",
+      });
+    }
+
+    const bytes = await response.arrayBuffer();
+    if (bytes.byteLength < 1_000 || bytes.byteLength > 5_000_000) {
+      return serveSocialPreviewFallback(request, env);
+    }
+    const headers = new Headers(response.headers);
+    const cacheResponse = new Response(bytes.slice(0), { status: 200, headers });
+    context.waitUntil(
+      (caches as unknown as WorkerCacheStorage).default
+        .put(cacheKey, cacheResponse)
+        .catch(() => undefined),
+    );
+
+    return applyResponseHeaders(request, env, new Response(bytes, {
+      status: 200,
+      headers,
+    }), {
+      noIndex: true,
+      contentType: "image/png",
+      cacheControl: "public, max-age=21600",
+    });
+  } catch {
+    return serveSocialPreviewFallback(request, env);
+  }
+}
+
 /**
  * Resolve short links before booting the SPA. This preserves the original
  * social-app navigation context for deeplink handoffs and removes the React +
@@ -184,7 +787,10 @@ async function resolvePublicSlugAtOrigin(
   request: Request,
   env: Env,
 ): Promise<Response | null> {
-  if (request.method !== "GET") return null;
+  if (
+    request.method !== "GET" &&
+    !(request.method === "HEAD" && isSocialPreviewRequest(request))
+  ) return null;
 
   const secret = String(env.REDIRECT_ORIGIN_SECRET || "");
   if (secret.length < 32) return null;
@@ -201,13 +807,23 @@ async function resolvePublicSlugAtOrigin(
   const upstreamUrl = new URL(incomingUrl.pathname + incomingUrl.search, origin);
   const headers = new Headers();
 
-  for (const name of ["Accept", "Accept-Language", "Referer", "User-Agent"]) {
+  for (const name of [
+    "Accept",
+    "Accept-Language",
+    "Purpose",
+    "Referer",
+    "Sec-Fetch-Dest",
+    "Sec-Purpose",
+    "User-Agent",
+  ]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
 
   headers.set("X-Linktery-Redirect-Secret", secret);
   headers.set("X-Linktery-Public-Host", incomingUrl.hostname.toLowerCase());
+  const requestId = request.headers.get("CF-Ray") || crypto.randomUUID();
+  headers.set("X-Linktery-Request-Id", requestId.slice(0, 128));
 
   const clientIp = request.headers.get("CF-Connecting-IP") || "";
   if (clientIp) headers.set("X-Linktery-Client-IP", clientIp.slice(0, 128));
@@ -219,6 +835,8 @@ async function resolvePublicSlugAtOrigin(
       ? AbortSignal.timeout(5_000)
       : undefined;
     const upstream = await fetch(upstreamUrl.toString(), {
+      // PocketBase owns a GET route. For crawler HEAD probes, resolve the same
+      // metadata contract and strip the response body at the Worker boundary.
       method: "GET",
       headers,
       redirect: "manual",
@@ -234,9 +852,13 @@ async function resolvePublicSlugAtOrigin(
     if (upstream.status === 404) return null;
     if (upstream.status >= 500) return serveAmbiguousOriginFallback(request, env);
 
+    const isSocialPreview =
+      isSocialPreviewRequest(request) &&
+      upstream.headers.get("X-Linktery-Social-Preview") === "v1";
     const publicHeaders = new Headers(upstream.headers);
     for (const name of [
       "X-Linktery-Redirect-Origin",
+      "X-Linktery-Social-Preview",
       "Fly-Request-Id",
       "Server",
       "Via",
@@ -252,7 +874,9 @@ async function resolvePublicSlugAtOrigin(
 
     return applyResponseHeaders(request, env, publicUpstream, {
       noIndex: true,
-      cacheControl: "private, no-store, max-age=0",
+      cacheControl: isSocialPreview
+        ? "public, max-age=60, s-maxage=300, stale-while-revalidate=300"
+        : "private, no-store, max-age=0",
     });
   } catch {
     // The origin may have persisted the click before a timeout/reset. Keep the
@@ -350,7 +974,14 @@ async function handleAliasRequest(
   return null;
 }
 
-async function handleRequest(request: Request, env: Env): Promise<Response> {
+async function handleRequest(
+  request: Request,
+  env: Env,
+  context: WorkerExecutionContext,
+): Promise<Response> {
+  const serviceResponse = await handleFirstPartyServiceRequest(request, env);
+  if (serviceResponse) return serviceResponse;
+
   if (request.method !== "GET" && request.method !== "HEAD") {
     return applyResponseHeaders(
       request,
@@ -364,6 +995,13 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
   }
 
   const url = new URL(request.url);
+  const socialPreviewAsset = parseSocialPreviewImagePath(url.pathname);
+  if (socialPreviewAsset) {
+    if (isAliasRequest(request, env)) {
+      return redirectToPrimary(request, env, url.pathname);
+    }
+    return serveSocialPreviewImage(request, env, context, socialPreviewAsset);
+  }
   if (
     BLOCKED_ARTIFACT_PATHS.has(url.pathname) ||
     url.pathname.startsWith("/_linktery")
@@ -406,9 +1044,13 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    context: WorkerExecutionContext = { waitUntil: () => undefined },
+  ): Promise<Response> {
     try {
-      return await handleRequest(request, env);
+      return await handleRequest(request, env, context);
     } catch {
       return applyResponseHeaders(
         request,

@@ -64,7 +64,8 @@ describe("Public API Link analytics security contract", () => {
     expect(api).toContain(
       '"90d": { cutoff: "-89 days", points: 90, granularity: "day" }',
     );
-    expect(handler).toContain("var config = ANALYTICS_PERIODS[period]");
+    expect(handler).toContain("Object.prototype.hasOwnProperty.call(ANALYTICS_PERIODS, period)");
+    expect(handler).toContain("? ANALYTICS_PERIODS[period]");
     expect(handler).toContain('400, "invalid_period"');
     expect(api).toContain("ROW_NUMBER() OVER (");
     expect(api).toContain("WHERE rank_order <= 20");

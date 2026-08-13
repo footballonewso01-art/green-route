@@ -38,14 +38,23 @@ routerAdd("POST", "/api/stripe/create-checkout", (c) => {
             return c.json(401, { message: "Unauthorized" });
         }
 
+        const stripeUtils = require(__hooks + '/utils.js');
         const data = new DynamicModel({ "priceId": "", "billingCycle": "" });
         c.bindBody(data);
         const priceId = data.priceId;
-        const billingCycle = data.billingCycle || "monthly";
+        const requestedBillingCycle = String(data.billingCycle || "").trim().toLowerCase();
 
         if (!priceId) {
             return c.json(400, { message: "priceId is required" });
         }
+        const priceConfig = stripeUtils.getStripePriceCatalogEntry(priceId);
+        if (!priceConfig) {
+            return c.json(400, { message: "This subscription option is not available." });
+        }
+        if (requestedBillingCycle && requestedBillingCycle !== priceConfig.cadence) {
+            return c.json(400, { message: "The billing cycle does not match the selected plan." });
+        }
+        const billingCycle = priceConfig.cadence;
 
         const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
         const HOST_URL = $os.getenv("HOST_URL") || "https://linktery.com";
@@ -115,7 +124,10 @@ routerAdd("POST", "/api/stripe/create-checkout", (c) => {
             body: body,
             headers: {
                 "Authorization": "Bearer " + STRIPE_SECRET_KEY,
-                "Content-Type": "application/x-www-form-urlencoded"
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Idempotency-Key": "checkout-" + $security.sha256(
+                    user.id + ":" + String(priceId) + ":" + String(Math.floor(new Date().getTime() / 300000))
+                )
             },
             timeout: 10
         });
@@ -299,48 +311,72 @@ routerAdd("POST", "/api/stripe/cancel-subscription", (c) => {
 routerAdd("POST", "/api/stripe/webhook", (c) => {
     var stripeUtils = require(__hooks + '/utils.js');
     const STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
+    const STRIPE_WEBHOOK_SECRET = String($os.getenv("STRIPE_WEBHOOK_SECRET") || "");
 
-    // --- Phase 1: Parse event ID from body ---
-    let eventId;
-    try {
-        const data = new DynamicModel({
-            id: ""
-        });
-        c.bindBody(data);
-        eventId = data.id;
-        if (!eventId || !/^evt_[a-zA-Z0-9_]+$/.test(String(eventId))) {
-            $app.logger().error("Webhook: invalid event id: " + JSON.stringify(eventId));
-            return c.json(400, { error: "Invalid event id" });
-        }
-    } catch (e) {
-        $app.logger().error("Webhook: body parse error: " + String(e));
-        return c.json(400, { error: "Invalid webhook request" });
-    }
-
-    if (!STRIPE_SECRET_KEY) {
-        $app.logger().error("Webhook: STRIPE_SECRET_KEY not set");
+    if (!STRIPE_SECRET_KEY || STRIPE_WEBHOOK_SECRET.length < 32) {
+        $app.logger().error("Webhook: Stripe secrets are not fully configured");
         return c.json(503, { error: "Webhook processing is temporarily unavailable" });
     }
 
-    // --- Phase 2: Verify event with Stripe API ---
-    let verifiedEvent;
+    // Stripe signs the exact raw body as "timestamp.payload". Validate the
+    // signature and replay window before parsing, logging, or touching Stripe.
+    let rawBody = "";
+    let verifiedEvent = null;
+    let eventId = "";
     try {
-        const res = $http.send({
-            url: "https://api.stripe.com/v1/events/" + eventId,
-            method: "GET",
-            headers: {
-                "Authorization": "Bearer " + STRIPE_SECRET_KEY,
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            timeout: 10
-        });
-        if (res.statusCode >= 400) {
-            throw new Error("Stripe API Error " + res.statusCode + ": " + res.raw);
+        // PocketBase's native helper preserves the exact request bytes used by
+        // Stripe's HMAC. A hand-rolled JS character conversion corrupts
+        // non-ASCII customer metadata and would reject otherwise valid events.
+        rawBody = readerToString(c.request.body);
+        if (!rawBody || rawBody.length > 64 * 1024) throw new Error("invalid body size");
+
+        const signatureHeader = String(c.request.header.get("Stripe-Signature") || "");
+        const signatureParts = signatureHeader.split(",");
+        let timestamp = 0;
+        let signatures = [];
+        for (let i = 0; i < signatureParts.length; i++) {
+            const part = signatureParts[i].trim();
+            if (part.indexOf("t=") === 0) timestamp = parseInt(part.substring(2), 10) || 0;
+            if (part.indexOf("v1=") === 0) signatures.push(part.substring(3));
         }
-        verifiedEvent = res.json;
-    } catch (fetchErr) {
-        $app.logger().error("Webhook: Stripe fetch error: " + fetchErr);
-        return c.json(503, { error: "Webhook verification is temporarily unavailable" });
+        const nowSeconds = Math.floor(new Date().getTime() / 1000);
+        if (!timestamp || Math.abs(nowSeconds - timestamp) > 300 || signatures.length === 0) {
+            return c.json(400, { error: "Invalid webhook signature" });
+        }
+
+        const expectedSignature = String($security.hs256(String(timestamp) + "." + rawBody, STRIPE_WEBHOOK_SECRET));
+        let signatureValid = false;
+        for (let si = 0; si < signatures.length; si++) {
+            if (
+                /^[a-f0-9]{64}$/i.test(signatures[si]) &&
+                signatures[si].length === expectedSignature.length &&
+                $security.equal(signatures[si].toLowerCase(), expectedSignature.toLowerCase())
+            ) {
+                signatureValid = true;
+                break;
+            }
+        }
+        if (!signatureValid) return c.json(400, { error: "Invalid webhook signature" });
+
+        verifiedEvent = JSON.parse(rawBody);
+        eventId = String(verifiedEvent && verifiedEvent.id || "");
+        if (!eventId || !/^evt_[a-zA-Z0-9_]+$/.test(String(eventId))) {
+            return c.json(400, { error: "Invalid event id" });
+        }
+    } catch (e) {
+        return c.json(400, { error: "Invalid webhook request" });
+    }
+
+    const supportedStripeEvents = {
+        "checkout.session.completed": true,
+        "invoice.paid": true,
+        "charge.refunded": true,
+        "refund.created": true,
+        "customer.subscription.updated": true,
+        "customer.subscription.deleted": true
+    };
+    if (!supportedStripeEvents[String(verifiedEvent.type || "")]) {
+        return c.json(200, { received: true, ignored: true });
     }
 
     $app.logger().info("Webhook: processing event " + verifiedEvent.type + " id=" + eventId);
@@ -358,7 +394,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
         if (verifiedEvent.type === "checkout.session.completed") {
             const session = verifiedEvent.data.object;
             let userId = session.client_reference_id || (session.metadata ? session.metadata.userId : null);
-            const billingCycle = (session.metadata ? session.metadata.billingCycle : "monthly");
+            let billingCycle = (session.metadata ? session.metadata.billingCycle : "monthly");
             const customerId = session.customer;
             const subscriptionId = session.subscription || "";
 
@@ -379,10 +415,11 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             }
 
             if (!userId) {
-                // No userId = can't process. Remove dedup so Stripe retries won't help either.
-                // Keep dedup to avoid log spam — this is a permanent data issue.
                 $app.logger().error("Webhook: checkout.session.completed but no userId in session " + session.id);
-                return c.json(200, { received: true, note: "missing userid" });
+                // Ownership metadata and Stripe events may arrive out of order.
+                // Failing here removes the dedup marker and keeps Stripe's
+                // retry delivery alive instead of silently losing the payment.
+                throw new Error("checkout.session.completed user mapping unavailable");
             }
 
             $app.logger().info("Webhook: activating plan for user " + userId);
@@ -399,18 +436,11 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             });
             if (lineItemsRes.statusCode >= 400) throw new Error("Stripe Items Error " + lineItemsRes.statusCode);
 
-            var planName = "pro";
-            var amount = 0;
             var lineItems = lineItemsRes.json;
-
-            if (lineItems.data && lineItems.data.length > 0) {
-                var price = lineItems.data[0].price;
-                amount = price.unit_amount / 100;
-                var agencyIds = ["price_1T9ojK1kCVZzZn9tmOrvoNOn", "price_1TA5kT1kCVZzZn9tAP7AsNjs", "price_1TA5ay1kCVZzZn9thZD9Rhsi", "price_1TA5mh1kCVZzZn9tN3UmsgCC"];
-                if (price.id && agencyIds.indexOf(price.id) !== -1) {
-                    planName = "agency";
-                }
-            }
+            var checkoutPrice = stripeUtils.requireKnownStripeLineItemPrice(lineItems);
+            var planName = checkoutPrice.plan;
+            var amount = checkoutPrice.unitAmount / 100;
+            billingCycle = checkoutPrice.cadence;
             $app.logger().info("Webhook: detected plan=" + planName + " amount=" + amount + " billingCycle=" + billingCycle);
 
             var checkoutPeriod = stripeUtils.fetchStripeSubscriptionPeriod(subscriptionId, STRIPE_SECRET_KEY);
@@ -419,6 +449,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             $app.runInTransaction((txApp) => {
                 var user = txApp.findRecordById("users", userId);
                 user.set("plan", planName);
+                user.set("plan_status", "active");
                 user.set("plan_expires_at", checkoutPeriod.end);
                 user.set("stripe_customer_id", customerId);
                 user.set("stripe_subscription_id", subscriptionId);
@@ -481,18 +512,10 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             var invoice = verifiedEvent.data.object;
             var invCustomerId = invoice.customer;
 
-            // Extract subscription ID from various locations depending on Stripe API version
-            var subscriptionId = invoice.subscription ||
-                (invoice.parent && invoice.parent.subscription_details && invoice.parent.subscription_details.subscription) ||
-                "";
-            if (!subscriptionId && invoice.lines && invoice.lines.data && invoice.lines.data.length > 0) {
-                var firstLine = invoice.lines.data[0];
-                if (firstLine.subscription) {
-                    subscriptionId = firstLine.subscription;
-                } else if (firstLine.parent && firstLine.parent.subscription_item_details) {
-                    subscriptionId = firstLine.parent.subscription_item_details.subscription;
-                }
-            }
+            // Stripe moved subscription ownership between top-level, parent,
+            // and line-item fields across API versions. Keep one normalized
+            // resolver shared with the reconciliation path.
+            var subscriptionId = stripeUtils.getStripeInvoiceSubscriptionId(invoice);
 
             if (subscriptionId) {
                 var invAmount = invoice.amount_paid / 100;
@@ -566,27 +589,10 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 }
 
                 if (bUserId) {
-                    var planName = "pro";
-                    var billingInterval = "month"; // default to monthly
-                    if (bRecord && bRecord.get("plan")) {
-                        planName = bRecord.get("plan");
-                    }
-                    var agencyIds = ["price_1T9ojK1kCVZzZn9tmOrvoNOn", "price_1TA5kT1kCVZzZn9tAP7AsNjs", "price_1TA5ay1kCVZzZn9thZD9Rhsi", "price_1TA5mh1kCVZzZn9tN3UmsgCC"];
-                    var annualPriceIds = ["price_1TA5k11kCVZzZn9tvsRkAGHW", "price_1TA5kT1kCVZzZn9tAP7AsNjs", "price_1TA5mP1kCVZzZn9toW9b7xcU", "price_1TA5mh1kCVZzZn9tN3UmsgCC"];
                     var lines = invoice.lines;
-                    if (lines && lines.data && lines.data.length > 0) {
-                        var price = lines.data[0].price;
-                        if (price && price.id && agencyIds.indexOf(price.id) !== -1) {
-                            planName = "agency";
-                        }
-                        if (price && price.recurring && price.recurring.interval === "year") {
-                            billingInterval = "year";
-                        } else if (price && price.id && annualPriceIds.indexOf(price.id) !== -1) {
-                            billingInterval = "year";
-                        }
-                    } else if (invAmount >= 29) {
-                        planName = "agency";
-                    }
+                    var invoicePrice = stripeUtils.requireKnownStripeLineItemPrice(lines);
+                    var planName = invoicePrice.plan;
+                    var billingInterval = invoicePrice.cadence === "annual" ? "year" : "month";
 
                     $app.logger().info("Webhook: invoice.paid - plan=" + planName + " interval=" + billingInterval + " amount=$" + invAmount + " user=" + bUserId + " via=" + lookupMethod);
 
@@ -596,6 +602,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                         var user = txApp.findRecordById("users", bUserId);
 
                         user.set("plan", planName);
+                        user.set("plan_status", "active");
                         user.set("plan_expires_at", invoicePeriod.end);
                         user.set("stripe_customer_id", invCustomerId);
                         if (subscriptionId) {
@@ -646,9 +653,13 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                     $app.logger().info("Webhook: SUCCESS plan '" + planName + "' extended (interval=" + billingInterval + ") for user " + bUserId);
                 } else {
                     $app.logger().error("Webhook: invoice.paid - NO USER FOUND. customer=" + invCustomerId + " email=" + (invoice.customer_email || "none") + " sub=" + subscriptionId);
-                    // Return detailed info so we can debug via Stripe Event Deliveries response
-                    return c.json(200, { received: true, warning: "no_user_found", customer: invCustomerId, email: invoice.customer_email || "none" });
+                    // Acknowledging an unmapped paid invoice would make the
+                    // missing commission permanent. Throwing rolls back the
+                    // dedup marker and asks Stripe to retry the same event.
+                    throw new Error("invoice.paid user mapping unavailable");
                 }
+            } else if (invoice.amount_paid > 0 && String(invoice.billing_reason || "").indexOf("subscription") === 0) {
+                throw new Error("invoice.paid subscription mapping unavailable");
             }
 
         } else if (verifiedEvent.type === "charge.refunded" || verifiedEvent.type === "refund.created") {
@@ -699,9 +710,10 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             if (updatedRecords.length > 0) {
                 var updatedPeriod = stripeUtils.getStripePeriodFromSubscription(updatedSubscription);
                 var updatedRecord = updatedRecords[0];
-                var updatedStatus = updatedSubscription.status === "canceled"
-                    ? "canceled"
-                    : (updatedSubscription.cancel_at_period_end === true ? "canceling" : "active");
+                var rawSubscriptionStatus = String(updatedSubscription.status || "").toLowerCase();
+                var updatedStatus = updatedSubscription.cancel_at_period_end === true && rawSubscriptionStatus === "active"
+                    ? "canceling"
+                    : (rawSubscriptionStatus || "unknown");
                 updatedRecord.set("status", updatedStatus);
                 updatedRecord.set("period_start", updatedPeriod.start);
                 updatedRecord.set("end_date", updatedPeriod.end);
@@ -709,8 +721,19 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
 
                 var updatedUser = $app.findRecordById("users", updatedRecord.get("user_id"));
                 if (updatedUser.get("stripe_subscription_id") === updatedSubscriptionId) {
+                    updatedUser.set("plan_status", updatedStatus);
                     updatedUser.set("plan_expires_at", updatedPeriod.end);
                     $app.save(updatedUser);
+                    if (
+                        updatedStatus === "canceled" ||
+                        updatedStatus === "past_due" ||
+                        updatedStatus === "unpaid" ||
+                        updatedStatus === "incomplete" ||
+                        updatedStatus === "incomplete_expired" ||
+                        updatedStatus === "paused"
+                    ) {
+                        stripeUtils.revokeActiveApiKeysForUser($app, updatedUser.id);
+                    }
                 }
             }
         } else if (verifiedEvent.type === "customer.subscription.deleted") {
@@ -736,8 +759,10 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                 // user's current subscription is allowed to remove the plan.
                 if (subUser.get("stripe_subscription_id") === deletedSubscriptionId) {
                     subUser.set("plan", "");
+                    subUser.set("plan_status", "canceled");
                     subUser.set("plan_expires_at", "");
                     $app.save(subUser);
+                    stripeUtils.revokeActiveApiKeysForUser($app, subUserId);
                     $app.logger().info("Webhook: subscription.deleted - plan removed for user " + subUserId);
                 }
             }
@@ -758,7 +783,7 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
         $app.logger().error("Webhook: PROCESSING FAILED for event " + eventId + ": " + processingErr);
         return c.json(500, { error: "Webhook processing failed" });
     }
-});
+}, $apis.bodyLimit(64 * 1024));
 
 // TEMP: Admin endpoint to clear webhook dedup entry (for event resend debugging)
 routerAdd("POST", "/api/admin/clear-dedup", (c) => {
@@ -840,21 +865,21 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
         if (lineItemsRes.statusCode >= 400) throw new Error("Line items error");
         var lineItems = lineItemsRes.json;
 
-        var planName = "pro";
-        var amount = 0;
-        if (lineItems.data && lineItems.data.length > 0) {
-            var price = lineItems.data[0].price;
-            amount = price.unit_amount / 100;
-            var agencyIds = ["price_1T9ojK1kCVZzZn9tmOrvoNOn", "price_1TA5kT1kCVZzZn9tAP7AsNjs", "price_1TA5ay1kCVZzZn9thZD9Rhsi", "price_1TA5mh1kCVZzZn9tN3UmsgCC"];
-            if (price.id && agencyIds.indexOf(price.id) !== -1) {
-                planName = "agency";
-            }
-        }
+        var verifiedPrice = stripeUtils.requireKnownStripeLineItemPrice(lineItems);
+        var planName = verifiedPrice.plan;
+        var amount = verifiedPrice.unitAmount / 100;
 
         // Check if plan is already active (idempotent) — but AFTER detecting plan
         var currentPlan = user.get("plan");
         var customerId = session.customer || "";
         var subscriptionId = session.subscription || "";
+        var checkoutInvoiceId = typeof session.invoice === "string"
+            ? session.invoice
+            : (session.invoice && session.invoice.id) || "";
+        var checkoutAmountPaidCents = Math.max(
+            0,
+            parseInt(session.amount_total, 10) || Math.round(amount * 100)
+        );
         var currentSubscriptionId = user.get("stripe_subscription_id") || "";
 
         var verifiedPeriod = stripeUtils.fetchStripeSubscriptionPeriod(subscriptionId, STRIPE_SECRET_KEY);
@@ -874,6 +899,7 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
         $app.runInTransaction((txApp) => {
             var u = txApp.findRecordById("users", user.id);
             u.set("plan", planName);
+            u.set("plan_status", "active");
             u.set("plan_expires_at", verifiedPeriod.end);
             u.set("stripe_customer_id", customerId);
             u.set("stripe_subscription_id", subscriptionId);
@@ -904,6 +930,21 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
                 });
                 txApp.save(b);
             }
+
+            // Recover the first commission even when the webhook is delayed.
+            // The invoice id is shared with invoice.paid, so concurrent or
+            // repeated processing remains financially idempotent.
+            if (checkoutInvoiceId && checkoutAmountPaidCents > 0) {
+                stripeUtils.createAffiliateCommission(txApp, {
+                    referredUserId: user.id,
+                    stripeInvoiceId: checkoutInvoiceId,
+                    amountPaidCents: checkoutAmountPaidCents,
+                    currency: session.currency || "usd",
+                    plan: planName,
+                    stripeSubscriptionId: subscriptionId,
+                    billingReason: "subscription_create"
+                });
+            }
         });
 
         $app.logger().info("verify-session: plan '" + planName + "' activated for user " + user.id);
@@ -911,6 +952,47 @@ routerAdd("POST", "/api/stripe/verify-session", (c) => {
     } catch (err) {
         $app.logger().error("verify-session error: " + err);
         return c.json(500, { error: "Payment verification is temporarily unavailable" });
+    }
+});
+
+// Private metadata contract used by the Cloudflare social-card renderer. The
+// public Worker authenticates with the same edge secret as the redirect
+// resolver; direct callers never receive a profile lookup primitive here.
+routerAdd("GET", "/api/internal/social-preview/profile/{id}", (c) => {
+    const utils = require(__hooks + '/utils.js');
+    if (String($os.getenv("SOCIAL_PREVIEW_ENABLED") || "").toLowerCase() !== "true") {
+        return c.json(404, { message: "Not found" });
+    }
+    if (!utils.isTrustedRedirectEdgeRequest(c)) {
+        return c.json(404, { message: "Not found" });
+    }
+
+    const profileId = String(c.request.pathValue("id") || "");
+    const requestedVersion = String(c.request.url.query().get("version") || "");
+    if (!/^[a-z0-9]{15}$/.test(profileId) || !/^[a-f0-9]{16}$/.test(requestedVersion)) {
+        return c.json(404, { message: "Not found" });
+    }
+
+    try {
+        const profile = $app.findRecordById("public_profiles", profileId);
+        const version = utils.getProfileSocialPreviewVersion(profile);
+        if (!version || version !== requestedVersion) {
+            return c.json(404, { message: "Preview version not found" });
+        }
+
+        c.response.header().add("X-Linktery-Social-Preview-Origin", "v1");
+        c.response.header().add("Cache-Control", "private, no-store, max-age=0");
+        return c.json(200, {
+            id: profile.id,
+            name: utils.sanitizeSocialPreviewText(profile.get("name"), 120),
+            bio: utils.sanitizeSocialPreviewText(profile.get("bio"), 320),
+            slug: String(profile.get("slug") || ""),
+            domain: String(profile.get("domain") || ""),
+            avatarFile: String(profile.get("avatar") || ""),
+            version: version
+        });
+    } catch (error) {
+        return c.json(404, { message: "Not found" });
     }
 });
 
@@ -932,6 +1014,10 @@ routerAdd("GET", "/{slug}", (c) => {
     }
 
     const request = c.request;
+    const uaStr = request.header.get("User-Agent") || "";
+    const socialPreviewEnabled = String($os.getenv("SOCIAL_PREVIEW_ENABLED") || "")
+        .toLowerCase() === "true";
+    const socialPreviewCrawler = socialPreviewEnabled && utils.isSocialPreviewCrawler(uaStr);
     const providedEdgeSecret = String(request.header.get("X-Linktery-Redirect-Secret") || "");
     const trustedEdgeRequest = utils.isTrustedRedirectEdgeRequest(c);
     if (providedEdgeSecret && !trustedEdgeRequest) {
@@ -1007,6 +1093,54 @@ routerAdd("GET", "/{slug}", (c) => {
             }
         }
         if (!link) {
+            // Public Profiles keep using the SPA renderer, but the trusted edge
+            // request is the authoritative page-view boundary. Resolve the
+            // exact host/profile here and record telemetry before returning the
+            // same attested 404 that tells Cloudflare to serve the app shell.
+            if (trustedEdgeRequest && requestedHost) {
+                try {
+                    const publicProfile = $app.findFirstRecordByFilter(
+                        "public_profiles",
+                        "slug = {:slug} && (domain = {:domain} || domain = '')",
+                        { slug: slug, domain: requestedHost }
+                    );
+                    if (socialPreviewCrawler) {
+                        const profileName = utils.sanitizeSocialPreviewText(
+                            publicProfile.get("name"),
+                            72
+                        ) || "@" + slug;
+                        const profileBio = utils.sanitizeSocialPreviewText(
+                            publicProfile.get("bio"),
+                            220
+                        );
+                        const previewVersion = utils.getProfileSocialPreviewVersion(publicProfile);
+                        const canonicalUrl = "https://" + requestedHost + "/" + slug;
+                        // Production cards always use the primary host so all
+                        // alias domains share one R2 object and one global
+                        // generation lock. Staging keeps its isolated Worker.
+                        const previewAssetHost = /\.workers\.dev$/i.test(requestedHost)
+                            ? requestedHost
+                            : "linktery.com";
+                        const imageUrl = "https://" + previewAssetHost + "/social-preview/" +
+                            publicProfile.id + "/" + previewVersion + ".png";
+
+                        c.response.header().add("X-Linktery-Social-Preview", "v1");
+                        return c.html(200, utils.getSocialPreviewHtml({
+                            title: profileName + " | Linktery",
+                            description: profileBio || ("Explore " + profileName + "'s links on Linktery."),
+                            type: "profile",
+                            username: slug,
+                            url: canonicalUrl,
+                            imageUrl: imageUrl,
+                            imageAlt: profileName + " public profile"
+                        }));
+                    }
+                    utils.recordProfileView($app, c, publicProfile);
+                } catch (profileLookupError) {
+                    // Unknown slugs are intentionally indistinguishable from
+                    // profile routes at the Worker boundary and are not counted.
+                }
+            }
             return continueWithPublicFrontend();
         }
 
@@ -1046,12 +1180,80 @@ routerAdd("GET", "/{slug}", (c) => {
             ));
         }
 
+        // Messaging crawlers receive Linktery-owned metadata instead of
+        // following the destination. This happens before targeting and click
+        // ingestion, so an unfurl can neither consume geo/A-B traffic nor
+        // inflate analytics. A profile identity is used only when exactly one
+        // visible profile owns the card; ambiguous assignments fall back to
+        // the neutral Linktery artwork.
+        if (trustedEdgeRequest && requestedHost && socialPreviewCrawler) {
+            let previewProfile = null;
+            try {
+                const assignments = $app.findRecordsByFilter(
+                    "profile_links",
+                    "link_id = {:linkId} && user_id = {:userId} && visible = true",
+                    "created",
+                    2,
+                    0,
+                    { linkId: link.id, userId: String(link.get("user_id") || "") }
+                );
+                if (assignments.length === 1) {
+                    previewProfile = $app.findFirstRecordByFilter(
+                        "public_profiles",
+                        "id = {:profileId} && user_id = {:userId}",
+                        {
+                            profileId: String(assignments[0].get("profile_id") || ""),
+                            userId: String(link.get("user_id") || "")
+                        }
+                    );
+                }
+            } catch (previewProfileError) {
+                previewProfile = null;
+            }
+
+            const linkTitle = utils.sanitizeSocialPreviewText(link.get("title"), 100) ||
+                (previewProfile
+                    ? utils.sanitizeSocialPreviewText(previewProfile.get("name"), 72)
+                    : "Linktery smart link");
+            let description = "Open this smart link with Linktery.";
+            let imageUrl = "https://linktery.com/og-image.png";
+            let imageAlt = "Linktery smart link";
+
+            if (previewProfile) {
+                const profileName = utils.sanitizeSocialPreviewText(
+                    previewProfile.get("name"),
+                    72
+                ) || ("@" + String(previewProfile.get("slug") || ""));
+                const profileBio = utils.sanitizeSocialPreviewText(
+                    previewProfile.get("bio"),
+                    180
+                );
+                const previewVersion = utils.getProfileSocialPreviewVersion(previewProfile);
+                const previewAssetHost = /\.workers\.dev$/i.test(requestedHost)
+                    ? requestedHost
+                    : "linktery.com";
+                imageUrl = "https://" + previewAssetHost + "/social-preview/" +
+                    previewProfile.id + "/" + previewVersion + ".png";
+                description = profileBio || ("Shared by " + profileName + " on Linktery.");
+                imageAlt = profileName + " public profile";
+            }
+
+            c.response.header().add("X-Linktery-Social-Preview", "v1");
+            return c.html(200, utils.getSocialPreviewHtml({
+                title: linkTitle + " | Linktery",
+                description: description,
+                type: "website",
+                url: "https://" + requestedHost + "/" + slug,
+                imageUrl: imageUrl,
+                imageAlt: imageAlt
+            }));
+        }
+
         const redirectTraceValue = request.url.query().get("lr_trace") || "";
         const redirectTrace = utils.parseRedirectTrace("?lr_trace=" + encodeURIComponent(redirectTraceValue));
         if (redirectTrace.indexOf(String(link.id)) !== -1) {
             return c.html(508, utils.getRedirectLoopHtml());
         }
-        const uaStr = request.header.get("User-Agent") || "";
         const isBot = /bot|crawler|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(uaStr);
 
         // Bot-safe destinations follow the same scheme and managed-Link loop
@@ -1189,6 +1391,20 @@ routerAdd("GET", "/{slug}", (c) => {
                         } catch (e) { }
                     }
                 }
+                referrer = utils.normalizeAnalyticsReferrer(referrer);
+
+                let profileIdParam = "";
+                let profileLinkIdParam = "";
+                try {
+                    profileIdParam = String(request.url.query().get("profile_id") || "");
+                    profileLinkIdParam = String(request.url.query().get("profile_link_id") || "");
+                } catch (attributionQueryError) {}
+                const profileAttribution = utils.resolveProfileClickAttribution(
+                    $app,
+                    link.id,
+                    profileIdParam,
+                    profileLinkIdParam
+                );
 
                 const clicksColl = $app.findCollectionByNameOrId("clicks");
                 const clickRecord = new Record(clicksColl, {
@@ -1198,6 +1414,8 @@ routerAdd("GET", "/{slug}", (c) => {
                     "os": os,
                     "browser": browser,
                     "referrer": referrer,
+                    "source_profile_id": profileAttribution.sourceProfileId,
+                    "profile_link_id": profileAttribution.profileLinkId,
                     "is_unique": utils.isUniqueTrackedClick(c, link.id),
                     "user_agent": uaStr.length > 200 ? uaStr.substring(0, 200) : uaStr,
                     "ip": "masked"
@@ -1352,9 +1570,77 @@ routerAdd("GET", "/{slug}", (c) => {
 // Geo-IP Resolution Endpoint (client-side fallback for RedirectHandler)
 routerAdd("GET", "/api/geo", (c) => {
     const utils = require(__hooks + '/utils.js');
+    if (!utils.isTrustedRedirectEdgeRequest(c)) return c.json(404, { message: "Not found" });
+    c.response.header().add("X-Linktery-Telemetry-Origin", "v1");
     var country = utils.resolveCountryFromIP(c.request);
     return c.json(200, { country: country });
 });
+
+// Bounded first-party product telemetry. Raw collections remain closed; only
+// the trusted Cloudflare frontend may submit this small event allowlist.
+routerAdd("POST", "/api/telemetry", (c) => {
+    try {
+        const utils = require(__hooks + '/utils.js');
+        if (!utils.isTrustedRedirectEdgeRequest(c)) return c.json(404, { message: "Not found" });
+        c.response.header().add("X-Linktery-Telemetry-Origin", "v1");
+
+        const data = new DynamicModel({
+            "event_name": "",
+            "path": "",
+            "message": "",
+            "filename": "",
+            "line": 0,
+            "column": 0,
+            "stack": ""
+        });
+        c.bindBody(data);
+        const eventName = String(data.event_name || "").trim();
+        const allowedEvents = {
+            "landing_pageview": true,
+            "active_session": true,
+            "client_error": true,
+            "unhandled_rejection": true
+        };
+        if (!allowedEvents[eventName]) return c.json(400, { message: "Unsupported telemetry event" });
+
+        const authUser = c.auth && c.auth.collection().name === "users" ? c.auth : null;
+        if (eventName !== "landing_pageview" && !authUser) {
+            return c.json(202, { accepted: false });
+        }
+
+        let path = String(data.path || "/").split("?")[0].split("#")[0];
+        if (!path || path.charAt(0) !== "/") path = "/";
+        path = path.substring(0, 160);
+
+        if (eventName === "landing_pageview" || eventName === "active_session") {
+            const analyticsCollection = $app.findCollectionByNameOrId("analytics_events");
+            $app.save(new Record(analyticsCollection, {
+                "event_name": eventName,
+                "user_id": authUser ? authUser.id : "",
+                "metadata": { path: path }
+            }));
+        } else {
+            let filename = String(data.filename || "").split("?")[0].split("#")[0].substring(0, 180);
+            const logsCollection = $app.findCollectionByNameOrId("system_logs");
+            $app.save(new Record(logsCollection, {
+                "level": "error",
+                "message": String(data.message || "Client error").substring(0, 300),
+                "context": {
+                    path: path,
+                    filename: filename,
+                    line: Math.max(0, Math.min(10000000, Number(data.line || 0))),
+                    column: Math.max(0, Math.min(10000000, Number(data.column || 0))),
+                    stack: String(data.stack || "").substring(0, 1000),
+                    user_id: authUser.id
+                }
+            }));
+        }
+        return c.json(202, { accepted: true });
+    } catch (err) {
+        $app.logger().warn("Trusted telemetry write failed: " + err);
+        return c.json(202, { accepted: false });
+    }
+}, $apis.bodyLimit(8 * 1024));
 
 // Non-blocking click ingestion for the browser redirect flow.
 // The browser only queues a minimal event; geo and User-Agent dimensions are
@@ -1362,9 +1648,13 @@ routerAdd("GET", "/api/geo", (c) => {
 routerAdd("POST", "/api/track-click", (c) => {
     try {
         const utils = require(__hooks + '/utils.js');
+        if (!utils.isTrustedRedirectEdgeRequest(c)) return c.json(404, { message: "Not found" });
+        c.response.header().add("X-Linktery-Telemetry-Origin", "v1");
         const data = new DynamicModel({
             "link_id": "",
-            "referrer": "Direct"
+            "referrer": "Direct",
+            "profile_id": "",
+            "profile_link_id": ""
         });
         c.bindBody(data);
 
@@ -1373,20 +1663,18 @@ routerAdd("POST", "/api/track-click", (c) => {
             return c.json(400, { message: "Invalid link id" });
         }
 
-        const link = $app.findRecordById("links", linkId);
-        if (!link || link.get("active") !== true) {
-            return c.json(404, { message: "Link not found or inactive" });
+        if (!utils.clickRateLimitAllows(c, linkId)) {
+            return c.json(202, { accepted: false });
         }
 
         const request = c.request;
-        const uaStr = request.header.get("User-Agent") || "";
+        const uaStr = String(request.header.get("User-Agent") || "");
         const isBot = /bot|crawler|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(uaStr);
-        if (isBot) {
-            return c.json(202, { accepted: false });
-        }
+        if (isBot) return c.json(202, { accepted: false });
 
-        if (!utils.clickRateLimitAllows(c, link.id)) {
-            return c.json(202, { accepted: false });
+        const link = $app.findRecordById("links", linkId);
+        if (!link || link.get("active") !== true) {
+            return c.json(404, { message: "Link not found or inactive" });
         }
 
         let device = "Desktop";
@@ -1410,9 +1698,13 @@ routerAdd("POST", "/api/track-click", (c) => {
         else if (/Firefox/i.test(uaStr)) browser = "Firefox";
         else if (/Edg/i.test(uaStr)) browser = "Edge";
 
-        let referrer = String(data.referrer || "Direct").trim();
-        if (!referrer) referrer = "Direct";
-        if (referrer.length > 200) referrer = referrer.substring(0, 200);
+        let referrer = utils.normalizeAnalyticsReferrer(data.referrer);
+        const profileAttribution = utils.resolveProfileClickAttribution(
+            $app,
+            link.id,
+            data.profile_id,
+            data.profile_link_id
+        );
 
         const clicksColl = $app.findCollectionByNameOrId("clicks");
         const clickRecord = new Record(clicksColl, {
@@ -1422,6 +1714,8 @@ routerAdd("POST", "/api/track-click", (c) => {
             "os": os,
             "browser": browser,
             "referrer": referrer,
+            "source_profile_id": profileAttribution.sourceProfileId,
+            "profile_link_id": profileAttribution.profileLinkId,
             // Uniqueness is derived server-side from a privacy-preserving
             // 24-hour visitor digest. Never trust a client-provided boolean.
             "is_unique": utils.isUniqueTrackedClick(c, link.id),
@@ -1437,7 +1731,7 @@ routerAdd("POST", "/api/track-click", (c) => {
         $app.logger().error("Track click endpoint error: " + err);
         return c.json(500, { message: "Unable to record click" });
     }
-});
+}, $apis.bodyLimit(4 * 1024));
 
 // ============================================
 // PUBLIC API: key lifecycle and v1 read surface
@@ -1465,6 +1759,7 @@ routerAdd("GET", "/api/developer/key", (c) => {
         c.response.header().add("Pragma", "no-cache");
 
         if (!hasAccess) {
+            utils.revokeActiveApiKeysForUser($app, user.id);
             return c.json(200, {
                 data: null,
                 secret: "",
@@ -1490,7 +1785,6 @@ routerAdd("GET", "/api/developer/key", (c) => {
         }
 
         var activeKeyId = "";
-        var activeSecret = "";
         var replacedUnrecoverableKey = false;
         $app.runInTransaction((txApp) => {
             var records = txApp.findRecordsByFilter(
@@ -1502,7 +1796,6 @@ routerAdd("GET", "/api/developer/key", (c) => {
                 { userId: user.id }
             );
             var selected = null;
-            var selectedSecret = "";
             var hadUnrecoverableActiveKey = false;
             var now = new Date().getTime();
 
@@ -1518,7 +1811,6 @@ routerAdd("GET", "/api/developer/key", (c) => {
                 }
                 if (!selected && revealed) {
                     selected = records[i];
-                    selectedSecret = revealed;
                     continue;
                 }
                 records[i].set("status", "revoked");
@@ -1529,11 +1821,9 @@ routerAdd("GET", "/api/developer/key", (c) => {
             if (!selected) {
                 var created = utils.createManagedApiKey(txApp, user.id);
                 activeKeyId = created.record.id;
-                activeSecret = created.secret;
                 replacedUnrecoverableKey = hadUnrecoverableActiveKey;
             } else {
                 activeKeyId = selected.id;
-                activeSecret = selectedSecret;
             }
         });
 
@@ -1542,7 +1832,9 @@ routerAdd("GET", "/api/developer/key", (c) => {
         var managedScopes = utils.getManagedApiScopes();
         return c.json(200, {
             data: utils.serializeApiKey(activeRecord),
-            secret: activeSecret,
+            // Loading Settings must not disclose a long-lived write
+            // credential. The explicit reveal route returns it on demand.
+            secret: "",
             meta: {
                 enabled: true,
                 key_limit: 1,
@@ -1570,6 +1862,75 @@ routerAdd("GET", "/api/developer/key", (c) => {
     }
 });
 
+routerAdd("POST", "/api/developer/key/reveal", (c) => {
+    var requestId = $security.randomString(12);
+    try {
+        var user = c.auth;
+        if (!user || user.collection().name !== "users") {
+            c.response.header().add("Cache-Control", "no-store");
+            return c.json(401, {
+                error: { code: "unauthorized", message: "Sign in to reveal your API key." },
+                request_id: requestId
+            });
+        }
+
+        var utils = require(__hooks + '/utils.js');
+        var plan = utils.getApiPlanCatalogEntryForUser(user);
+        var hasAccess = user.get("role") === "admin" || Number(plan.apiKeys || 0) > 0;
+        c.response.header().add("Cache-Control", "no-store");
+        c.response.header().add("Pragma", "no-cache");
+        if (!hasAccess) {
+            utils.revokeActiveApiKeysForUser($app, user.id);
+            return c.json(403, {
+                error: { code: "api_plan_required", message: "API access requires Creator Pro or Agency." },
+                request_id: requestId
+            });
+        }
+        if (!utils.getApiKeyEncryptionKey()) {
+            return c.json(503, {
+                error: { code: "api_unavailable", message: "API Access is temporarily unavailable." },
+                request_id: requestId
+            });
+        }
+
+        var records = $app.findRecordsByFilter(
+            "api_keys",
+            "user_id = {:userId} && status = 'active'",
+            "-created",
+            1,
+            0,
+            { userId: user.id }
+        );
+        if (!records.length) {
+            return c.json(409, {
+                error: { code: "api_key_missing", message: "Refresh the API key to create a new credential." },
+                request_id: requestId
+            });
+        }
+        var secret = utils.revealApiToken(records[0]);
+        if (!secret) {
+            return c.json(409, {
+                error: { code: "api_key_unavailable", message: "Refresh the API key to replace this credential." },
+                request_id: requestId
+            });
+        }
+
+        $app.logger().info("API key revealed request_id=" + requestId + " user_id=" + user.id);
+        return c.json(200, {
+            data: utils.serializeApiKey(records[0]),
+            secret: secret,
+            request_id: requestId
+        });
+    } catch (err) {
+        $app.logger().error("API key reveal failed request_id=" + requestId + ": " + err);
+        c.response.header().add("Cache-Control", "no-store");
+        return c.json(500, {
+            error: { code: "internal_error", message: "Unable to reveal the API key." },
+            request_id: requestId
+        });
+    }
+});
+
 routerAdd("POST", "/api/developer/key/refresh", (c) => {
     var requestId = $security.randomString(12);
     try {
@@ -1589,6 +1950,7 @@ routerAdd("POST", "/api/developer/key/refresh", (c) => {
         c.response.header().add("Pragma", "no-cache");
 
         if (!hasAccess) {
+            utils.revokeActiveApiKeysForUser($app, user.id);
             return c.json(403, {
                 error: { code: "api_plan_required", message: "API access requires Creator Pro or Agency." },
                 request_id: requestId
@@ -1971,6 +2333,178 @@ cronAdd("cleanup_public_api_state", "17 * * * *", () => {
     }
 });
 
+// Stripe webhooks remain the real-time path. This bounded reconciliation is a
+// second source-of-truth pass for delayed/out-of-order deliveries and transient
+// mapping failures. Replaying is safe because stripe_invoice_id is unique.
+cronAdd("reconcile_affiliate_paid_invoices", "11 */6 * * *", () => {
+    var STRIPE_SECRET_KEY = $os.getenv("STRIPE_SECRET_KEY");
+    if (!STRIPE_SECRET_KEY) return;
+
+    var stripeUtils = require(__hooks + '/utils.js');
+    var createdAfter = Math.floor(Date.now() / 1000) - (45 * 24 * 60 * 60);
+    var startingAfter = "";
+    var page = 0;
+    var seen = 0;
+    var matched = 0;
+    var pageLimit = 20;
+
+    try {
+        var fetchInvoicePage = function (cursor, minimumCreated) {
+            var url = "https://api.stripe.com/v1/invoices?status=paid&limit=100";
+            if (minimumCreated) {
+                url += "&created%5Bgte%5D=" + minimumCreated;
+            }
+            if (cursor) {
+                url += "&starting_after=" + encodeURIComponent(cursor);
+            }
+
+            var response = $http.send({
+                url: url,
+                method: "GET",
+                headers: {
+                    "Authorization": "Bearer " + STRIPE_SECRET_KEY,
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                timeout: 20
+            });
+            if (response.statusCode >= 400) {
+                throw new Error("Stripe invoice reconciliation returned " + response.statusCode);
+            }
+            return response.json || {};
+        };
+
+        var processInvoices = function (invoices) {
+            for (var i = 0; i < invoices.length; i++) {
+                var invoice = invoices[i];
+                var result = null;
+                seen += 1;
+                try {
+                    $app.runInTransaction((txApp) => {
+                        result = stripeUtils.reconcileAffiliatePaidInvoice(txApp, invoice);
+                    });
+                    if (result && result.matched && result.commission) matched += 1;
+                } catch (invoiceError) {
+                    $app.logger().warn(
+                        "Affiliate invoice reconciliation skipped invoice=" +
+                        String((invoice && invoice.id) || "unknown") + ": " + invoiceError
+                    );
+                }
+            }
+        };
+
+        while (page < pageLimit) {
+            var payload = fetchInvoicePage(startingAfter, createdAfter);
+            var invoices = payload.data || [];
+            if (invoices.length === 0) break;
+            processInvoices(invoices);
+
+            page += 1;
+            startingAfter = String(invoices[invoices.length - 1].id || "");
+            if (!payload.has_more || !startingAfter) break;
+        }
+
+        if (page >= pageLimit) {
+            $app.logger().warn("Affiliate invoice reconciliation reached its " + pageLimit + " page safety limit.");
+        }
+
+        // Independently advance one durable full-history page per run. Once
+        // the end is reached the cursor resets, so every paid invoice is
+        // audited again in a bounded, idempotent cycle for the life of the
+        // service—not just while it remains inside the 45-day fast window.
+        var cursorRows = arrayOf(new DynamicModel({ "cursor": "" }));
+        $app.db().newQuery(`
+            SELECT cursor
+            FROM _affiliate_reconciliation_state
+            WHERE id = 'paid_invoice_history'
+        `).all(cursorRows);
+        var historyCursor = String(cursorRows.length ? cursorRows[0].cursor : "");
+        var historyPayload = fetchInvoicePage(historyCursor, 0);
+        var historyInvoices = historyPayload.data || [];
+        processInvoices(historyInvoices);
+        var nextHistoryCursor = "";
+        if (historyPayload.has_more && historyInvoices.length > 0) {
+            nextHistoryCursor = String(historyInvoices[historyInvoices.length - 1].id || "");
+        }
+        $app.db().newQuery(`
+            INSERT INTO _affiliate_reconciliation_state (id, cursor, updated)
+            VALUES ('paid_invoice_history', {:cursor}, datetime('now'))
+            ON CONFLICT(id) DO UPDATE SET
+                cursor = excluded.cursor,
+                updated = excluded.updated
+        `).bind({ cursor: nextHistoryCursor }).execute();
+
+        $app.logger().info(
+            "Affiliate invoice reconciliation complete invoices=" + seen + " matched=" + matched
+        );
+    } catch (err) {
+        // Webhook delivery continues independently; the next scheduled pass is
+        // idempotent and retries the same bounded window.
+        $app.logger().warn("Affiliate invoice reconciliation failed: " + err);
+    }
+});
+
+// Raw profile-view events exist only for retry safety, daily uniqueness, and
+// bounded reconciliation. Dashboard reads use rollups, so retaining slightly
+// more than the longest 90-day reporting window avoids unbounded DB growth.
+cronAdd("cleanup_profile_analytics_events", "43 3 * * *", () => {
+    try {
+        $app.db().newQuery(`
+            DELETE FROM profile_view_events
+            WHERE id IN (
+                SELECT id FROM profile_view_events
+                WHERE created < datetime('now', '-100 days')
+                ORDER BY created ASC
+                LIMIT 25000
+            )
+        `).execute();
+    } catch (err) {
+        // This hook can load before the migration on a first boot. Analytics
+        // cleanup is maintenance-only and must never affect application boot.
+        $app.logger().warn("Profile analytics cleanup failed: " + err);
+    }
+});
+
+// Repair the only deliberately non-transactional part of the profile funnel:
+// a raw click is committed before its after-create rollup hook runs. Rebuild a
+// bounded, indexed 6-hour window with absolute totals so retries are
+// idempotent and can never double-count. Joining the current Profile and Link
+// also skips historical attribution rows whose parent was later deleted.
+cronAdd("reconcile_profile_click_rollups", "29 * * * *", () => {
+    try {
+        $app.db().newQuery(`
+            INSERT INTO profile_click_hourly_rollup (
+                profile_id, profile_link_id, link_id, bucket, total, unique_count
+            )
+            SELECT
+                c.source_profile_id,
+                c.profile_link_id,
+                c.link_id,
+                strftime('%Y-%m-%dT%H:00:00Z', c.created),
+                count(*),
+                sum(CASE WHEN c.is_unique = 1 THEN 1 ELSE 0 END)
+            FROM clicks c INDEXED BY idx_clicks_created
+            INNER JOIN public_profiles p ON p.id = c.source_profile_id
+            INNER JOIN links l ON l.id = c.link_id
+            WHERE c.created >= strftime('%Y-%m-%d %H:00:00.000Z', 'now', '-6 hours')
+              AND c.source_profile_id != ''
+              AND c.profile_link_id != ''
+            GROUP BY
+                c.source_profile_id,
+                c.profile_link_id,
+                c.link_id,
+                strftime('%Y-%m-%dT%H:00:00Z', c.created)
+            ON CONFLICT (profile_id, profile_link_id, link_id, bucket)
+            DO UPDATE SET
+                total = excluded.total,
+                unique_count = excluded.unique_count
+        `).execute();
+    } catch (err) {
+        // Reconciliation is self-healing on the next hourly pass and must
+        // never affect click ingestion or redirect availability.
+        $app.logger().warn("Profile click rollup reconciliation failed: " + err);
+    }
+});
+
 // Admin: bounded activity summary for a single user.
 // Raw clicks stay closed at the collection-rule level. Totals and chart data
 // come from maintained aggregates, while recent activity reads at most five
@@ -2345,12 +2879,18 @@ routerAdd("POST", "/api/affiliate/claim", (c) => {
             throw new BadRequestError("This referral link is only available to new accounts.");
         }
 
-        var partnerRecord = $app.findFirstRecordByFilter(
-            "affiliate_partners",
-            "referral_code = {:code} && status = 'active'",
-            { code: code }
-        );
-        var partnerUser = $app.findRecordById("users", partnerRecord.get("user_id"));
+        var partnerRecord = null;
+        var partnerUser = null;
+        try {
+            partnerRecord = $app.findFirstRecordByFilter(
+                "affiliate_partners",
+                "referral_code = {:code} && status = 'active'",
+                { code: code }
+            );
+            partnerUser = $app.findRecordById("users", partnerRecord.get("user_id"));
+        } catch (lookupError) {
+            throw new BadRequestError("Invalid referral link.");
+        }
         if (partnerUser.get("banned") === true) throw new BadRequestError("Invalid referral link.");
 
         var attributionId = "";
@@ -2375,6 +2915,14 @@ routerAdd("POST", "/api/affiliate/claim", (c) => {
             attribution_id: attributionId
         });
     } catch (error) {
+        if (!(error instanceof BadRequestError)) {
+            $app.logger().error("Affiliate referral claim failed: " + error);
+            return c.json(500, {
+                success: false,
+                error: "We couldn't save this referral attribution right now. Please try again."
+            });
+        }
+
         var message = String((error && error.message) || "");
         if (message !== "This referral link is only available to new accounts." &&
             message !== "You cannot use your own affiliate offer") {
@@ -2418,6 +2966,7 @@ routerAdd("GET", "/api/affiliate/status", (c) => {
 routerAdd("GET", "/api/affiliate/overview", (c) => {
     var utils = require(__hooks + '/utils.js');
     var user = c.auth;
+    c.response.header().add("Cache-Control", "no-store");
     if (!user || user.collection().name !== "users") {
         return c.json(401, { error: "Unauthorized" });
     }
@@ -2562,12 +3111,264 @@ routerAdd("GET", "/api/affiliate/overview", (c) => {
     }
 });
 
+// Admin: complete affiliate summary and immutable payout ledger for a user.
+// This endpoint never creates partner records as a side effect: inspecting a
+// normal user in the admin panel must not turn that account into a partner.
+routerAdd("GET", "/api/admin/users/{id}/partner-info", (c) => {
+    var requestId = $security.randomString(12);
+    c.response.header().add("Cache-Control", "no-store");
+
+    try {
+        var admin = c.auth;
+        if (!admin || admin.collection().name !== "users") {
+            return c.json(401, {
+                error: { code: "unauthorized", message: "Sign in to continue." },
+                request_id: requestId
+            });
+        }
+        if (admin.get("role") !== "admin") {
+            return c.json(403, {
+                error: { code: "forbidden", message: "Administrator access is required." },
+                request_id: requestId
+            });
+        }
+
+        var partnerId = String(c.request.pathValue("id") || "");
+        if (!/^[a-z0-9]{15}$/.test(partnerId)) {
+            return c.json(404, {
+                error: { code: "not_found", message: "User not found." },
+                request_id: requestId
+            });
+        }
+        try {
+            $app.findRecordById("users", partnerId);
+        } catch (userError) {
+            return c.json(404, {
+                error: { code: "not_found", message: "User not found." },
+                request_id: requestId
+            });
+        }
+
+        var partnerRecord = null;
+        try {
+            partnerRecord = $app.findFirstRecordByFilter(
+                "affiliate_partners",
+                "user_id = {:partnerId}",
+                { partnerId: partnerId }
+            );
+        } catch (partnerError) { }
+
+        var promoRecords = $app.findRecordsByFilter(
+            "promocodes",
+            "partner_id = {:partnerId}",
+            "-created",
+            100,
+            0,
+            { partnerId: partnerId }
+        );
+        var codes = [];
+        for (var i = 0; i < promoRecords.length; i++) {
+            var promo = promoRecords[i];
+            codes.push({
+                id: promo.id,
+                code: promo.get("code") || "",
+                name: promo.get("internal_name") || "",
+                active: promo.get("is_active") === true,
+                current_uses: Number(promo.get("current_uses") || 0),
+                max_uses: Number(promo.get("max_uses") || 0),
+                commission_rate_bps: Number(promo.get("commission_rate_bps") || 0),
+                reward_enabled: promo.get("reward_enabled") === true,
+                reward_plan: promo.get("reward_plan") || "",
+                reward_days: (parseInt(promo.get("reward_days"), 10) || 0) ||
+                    ((parseInt(promo.get("reward_months"), 10) || 0) * 30)
+            });
+        }
+
+        var planRows = arrayOf(new DynamicModel({
+            "total": 0,
+            "creator": 0,
+            "pro": 0,
+            "agency": 0
+        }));
+        $app.db().newQuery(`
+            SELECT
+                count(*) AS total,
+                coalesce(sum(CASE
+                    WHEN coalesce(nullif(u.plan, ''), 'creator') = 'creator'
+                    THEN 1 ELSE 0
+                END), 0) AS creator,
+                coalesce(sum(CASE WHEN u.plan = 'pro' THEN 1 ELSE 0 END), 0) AS pro,
+                coalesce(sum(CASE WHEN u.plan = 'agency' THEN 1 ELSE 0 END), 0) AS agency
+            FROM affiliate_attributions a
+            JOIN users u ON u.id = a.referred_user_id
+            WHERE a.partner_id = {:partnerId}
+        `).bind({ partnerId: partnerId }).all(planRows);
+        var plans = planRows.length > 0 ? planRows[0] : {
+            total: 0, creator: 0, pro: 0, agency: 0
+        };
+
+        var referralRows = arrayOf(new DynamicModel({
+            "id": "",
+            "email": "",
+            "username": "",
+            "name": "",
+            "plan": "",
+            "source": "",
+            "status": "",
+            "created": ""
+        }));
+        $app.db().newQuery(`
+            SELECT a.id, u.email, u.username, u.name,
+                   coalesce(nullif(u.plan, ''), 'creator') AS plan,
+                   a.source, a.status, a.created
+            FROM affiliate_attributions a
+            JOIN users u ON u.id = a.referred_user_id
+            WHERE a.partner_id = {:partnerId}
+            ORDER BY a.created DESC
+            LIMIT 20
+        `).bind({ partnerId: partnerId }).all(referralRows);
+        var recentReferrals = [];
+        for (var referralIndex = 0; referralIndex < referralRows.length; referralIndex++) {
+            recentReferrals.push({
+                id: referralRows[referralIndex].id,
+                email: referralRows[referralIndex].email,
+                username: referralRows[referralIndex].username,
+                name: referralRows[referralIndex].name,
+                plan: referralRows[referralIndex].plan,
+                source: referralRows[referralIndex].source,
+                status: referralRows[referralIndex].status,
+                created: referralRows[referralIndex].created
+            });
+        }
+
+        var moneyRows = arrayOf(new DynamicModel({
+            "earned_cents": 0,
+            "matured_cents": 0,
+            "commission_payments": 0,
+            "initial_payments": 0,
+            "renewal_payments": 0
+        }));
+        $app.db().newQuery(`
+            SELECT
+                coalesce(sum(CASE WHEN status != 'reversed' THEN commission_cents ELSE 0 END), 0) AS earned_cents,
+                coalesce(sum(CASE
+                    WHEN status IN ('pending', 'approved')
+                      AND available_at != '' AND available_at <= datetime('now')
+                    THEN commission_cents ELSE 0
+                END), 0) AS matured_cents,
+                coalesce(sum(CASE WHEN status != 'reversed' THEN 1 ELSE 0 END), 0) AS commission_payments,
+                coalesce(sum(CASE
+                    WHEN status != 'reversed' AND commission_type != 'renewal'
+                    THEN 1 ELSE 0
+                END), 0) AS initial_payments,
+                coalesce(sum(CASE
+                    WHEN status != 'reversed' AND commission_type = 'renewal'
+                    THEN 1 ELSE 0
+                END), 0) AS renewal_payments
+            FROM affiliate_commissions
+            WHERE partner_id = {:partnerId}
+        `).bind({ partnerId: partnerId }).all(moneyRows);
+        var money = moneyRows.length > 0 ? moneyRows[0] : {
+            earned_cents: 0,
+            matured_cents: 0,
+            commission_payments: 0,
+            initial_payments: 0,
+            renewal_payments: 0
+        };
+
+        var payoutRecords = $app.findRecordsByFilter(
+            "affiliate_payouts",
+            "partner_id = {:partnerId}",
+            "-paid_at,-created",
+            100,
+            0,
+            { partnerId: partnerId }
+        );
+        var paidRows = arrayOf(new DynamicModel({ "paid_cents": 0 }));
+        $app.db().newQuery(`
+            SELECT coalesce(sum(amount_cents), 0) AS paid_cents
+            FROM affiliate_payouts
+            WHERE partner_id = {:partnerId} AND status = 'paid'
+        `).bind({ partnerId: partnerId }).all(paidRows);
+        var payouts = [];
+        var paidCents = Number(paidRows.length ? paidRows[0].paid_cents : 0);
+        for (var j = 0; j < payoutRecords.length; j++) {
+            var payout = payoutRecords[j];
+            var amount = Number(payout.get("amount_cents") || 0);
+            payouts.push({
+                id: payout.id,
+                amount_cents: amount,
+                currency: payout.get("currency") || "USD",
+                status: payout.get("status") || "paid",
+                reference: payout.get("reference") || "",
+                note: payout.get("note") || "",
+                paid_at: String(payout.get("paid_at") || ""),
+                created: String(payout.get("created") || ""),
+                created_by: payout.get("created_by") || "",
+                created_by_email: payout.get("created_by_email") || ""
+            });
+        }
+
+        var earnedCents = Number(money.earned_cents || 0);
+        var maturedCents = Number(money.matured_cents || 0);
+        var hasHistory = Number(plans.total || 0) > 0 ||
+            Number(money.commission_payments || 0) > 0 || payouts.length > 0;
+        // affiliate_partners rows are provisioned for all dashboard users by
+        // the referral-status endpoint, so a row alone is not partner proof.
+        var isPartner = codes.length > 0 || hasHistory;
+
+        return c.json(200, {
+            data: {
+                is_partner: isPartner,
+                partner: partnerRecord ? {
+                    status: partnerRecord.get("status") || "active",
+                    referral_code: partnerRecord.get("referral_code") || "",
+                    referral_url: partnerRecord.get("referral_code")
+                        ? "https://linktery.com/ref/" + partnerRecord.get("referral_code")
+                        : "",
+                    default_commission_rate_bps: Number(partnerRecord.get("default_commission_rate_bps") || 0)
+                } : null,
+                stats: {
+                    total_activated: Number(plans.total || 0),
+                    creator: Number(plans.creator || 0),
+                    pro: Number(plans.pro || 0),
+                    agency: Number(plans.agency || 0),
+                    earned_cents: earnedCents,
+                    matured_cents: maturedCents,
+                    on_hold_cents: Math.max(0, earnedCents - maturedCents),
+                    unpaid_cents: Math.max(0, earnedCents - paidCents),
+                    available_cents: Math.max(0, maturedCents - paidCents),
+                    paid_cents: paidCents,
+                    commission_payments: Number(money.commission_payments || 0),
+                    initial_payments: Number(money.initial_payments || 0),
+                    renewal_payments: Number(money.renewal_payments || 0),
+                    currency: "USD"
+                },
+                codes: codes,
+                payouts: payouts,
+                recent_referrals: recentReferrals
+            },
+            request_id: requestId
+        });
+    } catch (error) {
+        $app.logger().error(
+            "Admin partner info failed request_id=" + requestId + ": " + error
+        );
+        return c.json(500, {
+            error: { code: "internal_error", message: "Unable to load partner information." },
+            request_id: requestId
+        });
+    }
+});
+
 // Admin payout ledger. It can only consume commission that has passed the
 // refund hold, and the availability check is repeated inside the transaction.
 routerAdd("POST", "/api/admin/affiliate/payouts", (c) => {
+    var requestId = $security.randomString(12);
+    c.response.header().add("Cache-Control", "no-store");
     try {
         var admin = c.auth;
-        if (!admin || admin.get("role") !== "admin") {
+        if (!admin || admin.collection().name !== "users" || admin.get("role") !== "admin") {
             throw new ForbiddenError("Only admins can record affiliate payouts.");
         }
 
@@ -2579,11 +3380,22 @@ routerAdd("POST", "/api/admin/affiliate/payouts", (c) => {
         });
         c.bindBody(data);
         var identifier = String(data.partner_identifier || "").trim();
-        var amountCents = parseInt(data.amount_cents, 10) || 0;
+        var amountCents = Number(data.amount_cents);
         var reference = String(data.reference || "").trim().substring(0, 255);
         var note = String(data.note || "").trim().substring(0, 500);
-        if (!identifier || amountCents <= 0 || !reference) {
-            throw new BadRequestError("Partner, positive payout amount, and a unique payment reference are required.");
+        if (!identifier || !isFinite(amountCents) || amountCents <= 0 ||
+            Math.floor(amountCents) !== amountCents) {
+            throw new BadRequestError("Partner and a positive payout amount are required.");
+        }
+        if (amountCents > 1000000000) {
+            throw new BadRequestError("Payout amount is too large.");
+        }
+        if (note.length < 3) {
+            throw new BadRequestError("Add a short payout comment for the audit log.");
+        }
+        if (/[\x00-\x1F\x7F]/.test(reference) ||
+            /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(note)) {
+            throw new BadRequestError("Payout details contain unsupported characters.");
         }
 
         var partnerUser = null;
@@ -2601,7 +3413,28 @@ routerAdd("POST", "/api/admin/affiliate/payouts", (c) => {
         if (!partnerUser) throw new BadRequestError("Partner account was not found.");
 
         var payoutId = "";
+        var alreadyRecorded = false;
         $app.runInTransaction((txApp) => {
+            var resolvedReference = reference || ("manual_" + $security.randomString(20));
+            var existingPayout = null;
+            try {
+                existingPayout = txApp.findFirstRecordByFilter(
+                    "affiliate_payouts",
+                    "reference = {:reference}",
+                    { reference: resolvedReference }
+                );
+            } catch (referenceLookupError) { }
+            if (existingPayout) {
+                if (existingPayout.get("partner_id") === partnerUser.id &&
+                    Number(existingPayout.get("amount_cents") || 0) === amountCents &&
+                    existingPayout.get("status") === "paid") {
+                    payoutId = existingPayout.id;
+                    alreadyRecorded = true;
+                    return;
+                }
+                throw new BadRequestError("This payment reference has already been used.");
+            }
+
             var totals = arrayOf(new DynamicModel({
                 matured_cents: 0,
                 paid_cents: 0
@@ -2637,23 +3470,29 @@ routerAdd("POST", "/api/admin/affiliate/payouts", (c) => {
                 "amount_cents": amountCents,
                 "currency": "USD",
                 "status": "paid",
-                "reference": reference,
+                "reference": resolvedReference,
                 "note": note,
-                "paid_at": new DateTime()
+                "paid_at": new DateTime(),
+                "created_by": admin.id,
+                "created_by_email": admin.get("email") || ""
             });
             txApp.save(payout);
             payoutId = payout.id;
         });
 
-        return c.json(201, {
+        return c.json(alreadyRecorded ? 200 : 201, {
             success: true,
+            already_recorded: alreadyRecorded,
             id: payoutId,
             amount_cents: amountCents,
-            currency: "USD"
+            currency: "USD",
+            request_id: requestId
         });
     } catch (error) {
         if (error instanceof BadRequestError || error instanceof ForbiddenError) throw error;
-        $app.logger().error("Affiliate payout creation failed: " + error);
+        $app.logger().error(
+            "Affiliate payout creation failed request_id=" + requestId + ": " + error
+        );
         throw new BadRequestError("We couldn't record this payout.");
     }
 });
@@ -2893,6 +3732,38 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
 
 // getAuthInfo helper migrated to top of file
 
+// Affiliate ownership and commission rows are accounting records. Prevent a
+// direct admin collection delete from cascading away either side of an active
+// lifetime attribution; use ban/archive for those accounts instead.
+onRecordDeleteRequest((e) => {
+    var userId = e.record.id;
+    var hasRecord = function (collection, filter, params) {
+        // findRecordsByFilter returns an empty array when there is no match.
+        // Any real lookup/schema error is intentionally allowed to propagate:
+        // accounting preservation must fail closed, never silently authorize
+        // a cascading user delete because a history check malfunctioned.
+        return $app.findRecordsByFilter(collection, filter, "", 1, 0, params).length > 0;
+    };
+
+    var hasAffiliateHistory =
+        hasRecord(
+            "affiliate_attributions",
+            "partner_id = {:userId} || referred_user_id = {:userId}",
+            { userId: userId }
+        ) ||
+        hasRecord("affiliate_commissions", "partner_id = {:userId} || referred_user_id = {:userId}", { userId: userId }) ||
+        hasRecord("affiliate_payouts", "partner_id = {:userId}", { userId: userId }) ||
+        hasRecord("promocodes", "partner_id = {:userId}", { userId: userId });
+
+    if (hasAffiliateHistory) {
+        throw new BadRequestError(
+            "This account has affiliate financial history and cannot be deleted. Ban or archive it to preserve lifetime commissions and payout records."
+        );
+    }
+
+    e.next();
+}, "users");
+
 // Username change cooldown
 onRecordUpdateRequest((e) => {
     const oldUsername = String(e.record.original().get("username") || "").trim().toLowerCase();
@@ -3008,6 +3879,24 @@ onRecordCreateRequest((e) => {
     e.next();
 }, "users");
 
+// Plan changes can also come from the admin UI or future maintenance tools,
+// not only Stripe. Revoke eagerly on every entitlement loss/ban so dormant
+// credentials never survive a manual downgrade and later reactivate.
+onRecordAfterUpdateSuccess((e) => {
+    try {
+        const apiUtils = require(__hooks + '/utils.js');
+        if (
+            e.record.get("banned") === true ||
+            (e.record.get("role") !== "admin" && apiUtils.getEffectivePlanNameForUser(e.record) === "creator")
+        ) {
+            apiUtils.revokeActiveApiKeysForUser($app, e.record.id);
+        }
+    } catch (err) {
+        $app.logger().error("Unable to reconcile API keys after account entitlement update: " + err);
+    }
+    e.next();
+}, "users");
+
 // A ban must block new logins and invalidate existing sessions on refresh.
 onRecordAuthRequest((e) => {
     if (e.record && e.record.get("banned") === true) {
@@ -3045,23 +3934,145 @@ onRecordCreateRequest((e) => {
     e.next();
 }, "links");
 
-// Hourly cron: downgrade expired plans or restore fallback
+// Hourly cron: reconcile expired local entitlements with Stripe before any
+// downgrade. Stripe is authoritative for subscriptions; a delayed invoice or
+// webhook must never remove an otherwise active paid plan.
 cronAdd("check_expired_plans", "0 * * * *", () => {
     console.log("[CRON] check_expired_plans running at " + new Date().toISOString());
 
     try {
+        var stripeUtils = require(__hooks + '/utils.js');
+        var stripeSecretKey = String($os.getenv("STRIPE_SECRET_KEY") || "");
         var nowStr = new Date().toISOString().replace("T", " ").substring(0, 19);
-
         var records = $app.findRecordsByFilter(
             "users",
             "plan != 'creator' && plan != '' && plan_expires_at != '' && plan_expires_at <= {:now}",
             "-created", 0, 0, { now: nowStr }
         );
 
-        console.log("[CRON] Found " + records.length + " expired users");
+        // Also repair missed renewals where the legacy timer already cleared
+        // the user plan while billing still expected an active subscription.
+        var repairRows = [];
+        $app.db().newQuery(`
+            SELECT DISTINCT u.id
+            FROM users u
+            INNER JOIN billing b
+                ON b.user_id = u.id
+               AND b.stripe_subscription_id = u.stripe_subscription_id
+            WHERE COALESCE(u.plan, '') NOT IN ('pro', 'agency')
+              AND COALESCE(u.stripe_subscription_id, '') != ''
+              AND COALESCE(b.status, '') IN ('active', 'canceling')
+            LIMIT 100
+        `).all(repairRows);
+
+        var candidateIds = {};
+        for (var existingIndex = 0; existingIndex < records.length; existingIndex++) {
+            candidateIds[records[existingIndex].id] = true;
+        }
+        for (var repairIndex = 0; repairIndex < repairRows.length; repairIndex++) {
+            var repairId = String(repairRows[repairIndex].id || "");
+            if (!repairId || candidateIds[repairId]) continue;
+            try {
+                records.push($app.findRecordById("users", repairId));
+                candidateIds[repairId] = true;
+            } catch (repairLookupError) {
+                $app.logger().warn("Stripe entitlement repair candidate disappeared user=" + repairId);
+            }
+        }
+
+        console.log("[CRON] Found " + records.length + " entitlement candidates");
 
         for (var i = 0; i < records.length; i++) {
             var user = records[i];
+            var subscriptionId = String(user.get("stripe_subscription_id") || "");
+
+            if (subscriptionId) {
+                // Network/configuration failures are fail-open for an existing
+                // entitlement. A later cron or webhook will retry safely.
+                if (!stripeSecretKey) {
+                    $app.logger().error("Stripe entitlement reconciliation skipped: secret unavailable user=" + user.id);
+                    continue;
+                }
+
+                var stripeState = null;
+                try {
+                    stripeState = stripeUtils.fetchStripeSubscriptionState(
+                        subscriptionId,
+                        stripeSecretKey
+                    );
+                } catch (stripeStateError) {
+                    $app.logger().warn(
+                        "Stripe entitlement reconciliation deferred user=" + user.id +
+                        " error_type=" + String(stripeStateError && stripeStateError.name || "Error")
+                    );
+                    continue;
+                }
+
+                if (stripeState.status === "active" || stripeState.status === "trialing") {
+                    $app.runInTransaction((txApp) => {
+                        var activeUser = txApp.findRecordById("users", user.id);
+                        if (String(activeUser.get("stripe_subscription_id") || "") !== subscriptionId) return;
+
+                        var activeStatus = stripeState.cancelAtPeriodEnd ? "canceling" : stripeState.status;
+                        activeUser.set("plan", stripeState.plan);
+                        activeUser.set("plan_status", activeStatus);
+                        activeUser.set("plan_expires_at", stripeState.period.end);
+                        txApp.save(activeUser);
+
+                        var activeBilling = txApp.findRecordsByFilter(
+                            "billing",
+                            "user_id = {:userId} && stripe_subscription_id = {:subscriptionId}",
+                            "-created", 1, 0,
+                            { userId: user.id, subscriptionId: subscriptionId }
+                        );
+                        if (activeBilling.length > 0) {
+                            activeBilling[0].set("plan", stripeState.plan);
+                            activeBilling[0].set("status", activeStatus);
+                            activeBilling[0].set("period_start", stripeState.period.start);
+                            activeBilling[0].set("end_date", stripeState.period.end);
+                            txApp.save(activeBilling[0]);
+                        }
+                    });
+                    console.log("[CRON] Stripe entitlement confirmed user=" + user.id + " plan=" + stripeState.plan);
+                    continue;
+                }
+
+                // Recoverable Stripe states block paid features through
+                // plan_status but retain subscription identity for automatic
+                // recovery after Smart Retries or resume.
+                if (
+                    stripeState.status === "past_due" ||
+                    stripeState.status === "incomplete" ||
+                    stripeState.status === "paused"
+                ) {
+                    $app.runInTransaction((txApp) => {
+                        var retryUser = txApp.findRecordById("users", user.id);
+                        if (String(retryUser.get("stripe_subscription_id") || "") !== subscriptionId) return;
+                        retryUser.set("plan_status", stripeState.status);
+                        retryUser.set("plan_expires_at", stripeState.period.end);
+                        txApp.save(retryUser);
+
+                        var retryBilling = txApp.findRecordsByFilter(
+                            "billing",
+                            "user_id = {:userId} && stripe_subscription_id = {:subscriptionId}",
+                            "-created", 1, 0,
+                            { userId: user.id, subscriptionId: subscriptionId }
+                        );
+                        if (retryBilling.length > 0) {
+                            retryBilling[0].set("status", stripeState.status);
+                            retryBilling[0].set("period_start", stripeState.period.start);
+                            retryBilling[0].set("end_date", stripeState.period.end);
+                            txApp.save(retryBilling[0]);
+                        }
+                    });
+                    stripeUtils.revokeActiveApiKeysForUser($app, user.id);
+                    console.log("[CRON] Stripe entitlement awaiting recovery user=" + user.id + " status=" + stripeState.status);
+                    continue;
+                }
+                // Only terminal states (canceled, unpaid,
+                // incomplete_expired) may reach the downgrade below.
+            }
+
             var fallbackPlan = user.get("fallback_plan");
             var fallbackExpires = user.get("fallback_expires_at");
 
@@ -3072,6 +4083,7 @@ cronAdd("check_expired_plans", "0 * * * *", () => {
                     var fallbackDate = new Date(fallbackDateStr);
                     if (fallbackDate > new Date()) {
                         user.set("plan", fallbackPlan);
+                        user.set("plan_status", "active");
                         user.set("plan_expires_at", new DateTime(fallbackDate.toISOString().replace("T", " ")));
                         restored = true;
                     }
@@ -3080,13 +4092,20 @@ cronAdd("check_expired_plans", "0 * * * *", () => {
 
             if (!restored) {
                 user.set("plan", "");
+                user.set("plan_status", subscriptionId && stripeState ? stripeState.status : "expired");
                 user.set("plan_expires_at", "");
             }
 
             user.set("fallback_plan", "");
             user.set("fallback_expires_at", "");
             $app.save(user);
-            console.log("[CRON] Downgraded: " + user.email() + " | was: " + user.get("plan") + " | restored: " + restored);
+            // A key belonging to a restored paid fallback remains valid. A
+            // genuine downgrade revokes it so a previously leaked dormant key
+            // cannot silently become active on the next subscription.
+            if (!restored) {
+                stripeUtils.revokeActiveApiKeysForUser($app, user.id);
+            }
+            console.log("[CRON] Entitlement finalized user=" + user.id + " restored=" + restored);
         }
     } catch (err) {
         console.log("[CRON] ERROR: " + err.toString());
@@ -3182,6 +4201,8 @@ onRecordViewRequest((e) => {
 // PocketBase v0.24 JSVM: GLOBAL function (not $app.), callback first, collection last
 onRecordAfterCreateSuccess((e) => {
     const linkId = e.record.get("link_id");
+    const sourceProfileId = String(e.record.get("source_profile_id") || "");
+    const profileLinkId = String(e.record.get("profile_link_id") || "");
 
     if (linkId) {
         // Keep the total counter and daily rollup independent so a failure in one
@@ -3256,6 +4277,27 @@ onRecordAfterCreateSuccess((e) => {
             // Redirect/click recording remains available even if a rollup write
             // fails. The raw click is the source of truth and can be reconciled.
             $app.logger().error("Failed to update analytics_hourly_rollup for click_id " + e.record.id + " link_id " + linkId + ": " + err);
+        }
+
+        if (sourceProfileId && profileLinkId) {
+            try {
+                $app.db().newQuery(`
+                    INSERT INTO profile_click_hourly_rollup (
+                        profile_id, profile_link_id, link_id, bucket, total, unique_count
+                    )
+                    SELECT source_profile_id, profile_link_id, link_id,
+                           strftime('%Y-%m-%dT%H:00:00Z', created),
+                           1, CASE WHEN is_unique = 1 THEN 1 ELSE 0 END
+                    FROM clicks
+                    WHERE id = {:clickId}
+                    ON CONFLICT (profile_id, profile_link_id, link_id, bucket)
+                    DO UPDATE SET
+                        total = total + 1,
+                        unique_count = unique_count + excluded.unique_count
+                `).bind({ clickId: e.record.id }).execute();
+            } catch (err) {
+                $app.logger().error("Failed to update profile_click_hourly_rollup for click_id " + e.record.id + ": " + err);
+            }
         }
     }
 
@@ -3680,7 +4722,7 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
         var CountryModel = new DynamicModel({ "name": "", "clicks": 0 });
         var countriesRaw = arrayOf(CountryModel);
         params["dimension"] = "country";
-        db.newQuery("SELECT r.dimension_value as name, sum(r.total) as clicks FROM analytics_hourly_rollup r WHERE " + whereBase + " AND r.dimension_type = {:dimension} GROUP BY r.dimension_value ORDER BY clicks DESC LIMIT 20")
+        db.newQuery("SELECT r.dimension_value as name, sum(r.total) as clicks FROM analytics_hourly_rollup r WHERE " + whereBase + " AND r.dimension_type = {:dimension} GROUP BY r.dimension_value ORDER BY clicks DESC LIMIT 300")
             .bind(params).all(countriesRaw);
 
         var RefModel = new DynamicModel({ "name": "", "clicks": 0 });
@@ -3690,7 +4732,7 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
             .bind(params).all(referrersRaw);
 
         var ValueModel = new DynamicModel({ "name": "", "value": 0 });
-        var devicesRaw = arrayOf(ValueModel);
+        var devicesRaw = arrayOf(new DynamicModel({ "name": "", "value": 0 }));
         params["dimension"] = "device";
         db.newQuery("SELECT r.dimension_value as name, sum(r.total) as value FROM analytics_hourly_rollup r WHERE " + whereBase + " AND r.dimension_type = {:dimension} GROUP BY r.dimension_value ORDER BY value DESC")
             .bind(params).all(devicesRaw);
@@ -3733,13 +4775,47 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
         }
 
         var total = totalRow.total || 0;
-        var countriesOut = [];
-        for (var ci = 0; ci < countriesRaw.length; ci++) {
-            countriesOut.push({
-                name: countriesRaw[ci].name,
-                clicks: countriesRaw[ci].clicks,
-                pct: total > 0 ? Math.round((countriesRaw[ci].clicks / total) * 100) : 0
+        var countryTotalsByCode = {};
+        for (var rawCi = 0; rawCi < countriesRaw.length; rawCi++) {
+            var rawCountryCode = String(countriesRaw[rawCi].name || "").trim().toUpperCase();
+            var countryCode = /^[A-Z]{2}$/.test(rawCountryCode) && rawCountryCode !== "XX"
+                ? rawCountryCode
+                : "Unknown";
+            countryTotalsByCode[countryCode] = (countryTotalsByCode[countryCode] || 0) + Number(countriesRaw[rawCi].clicks || 0);
+        }
+
+        var normalizedCountries = [];
+        var countryCodes = Object.keys(countryTotalsByCode);
+        for (var codeIdx = 0; codeIdx < countryCodes.length; codeIdx++) {
+            normalizedCountries.push({
+                name: countryCodes[codeIdx],
+                clicks: countryTotalsByCode[countryCodes[codeIdx]]
             });
+        }
+        normalizedCountries.sort(function (a, b) {
+            if (b.clicks !== a.clicks) return b.clicks - a.clicks;
+            return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0);
+        });
+
+        var countriesOut = [];
+        var countryMapOut = [];
+        for (var ci = 0; ci < normalizedCountries.length; ci++) {
+            var normalizedCountry = normalizedCountries[ci];
+            var countryPct = total > 0 ? Math.round((normalizedCountry.clicks / total) * 100) : 0;
+            if (ci < 20) {
+                countriesOut.push({
+                    name: normalizedCountry.name,
+                    clicks: normalizedCountry.clicks,
+                    pct: countryPct
+                });
+            }
+            if (normalizedCountry.name !== "Unknown") {
+                countryMapOut.push({
+                    code: normalizedCountry.name,
+                    clicks: normalizedCountry.clicks,
+                    pct: countryPct
+                });
+            }
         }
 
         var referrersOut = [];
@@ -3767,6 +4843,7 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
             total: total,
             unique: totalRow.uniq || 0,
             countries: countriesOut,
+            countryMap: countryMapOut,
             referrers: referrersOut,
             devices: valueRowsToPlain(devicesRaw),
             browsers: valueRowsToPlain(browsersRaw),
@@ -3787,6 +4864,316 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
         return c.json(500, { message: "Analytics query failed." });
     } finally {
         if (ownsInflight && utils) delete utils.ANALYTICS_INFLIGHT[c.auth ? c.auth.id : ""];
+    }
+});
+
+// Public Profile funnel analytics. Views and profile-attributed card clicks
+// have separate rollups so dashboard latency is bounded by time buckets, not
+// by the number of raw visitor events.
+routerAdd("GET", "/api/analytics/profile-stats", (c) => {
+    var cacheKey = "";
+    var inflightKey = "";
+    var ownsInflight = false;
+    var utils = null;
+    try {
+        utils = require(__hooks + '/utils.js');
+        var user = c.auth;
+        if (!user || user.collection().name !== "users") {
+            return c.json(401, { message: "Unauthorized" });
+        }
+
+        var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
+        if (!plan.analytics && user.get("role") !== "admin") {
+            return c.json(403, { message: "Advanced Analytics requires Creator Pro or Agency." });
+        }
+
+        var query = c.request.url.query();
+        var profileId = String(query.get("profileId") || "");
+        var period = String(query.get("period") || "7d");
+        var validPeriods = { "24h": 24, "7d": 168, "30d": 720, "90d": 2160 };
+        var isAllProfiles = profileId === "all";
+        if (!isAllProfiles && !/^[a-z0-9]{15}$/.test(profileId)) {
+            return c.json(400, { message: "Invalid profile id." });
+        }
+        if (!validPeriods[period]) {
+            return c.json(400, { message: "Invalid analytics period." });
+        }
+
+        var db = $app.db();
+        var profile = null;
+        var profilesCount = 0;
+        var scopeFingerprint = profileId;
+        if (isAllProfiles) {
+            // Resolve only the owner's compact profile id set. Besides powering
+            // the count, its digest prevents a cached aggregate from surviving
+            // an ownership transfer or profile deletion during the cache TTL.
+            var OwnedProfileModel = new DynamicModel({ "id": "" });
+            var ownedProfileRows = arrayOf(OwnedProfileModel);
+            db.newQuery("SELECT id FROM public_profiles WHERE user_id = {:userId} ORDER BY id ASC")
+                .bind({ userId: user.id })
+                .all(ownedProfileRows);
+            var ownedProfileIds = [];
+            for (var ownedIndex = 0; ownedIndex < ownedProfileRows.length; ownedIndex++) {
+                ownedProfileIds.push(String(ownedProfileRows[ownedIndex].id || ""));
+            }
+            profilesCount = ownedProfileIds.length;
+            scopeFingerprint = $security.sha256(ownedProfileIds.join("|"));
+        } else {
+            try {
+                profile = $app.findFirstRecordByFilter(
+                    "public_profiles",
+                    "id = {:profileId} && user_id = {:userId}",
+                    { profileId: profileId, userId: user.id }
+                );
+                profilesCount = 1;
+            } catch (ownershipError) {
+                return c.json(404, { message: "Profile not found." });
+            }
+        }
+
+        cacheKey = "profile-stats|" + user.id + "|" + profileId + "|" + scopeFingerprint + "|" + period;
+        var cached = utils.getAnalyticsCache(cacheKey);
+        if (cached) return c.json(200, cached);
+
+        if (!utils.analyticsRateLimitAllows(user.id)) {
+            return c.json(429, { message: "Too many analytics requests. Please wait a minute." });
+        }
+        // Deduplicate only identical aggregate work. A slow request for one
+        // profile must not make a quick switch to All (or another profile)
+        // fail with 409; the per-user rate limit still bounds concurrency.
+        inflightKey = cacheKey;
+        if (utils.ANALYTICS_INFLIGHT[inflightKey]) {
+            return c.json(409, { message: "An analytics request is already running. Please retry shortly." });
+        }
+        utils.ANALYTICS_INFLIGHT[inflightKey] = true;
+        ownsInflight = true;
+
+        var startedAt = new Date().getTime();
+        var params = {
+            profileId: profileId,
+            userId: user.id,
+            cutoff: "-" + validPeriods[period] + " hours"
+        };
+        // Every rollup query remains owner-scoped at execution time. The
+        // subquery is index-backed and avoids interpolating ids into SQL.
+        var ownedProfileScope = "r.profile_id IN (SELECT id FROM public_profiles WHERE user_id = {:userId})";
+        var profileScope = isAllProfiles
+            ? ownedProfileScope
+            : "r.profile_id = {:profileId} AND " + ownedProfileScope;
+        var whereViews = profileScope + " AND r.bucket >= strftime('%Y-%m-%dT%H:00:00Z', 'now', {:cutoff})";
+        var whereClicks = profileScope + " AND r.bucket >= strftime('%Y-%m-%dT%H:00:00Z', 'now', {:cutoff})";
+
+        var totalRow = new DynamicModel({ "total": 0, "uniq": 0 });
+        params["dimension"] = "all";
+        db.newQuery("SELECT COALESCE(sum(r.total), 0) as total, COALESCE(sum(r.unique_count), 0) as uniq FROM profile_analytics_hourly_rollup r WHERE " + whereViews + " AND r.dimension_type = {:dimension}")
+            .bind(params).one(totalRow);
+
+        var CountryModel = new DynamicModel({ "name": "", "views": 0 });
+        var countriesRaw = arrayOf(CountryModel);
+        params["dimension"] = "country";
+        db.newQuery("SELECT r.dimension_value as name, sum(r.total) as views FROM profile_analytics_hourly_rollup r WHERE " + whereViews + " AND r.dimension_type = {:dimension} GROUP BY r.dimension_value ORDER BY views DESC LIMIT 300")
+            .bind(params).all(countriesRaw);
+
+        var ValueModel = new DynamicModel({ "name": "", "value": 0 });
+        var referrersRaw = arrayOf(ValueModel);
+        params["dimension"] = "referrer";
+        db.newQuery("SELECT r.dimension_value as name, sum(r.total) as value FROM profile_analytics_hourly_rollup r WHERE " + whereViews + " AND r.dimension_type = {:dimension} GROUP BY r.dimension_value ORDER BY value DESC LIMIT 5")
+            .bind(params).all(referrersRaw);
+
+        var devicesRaw = arrayOf(new DynamicModel({ "name": "", "value": 0 }));
+        params["dimension"] = "device";
+        db.newQuery("SELECT r.dimension_value as name, sum(r.total) as value FROM profile_analytics_hourly_rollup r WHERE " + whereViews + " AND r.dimension_type = {:dimension} GROUP BY r.dimension_value ORDER BY value DESC")
+            .bind(params).all(devicesRaw);
+
+        var browsersRaw = arrayOf(new DynamicModel({ "name": "", "value": 0 }));
+        params["dimension"] = "browser";
+        db.newQuery("SELECT r.dimension_value as name, sum(r.total) as value FROM profile_analytics_hourly_rollup r WHERE " + whereViews + " AND r.dimension_type = {:dimension} GROUP BY r.dimension_value ORDER BY value DESC LIMIT 3")
+            .bind(params).all(browsersRaw);
+
+        var osRaw = arrayOf(new DynamicModel({ "name": "", "value": 0 }));
+        params["dimension"] = "os";
+        db.newQuery("SELECT r.dimension_value as name, sum(r.total) as value FROM profile_analytics_hourly_rollup r WHERE " + whereViews + " AND r.dimension_type = {:dimension} GROUP BY r.dimension_value ORDER BY value DESC LIMIT 3")
+            .bind(params).all(osRaw);
+
+        var trendBucket = period === "24h" ? "r.bucket" : "substr(r.bucket, 1, 10)";
+        var TrendModel = new DynamicModel({ "date": "", "value": 0 });
+        var viewTrendRaw = arrayOf(TrendModel);
+        params["dimension"] = "all";
+        db.newQuery("SELECT " + trendBucket + " as date, sum(r.total) as value FROM profile_analytics_hourly_rollup r WHERE " + whereViews + " AND r.dimension_type = {:dimension} GROUP BY " + trendBucket + " ORDER BY date ASC")
+            .bind(params).all(viewTrendRaw);
+
+        var clickTrendRaw = arrayOf(TrendModel);
+        var clickTrendBucket = period === "24h" ? "r.bucket" : "substr(r.bucket, 1, 10)";
+        db.newQuery("SELECT " + clickTrendBucket + " as date, sum(r.total) as value FROM profile_click_hourly_rollup r WHERE " + whereClicks + " GROUP BY " + clickTrendBucket + " ORDER BY date ASC")
+            .bind(params).all(clickTrendRaw);
+
+        var clickTotalRow = new DynamicModel({ "total": 0, "uniq": 0 });
+        db.newQuery("SELECT COALESCE(sum(r.total), 0) as total, COALESCE(sum(r.unique_count), 0) as uniq FROM profile_click_hourly_rollup r WHERE " + whereClicks)
+            .bind(params).one(clickTotalRow);
+
+        var HeatModel = new DynamicModel({ "dow": 0, "hour": 0, "views": 0 });
+        var heatRaw = arrayOf(HeatModel);
+        params["dimension"] = "all";
+        db.newQuery("SELECT CAST(strftime('%w', r.bucket) AS INTEGER) as dow, CAST(strftime('%H', r.bucket) AS INTEGER) as hour, sum(r.total) as views FROM profile_analytics_hourly_rollup r WHERE " + whereViews + " AND r.dimension_type = {:dimension} GROUP BY dow, hour")
+            .bind(params).all(heatRaw);
+
+        // Card CTR in All mode is meaningful only against the views of the
+        // profile that contained that card, not against account-wide views.
+        var ProfileViewTotalModel = new DynamicModel({ "profile_id": "", "views": 0 });
+        var profileViewTotalRows = arrayOf(ProfileViewTotalModel);
+        params["dimension"] = "all";
+        db.newQuery("SELECT r.profile_id, sum(r.total) as views FROM profile_analytics_hourly_rollup r WHERE " + whereViews + " AND r.dimension_type = {:dimension} GROUP BY r.profile_id")
+            .bind(params).all(profileViewTotalRows);
+
+        var CardModel = new DynamicModel({
+            "profile_id": "", "profile_name": "", "profile_slug": "",
+            "profile_link_id": "", "link_id": "", "title": "", "clicks": 0
+        });
+        var cardRows = arrayOf(CardModel);
+        db.newQuery(`
+            SELECT r.profile_id, p.name as profile_name, p.slug as profile_slug,
+                   r.profile_link_id, r.link_id,
+                   COALESCE(NULLIF(pl.title_override, ''), NULLIF(l.title, ''), '/' || l.slug, 'Removed card') as title,
+                   sum(r.total) as clicks
+            FROM profile_click_hourly_rollup r
+            INNER JOIN public_profiles p
+                    ON p.id = r.profile_id AND p.user_id = {:userId}
+            LEFT JOIN profile_links pl
+                   ON pl.id = r.profile_link_id
+                  AND pl.profile_id = r.profile_id
+                  AND pl.link_id = r.link_id
+                  AND pl.user_id = p.user_id
+            LEFT JOIN links l
+                   ON l.id = r.link_id AND l.user_id = p.user_id
+            WHERE ` + whereClicks + `
+            GROUP BY r.profile_id, p.name, p.slug, r.profile_link_id, r.link_id
+            ORDER BY clicks DESC
+            LIMIT 50
+        `).bind(params).all(cardRows);
+
+        var totalViews = Number(totalRow.total || 0);
+        var uniqueViews = Number(totalRow.uniq || 0);
+        var cardClicks = Number(clickTotalRow.total || 0);
+        var uniqueCardClicks = Number(clickTotalRow.uniq || 0);
+
+        var countryTotalsByCode = {};
+        for (var ci = 0; ci < countriesRaw.length; ci++) {
+            var rawCode = String(countriesRaw[ci].name || "").trim().toUpperCase();
+            var countryCode = /^[A-Z]{2}$/.test(rawCode) && rawCode !== "XX" ? rawCode : "Unknown";
+            countryTotalsByCode[countryCode] = (countryTotalsByCode[countryCode] || 0) + Number(countriesRaw[ci].views || 0);
+        }
+        var normalizedCountries = [];
+        var countryCodes = Object.keys(countryTotalsByCode);
+        for (var codeIndex = 0; codeIndex < countryCodes.length; codeIndex++) {
+            normalizedCountries.push({ code: countryCodes[codeIndex], views: countryTotalsByCode[countryCodes[codeIndex]] });
+        }
+        normalizedCountries.sort(function(a, b) { return b.views - a.views; });
+
+        var countriesOut = [];
+        var countryMapOut = [];
+        for (var normalizedIndex = 0; normalizedIndex < normalizedCountries.length; normalizedIndex++) {
+            var normalizedCountry = normalizedCountries[normalizedIndex];
+            var pct = totalViews > 0 ? Math.round((normalizedCountry.views / totalViews) * 100) : 0;
+            if (normalizedIndex < 20) countriesOut.push({ name: normalizedCountry.code, views: normalizedCountry.views, pct: pct });
+            if (normalizedCountry.code !== "Unknown") countryMapOut.push({ code: normalizedCountry.code, views: normalizedCountry.views, pct: pct });
+        }
+
+        var valueRowsToPlain = function(rows) {
+            var out = [];
+            for (var valueIndex = 0; valueIndex < rows.length; valueIndex++) {
+                out.push({ name: rows[valueIndex].name, value: Number(rows[valueIndex].value || 0) });
+            }
+            return out;
+        };
+
+        var trendByDate = {};
+        for (var viewIndex = 0; viewIndex < viewTrendRaw.length; viewIndex++) {
+            var viewDate = String(viewTrendRaw[viewIndex].date || "");
+            trendByDate[viewDate] = { date: viewDate, views: Number(viewTrendRaw[viewIndex].value || 0), cardClicks: 0 };
+        }
+        for (var clickIndex = 0; clickIndex < clickTrendRaw.length; clickIndex++) {
+            var clickDate = String(clickTrendRaw[clickIndex].date || "");
+            if (!trendByDate[clickDate]) trendByDate[clickDate] = { date: clickDate, views: 0, cardClicks: 0 };
+            trendByDate[clickDate].cardClicks = Number(clickTrendRaw[clickIndex].value || 0);
+        }
+        var trendDates = Object.keys(trendByDate).sort();
+        var trendOut = [];
+        for (var trendIndex = 0; trendIndex < trendDates.length; trendIndex++) trendOut.push(trendByDate[trendDates[trendIndex]]);
+
+        var heatmap = [];
+        for (var dayIndex = 0; dayIndex < 7; dayIndex++) {
+            var heatRow = [];
+            for (var hourIndex = 0; hourIndex < 24; hourIndex++) heatRow.push(0);
+            heatmap.push(heatRow);
+        }
+        for (var heatIndex = 0; heatIndex < heatRaw.length; heatIndex++) {
+            var heat = heatRaw[heatIndex];
+            if (heat.dow >= 0 && heat.dow < 7 && heat.hour >= 0 && heat.hour < 24) {
+                heatmap[heat.dow][heat.hour] = Number(heat.views || 0);
+            }
+        }
+
+        var profileViewsById = {};
+        for (var profileViewIndex = 0; profileViewIndex < profileViewTotalRows.length; profileViewIndex++) {
+            profileViewsById[String(profileViewTotalRows[profileViewIndex].profile_id || "")] =
+                Number(profileViewTotalRows[profileViewIndex].views || 0);
+        }
+
+        var cards = [];
+        for (var cardIndex = 0; cardIndex < cardRows.length; cardIndex++) {
+            var clicks = Number(cardRows[cardIndex].clicks || 0);
+            var cardProfileId = String(cardRows[cardIndex].profile_id || "");
+            var cardProfileViews = Number(profileViewsById[cardProfileId] || 0);
+            cards.push({
+                profileId: cardProfileId,
+                profileName: cardRows[cardIndex].profile_name || cardRows[cardIndex].profile_slug,
+                profileSlug: cardRows[cardIndex].profile_slug,
+                profileLinkId: cardRows[cardIndex].profile_link_id,
+                linkId: cardRows[cardIndex].link_id,
+                title: cardRows[cardIndex].title,
+                clicks: clicks,
+                ctr: cardProfileViews > 0 ? Math.round((clicks / cardProfileViews) * 1000) / 10 : 0
+            });
+        }
+
+        var response = {
+            scope: isAllProfiles ? "all" : "profile",
+            profilesCount: profilesCount,
+            // uniqueViews is a sum of per-profile, per-day unique visitors.
+            // It deliberately does not claim account-wide cross-profile
+            // deduplication, which cannot be derived from compact rollups.
+            uniqueScope: "profile_day",
+            profile: isAllProfiles
+                ? null
+                : { id: profile.id, name: profile.get("name") || profile.get("slug"), slug: profile.get("slug") },
+            views: totalViews,
+            uniqueViews: uniqueViews,
+            cardClicks: cardClicks,
+            uniqueCardClicks: uniqueCardClicks,
+            ctr: totalViews > 0 ? Math.round((cardClicks / totalViews) * 1000) / 10 : 0,
+            countries: countriesOut,
+            countryMap: countryMapOut,
+            referrers: valueRowsToPlain(referrersRaw),
+            devices: valueRowsToPlain(devicesRaw),
+            browsers: valueRowsToPlain(browsersRaw),
+            os: valueRowsToPlain(osRaw),
+            trend: trendOut,
+            heatmap: heatmap,
+            cards: cards,
+            generatedAt: new Date().toISOString(),
+            queryMs: new Date().getTime() - startedAt
+        };
+
+        utils.setAnalyticsCache(cacheKey, response, 30000);
+        if (response.queryMs > 1000) {
+            $app.logger().warn("Slow profile analytics query user=" + user.id + " profile=" + profileId + " period=" + period + " durationMs=" + response.queryMs);
+        }
+        return c.json(200, response);
+    } catch (e) {
+        $app.logger().error("Profile analytics API error: " + e.toString());
+        return c.json(500, { message: "Profile analytics query failed." });
+    } finally {
+        if (ownsInflight && utils && inflightKey) delete utils.ANALYTICS_INFLIGHT[inflightKey];
     }
 });
 
@@ -4128,14 +5515,15 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
         // 9. Plan distribution
         var PlanModel = new DynamicModel({ "name": "", "value": 0 });
         var planRaw = arrayOf(PlanModel);
-        db.newQuery("SELECT plan as name, count(*) as value FROM users GROUP BY plan")
+        db.newQuery("SELECT plan_id as name, count(*) as value FROM (SELECT CASE lower(trim(coalesce(plan, ''))) WHEN 'pro' THEN 'pro' WHEN 'agency' THEN 'agency' ELSE 'creator' END as plan_id FROM users) GROUP BY plan_id ORDER BY CASE plan_id WHEN 'creator' THEN 0 WHEN 'pro' THEN 1 WHEN 'agency' THEN 2 ELSE 3 END")
             .all(planRaw);
 
-        // Map plan tiers to human labels
+        // Empty and legacy plan values are Creator accounts. Canonicalizing before
+        // grouping guarantees exactly one chart segment for each effective tier.
         var plansMap = { "creator": "Creator", "pro": "Pro", "agency": "Agency" };
         var planData = [];
         for (var pIdx = 0; pIdx < planRaw.length; pIdx++) {
-            var rawPlanName = planRaw[pIdx].name || "creator";
+            var rawPlanName = String(planRaw[pIdx].name || "creator").toLowerCase();
             planData.push({
                 name: plansMap[rawPlanName] || rawPlanName,
                 value: planRaw[pIdx].value || 0

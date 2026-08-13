@@ -237,7 +237,7 @@ export const AppContent = () => (
 );
 
 const App = () => (
-  <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+  <BrowserRouter>
     <AppContent />
   </BrowserRouter>
 );

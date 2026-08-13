@@ -145,6 +145,33 @@ var validateSlugInput = function(value) {
     return utils.validatePublicSlug(value);
 };
 
+// Only validation messages authored by this public DTO boundary may be
+// reflected to callers. PocketBase BadRequestError instances can also wrap
+// persistence and hook failures whose text may contain schema or SQL details.
+var PUBLIC_MUTATION_VALIDATION_MESSAGES = {
+    "title must be a string.": true,
+    "title must be 100 characters or fewer.": true,
+    "destination_url must be a string.": true,
+    "destination_url must be between 1 and 2048 characters.": true,
+    "destination_url must be a valid http or https URL.": true,
+    "active must be a boolean.": true,
+    "slug must be a string.": true,
+    "Slug must be 1-64 characters and use only lowercase letters, numbers, or hyphens.": true,
+    "This address is reserved by Linktery. Please choose another slug.": true,
+    "Choose a supported Linktery domain.": true,
+    "All destination and targeting URLs must start with http:// or https://.": true,
+    "All destination and targeting URLs must be valid http or https URLs.": true,
+    "Destination and targeting URLs cannot contain embedded credentials.": true,
+    "Use the final destination URL instead of another Linktery short URL. This prevents slow redirects and redirect loops.": true
+};
+
+var getPublicMutationValidationMessage = function(error) {
+    var message = String(error && error.message ? error.message : "").trim();
+    return PUBLIC_MUTATION_VALIDATION_MESSAGES[message]
+        ? message
+        : "The request contains invalid Link data.";
+};
+
 var generateAvailableSlug = function(app) {
     for (var attempt = 0; attempt < 20; attempt++) {
         var candidate = $security.randomString(12).toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 10);
@@ -404,7 +431,7 @@ var createLink = function(c) {
             if (safeMessage.indexOf("link limit") !== -1) {
                 return errorResponse(c, auth, 409, "link_limit_reached", "Your current plan link limit has been reached.");
             }
-            return errorResponse(c, auth, 400, "invalid_request", safeMessage);
+            return errorResponse(c, auth, 400, "invalid_request", getPublicMutationValidationMessage(err));
         }
         if (isKnownSlugConflict(err)) {
             return errorResponse(c, auth, 409, "slug_conflict", "This slug is already in use.");
@@ -488,7 +515,7 @@ var updateLink = function(c) {
             if (safeMessage.indexOf("ETAG_MISMATCH") !== -1) {
                 return errorResponse(c, auth, 412, "precondition_failed", "The link changed since it was read. Fetch it again and retry.");
             }
-            return errorResponse(c, auth, 400, "invalid_request", safeMessage);
+            return errorResponse(c, auth, 400, "invalid_request", getPublicMutationValidationMessage(err));
         }
         if (isKnownSlugConflict(err)) {
             return errorResponse(c, auth, 409, "slug_conflict", "This slug is already in use.");
@@ -633,7 +660,9 @@ var readLinkAnalytics = function(c) {
     }
 
     var period = String(c.request.url.query().get("period") || "30d");
-    var config = ANALYTICS_PERIODS[period];
+    var config = Object.prototype.hasOwnProperty.call(ANALYTICS_PERIODS, period)
+        ? ANALYTICS_PERIODS[period]
+        : null;
     if (!config) {
         return errorResponse(c, auth, 400, "invalid_period", "period must be one of: 24h, 7d, 30d, 90d.");
     }

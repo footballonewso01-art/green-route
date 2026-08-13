@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
 import { pb } from "@/lib/pocketbase";
+import { claimStoredReferral, getStoredReferral } from "@/lib/affiliate";
+import { sendTelemetry } from "@/lib/telemetry";
 
 interface User {
   id: string;
@@ -34,6 +36,16 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const REFERRAL_ACCOUNT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const REFERRAL_RETRY_DELAYS_MS = [0, 3_000, 15_000] as const;
+
+function isReferralClaimWindowOpen(created: string | undefined): boolean {
+  if (!created) return false;
+  const createdAt = Date.parse(created.replace(" ", "T"));
+  if (!Number.isFinite(createdAt)) return false;
+  const age = Date.now() - createdAt;
+  return age >= -5 * 60 * 1000 && age <= REFERRAL_ACCOUNT_WINDOW_MS;
+}
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
@@ -85,6 +97,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // prerendered lazy routes were still hydrating, which made React abandon the
   // Suspense boundary on every public SEO page (production error #421).
   const loading = false;
+  const referralUserId = user?.id;
+  const referralUserCreated = user?.created;
 
   useEffect(() => {
     // Token expiry check: if stored token is no longer valid, force logout
@@ -177,20 +191,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Registration claims immediately, while this recovery path covers a
+  // transient API/network failure and OAuth/auth-store timing. The referral is
+  // retained until the server confirms it and retries only for new accounts.
+  useEffect(() => {
+    if (!referralUserId || !pb.authStore.isValid || !isReferralClaimWindowOpen(referralUserCreated)) return;
+    if (!getStoredReferral()) return;
+
+    let cancelled = false;
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleAttempt = (delay: number) => {
+      if (cancelled) return;
+      retryTimer = setTimeout(() => void attemptClaim(), delay);
+    };
+
+    const attemptClaim = async () => {
+      if (cancelled || !getStoredReferral()) return;
+      try {
+        const claimed = await claimStoredReferral();
+        if (claimed || !getStoredReferral()) return;
+      } catch {
+        if (!getStoredReferral()) return;
+      }
+
+      attempt += 1;
+      if (attempt < REFERRAL_RETRY_DELAYS_MS.length) {
+        scheduleAttempt(REFERRAL_RETRY_DELAYS_MS[attempt]);
+      }
+    };
+
+    const retryWhenOnline = () => {
+      if (!getStoredReferral()) return;
+      if (retryTimer) clearTimeout(retryTimer);
+      attempt = 0;
+      scheduleAttempt(0);
+    };
+
+    scheduleAttempt(REFERRAL_RETRY_DELAYS_MS[0]);
+    window.addEventListener("online", retryWhenOnline);
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      window.removeEventListener("online", retryWhenOnline);
+    };
+  }, [referralUserId, referralUserCreated]);
+
   // 1. Session tracking pulse (top-level hook)
   useEffect(() => {
     if (user) {
-      const trackSession = async () => {
-        try {
-          await pb.collection("analytics_events").create({
-            event_name: "active_session",
-            user_id: user.id,
-            metadata: {
-              path: window.location.pathname,
-              timestamp: new Date().toISOString()
-            }
-          });
-        } catch (e) { /* silent fail */ }
+      const trackSession = () => {
+        sendTelemetry({ event_name: "active_session", path: window.location.pathname });
       };
       trackSession();
       const interval = setInterval(trackSession, 5 * 60 * 1000);
@@ -201,24 +254,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 2. Global Error & Performance logging (top-level hook)
   useEffect(() => {
     const handleError = (event: ErrorEvent) => {
-      pb.collection("system_logs").create({
-        level: "error",
+      sendTelemetry({
+        event_name: "client_error",
         message: event.message,
-        context: {
-          filename: event.filename,
-          lineno: event.lineno,
-          colno: event.colno,
-          stack: event.error?.stack
-        }
-      }).catch(() => { });
+        filename: event.filename,
+        line: event.lineno,
+        column: event.colno,
+        stack: event.error?.stack,
+      });
     };
 
     const handleRejection = (event: PromiseRejectionEvent) => {
-      pb.collection("system_logs").create({
-        level: "error",
-        message: "Unhandled Rejection: " + event.reason,
-        context: { reason: event.reason }
-      }).catch(() => { });
+      const reason = event.reason instanceof Error
+        ? event.reason
+        : new Error(String(event.reason || "Unhandled rejection"));
+      sendTelemetry({
+        event_name: "unhandled_rejection",
+        message: reason.message,
+        stack: reason.stack,
+      });
     };
 
     window.addEventListener("error", handleError);

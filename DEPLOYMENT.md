@@ -91,6 +91,49 @@ cannot turn a Public Profile into PocketBase's empty `200` response.
 switch for automatic Instagram/Threads iOS handoff. It leaves ordinary HTTPS
 redirects and the manual fallback available.
 
+### Automatic social preview infrastructure
+
+Profile-aware Open Graph cards use three private Cloudflare bindings on the
+frontend Worker:
+
+- Browser Run renders a `1200x630` PNG only on a cache miss;
+- R2 stores the rendered card at a versioned private object key;
+- `SocialPreviewCoordinator` serializes generation globally per profile and
+  enforces the daily render budget.
+
+Required private buckets:
+
+| Environment | R2 bucket |
+| --- | --- |
+| Production | `linktery-social-previews` |
+| Staging | `linktery-social-previews-staging` |
+
+The buckets must not expose an `r2.dev` hostname or custom public domain. Cards
+are served only through the frontend Worker, which validates the current
+profile version with PocketBase. `SOCIAL_PREVIEW_MAX_DAILY_RENDERS` is `1000`
+in production and `100` in staging; exceeding it degrades to the static
+Linktery preview instead of affecting redirects.
+
+PocketBase controls the feature with `SOCIAL_PREVIEW_ENABLED=true`. Keep it
+unset/false until Browser Run, R2, the Durable Object migration, the frontend
+Worker, and the matching backend hook have all been verified. To disable the
+feature, set it to `false`; normal links, profiles, clicks, and Profile View
+analytics remain available.
+
+For a first rollout, use this backwards-compatible order:
+
+1. activate the R2 subscription and create both private buckets;
+2. deploy the frontend Worker with the new bindings while the backend switch
+   remains false;
+3. deploy the PocketBase hook;
+4. set `SOCIAL_PREVIEW_ENABLED=true` on staging and run a real crawler/image
+   smoke test;
+5. repeat the verified sequence for production, enabling the switch last.
+
+On rollback, disable `SOCIAL_PREVIEW_ENABLED` first, then roll back backend or
+frontend versions. Never remove a bucket or Durable Object binding while a
+deployed Worker version still references it.
+
 ## Non-negotiable deployment rules
 
 1. Production deploys must run from a clean committed checkout. Prefer a fresh
@@ -117,6 +160,10 @@ redirects and the manual fallback available.
     PocketBase hook and secret, verify the matching Worker secrets, then deploy
     staging and finally both production frontend Workers. Never rotate only one
     side of the shared secret.
+11. The initial automatic social-preview rollout is the documented exception
+    to backend-first ordering: its backend kill switch remains false until the
+    image Worker and storage bindings are live, and is enabled only after both
+    sides pass staging smoke tests.
 
 ## Build artifacts and routing
 
@@ -140,6 +187,31 @@ must retain immutable caching; HTML must remain revalidated.
 The API gateway uses `wrangler.api.jsonc` and has its own release command. Its
 production custom domain is declared in that dedicated config; do not attach
 `api.linktery.com` to either frontend Worker.
+
+The gateway and PocketBase share `API_ORIGIN_SECRET` (at least 32 random
+characters). Store it as a Wrangler secret and a Fly secret; never add it to
+`wrangler.api.jsonc`, Git, logs, or a frontend environment variable. PocketBase
+defaults `API_ORIGIN_ENFORCEMENT` to enabled, so a direct Fly request to
+`/api/v1/*` must look like a missing route.
+
+For the first zero-downtime rollout only:
+
+1. set `API_ORIGIN_ENFORCEMENT=false` on the target Fly app;
+2. deploy and verify the new PocketBase image and migrations;
+3. set the same `API_ORIGIN_SECRET` on Fly and with
+   `wrangler secret put API_ORIGIN_SECRET --config wrangler.api.jsonc --env staging`
+   (omit `--env staging` for production);
+4. deploy the corresponding API Worker and verify authenticated/unauthenticated
+   smoke tests through its public hostname;
+5. set `API_ORIGIN_ENFORCEMENT=true` on Fly, restart, and confirm that the
+   direct Fly `/api/v1/links` returns `404` while the branded hostname returns
+   the normal `401` without a key.
+
+Before deploying the PocketBase image, `STRIPE_WEBHOOK_SECRET` must contain the
+signing secret of the exact Stripe webhook endpoint (not the Stripe API key).
+The webhook fails closed when it is absent and accepts only a valid
+`Stripe-Signature` within the five-minute replay window. Verify a signed Stripe
+test event after each backend rollout.
 
 For staging, run:
 
@@ -166,6 +238,8 @@ a new API path. A successful production smoke check must prove that:
 - unsupported methods return `405` with the correct `Allow` header;
 - responses are `no-store`, carry `X-Linktery-API-Version`, and do not expose
   origin cookies or server headers.
+- the response is attested by PocketBase; an unattested origin response becomes
+  a generic `502` and never reaches the client verbatim.
 
 API keys are server credentials. Do not enable wildcard browser CORS or put an
 API key in frontend JavaScript. Browser dashboards must use their own backend

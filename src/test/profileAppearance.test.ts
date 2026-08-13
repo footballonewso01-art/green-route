@@ -28,7 +28,7 @@ describe("public profile appearance settings", () => {
     expect(normalizeSocialLinkStyle(null)).toBe("icons");
   });
 
-  it("persists and validates presentation settings without changing profile tracking URLs", () => {
+  it("persists presentation settings and keeps profile-card attribution in tracking URLs", () => {
     const hook = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
     const utils = readWorkspaceFile("pocketbase/pb_hooks/utils.js");
     const migration = readWorkspaceFile("pocketbase/pb_migrations/1784365000_add_profile_presentation_styles.js");
@@ -39,7 +39,8 @@ describe("public profile appearance settings", () => {
     expect(utils).not.toContain('"labeled-rows": true');
     expect(migration).toContain('name: "link_card_style"');
     expect(migration).toContain('name: "social_link_style"');
-    expect(publicProfile).toContain('href: `/${item.link.slug}?ref=profile`');
+    expect(publicProfile).toContain('profile_id=${encodeURIComponent(profile.id)}');
+    expect(publicProfile).toContain('profile_link_id=${encodeURIComponent(item.id)}');
   });
 
   it("keeps the phone viewport flush and the classic image fade continuous", () => {

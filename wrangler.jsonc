@@ -11,6 +11,13 @@
     "enabled": true,
     "head_sampling_rate": 0.01
   },
+  "ratelimits": [
+    {
+      "name": "EDGE_TELEMETRY_RATE_LIMITER",
+      "namespace_id": "4201",
+      "simple": { "limit": 120, "period": 60 }
+    }
+  ],
   "version_metadata": {
     "binding": "WORKER_VERSION"
   },
@@ -22,7 +29,14 @@
     "run_worker_first": [
       "/*",
       "!/assets/*",
-      "!/*.png",
+      "!/dashboard-preview.png",
+      "!/favicon.png",
+      "!/mobila.png",
+      "!/og-image.png",
+      "!/stitch-bento-ref.png",
+      "!/stitch-dashboard.png",
+      "!/stitch-image1.png",
+      "!/stitch-image2.png",
       "!/*.webp",
       "!/*.mp4",
       "!/*.svg",
@@ -30,16 +44,47 @@
       "!/sitemap.xml"
     ]
   },
+  "browser": {
+    "binding": "BROWSER"
+  },
+  "r2_buckets": [
+    {
+      "binding": "SOCIAL_PREVIEWS",
+      "bucket_name": "linktery-social-previews"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SOCIAL_PREVIEW_COORDINATOR",
+        "class_name": "SocialPreviewCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "social-preview-v1",
+      "new_sqlite_classes": ["SocialPreviewCoordinator"]
+    }
+  ],
   "vars": {
     "DEPLOY_ENV": "production",
     "ROUTING_MODE": "primary",
-    "POCKETBASE_ORIGIN": "https://greenroute-pb.fly.dev"
+    "POCKETBASE_ORIGIN": "https://greenroute-pb.fly.dev",
+    "SOCIAL_PREVIEW_MAX_DAILY_RENDERS": "1000"
   },
   "env": {
     "staging": {
       "name": "linktery-frontend-staging",
       "workers_dev": true,
       "preview_urls": true,
+      "ratelimits": [
+        {
+          "name": "EDGE_TELEMETRY_RATE_LIMITER",
+          "namespace_id": "4202",
+          "simple": { "limit": 120, "period": 60 }
+        }
+      ],
       "version_metadata": {
         "binding": "WORKER_VERSION"
       },
@@ -51,22 +96,54 @@
         "run_worker_first": [
           "/*",
           "!/assets/*",
-          "!/*.png",
+          "!/dashboard-preview.png",
+          "!/favicon.png",
+          "!/mobila.png",
+          "!/og-image.png",
+          "!/stitch-bento-ref.png",
+          "!/stitch-dashboard.png",
+          "!/stitch-image1.png",
+          "!/stitch-image2.png",
           "!/*.webp",
           "!/*.mp4",
           "!/*.svg"
         ]
       },
+      "browser": {
+        "binding": "BROWSER"
+      },
+      "r2_buckets": [
+        {
+          "binding": "SOCIAL_PREVIEWS",
+          "bucket_name": "linktery-social-previews-staging"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "SOCIAL_PREVIEW_COORDINATOR",
+            "class_name": "SocialPreviewCoordinator"
+          }
+        ]
+      },
       "vars": {
         "DEPLOY_ENV": "staging",
         "ROUTING_MODE": "primary",
-        "POCKETBASE_ORIGIN": "https://greenroute-pb-staging.fly.dev"
+        "POCKETBASE_ORIGIN": "https://greenroute-pb-staging.fly.dev",
+        "SOCIAL_PREVIEW_MAX_DAILY_RENDERS": "100"
       }
     },
     "alias": {
       "name": "linktery-frontend-alias",
       "workers_dev": false,
       "preview_urls": true,
+      "ratelimits": [
+        {
+          "name": "EDGE_TELEMETRY_RATE_LIMITER",
+          "namespace_id": "4203",
+          "simple": { "limit": 120, "period": 60 }
+        }
+      ],
       "version_metadata": {
         "binding": "WORKER_VERSION"
       },
@@ -84,10 +161,28 @@
           "!/*.svg"
         ]
       },
+      "browser": {
+        "binding": "BROWSER"
+      },
+      "r2_buckets": [
+        {
+          "binding": "SOCIAL_PREVIEWS",
+          "bucket_name": "linktery-social-previews"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "SOCIAL_PREVIEW_COORDINATOR",
+            "class_name": "SocialPreviewCoordinator"
+          }
+        ]
+      },
       "vars": {
         "DEPLOY_ENV": "production",
         "ROUTING_MODE": "alias",
-        "POCKETBASE_ORIGIN": "https://greenroute-pb.fly.dev"
+        "POCKETBASE_ORIGIN": "https://greenroute-pb.fly.dev",
+        "SOCIAL_PREVIEW_MAX_DAILY_RENDERS": "1000"
       }
     }
   }

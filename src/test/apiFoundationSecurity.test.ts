@@ -33,12 +33,14 @@ describe("public API foundation hardening", () => {
   });
 
   it("derives click uniqueness on the server and limits telemetry abuse", () => {
-    expect(hook.match(/utils\.clickRateLimitAllows\(c, link\.id\)/g)).toHaveLength(2);
+    expect(hook.match(/utils\.clickRateLimitAllows\(c, (?:link\.id|linkId)\)/g)).toHaveLength(2);
     expect(hook.match(/utils\.isUniqueTrackedClick\(c, link\.id\)/g)).toHaveLength(2);
     expect(hook).not.toContain('"is_unique": data.is_unique === true');
     expect(hook).not.toContain("gr_visit_");
     expect(utils).toContain("CLICK_RATE_BY_IP_AND_LINK");
     expect(utils).toContain("$security.sha256");
+    expect(hook).toContain('utils.isTrustedRedirectEdgeRequest(c)');
+    expect(hook).toContain('c.response.header().add("X-Linktery-Telemetry-Origin", "v1")');
   });
 
   it("validates reserved slugs on all public resource mutations", () => {

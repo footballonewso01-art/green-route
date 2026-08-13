@@ -212,7 +212,7 @@ export default function PublicProfile() {
           links={links.map((item) => ({
             id: item.id,
             title: getProfileLinkTitle(item),
-            href: `/${item.link.slug}?ref=profile`,
+            href: `/${item.link.slug}?ref=profile&profile_id=${encodeURIComponent(profile.id)}&profile_link_id=${encodeURIComponent(item.id)}`,
             destinationUrl: item.link.destination_url,
             iconType: item.link.icon_type,
             iconValue: item.link.icon_value,

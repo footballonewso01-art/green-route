@@ -186,15 +186,19 @@ describe("Public API v1 expansion security contract", () => {
     expect(utils).toContain("API_RATE_DENY_UNTIL[bucketKey] = resetAt");
   });
 
-  it("bounds invalid Bearer lookups before querying SQLite", () => {
+  it("suppresses repeated invalid digests without allowing a global auth lockout", () => {
     const authentication = between(
       utils,
       "var authenticateApiRequest = function(c, requiredScope, rateKind)",
       "var applyApiResponseHeaders = function(c, authResult)",
     );
     expect(utils).toContain("var apiAuthLookupAllows = function(eventOrRequest, digest)");
-    expect(utils).toContain("API_INVALID_AUTH_TOTAL < 600");
     expect(utils).toContain("API_INVALID_TOKEN_DENY");
+    expect(utils).toContain("Never let attacker-owned invalid traffic create a global lockout");
+    expect(utils).not.toContain("API_INVALID_AUTH_TOTAL < 600");
+    expect(authentication).toContain("var trustedApiGateway = isTrustedApiGatewayRequest(c)");
+    expect(authentication).toContain("if (!trustedApiGateway && isApiGatewayEnforcementEnabled())");
+    expect(authentication).toContain('c.response.header().add("X-Linktery-API-Origin", "v1")');
     expect(authentication).toContain("if (!apiAuthLookupAllows(c, digest))");
     expect(authentication).toContain('code: "auth_rate_limit_exceeded"');
     expect(authentication.indexOf("apiAuthLookupAllows(c, digest)")).toBeLessThan(
@@ -219,7 +223,7 @@ describe("Public API v1 expansion security contract", () => {
   });
 
   it("caps request bodies and daily mutation/storage growth", () => {
-    expect(hook.match(/\$apis\.bodyLimit\(64 \* 1024\)/g)).toHaveLength(2);
+    expect(hook.match(/\$apis\.bodyLimit\(64 \* 1024\)/g)).toHaveLength(3);
     expect(migration).toContain("CREATE TABLE IF NOT EXISTS api_usage_daily");
     expect(migration).toContain("write_count INTEGER NOT NULL DEFAULT 0");
     expect(migration).toContain("create_count INTEGER NOT NULL DEFAULT 0");

@@ -105,9 +105,10 @@ export default function AdminUsers() {
                 toast.success("User banned");
                 fetchUsers();
             }
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(`Failed to ${action} user`, err);
-            toast.error(`Could not ${action} user`);
+            const serverMessage = (err as { data?: { message?: string } })?.data?.message;
+            toast.error(serverMessage || `Could not ${action} user`);
         }
     };
 

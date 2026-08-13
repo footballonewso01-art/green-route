@@ -314,6 +314,7 @@ export default function ProfileHub() {
                 deleteDisabled={actionLoading}
                 onEdit={() => navigate(`/dashboard/profile/${profile.id}`)}
                 onCopy={() => void handleCopyLink(profile)}
+                onAnalytics={() => navigate(`/dashboard/analytics?profile=${profile.id}`)}
                 onDelete={() => setProfilePendingDelete(profile)}
               />
             );

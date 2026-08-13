@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  BarChart3,
   Check,
   Copy,
   ExternalLink,
@@ -37,6 +38,7 @@ interface ProfileLibraryCardProps {
   deleteDisabled?: boolean;
   onEdit: () => void;
   onCopy: () => void;
+  onAnalytics: () => void;
   onDelete: () => void;
 }
 
@@ -46,6 +48,7 @@ export function ProfileLibraryCard({
   deleteDisabled = false,
   onEdit,
   onCopy,
+  onAnalytics,
   onDelete,
 }: ProfileLibraryCardProps) {
   const template = normalizeProfileTemplate(profile.profileTemplate);
@@ -115,6 +118,13 @@ export function ProfileLibraryCard({
               )}
               {copied ? "URL copied" : "Copy profile URL"}
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={onAnalytics}
+              className="rounded-lg px-3 py-2.5 focus:bg-white/[0.06] focus:text-foreground"
+            >
+              <BarChart3 className="mr-2.5 h-4 w-4 text-muted-foreground" />
+              View analytics
+            </DropdownMenuItem>
             <DropdownMenuSeparator className="my-1.5 bg-border/70" />
             <DropdownMenuItem
               onSelect={onDelete}
@@ -166,6 +176,15 @@ export function ProfileLibraryCard({
           </span>
 
           <div className="pointer-events-auto relative z-20 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={onAnalytics}
+              className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-border/70 bg-background/35 text-muted-foreground transition-colors hover:border-accent/25 hover:bg-accent/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              aria-label={`View analytics for ${name}`}
+              title="View analytics"
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+            </button>
             <button
               type="button"
               onClick={onCopy}

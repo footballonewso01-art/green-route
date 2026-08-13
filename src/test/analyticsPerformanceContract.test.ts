@@ -21,6 +21,22 @@ describe("analytics performance contract", () => {
     expect(statsRoute).toContain("getAnalyticsCache");
   });
 
+  it("returns a bounded full-country distribution for the interactive map", () => {
+    const hook = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
+    const statsStart = hook.indexOf('routerAdd("GET", "/api/analytics/stats"');
+    const statsEnd = hook.indexOf('routerAdd("GET", "/api/analytics/recent"');
+    const statsRoute = hook.slice(statsStart, statsEnd);
+    const page = readWorkspaceFile("src/pages/AnalyticsPage.tsx");
+
+    expect(statsRoute).toContain("dimension_type = {:dimension}");
+    expect(statsRoute).toContain("LIMIT 300");
+    expect(statsRoute).not.toContain("ORDER BY clicks DESC LIMIT 20");
+    expect(statsRoute).toContain("countryMap: countryMapOut");
+    expect(statsRoute).toContain("normalizedCountry.name !== \"Unknown\"");
+    expect(page).toContain("stats.countryMap || stats.countries || []");
+    expect(page).toContain('<WorldTrafficMap countries={countryMap} metric={isProfileMode ? "views" : "clicks"} />');
+  });
+
   it("keeps recent activity bounded and separate from aggregate stats", () => {
     const hook = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
     const recentStart = hook.indexOf('routerAdd("GET", "/api/analytics/recent"');

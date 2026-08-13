@@ -21,12 +21,14 @@ describe("Profile library redesign", () => {
         }}
         onEdit={vi.fn()}
         onCopy={vi.fn()}
+        onAnalytics={vi.fn()}
         onDelete={vi.fn()}
       />,
     );
 
     expect(screen.getByRole("button", { name: "Edit Creator Studio profile" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy Creator Studio profile URL" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View analytics for Creator Studio" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open Creator Studio public profile" }))
       .toHaveAttribute("href", "https://linktery.com/creator");
     expect(screen.getByText("Hero Portrait")).toBeInTheDocument();

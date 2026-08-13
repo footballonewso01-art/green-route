@@ -25,4 +25,4 @@ EXPOSE 8080
 # Database repairs are an explicit maintenance operation. Running repair_db.py
 # on every container start is unsafe because the legacy script may prune the
 # auxiliary request-log database when it crosses its size threshold.
-CMD ["/pb/pocketbase", "serve", "--http=0.0.0.0:8080", "--dir=/pb/pb_data", "--hooksDir=/pb/pb_hooks"]
+CMD ["/pb/pocketbase", "serve", "--http=0.0.0.0:8080", "--dir=/pb/pb_data", "--hooksDir=/pb/pb_hooks", "--origins=https://linktery.com,https://www.linktery.com,https://linktery.bio,https://hotme.online,https://hotmylinks.cc,https://linktery-frontend-staging.footballonewso01.workers.dev"]

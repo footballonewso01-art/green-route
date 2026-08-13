@@ -62,4 +62,21 @@ describe("billing period server contract", () => {
       expect(readWorkspaceFile(page)).toContain("<CancelRenewalButton");
     }
   });
+
+  it("reconciles local expiry with Stripe before removing a paid entitlement", () => {
+    const hook = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
+    const utils = readWorkspaceFile("pocketbase/pb_hooks/utils.js");
+
+    expect(utils).toContain("var getStripeSubscriptionState = function(subscription)");
+    expect(utils).toContain("var fetchStripeSubscriptionState = function(subscriptionId, stripeSecretKey)");
+    expect(utils).toContain("fetchStripeSubscriptionState,");
+    expect(hook).toContain("stripeUtils.fetchStripeSubscriptionState(");
+    expect(hook).toContain('stripeState.status === "active" || stripeState.status === "trialing"');
+    expect(hook).toContain('activeUser.set("plan", stripeState.plan)');
+    expect(hook).toContain('activeUser.set("plan_expires_at", stripeState.period.end)');
+    expect(hook).toContain("Stripe entitlement reconciliation deferred");
+    expect(hook).toContain("continue;");
+    expect(hook).toContain("INNER JOIN billing b");
+    expect(hook).not.toContain('console.log("[CRON] Downgraded: " + user.email()');
+  });
 });

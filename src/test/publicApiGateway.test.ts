@@ -5,20 +5,30 @@ import { handlePublicApiRequest } from "../../cloudflare/api-worker";
 const productionEnv = {
   DEPLOY_ENV: "production" as const,
   UPSTREAM_API_ORIGIN: "https://greenroute-pb.fly.dev",
+  PUBLIC_API_HOSTNAME: "api.linktery.com",
+  API_ORIGIN_SECRET: "test-api-origin-secret-that-is-at-least-32-characters",
+  API_EDGE_RATE_LIMITER: {
+    limit: vi.fn(async () => ({ success: true })),
+  },
 };
+
+const attestedHeaders = (headers: Record<string, string> = {}) => ({
+  "X-Linktery-API-Origin": "v1",
+  ...headers,
+});
 
 describe("Linktery public API gateway", () => {
   it("maps branded reads to the owner-scoped PocketBase API and preserves safe headers", async () => {
     const upstreamFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
       return new Response(JSON.stringify({ data: [] }), {
         status: 200,
-        headers: {
+        headers: attestedHeaders({
           "Content-Type": "application/json",
           "Fly-Request-Id": "internal-fly-request-id",
           "Set-Cookie": "internal=1",
           Via: "1.1 fly.io",
           "X-Request-Id": "backend-request-id",
-        },
+        }),
       });
     });
 
@@ -47,7 +57,13 @@ describe("Linktery public API gateway", () => {
     expect(response.headers.get("fly-request-id")).toBeNull();
     expect(response.headers.get("via")).toBeNull();
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(response.headers.get("x-request-id")).toBe("backend-request-id");
+    expect(response.headers.get("x-request-id")).toBe(
+      forwardedHeaders.get("x-linktery-api-request-id"),
+    );
+    expect(forwardedHeaders.get("x-linktery-api-origin-secret")).toBe(
+      productionEnv.API_ORIGIN_SECRET,
+    );
+    expect(forwardedHeaders.get("x-linktery-api-client-ip")).toBe("unknown");
     expect(response.headers.get("x-linktery-api-version")).toBe("1");
     expect(response.headers.get("access-control-allow-origin")).toBeNull();
   });
@@ -56,10 +72,10 @@ describe("Linktery public API gateway", () => {
     const upstreamFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
       return new Response(JSON.stringify({ data: { id: "1sdk9od3pe38u7p" } }), {
         status: 201,
-        headers: {
+        headers: attestedHeaders({
           "Content-Type": "application/json",
           Location: "/api/v1/links/1sdk9od3pe38u7p",
-        },
+        }),
       });
     });
 
@@ -150,6 +166,75 @@ describe("Linktery public API gateway", () => {
     expect(wrongType.status).toBe(415);
     expect(tooLarge.status).toBe(413);
     expect(upstreamFetch).not.toHaveBeenCalled();
+  });
+
+  it("stops streaming a chunked body as soon as it exceeds 64 KB", async () => {
+    const upstreamFetch = vi.fn();
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(40 * 1024));
+        controller.enqueue(new Uint8Array(40 * 1024));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const response = await handlePublicApiRequest(
+      new Request("https://api.linktery.com/v1/links", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        duplex: "half",
+      } as RequestInit & { duplex: "half" }),
+      productionEnv,
+      upstreamFetch,
+    );
+
+    expect(response.status).toBe(413);
+    expect(cancelled).toBe(true);
+    expect(upstreamFetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported query parameters before proxying", async () => {
+    const upstreamFetch = vi.fn();
+    const response = await handlePublicApiRequest(
+      new Request("https://api.linktery.com/v1/links?api_key=leak"),
+      productionEnv,
+      upstreamFetch,
+    );
+    expect(response.status).toBe(400);
+    expect(upstreamFetch).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the rate limiter or origin secret is unavailable", async () => {
+    const upstreamFetch = vi.fn();
+    const response = await handlePublicApiRequest(
+      new Request("https://api.linktery.com/v1/links"),
+      { ...productionEnv, API_ORIGIN_SECRET: "", API_EDGE_RATE_LIMITER: undefined },
+      upstreamFetch,
+    );
+    expect(response.status).toBe(503);
+    expect(upstreamFetch).not.toHaveBeenCalled();
+  });
+
+  it("requires backend attestation and hides upstream 5xx bodies", async () => {
+    const unattested = await handlePublicApiRequest(
+      new Request("https://api.linktery.com/v1/profiles"),
+      productionEnv,
+      vi.fn(async () => new Response("not really PocketBase", { status: 200 })),
+    );
+    const leakedError = await handlePublicApiRequest(
+      new Request("https://api.linktery.com/v1/profiles"),
+      productionEnv,
+      vi.fn(async () => new Response("SQLITE_BUSY at /pb/pb_data", {
+        status: 500,
+        headers: attestedHeaders(),
+      })),
+    );
+    expect(unattested.status).toBe(502);
+    expect(leakedError.status).toBe(502);
+    expect(await leakedError.text()).not.toContain("SQLITE_BUSY");
   });
 
   it("returns a generic gateway error without leaking the origin", async () => {

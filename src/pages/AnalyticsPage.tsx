@@ -1,18 +1,17 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { BarChart3, Globe, Smartphone, Monitor, TabletSmartphone, Loader2, Lock, Clock } from "lucide-react";
+import { BarChart3, Globe, Smartphone, Monitor, TabletSmartphone, Loader2, Lock, Clock, Eye, MousePointerClick, Users, Gauge } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { checkPlan } from "@/lib/plans";
-
-// Convert 2-letter country codes (e.g. "US") to display names (e.g. "United States")
-const countryDisplayNames = new Intl.DisplayNames(['en'], { type: 'region' });
-function countryName(code: string): string {
-  if (!code || code === "Unknown" || code.length !== 2) return code;
-  try { return countryDisplayNames.of(code) || code; } catch { return code; }
-}
+import WorldTrafficMap, { type CountryTrafficDatum } from "@/components/analytics/WorldTrafficMap";
+import ProfileScopeSelect, {
+  ALL_PROFILES_SCOPE,
+  type AnalyticsProfileOption,
+} from "@/components/analytics/ProfileScopeSelect";
+import { getCountryDisplayName, normalizeCountryCode } from "@/lib/countryFormatting";
 
 interface ClickRecord {
   id: string;
@@ -26,30 +25,115 @@ interface ClickRecord {
   expand?: { link_id?: { title?: string; slug?: string } };
 }
 
+interface CountryStat extends CountryTrafficDatum {
+  name: string;
+  pct: number;
+}
+
+interface ProfileCardStat {
+  profileLinkId: string;
+  linkId: string;
+  title: string;
+  clicks: number;
+  ctr: number;
+  profileId?: string;
+  profileName?: string;
+  profileSlug?: string;
+}
+
+interface TrendDatum {
+  date: string;
+  clicks: number;
+  cardClicks?: number;
+}
+
 export default function AnalyticsPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const linkId = searchParams.get("link");
+  const profileScope = searchParams.get("profile");
+  const isProfileMode = profileScope !== null;
+  const isAllProfiles = profileScope === ALL_PROFILES_SCOPE || profileScope === "";
+  const profileId = isProfileMode && !isAllProfiles ? profileScope : null;
   const { user } = useAuth();
+  const analyticsScopeKey = `${user?.id || "guest"}|${isProfileMode
+    ? `profiles:${profileScope || ALL_PROFILES_SCOPE}`
+    : `links:${linkId || "all"}`}`;
   const [period, setPeriod] = useState("7d");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [clicksCount, setClicksCount] = useState(0);
   const [uniqueCount, setUniqueCount] = useState(0);
-  const [countries, setCountries] = useState<{ name: string; clicks: number; pct: number }[]>([]);
+  const [profileCardClicks, setProfileCardClicks] = useState(0);
+  const [profileCtr, setProfileCtr] = useState(0);
+  const [profileOptions, setProfileOptions] = useState<AnalyticsProfileOption[]>([]);
+  const [profileOptionsLoaded, setProfileOptionsLoaded] = useState(false);
+  const [profileOptionsFailed, setProfileOptionsFailed] = useState(false);
+  const [profileCards, setProfileCards] = useState<ProfileCardStat[]>([]);
+  const [countries, setCountries] = useState<CountryStat[]>([]);
+  const [countryMap, setCountryMap] = useState<CountryTrafficDatum[]>([]);
   const [referrers, setReferrers] = useState<{ name: string; clicks: number; pct: number }[]>([]);
   const [devices, setDevices] = useState<{ name: string; value: number; color: string }[]>([]);
   const [browserData, setBrowserData] = useState<{ name: string; value: number; color: string }[]>([]);
   const [osData, setOsData] = useState<{ name: string; value: number; color: string }[]>([]);
-  const [trendData, setTrendData] = useState<{ date: string; clicks: number }[]>([]);
+  const [trendData, setTrendData] = useState<TrendDatum[]>([]);
   const [recentActivities, setRecentActivities] = useState<ClickRecord[]>([]);
   const [heatmapData, setHeatmapData] = useState<number[][]>(Array.from({ length: 7 }, () => Array(24).fill(0)));
   const loadedOnceRef = useRef(false);
+  const [resolvedAnalyticsScope, setResolvedAnalyticsScope] = useState<string | null>(null);
 
   const userPlan = (user as { plan?: string })?.plan || "creator";
   const canUseAnalytics = checkPlan(userPlan, "analytics");
+  const profileScopeNeedsNormalization = isProfileMode
+    && profileOptionsLoaded
+    && !profileOptionsFailed
+    && !isAllProfiles
+    && !profileOptions.some((profile) => profile.id === profileScope);
 
   useEffect(() => {
-    if (!canUseAnalytics) return;
+    if (!canUseAnalytics || !user?.id) {
+      setProfileOptions([]);
+      setProfileOptionsLoaded(false);
+      setProfileOptionsFailed(false);
+      return;
+    }
+    let active = true;
+    setProfileOptionsLoaded(false);
+    setProfileOptionsFailed(false);
+    pb.collection("public_profiles").getFullList<AnalyticsProfileOption>({
+      filter: `user_id="${user.id}"`,
+      sort: "created",
+      fields: "id,name,slug",
+      requestKey: "analytics-profile-options",
+    }).then((profiles) => {
+      if (active) setProfileOptions(profiles);
+    }).catch((error: unknown) => {
+      if (!(error as { isAbort?: boolean }).isAbort) {
+        console.error("Profile analytics options fetch failed:", error);
+        if (active) setProfileOptionsFailed(true);
+      }
+    }).finally(() => {
+      if (active) setProfileOptionsLoaded(true);
+    });
+    return () => {
+      active = false;
+      pb.cancelRequest("analytics-profile-options");
+    };
+  }, [canUseAnalytics, user?.id]);
+
+  useEffect(() => {
+    if (!isProfileMode || !profileOptionsLoaded || profileOptionsFailed) return;
+    if (!profileScopeNeedsNormalization && profileScope !== "") return;
+
+    const next = new URLSearchParams(searchParams);
+    next.delete("link");
+    next.set("profile", ALL_PROFILES_SCOPE);
+    setSearchParams(next, { replace: true });
+  }, [isProfileMode, profileOptionsFailed, profileOptionsLoaded, profileScope, profileScopeNeedsNormalization, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!canUseAnalytics || !user?.id) return;
+    if (isProfileMode && !profileOptionsLoaded) return;
+    if (profileScopeNeedsNormalization) return;
     let active = true;
     const requestKey = "analytics-stats";
     const fetchAnalytics = async () => {
@@ -59,25 +143,56 @@ export default function AnalyticsPage() {
         // === SERVER-SIDE SQL AGGREGATION ===
         // Single API call returns pre-aggregated data (~2KB) instead of thousands of raw records.
         const queryParams = new URLSearchParams({ period });
-        if (linkId) queryParams.set("linkId", linkId);
+        if (isProfileMode) queryParams.set("profileId", profileScope || ALL_PROFILES_SCOPE);
+        else if (linkId) queryParams.set("linkId", linkId);
 
-        const stats = await pb.send(`/api/analytics/stats?${queryParams.toString()}`, {
+        const analyticsPath = isProfileMode ? "/api/analytics/profile-stats" : "/api/analytics/stats";
+        const stats = await pb.send(`${analyticsPath}?${queryParams.toString()}`, {
           method: "GET",
           requestKey,
         });
         if (!active) return;
 
         // 1. Totals (already computed by SQL)
-        setClicksCount(stats.total || 0);
-        setUniqueCount(stats.unique || 0);
+        setClicksCount(isProfileMode ? Number(stats.views || 0) : Number(stats.total || 0));
+        setUniqueCount(isProfileMode ? Number(stats.uniqueViews || 0) : Number(stats.unique || 0));
+        setProfileCardClicks(isProfileMode ? Number(stats.cardClicks || 0) : 0);
+        setProfileCtr(isProfileMode ? Number(stats.ctr || 0) : 0);
+        setProfileCards(isProfileMode ? (stats.cards || []) : []);
 
-        // 2. Countries (already sorted + with pct from server) — convert codes to names
-        setCountries((stats.countries || []).map((c: { name: string; clicks: number; pct: number }) => ({
-          ...c, name: countryName(c.name)
-        })));
+        // 2. Countries. Keep ISO codes for the world map and derive names only for display.
+        const topCountries = (stats.countries || []).map((country: { name: string; clicks?: number; views?: number; pct: number }) => {
+          const code = normalizeCountryCode(country.name) || "";
+          return {
+            code,
+            name: getCountryDisplayName(country.name),
+            clicks: Number(country.clicks ?? country.views ?? 0),
+            pct: Number(country.pct || 0),
+          };
+        });
+        setCountries(topCountries);
+
+        // Fall back to the legacy top-country response while backend and frontend
+        // versions roll out independently.
+        const mapCountries = (stats.countryMap || stats.countries || [])
+          .map((country: { code?: string; name?: string; clicks?: number; views?: number; pct?: number }) => ({
+            code: normalizeCountryCode(country.code || country.name) || "",
+            clicks: Number(country.clicks ?? country.views ?? 0),
+            pct: Number(country.pct || 0),
+          }))
+          .filter((country: CountryTrafficDatum) => Boolean(country.code) && country.clicks > 0);
+        setCountryMap(mapCountries);
 
         // 3. Referrers (already sorted + with pct from server)
-        setReferrers(stats.referrers || []);
+        setReferrers((stats.referrers || []).map((item: { name: string; clicks?: number; value?: number; pct?: number }) => {
+          const amount = Number(item.clicks ?? item.value ?? 0);
+          const total = isProfileMode ? Number(stats.views || 0) : Number(stats.total || 0);
+          return {
+            name: item.name,
+            clicks: amount,
+            pct: item.pct == null ? (total > 0 ? Math.round((amount / total) * 100) : 0) : Number(item.pct),
+          };
+        }));
 
         // 4. Devices (map server data to colored chart format)
         const deviceMap: Record<string, number> = {};
@@ -100,12 +215,17 @@ export default function AnalyticsPage() {
         })));
 
         // 7. Trend — fill gaps for days without clicks so the chart line is continuous
-        const trendFromServer: { date: string; clicks: number }[] = stats.trend || [];
-        const trendMap: Record<string, number> = {};
-        trendFromServer.forEach(t => { trendMap[t.date] = t.clicks; });
+        const trendFromServer: { date: string; clicks?: number; views?: number; cardClicks?: number }[] = stats.trend || [];
+        const trendMap: Record<string, { clicks: number; cardClicks: number }> = {};
+        trendFromServer.forEach(t => {
+          trendMap[t.date] = {
+            clicks: Number(t.clicks ?? t.views ?? 0),
+            cardClicks: Number(t.cardClicks || 0),
+          };
+        });
 
         const daysToLookBack = period === "24h" ? 1 : period === "7d" ? 7 : period === "30d" ? 30 : 90;
-        const filledTrend: { date: string; clicks: number }[] = [];
+        const filledTrend: TrendDatum[] = [];
 
         if (period === "24h") {
           // Hourly buckets for last 24h
@@ -114,7 +234,11 @@ export default function AnalyticsPage() {
             d.setMinutes(0, 0, 0);
             d.setHours(d.getHours() - i);
             const key = d.toISOString().replace(/:\d{2}\.\d{3}Z$/, ':00:00Z');
-            filledTrend.push({ date: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), clicks: trendMap[key] || 0 });
+            filledTrend.push({
+              date: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              clicks: trendMap[key]?.clicks || 0,
+              cardClicks: trendMap[key]?.cardClicks || 0,
+            });
           }
         } else {
           // Daily buckets
@@ -123,18 +247,37 @@ export default function AnalyticsPage() {
             d.setDate(d.getDate() - i);
             const isoDate = d.toISOString().split('T')[0]; // YYYY-MM-DD
             const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            filledTrend.push({ date: label, clicks: trendMap[isoDate] || 0 });
+            filledTrend.push({
+              date: label,
+              clicks: trendMap[isoDate]?.clicks || 0,
+              cardClicks: trendMap[isoDate]?.cardClicks || 0,
+            });
           }
         }
         setTrendData(filledTrend);
 
         // 8. Heatmap — server returns ready 7×24 matrix
         setHeatmapData(stats.heatmap || Array.from({ length: 7 }, () => Array(24).fill(0)));
+        setResolvedAnalyticsScope(analyticsScopeKey);
 
         // 9. Recent activities — small separate query (only 5 records with expand)
       } catch (error: unknown) {
         if ((error as { isAbort?: boolean }).isAbort) return;
         console.error("Analytics fetch error:", error);
+        setClicksCount(0);
+        setUniqueCount(0);
+        setProfileCardClicks(0);
+        setProfileCtr(0);
+        setProfileCards([]);
+        setCountries([]);
+        setCountryMap([]);
+        setReferrers([]);
+        setDevices([]);
+        setBrowserData([]);
+        setOsData([]);
+        setTrendData([]);
+        setHeatmapData(Array.from({ length: 7 }, () => Array(24).fill(0)));
+        setResolvedAnalyticsScope(analyticsScopeKey);
         toast.error("Failed to fetch analytics");
       } finally {
         if (active) {
@@ -149,10 +292,14 @@ export default function AnalyticsPage() {
       active = false;
       pb.cancelRequest(requestKey);
     };
-  }, [linkId, period, canUseAnalytics]);
+  }, [analyticsScopeKey, canUseAnalytics, isProfileMode, linkId, period, profileOptionsLoaded, profileScope, profileScopeNeedsNormalization, user?.id]);
 
   useEffect(() => {
     if (!canUseAnalytics) return;
+    if (isProfileMode) {
+      setRecentActivities([]);
+      return;
+    }
     let active = true;
     const requestKey = "analytics-recent";
     const queryParams = new URLSearchParams();
@@ -173,7 +320,7 @@ export default function AnalyticsPage() {
       active = false;
       pb.cancelRequest(requestKey);
     };
-  }, [linkId, canUseAnalytics]);
+  }, [linkId, isProfileMode, canUseAnalytics]);
 
   if (!canUseAnalytics) {
     return (
@@ -185,7 +332,7 @@ export default function AnalyticsPage() {
         <div className="text-center space-y-2">
           <h2 className="text-3xl font-bold text-foreground">Advanced Analytics</h2>
           <p className="text-muted-foreground max-w-sm mx-auto">
-            Unlock detailed click statistics, geographic data, and device insights with Creator Pro.
+            Unlock detailed link and profile analytics, geographic data, and device insights with Creator Pro.
           </p>
         </div>
         <Link to="/dashboard/pricing" className="btn-primary-glow px-8 py-3 mt-4">
@@ -195,7 +342,7 @@ export default function AnalyticsPage() {
     );
   }
 
-  if (loading) {
+  if (loading || resolvedAnalyticsScope !== analyticsScopeKey || (isProfileMode && !profileOptionsLoaded)) {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
@@ -222,6 +369,19 @@ export default function AnalyticsPage() {
   }
 
   const COLORS = ["hsl(153, 68%, 55%)", "hsl(155, 35%, 25%)", "hsl(155, 20%, 40%)"];
+  const activeProfile = profileOptions.find(profile => profile.id === profileId);
+  const activityLabel = isProfileMode ? "views" : "clicks";
+  const selectLinksMode = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("profile");
+    setSearchParams(next);
+  };
+  const selectProfileMode = (nextProfileId?: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("link");
+    next.set("profile", nextProfileId || ALL_PROFILES_SCOPE);
+    setSearchParams(next);
+  };
 
   return (
     <div className="space-y-6">
@@ -229,7 +389,11 @@ export default function AnalyticsPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Analytics</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {linkId ? "Showing stats for specific link" : "Across all your links"}
+            {isProfileMode
+              ? isAllProfiles
+                ? `Combined performance across ${profileOptions.length} ${profileOptions.length === 1 ? "profile" : "profiles"}`
+                : `Profile performance${activeProfile ? ` for @${activeProfile.slug}` : ""}`
+              : linkId ? "Showing stats for specific link" : "Across all your links"}
           </p>
         </div>
         <div className="flex items-center gap-1 p-1 rounded-xl bg-surface border border-border">
@@ -242,29 +406,94 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
+      <div className="glass-card flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="inline-flex w-fit items-center gap-1 rounded-xl border border-border bg-background/35 p-1" role="group" aria-label="Analytics resource type">
+          <button
+            type="button"
+            onClick={selectLinksMode}
+            aria-pressed={!isProfileMode}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${!isProfileMode ? "bg-accent text-black" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Links
+          </button>
+          <button
+            type="button"
+            onClick={() => selectProfileMode()}
+            disabled={profileOptionsLoaded && !profileOptionsFailed && profileOptions.length === 0}
+            aria-pressed={isProfileMode}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-40 ${isProfileMode ? "bg-accent text-black" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Profiles
+          </button>
+        </div>
+
+        {isProfileMode && (
+          <div className="w-full sm:w-auto">
+            <ProfileScopeSelect
+              profiles={profileOptions}
+              value={profileScope || ALL_PROFILES_SCOPE}
+              onValueChange={selectProfileMode}
+            />
+          </div>
+        )}
+      </div>
+
       {/* Stats Overview */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Total Clicks</p>
-          <div className="text-2xl font-bold">{clicksCount.toLocaleString()}</div>
-        </div>
-        <div className="glass-card p-4 border-l-accent/30 border-l-2">
-          <p className="text-xs text-accent uppercase font-bold tracking-wider mb-1">Unique Clicks</p>
-          <div className="text-2xl font-bold">{uniqueCount.toLocaleString()}</div>
-        </div>
-        <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Avg. Daily</p>
-          <div className="text-2xl font-bold">{Math.round(clicksCount / ({ "24h": 1, "7d": 7, "30d": 30, "90d": 90 }[period] || 1)).toLocaleString()}</div>
-        </div>
-        <div className="glass-card p-4 border-l-muted-foreground/30 border-l-2">
-          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Top Location</p>
-          <div className="text-2xl font-bold truncate" title={countries[0]?.name || "N/A"}>{countries[0]?.name || "N/A"}</div>
-        </div>
+        {isProfileMode ? (
+          <>
+            <div className="glass-card p-4">
+              <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"><Eye className="h-3.5 w-3.5 text-accent" /> Profile Views</p>
+              <div className="text-2xl font-bold">{clicksCount.toLocaleString()}</div>
+            </div>
+            <div className="glass-card border-l-2 border-l-accent/30 p-4">
+              <p
+                className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent"
+                title={isAllProfiles ? "Deduplicated per profile and day" : "Deduplicated per day"}
+              >
+                <Users className="h-3.5 w-3.5" /> {isAllProfiles ? "Unique Profile Visits" : "Unique Visits"}
+              </p>
+              <div className="text-2xl font-bold">{uniqueCount.toLocaleString()}</div>
+            </div>
+            <div className="glass-card p-4">
+              <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"><MousePointerClick className="h-3.5 w-3.5 text-accent" /> Card Clicks</p>
+              <div className="text-2xl font-bold">{profileCardClicks.toLocaleString()}</div>
+            </div>
+            <div className="glass-card border-l-2 border-l-muted-foreground/30 p-4">
+              <p
+                className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                title="Card clicks divided by profile views. It can exceed 100% when a visitor opens more than one card."
+              >
+                <Gauge className="h-3.5 w-3.5 text-accent" /> Card Click Rate
+              </p>
+              <div className="text-2xl font-bold">{profileCtr.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="glass-card p-4">
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Total Clicks</p>
+              <div className="text-2xl font-bold">{clicksCount.toLocaleString()}</div>
+            </div>
+            <div className="glass-card p-4 border-l-accent/30 border-l-2">
+              <p className="text-xs text-accent uppercase font-bold tracking-wider mb-1">Unique Clicks</p>
+              <div className="text-2xl font-bold">{uniqueCount.toLocaleString()}</div>
+            </div>
+            <div className="glass-card p-4">
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Avg. Daily</p>
+              <div className="text-2xl font-bold">{Math.round(clicksCount / ({ "24h": 1, "7d": 7, "30d": 30, "90d": 90 }[period] || 1)).toLocaleString()}</div>
+            </div>
+            <div className="glass-card p-4 border-l-muted-foreground/30 border-l-2">
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Top Location</p>
+              <div className="text-2xl font-bold truncate" title={countries[0]?.name || "N/A"}>{countries[0]?.name || "N/A"}</div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Clicks chart */}
       <div className="glass-card p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Click Trends</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">{isProfileMode ? "Profile Funnel Trend" : "Click Trends"}</h2>
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={trendData}>
             <defs>
@@ -277,43 +506,35 @@ export default function AnalyticsPage() {
             <XAxis dataKey="date" stroke="hsl(150, 8%, 55%)" fontSize={10} axisLine={false} tickLine={false} />
             <YAxis stroke="hsl(150, 8%, 55%)" fontSize={10} axisLine={false} tickLine={false} />
             <Tooltip contentStyle={{ backgroundColor: "hsl(155, 35%, 9%)", border: "1px solid hsl(155, 15%, 20%)", borderRadius: "12px" }} />
-            <Area type="monotone" dataKey="clicks" stroke="hsl(153, 68%, 55%)" fill="url(#analyticsGradient)" strokeWidth={3} />
+            <Area name={isProfileMode ? "Profile views" : "Clicks"} type="monotone" dataKey="clicks" stroke="hsl(153, 68%, 55%)" fill="url(#analyticsGradient)" strokeWidth={3} />
+            {isProfileMode && <Area name="Card clicks" type="monotone" dataKey="cardClicks" stroke="hsl(189, 78%, 58%)" fill="none" strokeWidth={2} />}
           </AreaChart>
         </ResponsiveContainer>
       </div>
+
+      <WorldTrafficMap countries={countryMap} metric={isProfileMode ? "views" : "clicks"} />
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Countries */}
         <div className="glass-card p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 text-sm"><Globe className="w-4 h-4 text-accent" /> Top Locations</h2>
-            {countries.length > 5 && (
-               <button 
-                 onClick={(e) => {
-                   const btn = e.currentTarget;
-                   const container = btn.parentElement?.nextElementSibling as HTMLElement;
-                   if (container) {
-                     const isExpanded = container.style.maxHeight !== '300px';
-                     container.style.maxHeight = isExpanded ? '300px' : 'none';
-                     container.style.overflowY = isExpanded ? 'hidden' : 'auto';
-                     btn.innerText = isExpanded ? 'Show All' : 'Show Less';
-                   }
-                 }}
-                 className="text-xs text-accent hover:underline font-medium"
-               >
-                 Show All
-               </button>
-            )}
+            <span className="rounded-full border border-border/70 bg-background/30 px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Top 6
+            </span>
           </div>
-          <div className="space-y-4 transition-all duration-300" style={{ maxHeight: '300px', overflow: 'hidden' }}>
-            {countries.length === 0 ? <p className="text-sm text-muted-foreground">No data yet</p> : countries.map((c) => (
-              <div key={c.name}>
+          <div className="space-y-4">
+            {countries.length === 0 ? <p className="text-sm text-muted-foreground">No data yet</p> : countries.slice(0, 6).map((c) => (
+              <div key={c.code || c.name}>
                 <div className="flex justify-between text-xs mb-1.5">
                   <span className="text-foreground font-medium">{c.name}</span>
-                  <span className="text-muted-foreground">{c.clicks} clicks</span>
+                  <span className="text-muted-foreground">{c.clicks} {activityLabel}</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-surface overflow-hidden">
-                  <div className="h-full bg-accent transition-all" style={{ width: `${c.pct}%` }} />
+                  <div
+                    className="h-full bg-accent transition-all"
+                    style={{ width: `${Math.max(2, (c.clicks / Math.max(countries[0]?.clicks || 1, 1)) * 100)}%` }}
+                  />
                 </div>
               </div>
             ))}
@@ -328,7 +549,7 @@ export default function AnalyticsPage() {
               <div key={r.name}>
                 <div className="flex justify-between text-xs mb-1.5">
                   <span className="text-foreground font-medium">{r.name}</span>
-                  <span className="text-muted-foreground">{r.clicks} clicks</span>
+                  <span className="text-muted-foreground">{r.clicks} {activityLabel}</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-surface border border-border overflow-hidden">
                   <div className="h-full bg-blue-500 transition-all" style={{ width: `${r.pct}%` }} />
@@ -412,7 +633,7 @@ export default function AnalyticsPage() {
         <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
           <Clock className="w-5 h-5 text-accent" /> Activity Heatmap
         </h2>
-        <p className="text-xs text-muted-foreground mb-4">Best times for engagement — brighter = more clicks</p>
+        <p className="text-xs text-muted-foreground mb-4">Best times for engagement — brighter = more {activityLabel}</p>
         <div className="overflow-x-auto">
           <div className="min-w-[600px]">
             {/* Hour labels */}
@@ -439,7 +660,7 @@ export default function AnalyticsPage() {
                           ? 'hsl(155, 15%, 10%)'
                           : `hsla(153, 68%, 55%, ${0.15 + intensity * 0.85})`
                       }}
-                      title={`${day} ${h}:00 — ${count} clicks`}
+                      title={`${day} ${h}:00 — ${count} ${activityLabel}`}
                     />
                   );
                 })}
@@ -457,7 +678,52 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Real-time Click Stream */}
+      {isProfileMode ? (
+        <div className="glass-card overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border bg-accent/5 p-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <MousePointerClick className="h-4 w-4 text-accent" />
+              Card Performance
+            </h3>
+            <span className="text-xs text-muted-foreground">
+              {isAllProfiles ? "Clicks attributed across all profiles" : "Clicks attributed to this profile"}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-surface/50 font-bold uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="px-6 py-3">Card</th>
+                  <th className="px-6 py-3 text-right">Clicks</th>
+                  <th className="px-6 py-3 text-right" title="Card clicks divided by profile views">Click rate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {profileCards.map(card => (
+                  <tr key={card.profileLinkId} className="transition-colors hover:bg-surface-hover">
+                    <td className="max-w-[280px] px-6 py-4">
+                      <div className="truncate font-medium text-foreground" title={card.title}>{card.title}</div>
+                      {isAllProfiles && card.profileSlug && (
+                        <div className="mt-1 truncate text-[11px] text-muted-foreground">
+                          {card.profileName || "Profile"} · @{card.profileSlug}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right font-mono text-foreground">{card.clicks.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-right font-mono font-semibold text-accent">{card.ctr.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</td>
+                  </tr>
+                ))}
+                {profileCards.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-10 text-center text-muted-foreground">No attributed card clicks in this period</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+      /* Real-time Click Stream */
       <div className="glass-card overflow-hidden">
         <div className="p-4 border-b border-border bg-accent/5 flex items-center justify-between">
           <h3 className="text-sm font-semibold flex items-center gap-2">
@@ -487,7 +753,7 @@ export default function AnalyticsPage() {
                   <td className="px-6 py-4 font-medium text-accent truncate max-w-[150px]" title={r.expand?.link_id?.title || r.expand?.link_id?.slug || '—'}>
                     {r.expand?.link_id?.title || r.expand?.link_id?.slug || '—'}
                   </td>
-                  <td className="px-6 py-4 font-medium text-foreground">{countryName(r.country)}</td>
+                  <td className="px-6 py-4 font-medium text-foreground">{getCountryDisplayName(r.country)}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <span className="text-foreground">{r.device}</span>
@@ -513,6 +779,7 @@ export default function AnalyticsPage() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }

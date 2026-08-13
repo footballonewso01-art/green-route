@@ -57,6 +57,12 @@ command for a routine staging or production release.
 Staging deploys use `.env.staging`, the staging PocketBase origin, and
 `X-Robots-Tag: noindex, nofollow`.
 
+For the first automatic social-preview release, confirm the private R2 buckets
+and Browser Run/Durable Object bindings exist before deploying. Leave
+`SOCIAL_PREVIEW_ENABLED=false` on PocketBase until frontend and backend are
+both live; enable staging first and verify crawler metadata plus the PNG asset.
+Production is enabled last. Disable the flag first during rollback.
+
 ## Production frontend
 
 Production must run from a clean committed checkout, preferably a fresh
@@ -87,6 +93,14 @@ frontend documentation release that begins using a new branded path, then
 verify `https://api.linktery.com/v1/*` with the API smoke suite. Never publish
 the Fly.io origin in customer documentation or point `api.linktery.com`
 directly at PocketBase.
+
+The API Worker and PocketBase must share a 32+ character `API_ORIGIN_SECRET`.
+It is a Cloudflare/Fly secret, never a repository variable. PocketBase must end
+every release with `API_ORIGIN_ENFORCEMENT=true`; direct Fly `/api/v1/*`
+requests must return `404`. Use the phased first-rollout sequence in
+`DEPLOYMENT.md` so enabling the handshake does not interrupt the public API.
+Backend Stripe releases also require the endpoint-specific
+`STRIPE_WEBHOOK_SECRET`; send a signed Stripe test event before promotion.
 
 ## Backend releases are separate
 
@@ -127,3 +141,5 @@ emergency fall-through procedure is deliberately chosen.
 6. Verify production health and Cloudflare error metrics after every release.
 7. Release `linktery-public-api` separately and never attach its custom domain
    to a frontend Worker.
+8. Keep social-preview R2 buckets private and retain the daily Browser Run
+   budget; generation failure must fall back to the static Linktery artwork.

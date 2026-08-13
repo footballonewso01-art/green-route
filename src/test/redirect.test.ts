@@ -141,9 +141,14 @@ describe("Redirect Loop Detection", () => {
     expect(server).not.toContain("x-safari-https://");
   });
 
-  it("lets social preview crawlers follow the HTTP redirect even when pixels are configured", () => {
+  it("serves social preview metadata before redirect targeting or pixel execution", () => {
     const server = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
 
+    expect(server).toContain("socialPreviewCrawler");
+    expect(server).toContain('c.response.header().add("X-Linktery-Social-Preview", "v1")');
+    expect(server).toContain("utils.getSocialPreviewHtml");
+    expect(server.indexOf("if (trustedEdgeRequest && requestedHost && socialPreviewCrawler)"))
+      .toBeLessThan(server.indexOf("const redirectTraceValue"));
     expect(server).toContain("hasPixels && !isBot");
     expect(server).toContain("facebookexternalhit");
     expect(server).toContain("ttq.load(${utils.safeJsonForHtml(tiktokPixel)})");

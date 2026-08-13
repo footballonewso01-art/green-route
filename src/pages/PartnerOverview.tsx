@@ -108,7 +108,7 @@ export default function PartnerOverview() {
     },
     retry: false,
     retryOnMount: false,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
     staleTime: 15_000,
   });
 

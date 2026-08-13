@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, BarChart3, Shield, Zap, Globe, MousePointer, User as UserIcon, Sparkles } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { pb } from "@/lib/pocketbase";
 import { PlanType, PLAN_RANKS } from "@/lib/plans";
+import { sendTelemetry } from "@/lib/telemetry";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
@@ -119,6 +119,7 @@ export default function LandingPage() {
 
   const [wordIndex, setWordIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     setMounted(true);
@@ -155,16 +156,10 @@ export default function LandingPage() {
       try {
         const isTracked = sessionStorage.getItem("landing_viewed");
         if (!isTracked) {
-          let deviceId = localStorage.getItem("device_id");
-          if (!deviceId) {
-            deviceId = crypto.randomUUID();
-            localStorage.setItem("device_id", deviceId);
-          }
-
-          pb.collection("analytics_events").create({
+          sendTelemetry({
             event_name: "landing_pageview",
-            metadata: { deviceId, path: "/" }
-          }).catch(() => { });
+            path: "/",
+          });
           sessionStorage.setItem("landing_viewed", "true");
         }
       } catch (e) {
@@ -225,7 +220,7 @@ export default function LandingPage() {
       <MarketingHeader current="home" />
 
       {/* Hero */}
-      <section className="relative pt-32 pb-20 px-6 min-h-[90vh] flex items-center overflow-hidden">
+      <section className="relative flex items-start overflow-hidden px-4 pb-14 pt-28 sm:px-6 sm:pb-16 sm:pt-32 lg:min-h-[90vh] lg:items-center lg:pb-20 lg:pt-32">
         {/* Background Video (Localized to Hero) */}
         <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-30">
           <video
@@ -242,23 +237,23 @@ export default function LandingPage() {
           <div className="absolute inset-0 backdrop-blur-[2px]" />
         </div>
 
-        <div className="max-w-7xl mx-auto w-full relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center text-left">
+        <div className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-0 text-left lg:grid-cols-12 lg:gap-8">
           {/* Left Column: Content */}
           <div className="lg:col-span-6 flex flex-col items-start transform lg:translate-y-[2%]">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-accent text-sm mb-7">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/5 px-3.5 py-1.5 text-xs text-accent sm:mb-7 sm:px-4 sm:text-sm">
               <Zap className="w-3.5 h-3.5" />
               Traffic Management Platform
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-[70px] font-extrabold tracking-tight mb-7 leading-[1.15] text-foreground w-full">
+            <h1 className="mb-5 w-full text-[clamp(1.85rem,9.6vw,2.25rem)] font-extrabold leading-[1.12] tracking-tight text-foreground sm:mb-7 sm:text-5xl sm:leading-[1.15] lg:text-[70px]">
               <span className="relative block overflow-hidden h-[1.15em] w-full">
                 <AnimatePresence mode="popLayout">
                   <motion.span
                     key={wordIndex}
-                    initial={{ y: "150%", opacity: 0 }}
+                    initial={prefersReducedMotion ? false : { y: "150%", opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: "-150%", opacity: 0 }}
-                    transition={{ duration: 0.75, ease: [0.76, 0, 0.24, 1] }}
+                    exit={prefersReducedMotion ? { opacity: 0 } : { y: "-150%", opacity: 0 }}
+                    transition={{ duration: prefersReducedMotion ? 0 : 0.75, ease: [0.76, 0, 0.24, 1] }}
                     className={`absolute inset-x-0 block whitespace-nowrap ${words[wordIndex].className}`}
                   >
                     {words[wordIndex].text}
@@ -268,11 +263,11 @@ export default function LandingPage() {
               <span className="gradient-text block mt-1">Built to Convert.</span>
             </h1>
 
-            <p className="text-base md:text-[20px] text-muted-foreground mb-8 max-w-xl leading-relaxed">
+            <p className="mb-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:mb-8 md:text-[20px]">
               Advanced link management with smart routing. Designed for creators, affiliates, and marketers.
             </p>
 
-            <div className="flex flex-col items-start gap-4 mb-8 w-full max-w-md relative z-20">
+            <div className="relative z-20 mb-6 flex w-full max-w-md flex-col items-start gap-4 sm:mb-8">
               {showUser ? (
                 <Link to="/dashboard" className="btn-primary-glow text-base sm:text-[20px] inline-flex items-center justify-center gap-2 px-10 py-4.5 rounded-xl font-bold">
                   Open Dashboard <ArrowRight className="w-4 h-4" />
@@ -285,23 +280,24 @@ export default function LandingPage() {
                       navigate(`/register?username=${usernameInput.trim().toLowerCase()}`);
                     }
                   }}
-                  className="w-full flex items-center bg-surface/40 backdrop-blur-xl border border-border/60 hover:border-border/80 focus-within:border-accent/40 rounded-full p-1.5 transition-all duration-300 shadow-glow/5 focus-within:shadow-glow/15"
+                  className="flex w-full items-center rounded-full border border-border/60 bg-surface/40 p-1.5 shadow-glow/5 backdrop-blur-xl transition-all duration-300 hover:border-border/80 focus-within:border-accent/40 focus-within:shadow-glow/15"
                 >
-                  <div className="flex items-center pl-1 pr-0 text-zinc-300 select-none font-medium text-[14.7px] sm:text-[16.6px] flex-shrink-0">
-                    <img src="/logo.webp" alt="Logo" className="h-10 w-auto mix-blend-screen mr-1 flex-shrink-0" />
+                  <div className="flex flex-shrink-0 select-none items-center pl-1 pr-0 text-[13px] font-medium text-zinc-300 sm:text-[16.6px]">
+                    <img src="/logo.webp" alt="" className="mr-1 h-8 w-auto flex-shrink-0 mix-blend-screen sm:h-10" />
                     <span>linktery.com/</span>
                   </div>
                   <input
                     type="text"
+                    aria-label="Choose your Linktery username"
                     value={usernameInput}
                     onChange={(e) => setUsernameInput(e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_.]/g, "").slice(0, 22))}
                     maxLength={22}
                     placeholder="yourname"
-                    className="bg-transparent border-0 p-0 m-0 outline-none focus:ring-0 text-white placeholder:text-white/30 w-full min-w-0 py-2 pl-[1px] text-[14.7px] sm:text-[16.6px] pr-2"
+                    className="m-0 min-w-0 w-full border-0 bg-transparent p-0 py-2 pl-px pr-1 text-[13px] text-white outline-none placeholder:text-white/30 focus:ring-0 sm:pr-2 sm:text-[16.6px]"
                   />
                   <button
                     type="submit"
-                    className="btn-primary-glow !rounded-full !py-2.5 !px-5 sm:!px-6 whitespace-nowrap text-sm font-bold active:scale-95 transition-transform"
+                    className="btn-primary-glow whitespace-nowrap !rounded-full !px-4 !py-2.5 text-xs font-bold transition-transform active:scale-95 sm:!px-6 sm:text-sm"
                   >
                     Start for free
                   </button>
@@ -310,7 +306,7 @@ export default function LandingPage() {
             </div>
 
             {/* Bullet points */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[15.5px] text-muted-foreground/80 mb-10 font-medium">
+            <div className="mb-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm font-medium text-muted-foreground/80 sm:mb-10 sm:gap-x-4 sm:text-[15.5px]">
               <span className="flex items-center gap-1.5">
                 <span className="text-accent">•</span> Free forever
               </span>
@@ -323,21 +319,21 @@ export default function LandingPage() {
             </div>
 
             {/* Rating social proof widget */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 border-t border-border/50 pt-9 w-full max-w-xl">
+            <div className="flex w-full max-w-xl flex-row items-center gap-3 border-t border-border/50 pt-7 sm:gap-4 sm:pt-9">
               {/* Overlapping avatars */}
               <div className="flex -space-x-3.5">
                 <img
-                  className="inline-block h-[44px] w-[44px] rounded-full ring-2 ring-background object-cover"
+                  className="inline-block h-10 w-10 rounded-full object-cover ring-2 ring-background sm:h-[44px] sm:w-[44px]"
                   src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&h=100&q=80"
                   alt="User avatar 1"
                 />
                 <img
-                  className="inline-block h-[44px] w-[44px] rounded-full ring-2 ring-background object-cover"
+                  className="inline-block h-10 w-10 rounded-full object-cover ring-2 ring-background sm:h-[44px] sm:w-[44px]"
                   src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80"
                   alt="User avatar 2"
                 />
                 <img
-                  className="inline-block h-[44px] w-[44px] rounded-full ring-2 ring-background object-cover"
+                  className="inline-block h-10 w-10 rounded-full object-cover ring-2 ring-background sm:h-[44px] sm:w-[44px]"
                   src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&h=100&q=80"
                   alt="User avatar 3"
                 />
@@ -356,15 +352,15 @@ export default function LandingPage() {
                     </svg>
                   ))}
                 </div>
-                <span className="text-[14px] md:text-[16px] text-muted-foreground font-medium text-left">
+                <span className="text-left text-[13px] font-medium leading-snug text-muted-foreground sm:text-[14px] md:text-[16px]">
                   Built for creators, marketers, and growing teams
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Right Column: Mobile Screenshot */}
-          <div className="lg:col-span-6 flex justify-center relative w-full mt-10 lg:mt-0 transform lg:translate-y-[6%]">
+          {/* Desktop-only product visual. Mobile keeps the primary action above the fold. */}
+          <div className="relative hidden w-full justify-center lg:col-span-6 lg:flex lg:translate-y-[6%]">
             <div className="relative animate-float w-full max-w-none flex justify-center">
               <picture>
                 <source srcSet="/mobila.webp" type="image/webp" />

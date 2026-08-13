@@ -11,6 +11,13 @@
     "enabled": true,
     "head_sampling_rate": 0.01
   },
+  "ratelimits": [
+    {
+      "name": "API_EDGE_RATE_LIMITER",
+      "namespace_id": "4101",
+      "simple": { "limit": 300, "period": 60 }
+    }
+  ],
   "routes": [
     {
       "pattern": "api.linktery.com",
@@ -19,6 +26,7 @@
   ],
   "vars": {
     "DEPLOY_ENV": "production",
+    "PUBLIC_API_HOSTNAME": "api.linktery.com",
     "UPSTREAM_API_ORIGIN": "https://greenroute-pb.fly.dev"
   },
   "env": {
@@ -27,8 +35,16 @@
       "workers_dev": true,
       "preview_urls": true,
       "routes": [],
+      "ratelimits": [
+        {
+          "name": "API_EDGE_RATE_LIMITER",
+          "namespace_id": "4102",
+          "simple": { "limit": 300, "period": 60 }
+        }
+      ],
       "vars": {
         "DEPLOY_ENV": "staging",
+        "PUBLIC_API_HOSTNAME": "linktery-public-api-staging.footballonewso01.workers.dev",
         "UPSTREAM_API_ORIGIN": "https://greenroute-pb-staging.fly.dev"
       }
     }

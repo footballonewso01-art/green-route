@@ -80,24 +80,15 @@ const fireTrackingPixels = (link: Record<string, any>): Promise<void> => {
 /* eslint-enable @typescript-eslint/no-explicit-any, prefer-rest-params, prefer-spread, no-var, @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-expressions */
 
 const fetchCountryCode = async (): Promise<string> => {
-    // 1. Try our first-party geo endpoint first (respects privacy, fast, cached)
+    // Country is resolved at our Cloudflare edge. No visitor IP is sent to a
+    // third-party geo provider from the browser or PocketBase.
     try {
-        const geoRes = await fetch(`${pb.baseUrl}/api/geo`, { signal: AbortSignal.timeout(1200) });
+        const geoRes = await fetch("/api/geo", { signal: AbortSignal.timeout(1200) });
         const geoData = await geoRes.json();
         if (geoData.country && geoData.country !== "Unknown") {
             return geoData.country;
         }
     } catch { /* First-party geo failed */ }
-
-    // 2. Fallback to Cloudflare trace if our own API fails
-    try {
-        const geoRes = await fetch("https://cloudflare.com/cdn-cgi/trace", { signal: AbortSignal.timeout(1200) });
-        const geoText = await geoRes.text();
-        const locMatch = geoText.match(/loc=([A-Z]{2})/);
-        if (locMatch && locMatch[1]) {
-            return locMatch[1];
-        }
-    } catch { /* Fallback failed */ }
 
     return "Unknown";
 };
@@ -194,6 +185,8 @@ export default function RedirectHandler() {
         let referrer = "Direct";
         const urlParams = new URLSearchParams(window.location.search);
         const refParam = urlParams.get("ref");
+        const sourceProfileId = urlParams.get("profile_id") || "";
+        const profileLinkId = urlParams.get("profile_link_id") || "";
         if (refParam === "profile") {
             referrer = "Profile";
         } else {
@@ -219,12 +212,16 @@ export default function RedirectHandler() {
             document.cookie = `${cookieName}=1; path=/; max-age=86400`;
         }
 
-        const trackingUrl = `${pb.baseUrl}/api/track-click`;
+        const trackingUrl = "/api/track-click";
         const payload = new URLSearchParams({
             link_id: String(link.id || ""),
             referrer,
             is_unique: isUnique ? "true" : "false"
         });
+        if (sourceProfileId && profileLinkId) {
+            payload.set("profile_id", sourceProfileId);
+            payload.set("profile_link_id", profileLinkId);
+        }
 
         // URLSearchParams uses a CORS-safelisted content type, avoiding a
         // preflight that could otherwise race with the outgoing navigation.

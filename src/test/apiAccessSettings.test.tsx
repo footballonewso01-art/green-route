@@ -32,7 +32,7 @@ const existingKey = {
 
 const enabledResponse = {
   data: existingKey,
-  secret,
+  secret: "",
   meta: {
     enabled: true,
     key_limit: 1,
@@ -63,7 +63,7 @@ describe("API Access settings", () => {
     renderSettings();
 
     const input = await screen.findByLabelText("API key secret");
-    expect(input).toHaveValue(secret);
+    expect(input).toHaveValue(`${existingKey.prefix}_0000000000000000000000000000000000000000`);
     expect(input).toHaveAttribute("type", "password");
     expect(sendMock).toHaveBeenCalledWith("/api/developer/key", {
       method: "GET",
@@ -75,11 +75,19 @@ describe("API Access settings", () => {
   });
 
   it("reveals and copies the same account key", async () => {
+    sendMock.mockImplementation(async (path: string) => path === "/api/developer/key/reveal"
+      ? { data: existingKey, secret, request_id: "request-reveal" }
+      : enabledResponse);
     renderSettings();
 
     const input = await screen.findByLabelText("API key secret");
     fireEvent.click(screen.getByRole("button", { name: "Show API key" }));
-    expect(input).toHaveAttribute("type", "text");
+    await waitFor(() => expect(input).toHaveAttribute("type", "text"));
+    expect(input).toHaveValue(secret);
+    expect(sendMock).toHaveBeenCalledWith("/api/developer/key/reveal", {
+      method: "POST",
+      requestKey: null,
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Copy key" }));
     await waitFor(() => expect(writeTextMock).toHaveBeenCalledWith(secret));

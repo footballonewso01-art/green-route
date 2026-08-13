@@ -87,6 +87,7 @@ export function ApiAccessSettings() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [revealed, setRevealed] = useState(false);
+  const [revealing, setRevealing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [refreshDialogOpen, setRefreshDialogOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -106,12 +107,12 @@ export function ApiAccessSettings() {
       setSecret("");
       return;
     }
-    if (!response?.data?.id || !response?.secret) {
+    if (!response?.data?.id) {
       throw new Error("API credential response was incomplete");
     }
 
     setCredential(response.data);
-    setSecret(response.secret);
+    setSecret(response.secret || "");
   };
 
   const credentialScopes = Array.isArray(credential?.scopes) ? credential.scopes : [];
@@ -143,14 +144,45 @@ export function ApiAccessSettings() {
     void loadKey();
   }, [loadKey]);
 
+  const revealSecret = async (): Promise<string> => {
+    if (secret) return secret;
+    setRevealing(true);
+    try {
+      const response = (await pb.send("/api/developer/key/reveal", {
+        method: "POST",
+        requestKey: null,
+      })) as Pick<ApiCredentialResponse, "data" | "secret" | "request_id">;
+      if (!response?.secret) throw new Error("API credential response was incomplete");
+      setSecret(response.secret);
+      return response.secret;
+    } finally {
+      setRevealing(false);
+    }
+  };
+
   const copySecret = async () => {
     try {
-      await navigator.clipboard.writeText(secret);
+      const value = await revealSecret();
+      await navigator.clipboard.writeText(value);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
       toast.success("API key copied");
     } catch {
       toast.error("Copy failed. Reveal the key and copy it manually.");
+    }
+  };
+
+  const toggleReveal = async () => {
+    if (revealed) {
+      setRevealed(false);
+      setSecret("");
+      return;
+    }
+    try {
+      await revealSecret();
+      setRevealed(true);
+    } catch (error) {
+      toast.error(maskError(error, "We couldn't reveal your API key."));
     }
   };
 
@@ -241,7 +273,7 @@ export function ApiAccessSettings() {
             <ArrowUpRight className="h-4 w-4" />
           </Link>
         </div>
-      ) : credential && secret ? (
+      ) : credential ? (
         <section
           className="overflow-hidden rounded-2xl border border-border/50 bg-surface/40"
           aria-labelledby="account-api-key"
@@ -269,9 +301,9 @@ export function ApiAccessSettings() {
               <div className="flex min-h-12 min-w-0 flex-1 items-center rounded-xl border border-border/60 bg-background/40 focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/20">
                 <input
                   id="api-key-secret"
-                  type={revealed ? "text" : "password"}
+                  type={revealed && secret ? "text" : "password"}
                   readOnly
-                  value={secret}
+                  value={secret || `${credential.prefix}_0000000000000000000000000000000000000000`}
                   onFocus={(event) => event.currentTarget.select()}
                   autoComplete="off"
                   aria-label="API key secret"
@@ -279,11 +311,16 @@ export function ApiAccessSettings() {
                 />
                 <button
                   type="button"
-                  onClick={() => setRevealed((current) => !current)}
+                  onClick={() => void toggleReveal()}
+                  disabled={revealing}
                   aria-label={revealed ? "Hide API key" : "Show API key"}
                   className="mr-1.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
-                  {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {revealing
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : revealed
+                      ? <EyeOff className="h-4 w-4" />
+                      : <Eye className="h-4 w-4" />}
                 </button>
               </div>
               <button

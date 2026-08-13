@@ -29,10 +29,10 @@ export default function MarketingHeader({ current = "home" }: MarketingHeaderPro
       className="fixed inset-x-0 top-0 z-50 border-b border-border/50 bg-background/90 backdrop-blur-xl"
       aria-label="Primary navigation"
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-6">
-        <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <img src="/logo.webp" alt="" className="h-[54px] w-auto mix-blend-screen" />
-          <span className="text-[21px] font-extrabold tracking-tight text-foreground">Linktery</span>
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+        <Link to="/" className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-80 sm:gap-3">
+          <img src="/logo.webp" alt="" className="h-10 w-auto mix-blend-screen sm:h-[54px]" />
+          <span className="text-xl font-extrabold tracking-tight text-foreground sm:text-[21px]">Linktery</span>
         </Link>
 
         <div className="hidden items-center gap-8 md:flex">
@@ -79,7 +79,7 @@ export default function MarketingHeader({ current = "home" }: MarketingHeaderPro
           )}
         </div>
 
-        <div className="flex items-center gap-3 md:hidden">
+        <div className="flex items-center gap-1 sm:gap-3 md:hidden">
           {current !== "documentation" && (
             <Link
               to="/documentation"

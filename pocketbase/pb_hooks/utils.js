@@ -25,6 +25,15 @@ var CLICK_UNIQUE_LAST_SWEEP = new Date().getTime();
 var CLICK_UNIQUE_TTL_MS = 24 * 60 * 60 * 1000;
 var CLICK_UNIQUE_CACHE_MAX = 100000;
 
+// Public Profile telemetry has its own allowance so a popular profile cannot
+// consume the click-ingestion budget. Limits drop analytics only; page delivery
+// must always continue.
+var PROFILE_VIEW_RATE_WINDOW_STARTED_AT = new Date().getTime();
+var PROFILE_VIEW_RATE_BY_IP = {};
+var PROFILE_VIEW_RATE_BY_IP_AND_PROFILE = {};
+var PROFILE_VIEW_LAST_WARNING_AT = 0;
+var PROFILE_VIEW_WARNING_INTERVAL_MS = 60 * 1000;
+
 // Public API authentication state. Raw secrets are never stored here. The
 // database keeps a keyed digest for authentication, a non-secret lookup
 // prefix, and an AES-GCM encrypted copy for the authenticated reveal screen.
@@ -103,9 +112,37 @@ var isTrustedRedirectEdgeRequest = function(eventOrRequest) {
     }
 };
 
+var isTrustedApiGatewayRequest = function(eventOrRequest) {
+    var event = eventOrRequest || null;
+    var request = event && event.request ? event.request : event;
+    var expected = String($os.getenv("API_ORIGIN_SECRET") || "");
+    if (expected.length < 32) return false;
+
+    try {
+        var provided = request && request.header
+            ? String(request.header.get("X-Linktery-API-Origin-Secret") || "")
+            : "";
+        return provided.length === expected.length && $security.equal(provided, expected);
+    } catch (err) {
+        return false;
+    }
+};
+
+var isApiGatewayEnforcementEnabled = function() {
+    var value = String($os.getenv("API_ORIGIN_ENFORCEMENT") || "true").trim().toLowerCase();
+    return value !== "false" && value !== "0" && value !== "off";
+};
+
 var getClientIP = function(eventOrRequest) {
     var event = eventOrRequest || null;
     var request = event && event.request ? event.request : event;
+
+    try {
+        if (isTrustedApiGatewayRequest(eventOrRequest)) {
+            var apiEdgeIP = String(request.header.get("X-Linktery-API-Client-IP") || "").trim();
+            if (apiEdgeIP && apiEdgeIP.length <= 128 && /^[0-9a-fA-F:.]+$/.test(apiEdgeIP)) return apiEdgeIP;
+        }
+    } catch (err) {}
 
     try {
         if (isTrustedRedirectEdgeRequest(eventOrRequest)) {
@@ -137,6 +174,35 @@ var getClientIP = function(eventOrRequest) {
     return "unknown";
 };
 
+var normalizeAnalyticsReferrer = function(value) {
+    var raw = String(value || "").trim();
+    if (!raw || raw === "Direct") return "Direct";
+    var labels = {
+        "Profile": true,
+        "Instagram": true,
+        "Twitter": true,
+        "Facebook": true,
+        "TikTok": true,
+        "Google": true,
+        "Google App": true
+    };
+    if (labels[raw]) return raw;
+
+    var hostname = "";
+    var match = raw.match(/^[a-z][a-z0-9+.-]*:\/\/([^\/?#]+)/i);
+    if (match) hostname = String(match[1] || "");
+    else if (/^[a-z0-9.-]+(?::\d{1,5})?$/i.test(raw)) hostname = raw;
+    hostname = hostname.toLowerCase().replace(/^www\./, "").replace(/:\d{1,5}$/, "").replace(/\.+$/, "");
+    if (
+        !hostname ||
+        hostname.length > 253 ||
+        !/^[a-z0-9.-]+$/.test(hostname) ||
+        hostname.indexOf(".") === -1 ||
+        hostname.indexOf("..") !== -1
+    ) return "Other";
+    return hostname;
+};
+
 var resetApiAuthAbuseWindow = function(now) {
     if (now - API_AUTH_WINDOW_STARTED_AT < 60000) return;
     API_AUTH_WINDOW_STARTED_AT = now;
@@ -163,9 +229,11 @@ var apiAuthLookupAllows = function(eventOrRequest, digest) {
     var safeDigest = String(digest || "");
     if (safeDigest && Number(API_VALID_TOKEN_HINTS[safeDigest] || 0) > now) return true;
     if (safeDigest && Number(API_INVALID_TOKEN_DENY[safeDigest] || 0) > now) return false;
-
-    var ipKey = $security.sha256(getClientIP(eventOrRequest));
-    return Number(API_INVALID_AUTH_BY_IP[ipKey] || 0) < 30 && API_INVALID_AUTH_TOTAL < 600;
+    // Never let attacker-owned invalid traffic create a global lockout for a
+    // previously unseen valid credential. The trusted Cloudflare gateway owns
+    // the distributed per-IP abuse budget; this process cache only suppresses
+    // repeated database lookups for the exact same invalid digest.
+    return true;
 };
 
 var noteInvalidApiAuthentication = function(eventOrRequest, digest) {
@@ -213,6 +281,31 @@ var clickRateLimitAllows = function(eventOrRequest, linkId) {
     return true;
 };
 
+var warnProfileViewFailure = function(app, category, profileId, err) {
+    var now = new Date().getTime();
+    if (now - PROFILE_VIEW_LAST_WARNING_AT < PROFILE_VIEW_WARNING_INTERVAL_MS) return;
+    PROFILE_VIEW_LAST_WARNING_AT = now;
+
+    var safeCategory = String(category || "unknown").replace(/[^a-z0-9_-]/gi, "").substring(0, 40) || "unknown";
+    var safeProfileId = /^[a-z0-9]{15}$/.test(String(profileId || ""))
+        ? String(profileId)
+        : "unknown";
+    var safeErrorType = err && err.name
+        ? String(err.name).replace(/[^a-z0-9_-]/gi, "").substring(0, 40)
+        : "none";
+
+    // Never log IP, UA, visitor digests, request ids, SQL text, or raw error
+    // messages here. This warning exists only to reveal a broken telemetry
+    // pipeline without turning operational logs into another tracking store.
+    try {
+        app.logger().warn(
+            "Profile view analytics warning category=" + safeCategory +
+            " profile_id=" + safeProfileId +
+            " error_type=" + (safeErrorType || "unknown")
+        );
+    } catch (logError) {}
+};
+
 var isUniqueTrackedClick = function(eventOrRequest, linkId) {
     var now = new Date().getTime();
 
@@ -249,6 +342,259 @@ var isUniqueTrackedClick = function(eventOrRequest, linkId) {
     CLICK_UNIQUE_CACHE[fingerprint] = now + CLICK_UNIQUE_TTL_MS;
     CLICK_UNIQUE_CACHE_SIZE++;
     return true;
+};
+
+var profileViewRateLimitAllows = function(eventOrRequest, profileId) {
+    var now = new Date().getTime();
+    if (now - PROFILE_VIEW_RATE_WINDOW_STARTED_AT >= 60000) {
+        PROFILE_VIEW_RATE_WINDOW_STARTED_AT = now;
+        PROFILE_VIEW_RATE_BY_IP = {};
+        PROFILE_VIEW_RATE_BY_IP_AND_PROFILE = {};
+    }
+
+    var ipKey = $security.sha256(getClientIP(eventOrRequest));
+    var pairKey = ipKey + ":" + String(profileId || "");
+    var ipCount = PROFILE_VIEW_RATE_BY_IP[ipKey] || 0;
+    var pairCount = PROFILE_VIEW_RATE_BY_IP_AND_PROFILE[pairKey] || 0;
+    // The real client IP can still represent a large carrier, office, campus,
+    // or privacy relay. Keep a high telemetry-only ceiling for obvious floods
+    // without truncating legitimate viral profile traffic.
+    if (ipCount >= 5000 || pairCount >= 1000) return false;
+
+    PROFILE_VIEW_RATE_BY_IP[ipKey] = ipCount + 1;
+    PROFILE_VIEW_RATE_BY_IP_AND_PROFILE[pairKey] = pairCount + 1;
+    return true;
+};
+
+var isTrackedAutomation = function(userAgent) {
+    return /bot|crawler|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot|HeadlessChrome|Lighthouse/i
+        .test(String(userAgent || ""));
+};
+
+// Link unfurlers need a small server-rendered HTML document with Open Graph
+// metadata. Keep this narrower than the general analytics bot detector: search
+// crawlers should retain the existing redirect/indexing behavior, while known
+// messaging and social crawlers receive a preview without creating a click.
+var isSocialPreviewCrawler = function(userAgent) {
+    return /facebookexternalhit|Facebot|Twitterbot|LinkedInBot|Slackbot(?:-LinkExpanding)?|Discordbot|TelegramBot|WhatsApp|SkypeUriPreview|Pinterestbot|Snap URL Preview|Viber|vkShare/i
+        .test(String(userAgent || ""));
+};
+
+var getTrackingDimensions = function(request) {
+    var ua = String(request.header.get("User-Agent") || "");
+    var device = "Desktop";
+    if (/Mobi|Android/i.test(ua)) device = "Mobile";
+    else if (/Tablet|iPad/i.test(ua)) device = "Tablet";
+
+    var os = "Other";
+    if (/Windows/i.test(ua)) os = "Windows";
+    else if (/iPhone|iPad|iPod/i.test(ua)) os = "iOS";
+    else if (/Android/i.test(ua)) os = "Android";
+    else if (/Macintosh/i.test(ua)) os = "macOS";
+    else if (/Linux/i.test(ua)) os = "Linux";
+
+    var browser = "Other";
+    if (/Threads|Barcelona/i.test(ua)) browser = "Threads";
+    else if (/Instagram/i.test(ua)) browser = "Instagram";
+    else if (/TikTok|musical_ly/i.test(ua)) browser = "TikTok";
+    else if (/FBAN|FBAV/i.test(ua)) browser = "Facebook";
+    else if (/Edg/i.test(ua)) browser = "Edge";
+    else if (/Chrome/i.test(ua)) browser = "Chrome";
+    else if (/Safari/i.test(ua)) browser = "Safari";
+    else if (/Firefox/i.test(ua)) browser = "Firefox";
+
+    var referrer = "Direct";
+    var rawReferrer = String(request.header.get("Referer") || "").trim();
+    if (rawReferrer) {
+        try {
+            if (rawReferrer.indexOf("instagram.com") !== -1) referrer = "Instagram";
+            else if (rawReferrer.indexOf("t.co") !== -1 || rawReferrer.indexOf("twitter.com") !== -1) referrer = "Twitter";
+            else if (rawReferrer.indexOf("facebook.com") !== -1) referrer = "Facebook";
+            else if (rawReferrer.indexOf("tiktok.com") !== -1) referrer = "TikTok";
+            else if (rawReferrer.indexOf("google.com") !== -1) referrer = "Google";
+            else referrer = rawReferrer.split("/")[2] || "Other";
+        } catch (err) {
+            referrer = "Other";
+        }
+    }
+    if (referrer.length > 200) referrer = referrer.substring(0, 200);
+
+    return { userAgent: ua, device: device, os: os, browser: browser, referrer: referrer };
+};
+
+var resolveProfileClickAttribution = function(app, linkId, profileId, profileLinkId) {
+    var safeLinkId = String(linkId || "");
+    var safeProfileId = String(profileId || "");
+    var safeProfileLinkId = String(profileLinkId || "");
+    if (
+        !/^[a-z0-9]{15}$/.test(safeLinkId) ||
+        !/^[a-z0-9]{15}$/.test(safeProfileId) ||
+        !/^[a-z0-9]{15}$/.test(safeProfileLinkId)
+    ) {
+        return { sourceProfileId: "", profileLinkId: "" };
+    }
+
+    try {
+        app.findFirstRecordByFilter(
+            "profile_links",
+            "id = {:profileLinkId} && profile_id = {:profileId} && link_id = {:linkId} && visible = true",
+            { profileLinkId: safeProfileLinkId, profileId: safeProfileId, linkId: safeLinkId }
+        );
+        return { sourceProfileId: safeProfileId, profileLinkId: safeProfileLinkId };
+    } catch (err) {
+        return { sourceProfileId: "", profileLinkId: "" };
+    }
+};
+
+var recordProfileView = function(app, eventOrRequest, profile) {
+    if (!isTrustedRedirectEdgeRequest(eventOrRequest) || !profile) return false;
+
+    var event = eventOrRequest || null;
+    var request = event && event.request ? event.request : event;
+    var accept = String(request.header.get("Accept") || "").toLowerCase();
+    if (accept && accept.indexOf("text/html") === -1 && accept.indexOf("*/*") === -1) return false;
+
+    // Count page documents, not incidental subresource requests that happen
+    // to target the same one-segment URL with a permissive */* Accept header.
+    // Older/privacy-focused WebViews may omit Sec-Fetch-Dest, so an absent
+    // value remains allowed while explicit non-document destinations do not.
+    var fetchDest = String(request.header.get("Sec-Fetch-Dest") || "").trim().toLowerCase();
+    if (fetchDest && fetchDest !== "document" && fetchDest !== "iframe") return false;
+
+    var purpose = String(request.header.get("Sec-Purpose") || request.header.get("Purpose") || "").toLowerCase();
+    if (purpose.indexOf("prefetch") !== -1 || purpose.indexOf("prerender") !== -1) return false;
+
+    var dimensions = getTrackingDimensions(request);
+    if (isTrackedAutomation(dimensions.userAgent)) return false;
+
+    var requestId = String(request.header.get("X-Linktery-Request-Id") || "").trim();
+    if (!/^[a-zA-Z0-9._:-]{8,128}$/.test(requestId)) return false;
+    if (!profileViewRateLimitAllows(eventOrRequest, profile.id)) return false;
+
+    // The daily visitor fingerprint must be keyed. Without a private salt,
+    // an operator with a database copy could cheaply guess common IP/UA pairs.
+    // Reuse the edge-origin secret as a safe fallback so production doesn't
+    // need a second mandatory secret on day one.
+    var analyticsSalt = String(
+        $os.getenv("PROFILE_ANALYTICS_SALT") ||
+        $os.getenv("REDIRECT_ORIGIN_SECRET") ||
+        ""
+    );
+    if (analyticsSalt.length < 32) {
+        warnProfileViewFailure(app, "missing_salt", profile.id, null);
+        return false;
+    }
+
+    var day = new Date().toISOString().substring(0, 10);
+    var requestKey = $security.sha256(
+        analyticsSalt + "|profile-request|" + profile.id + "|" + requestId
+    );
+    var visitorHash = $security.sha256(
+        analyticsSalt + "|profile-visitor|" + day + "|" + profile.id + "|" +
+        getClientIP(eventOrRequest) + "|" + dimensions.userAgent.substring(0, 300)
+    );
+    var accepted = false;
+
+    var persistProfileViewEvent = function(txApp, forceNonUnique) {
+        var existingRequest = new DynamicModel({ "count": 0 });
+        txApp.db().newQuery(
+            "SELECT count(*) as count FROM profile_view_events WHERE request_key = {:requestKey}"
+        ).bind({ requestKey: requestKey }).one(existingRequest);
+        if (Number(existingRequest.count || 0) > 0) return;
+
+        var isUnique = false;
+        if (!forceNonUnique) {
+            var existingVisitor = new DynamicModel({ "count": 0 });
+            txApp.db().newQuery(`
+                SELECT count(*) as count
+                FROM profile_view_events
+                WHERE profile_id = {:profileId}
+                  AND visitor_day = {:visitorDay}
+                  AND visitor_hash = {:visitorHash}
+                  AND is_unique = 1
+            `).bind({
+                profileId: profile.id,
+                visitorDay: day,
+                visitorHash: visitorHash
+            }).one(existingVisitor);
+            isUnique = Number(existingVisitor.count || 0) === 0;
+        }
+
+        var collection = txApp.findCollectionByNameOrId("profile_view_events");
+        var record = new Record(collection, {
+            profile_id: profile.id,
+            country: resolveCountryFromIP(request),
+            device: dimensions.device,
+            os: dimensions.os,
+            browser: dimensions.browser,
+            referrer: dimensions.referrer,
+            request_key: requestKey,
+            visitor_day: day,
+            visitor_hash: visitorHash,
+            is_unique: isUnique
+        });
+        txApp.save(record);
+
+        txApp.db().newQuery(`
+                INSERT INTO profile_analytics_hourly_rollup (
+                    profile_id, bucket, dimension_type, dimension_value, total, unique_count
+                )
+                SELECT profile_id, strftime('%Y-%m-%dT%H:00:00Z', created),
+                       'all', '', 1, CASE WHEN is_unique = 1 THEN 1 ELSE 0 END
+                FROM profile_view_events WHERE id = {:eventId}
+                UNION ALL
+                SELECT profile_id, strftime('%Y-%m-%dT%H:00:00Z', created),
+                       'country', COALESCE(NULLIF(country, ''), 'Unknown'), 1, 0
+                FROM profile_view_events WHERE id = {:eventId}
+                UNION ALL
+                SELECT profile_id, strftime('%Y-%m-%dT%H:00:00Z', created),
+                       'referrer', COALESCE(NULLIF(referrer, ''), 'Direct'), 1, 0
+                FROM profile_view_events WHERE id = {:eventId}
+                UNION ALL
+                SELECT profile_id, strftime('%Y-%m-%dT%H:00:00Z', created),
+                       'device', COALESCE(NULLIF(device, ''), 'Other'), 1, 0
+                FROM profile_view_events WHERE id = {:eventId}
+                UNION ALL
+                SELECT profile_id, strftime('%Y-%m-%dT%H:00:00Z', created),
+                       'browser', COALESCE(NULLIF(browser, ''), 'Other'), 1, 0
+                FROM profile_view_events WHERE id = {:eventId}
+                UNION ALL
+                SELECT profile_id, strftime('%Y-%m-%dT%H:00:00Z', created),
+                       'os', COALESCE(NULLIF(os, ''), 'Other'), 1, 0
+                FROM profile_view_events WHERE id = {:eventId}
+                ON CONFLICT (profile_id, bucket, dimension_type, dimension_value)
+                DO UPDATE SET
+                    total = total + 1,
+                    unique_count = unique_count + excluded.unique_count
+            `).bind({ eventId: record.id }).execute();
+        accepted = true;
+    };
+
+    try {
+        app.runInTransaction(function(txApp) {
+            persistProfileViewEvent(txApp, false);
+        });
+    } catch (err) {
+        // Concurrent first visits from the same daily visitor may both decide
+        // they are unique before the partial unique index serializes them. A
+        // second transaction preserves the total view while forcing only the
+        // losing event to be non-unique. The request-key check keeps this safe
+        // for retries and for errors that happen after the first insert.
+        accepted = false;
+        try {
+            app.runInTransaction(function(txApp) {
+                persistProfileViewEvent(txApp, true);
+            });
+        } catch (retryErr) {
+            warnProfileViewFailure(app, "write_failed", profile.id, retryErr);
+            return false;
+        }
+    }
+
+    // Do not invalidate the 30-second owner dashboard cache for every public
+    // view. A viral profile could otherwise turn every dashboard refresh into
+    // an uncached rollup query. The bounded cache delay is intentional.
+    return accepted;
 };
 
 var normalizeApiScopes = function(raw, useReadDefault) {
@@ -596,7 +942,25 @@ var consumeApiKeyRefreshAllowance = function(app, userId, cooldownSeconds) {
 };
 
 var authenticateApiRequest = function(c, requiredScope, rateKind) {
-    var requestId = $security.randomString(12);
+    var trustedApiGateway = isTrustedApiGatewayRequest(c);
+    if (!trustedApiGateway && isApiGatewayEnforcementEnabled()) {
+        return {
+            ok: false,
+            status: 404,
+            code: "not_found",
+            message: "The requested API endpoint was not found.",
+            requestId: $security.randomString(12)
+        };
+    }
+
+    var providedRequestId = "";
+    try {
+        providedRequestId = String(c.request.header.get("X-Linktery-API-Request-Id") || "").trim();
+    } catch (err) {}
+    var requestId = /^[A-Za-z0-9._:-]{1,128}$/.test(providedRequestId)
+        ? providedRequestId
+        : $security.randomString(12);
+    if (trustedApiGateway) c.response.header().add("X-Linktery-API-Origin", "v1");
     var authHeader = "";
     try {
         authHeader = String(c.request.header.get("Authorization") || "");
@@ -680,6 +1044,7 @@ var authenticateApiRequest = function(c, requiredScope, rateKind) {
         user = $app.findRecordById("users", keyRecord.get("user_id"));
     } catch (err) {}
     if (!user || user.get("banned") === true) {
+        if (user) revokeActiveApiKeysForUser($app, user.id);
         noteInvalidApiAuthentication(c, digest);
         return {
             ok: false,
@@ -692,6 +1057,7 @@ var authenticateApiRequest = function(c, requiredScope, rateKind) {
 
     var plan = getApiPlanCatalogEntryForUser(user);
     if (user.get("role") !== "admin" && (!plan.apiKeys || plan.apiKeys < 1)) {
+        revokeActiveApiKeysForUser($app, user.id);
         noteInvalidApiAuthentication(c, digest);
         return {
             ok: false,
@@ -1063,6 +1429,158 @@ var reconcileAffiliateRefund = function (app, stripeInvoiceId, refundedCents) {
     return commission;
 };
 
+var getStripeInvoiceSubscriptionId = function (invoice) {
+    invoice = invoice || {};
+    var subscription = invoice.subscription ||
+        (invoice.parent && invoice.parent.subscription_details && invoice.parent.subscription_details.subscription) ||
+        "";
+    if (subscription && typeof subscription !== "string") {
+        subscription = subscription.id || "";
+    }
+
+    if (!subscription && invoice.lines && invoice.lines.data) {
+        for (var i = 0; i < invoice.lines.data.length; i++) {
+            var line = invoice.lines.data[i] || {};
+            subscription = line.subscription ||
+                (line.parent && line.parent.subscription_item_details && line.parent.subscription_item_details.subscription) ||
+                "";
+            if (subscription && typeof subscription !== "string") {
+                subscription = subscription.id || "";
+            }
+            if (subscription) break;
+        }
+    }
+
+    return String(subscription || "").substring(0, 255);
+};
+
+var findStripeInvoiceUserContext = function (app, invoice) {
+    invoice = invoice || {};
+    var subscriptionId = getStripeInvoiceSubscriptionId(invoice);
+    var customerId = invoice.customer || "";
+    if (customerId && typeof customerId !== "string") {
+        customerId = customerId.id || "";
+    }
+    customerId = String(customerId || "").substring(0, 255);
+
+    var billingRecord = null;
+    var userId = "";
+    var lookupMethod = "none";
+
+    if (subscriptionId) {
+        try {
+            var subscriptionRecords = app.findRecordsByFilter(
+                "billing",
+                "stripe_subscription_id = {:subscriptionId}",
+                "-created",
+                1,
+                0,
+                { subscriptionId: subscriptionId }
+            );
+            if (subscriptionRecords.length > 0) {
+                billingRecord = subscriptionRecords[0];
+                userId = String(billingRecord.get("user_id") || "");
+                lookupMethod = "billing.stripe_subscription_id";
+            }
+        } catch (error) { }
+    }
+
+    if (!userId && customerId) {
+        try {
+            var customerRecords = app.findRecordsByFilter(
+                "billing",
+                "stripe_customer_id = {:customerId}",
+                "-created",
+                1,
+                0,
+                { customerId: customerId }
+            );
+            if (customerRecords.length > 0) {
+                billingRecord = customerRecords[0];
+                userId = String(billingRecord.get("user_id") || "");
+                lookupMethod = "billing.stripe_customer_id";
+            }
+        } catch (error) { }
+    }
+
+    if (!userId && customerId) {
+        try {
+            var userByCustomer = app.findFirstRecordByData("users", "stripe_customer_id", customerId);
+            if (userByCustomer) {
+                userId = userByCustomer.id;
+                lookupMethod = "users.stripe_customer_id";
+            }
+        } catch (error) { }
+    }
+
+    var customerEmail = String(invoice.customer_email || "").trim().toLowerCase();
+    if (!userId && customerEmail) {
+        try {
+            var userByEmail = app.findFirstRecordByData("users", "email", customerEmail);
+            if (userByEmail) {
+                userId = userByEmail.id;
+                lookupMethod = "users.email";
+            }
+        } catch (error) { }
+    }
+
+    return {
+        userId: userId,
+        billingRecord: billingRecord,
+        subscriptionId: subscriptionId,
+        customerId: customerId,
+        lookupMethod: lookupMethod
+    };
+};
+
+// Replays a paid Stripe invoice against the immutable attribution ledger.
+// Invoice-level uniqueness makes this safe for webhook retries, verify-session,
+// and scheduled reconciliation to call independently.
+var reconcileAffiliatePaidInvoice = function (app, invoice) {
+    invoice = invoice || {};
+    var invoiceId = String(invoice.id || "").substring(0, 255);
+    var amountPaidCents = Math.max(0, parseInt(invoice.amount_paid, 10) || 0);
+    if (!invoiceId || amountPaidCents <= 0 || invoice.paid === false) {
+        return { matched: false, commission: null, reason: "not_paid" };
+    }
+
+    var context = findStripeInvoiceUserContext(app, invoice);
+    if (!context.userId) {
+        return { matched: false, commission: null, reason: "user_not_found" };
+    }
+
+    var plan = context.billingRecord ? String(context.billingRecord.get("plan") || "") : "";
+    if (invoice.lines && invoice.lines.data) {
+        for (var i = 0; i < invoice.lines.data.length; i++) {
+            var price = invoice.lines.data[i] && invoice.lines.data[i].price;
+            var priceId = price && typeof price === "object" ? String(price.id || "") : String(price || "");
+            var priceConfig = getStripePriceCatalogEntry(priceId);
+            if (!priceConfig) continue;
+            plan = priceConfig.plan;
+            break;
+        }
+    }
+    if (plan !== "agency" && plan !== "pro") plan = "pro";
+
+    var commission = createAffiliateCommission(app, {
+        referredUserId: context.userId,
+        stripeInvoiceId: invoiceId,
+        amountPaidCents: amountPaidCents,
+        currency: invoice.currency || "usd",
+        plan: plan,
+        stripeSubscriptionId: context.subscriptionId,
+        billingReason: invoice.billing_reason || ""
+    });
+
+    return {
+        matched: true,
+        commission: commission,
+        reason: commission ? "recorded_or_existing" : "no_eligible_attribution",
+        userId: context.userId,
+        lookupMethod: context.lookupMethod
+    };
+};
+
 var analyticsRateLimitAllows = function (userId) {
     var now = new Date().getTime();
     var windowStart = now - 60000;
@@ -1116,6 +1634,78 @@ var setAnalyticsCache = function (key, data, ttlMs) {
 
 // Single server-side source of truth for entitlements and monthly list prices.
 // -1 denotes an unlimited resource.
+var STRIPE_PRICE_CATALOG = {
+    "price_1T9ogj1kCVZzZn9tLvSa7km6": { plan: "pro", cadence: "monthly", currency: "usd", unitAmount: 1100, environment: "live" },
+    "price_1TA5k11kCVZzZn9tvsRkAGHW": { plan: "pro", cadence: "annual", currency: "usd", unitAmount: 10800, environment: "live" },
+    "price_1T9ojK1kCVZzZn9tmOrvoNOn": { plan: "agency", cadence: "monthly", currency: "usd", unitAmount: 2900, environment: "live" },
+    "price_1TA5kT1kCVZzZn9tAP7AsNjs": { plan: "agency", cadence: "annual", currency: "usd", unitAmount: 28800, environment: "live" },
+    "price_1TA5an1kCVZzZn9tUlnIjzjp": { plan: "pro", cadence: "monthly", currency: "usd", unitAmount: 1100, environment: "test" },
+    "price_1TA5mP1kCVZzZn9toW9b7xcU": { plan: "pro", cadence: "annual", currency: "usd", unitAmount: 10800, environment: "test" },
+    "price_1TA5ay1kCVZzZn9thZD9Rhsi": { plan: "agency", cadence: "monthly", currency: "usd", unitAmount: 2900, environment: "test" },
+    "price_1TA5mh1kCVZzZn9tN3UmsgCC": { plan: "agency", cadence: "annual", currency: "usd", unitAmount: 28800, environment: "test" }
+};
+
+var getStripePriceCatalogEntry = function(priceId) {
+    var entry = STRIPE_PRICE_CATALOG[String(priceId || "")];
+    if (!entry) return null;
+    return {
+        plan: entry.plan,
+        cadence: entry.cadence,
+        currency: entry.currency,
+        unitAmount: entry.unitAmount,
+        environment: entry.environment
+    };
+};
+
+var requireKnownStripeLineItemPrice = function(lineItems) {
+    var items = lineItems && Array.isArray(lineItems.data) ? lineItems.data : [];
+    var candidates = [];
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i] || {};
+        var legacyPrice = item.price || null;
+        var modernPricing = item.pricing || {};
+        var modernPriceDetails = modernPricing.price_details || {};
+        var rawPrice = legacyPrice || modernPriceDetails.price || "";
+        var priceId = rawPrice && typeof rawPrice === "object"
+            ? String(rawPrice.id || "")
+            : String(rawPrice || "");
+        var entry = getStripePriceCatalogEntry(priceId);
+        if (!entry) continue;
+
+        var unitAmount = Number(
+            legacyPrice && typeof legacyPrice === "object" && legacyPrice.unit_amount != null
+                ? legacyPrice.unit_amount
+                : modernPricing.unit_amount_decimal
+        );
+        var currency = String(
+            (legacyPrice && typeof legacyPrice === "object" && legacyPrice.currency) ||
+            item.currency ||
+            ""
+        ).toLowerCase();
+        if (!isFinite(unitAmount) || unitAmount !== entry.unitAmount || currency !== entry.currency) {
+            throw new Error("Stripe Price catalog mismatch");
+        }
+        candidates.push({
+            entry: entry,
+            amount: Number(item.amount != null ? item.amount : item.subtotal || 0),
+            index: i
+        });
+    }
+    if (candidates.length === 0) throw new Error("Unknown Stripe Price ID");
+
+    // Upgrade invoices can contain a negative credit for the old price and a
+    // positive debit for the new one. Prefer the positive active charge; keep
+    // deterministic ordering for ordinary one-line renewals.
+    candidates.sort(function(a, b) {
+        var aPositive = a.amount > 0 ? 1 : 0;
+        var bPositive = b.amount > 0 ? 1 : 0;
+        if (aPositive !== bPositive) return bPositive - aPositive;
+        if (Math.abs(a.amount) !== Math.abs(b.amount)) return Math.abs(b.amount) - Math.abs(a.amount);
+        return a.index - b.index;
+    });
+    return candidates[0].entry;
+};
+
 var PLAN_CATALOG = {
     "creator": { "links": 3, "publicProfiles": 1, "monthlyPrice": 0, "analytics": false, "customSlug": false, "apiKeys": 0, "apiRatePerMinute": 0, "apiWriteRatePerMinute": 0, "apiAnalyticsRatePerMinute": 0, "apiWriteDailyLimit": 0, "apiCreateDailyLimit": 0 },
     "pro": { "links": 15, "publicProfiles": 3, "monthlyPrice": 11, "analytics": true, "customSlug": false, "apiKeys": 1, "apiRatePerMinute": 60, "apiWriteRatePerMinute": 15, "apiAnalyticsRatePerMinute": 20, "apiWriteDailyLimit": 1000, "apiCreateDailyLimit": 100 },
@@ -1147,9 +1737,45 @@ var getPlanCatalogEntry = function(planName) {
     return PLAN_CATALOG[planName] || PLAN_CATALOG.creator;
 };
 
+var getEffectivePlanNameForUser = function(user) {
+    if (user && user.get("role") === "admin") return "agency";
+    var rawPlan = String(user ? (user.get("plan") || "creator") : "creator").trim().toLowerCase();
+    if (rawPlan !== "pro" && rawPlan !== "agency") return "creator";
+
+    var status = String(user.get("plan_status") || "").trim().toLowerCase();
+    // Empty is accepted for legacy paid rows until the next Stripe sync. Any
+    // explicit status outside this small allowlist fails closed.
+    if (status && status !== "active" && status !== "trialing" && status !== "canceling") {
+        return "creator";
+    }
+
+    var expiry = String(user.get("plan_expires_at") || "").trim();
+    if (!expiry) return "creator";
+    var expiryMs = new Date(expiry.replace(" ", "T")).getTime();
+    if (!isFinite(expiryMs) || expiryMs <= new Date().getTime()) return "creator";
+    return rawPlan;
+};
+
 var getApiPlanCatalogEntryForUser = function(user) {
-    if (user && user.get("role") === "admin") return PLAN_CATALOG.agency;
-    return getPlanCatalogEntry(user ? (user.get("plan") || "creator") : "creator");
+    return getPlanCatalogEntry(getEffectivePlanNameForUser(user));
+};
+
+var revokeActiveApiKeysForUser = function(app, userId) {
+    var safeUserId = String(userId || "");
+    if (!/^[a-z0-9]{15}$/.test(safeUserId)) return 0;
+    try {
+        var result = app.db().newQuery(`
+            UPDATE api_keys
+            SET status = 'revoked',
+                revoked_at = datetime('now'),
+                updated = datetime('now')
+            WHERE user_id = {:userId} AND status = 'active'
+        `).bind({ userId: safeUserId }).execute();
+        return result && typeof result.rowsAffected === "function" ? Number(result.rowsAffected() || 0) : 0;
+    } catch (err) {
+        app.logger().error("API key entitlement revocation failed for user=" + safeUserId + ": " + err);
+        return 0;
+    }
 };
 
 // PocketBase executes router callbacks in isolated JSVM scopes. Keep Stripe
@@ -1199,15 +1825,69 @@ var fetchStripeSubscriptionPeriod = function (subscriptionId, stripeSecretKey) {
     return getStripePeriodFromSubscription(response.json);
 };
 
-var readerToString = function (reader) {
-    var result = "";
-    var buffer = new Uint8Array(1024);
-    while (true) {
-        var n = reader.read(buffer);
-        if (n <= 0) break;
-        result += String.fromCharCode.apply(null, buffer.subarray(0, n));
+var getStripeSubscriptionState = function(subscription) {
+    subscription = subscription || {};
+    var items = subscription.items && Array.isArray(subscription.items.data)
+        ? subscription.items.data
+        : [];
+    if (items.length === 0) throw new Error("Stripe subscription has no line items");
+
+    var selected = null;
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i] || {};
+        var legacyPrice = item.price || null;
+        var modernPricing = item.pricing || {};
+        var modernPriceDetails = modernPricing.price_details || {};
+        var rawPrice = legacyPrice || modernPriceDetails.price || "";
+        var priceId = rawPrice && typeof rawPrice === "object"
+            ? String(rawPrice.id || "")
+            : String(rawPrice || "");
+        var entry = getStripePriceCatalogEntry(priceId);
+        if (!entry) continue;
+        selected = { item: item, entry: entry, priceId: priceId };
+        break;
     }
-    return result;
+    if (!selected) throw new Error("Unknown Stripe subscription Price ID");
+
+    var status = String(subscription.status || "").trim().toLowerCase();
+    var knownStatuses = {
+        active: true,
+        trialing: true,
+        past_due: true,
+        unpaid: true,
+        canceled: true,
+        incomplete: true,
+        incomplete_expired: true,
+        paused: true
+    };
+    if (!knownStatuses[status]) throw new Error("Unknown Stripe subscription status");
+
+    return {
+        id: String(subscription.id || ""),
+        status: status,
+        cancelAtPeriodEnd: subscription.cancel_at_period_end === true,
+        plan: selected.entry.plan,
+        priceId: selected.priceId,
+        period: getStripePeriodFromSubscription(subscription)
+    };
+};
+
+var fetchStripeSubscriptionState = function(subscriptionId, stripeSecretKey) {
+    if (!/^sub_[A-Za-z0-9_]+$/.test(String(subscriptionId || ""))) {
+        throw new Error("Stripe subscription id is invalid");
+    }
+    if (!stripeSecretKey) throw new Error("Stripe secret key is unavailable");
+
+    var response = $http.send({
+        url: "https://api.stripe.com/v1/subscriptions/" + subscriptionId,
+        method: "GET",
+        headers: { "Authorization": "Bearer " + stripeSecretKey },
+        timeout: 10
+    });
+    if (response.statusCode >= 400) {
+        throw new Error("Stripe subscription fetch error: " + response.statusCode);
+    }
+    return getStripeSubscriptionState(response.json);
 };
 
 var FLY_REGION_MAP = {
@@ -1239,56 +1919,8 @@ var resolveCountryFromIP = function (request) {
         return "Unknown";
     }
 
-    country = request.header.get("CF-IPCountry") || "";
-    if (country && country !== "XX" && country !== "T1") return country;
-
-    country = request.header.get("X-Country-Code") || "";
-    if (country) return country;
-
-    var xff = request.header.get("X-Forwarded-For") || "";
-    var clientIP = request.header.get("Fly-Client-IP")
-        || request.header.get("CF-Connecting-IP")
-        || (xff ? xff.split(",")[0].replace(/^\s+|\s+$/g, "") : "")
-        || "";
-
-    if (clientIP.indexOf(":") !== -1 && clientIP.indexOf(".") !== -1 && clientIP.split(":").length === 2) {
-        clientIP = clientIP.split(":")[0];
-    }
-
-    var isPrivate = !clientIP
-        || clientIP === "127.0.0.1"
-        || clientIP === "::1"
-        || clientIP.indexOf("10.") === 0
-        || clientIP.indexOf("192.168.") === 0
-        || clientIP.indexOf("172.") === 0;
-
-    if (!isPrivate) {
-        var nowGeo = new Date().getTime();
-        if (GEO_CACHE_SIZE >= GEO_CACHE_MAX || (nowGeo - GEO_CACHE_CREATED) > 21600000) {
-            GEO_CACHE = {};
-            GEO_CACHE_SIZE = 0;
-            GEO_CACHE_CREATED = nowGeo;
-        }
-
-        var cached = GEO_CACHE[clientIP];
-        if (cached) return cached;
-
-        try {
-            var geoRes = $http.send({
-                url: "http://ip-api.com/json/" + encodeURIComponent(clientIP) + "?fields=status,countryCode",
-                method: "GET",
-                timeout: 2
-            });
-            if (geoRes.statusCode === 200 && geoRes.json && geoRes.json.status === "success" && geoRes.json.countryCode) {
-                var cc = geoRes.json.countryCode;
-                GEO_CACHE[clientIP] = cc;
-                GEO_CACHE_SIZE++;
-                return cc;
-            }
-        } catch (geoErr) {
-        }
-    }
-
+    // Never trust client-supplied forwarding/country headers on direct-origin
+    // traffic and never transmit visitor IPs to an external HTTP geo service.
     var flyRegion = request.header.get("Fly-Region") || "";
     if (flyRegion) {
         var mapped = FLY_REGION_MAP[flyRegion.toLowerCase()];
@@ -2018,6 +2650,85 @@ var safeJsonForHtml = function(value) {
         .replace(/&/g, "\\u0026");
 };
 
+var sanitizeSocialPreviewText = function(value, maxLength) {
+    var limit = Math.max(1, Math.min(320, parseInt(maxLength, 10) || 160));
+    return String(value || "")
+        .replace(/[\u0000-\u001f\u007f]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .substring(0, limit);
+};
+
+var getProfileSocialPreviewVersion = function(profile) {
+    if (!profile) return "";
+    var material = [
+        String(profile.id || ""),
+        String(profile.get("updated") || ""),
+        String(profile.get("avatar") || ""),
+        String(profile.get("name") || ""),
+        String(profile.get("bio") || ""),
+        String(profile.get("slug") || ""),
+        String(profile.get("domain") || "")
+    ].join("|");
+    return $security.sha256(material).substring(0, 16);
+};
+
+var getSocialPreviewHtml = function(options) {
+    var data = options || {};
+    var title = sanitizeSocialPreviewText(data.title, 120) || "Linktery";
+    var description = sanitizeSocialPreviewText(data.description, 220) ||
+        "Open this link with Linktery.";
+    var username = sanitizeSocialPreviewText(data.username, 80);
+    var type = data.type === "profile" ? "profile" : "website";
+
+    var canonicalUrl = String(data.url || "").trim();
+    var parsedCanonical = parseHttpRoutingUrl(canonicalUrl);
+    if (!parsedCanonical || parsedCanonical.scheme !== "https" || parsedCanonical.hasCredentials) {
+        canonicalUrl = "https://linktery.com";
+    }
+
+    var imageUrl = String(data.imageUrl || "").trim();
+    var parsedImage = parseHttpRoutingUrl(imageUrl);
+    if (!parsedImage || parsedImage.scheme !== "https" || parsedImage.hasCredentials) {
+        imageUrl = "https://linktery.com/og-image.png";
+    }
+
+    var imageAlt = sanitizeSocialPreviewText(data.imageAlt, 160) || title;
+    var escapedCanonical = escapeHtml(canonicalUrl);
+    var escapedImage = escapeHtml(imageUrl);
+    var escapedTitle = escapeHtml(title);
+    var escapedDescription = escapeHtml(description);
+
+    return `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex,nofollow">
+    <title>${escapedTitle}</title>
+    <link rel="canonical" href="${escapedCanonical}">
+    <meta property="og:site_name" content="Linktery">
+    <meta property="og:title" content="${escapedTitle}">
+    <meta property="og:description" content="${escapedDescription}">
+    <meta property="og:type" content="${type}">
+    <meta property="og:url" content="${escapedCanonical}">
+    <meta property="og:image" content="${escapedImage}">
+    <meta property="og:image:secure_url" content="${escapedImage}">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="${escapeHtml(imageAlt)}">
+    ${type === "profile" && username ? `<meta property="profile:username" content="${escapeHtml(username)}">` : ""}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="${escapedTitle}">
+    <meta name="twitter:description" content="${escapedDescription}">
+    <meta name="twitter:image" content="${escapedImage}">
+    <meta name="twitter:image:alt" content="${escapeHtml(imageAlt)}">
+</head>
+<body><a href="${escapedCanonical}">${escapedTitle}</a></body>
+</html>`;
+};
+
 var getInAppBrowser = function(userAgent) {
     var ua = String(userAgent || "");
     if (/Threads|Barcelona/i.test(ua)) return "Threads";
@@ -2205,9 +2916,18 @@ module.exports = {
     isReservedPublicSlug,
     validatePublicSlug,
     isTrustedRedirectEdgeRequest,
+    isTrustedApiGatewayRequest,
+    isApiGatewayEnforcementEnabled,
     getClientIP,
+    normalizeAnalyticsReferrer,
     clickRateLimitAllows,
     isUniqueTrackedClick,
+    profileViewRateLimitAllows,
+    isTrackedAutomation,
+    isSocialPreviewCrawler,
+    getTrackingDimensions,
+    resolveProfileClickAttribution,
+    recordProfileView,
     API_ALLOWED_SCOPES,
     API_DEFAULT_SCOPES,
     normalizeApiScopes,
@@ -2239,18 +2959,27 @@ module.exports = {
     createAffiliateAttribution,
     createAffiliateCommission,
     reconcileAffiliateRefund,
+    getStripeInvoiceSubscriptionId,
+    findStripeInvoiceUserContext,
+    reconcileAffiliatePaidInvoice,
     analyticsRateLimitAllows,
     getAnalyticsCache,
     setAnalyticsCache,
+    STRIPE_PRICE_CATALOG,
+    getStripePriceCatalogEntry,
+    requireKnownStripeLineItemPrice,
     PLAN_CATALOG,
     PROFILE_TEMPLATES,
     PROFILE_LINK_CARD_STYLES,
     PROFILE_SOCIAL_LINK_STYLES,
     getPlanCatalogEntry,
+    getEffectivePlanNameForUser,
     getApiPlanCatalogEntryForUser,
+    revokeActiveApiKeysForUser,
     getStripePeriodFromSubscription,
     fetchStripeSubscriptionPeriod,
-    readerToString,
+    getStripeSubscriptionState,
+    fetchStripeSubscriptionState,
     FLY_REGION_MAP,
     resolveCountryFromIP,
     getAuthInfo,
@@ -2284,6 +3013,9 @@ module.exports = {
     validateProfilePresentation,
     escapeHtml,
     safeJsonForHtml,
+    sanitizeSocialPreviewText,
+    getProfileSocialPreviewVersion,
+    getSocialPreviewHtml,
     getInAppBrowser,
     getDeeplinkDestinationName,
     buildAndroidBrowserIntent,

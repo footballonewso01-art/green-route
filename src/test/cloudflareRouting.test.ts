@@ -153,11 +153,20 @@ describe("Cloudflare edge routing contract", () => {
       expect.arrayContaining([
         "/*",
         "!/assets/*",
-        "!/*.png",
+        "!/og-image.png",
+        "!/dashboard-preview.png",
         "!/*.webp",
         "!/*.mp4",
       ]),
     );
+    // Versioned social cards must reach the Worker, while every committed root
+    // PNG remains on the free Static Assets path.
+    expect(config.assets.run_worker_first).not.toContain("!/*.png");
+    const rootPngs = fs.readdirSync(path.join(process.cwd(), "public"))
+      .filter((file) => file.endsWith(".png"));
+    for (const file of rootPngs) {
+      expect(config.assets.run_worker_first).toContain(`!/${file}`);
+    }
     expect(readWorkspaceFile("cloudflare/worker.ts")).toContain(
       "const assetResponse = await serveRequestedAsset(request, env)",
     );

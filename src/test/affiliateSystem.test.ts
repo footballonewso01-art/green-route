@@ -24,6 +24,32 @@ describe("affiliate attribution client contract", () => {
     expect(getStoredReferral()?.code).toBe("lt_first_partner");
   });
 
+  it("persists first-touch attribution across landing-page navigation", () => {
+    captureReferral("lt_landing_partner");
+
+    window.history.pushState({}, "", "/");
+    window.history.pushState({}, "", "/pricing");
+    window.history.pushState({}, "", "/register");
+
+    expect(getStoredReferral()?.code).toBe("lt_landing_partner");
+    expect(document.cookie).toContain("linktery_referral_first_touch=");
+  });
+
+  it("recovers the referral from its first-party cookie", () => {
+    captureReferral("lt_cookie_partner");
+    localStorage.removeItem("linktery_referral_first_touch");
+
+    expect(getStoredReferral()?.code).toBe("lt_cookie_partner");
+  });
+
+  it("clears both browser persistence layers after attribution", () => {
+    captureReferral("lt_claimed_partner");
+    clearStoredReferral();
+
+    expect(getStoredReferral()).toBeNull();
+    expect(document.cookie).not.toContain("linktery_referral_first_touch=");
+  });
+
   it("reserves /ref without moving root-level user slugs", () => {
     const app = readWorkspaceFile("src/App.tsx");
     const vercel = readWorkspaceFile("vercel.json");
@@ -47,6 +73,16 @@ describe("affiliate server invariants", () => {
     expect(utils).toContain('var commissionType = firstPaidInvoiceId ? "renewal" : "initial"');
     expect(utils).toContain('attribution.get("risk_status") === "review" ? "review" : "pending"');
     expect(utils).toContain("new DateTime().addDate(0, 0, 30)");
+  });
+
+  it("keeps the partner and rate frozen for the lifetime of the referred account", () => {
+    const utils = readWorkspaceFile("pocketbase/pb_hooks/utils.js");
+    const migration = readWorkspaceFile("pocketbase/pb_migrations/1785200000_create_affiliate_system.js");
+
+    expect(utils).toContain('"partner_id": attribution.get("partner_id")');
+    expect(utils).toContain('parseInt(attribution.get("commission_rate_bps"), 10)');
+    expect(utils).toContain('"referred_user_id = {:userId} && commission_eligible = true"');
+    expect(migration).toContain("CREATE UNIQUE INDEX IF NOT EXISTS idx_affiliate_attributions_user");
   });
 
   it("allows many commissions per referral but only one per Stripe invoice", () => {
@@ -74,6 +110,50 @@ describe("affiliate server invariants", () => {
     expect(hook).toContain('verifiedEvent.type === "charge.refunded" || verifiedEvent.type === "refund.created"');
     expect(utils).toContain("reconcileAffiliateRefund");
     expect(utils).toContain('"commission_rate_bps": bps');
+  });
+
+  it("keeps transient referral-claim failures retryable", () => {
+    const hook = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
+    const affiliate = readWorkspaceFile("src/lib/affiliate.ts");
+    const auth = readWorkspaceFile("src/contexts/AuthContext.tsx");
+
+    expect(hook).toContain("Affiliate referral claim failed:");
+    expect(hook).toContain("We couldn't save this referral attribution right now. Please try again.");
+    expect(affiliate).toContain("let claimInFlight: Promise<boolean> | null = null");
+    expect(auth).toContain("REFERRAL_RETRY_DELAYS_MS");
+    expect(auth).toContain('window.addEventListener("online", retryWhenOnline)');
+  });
+
+  it("never acknowledges an unmapped paid subscription as successfully processed", () => {
+    const hook = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
+
+    expect(hook).toContain('throw new Error("invoice.paid user mapping unavailable")');
+    expect(hook).toContain('throw new Error("checkout.session.completed user mapping unavailable")');
+    expect(hook).not.toContain('warning: "no_user_found"');
+    expect(hook).not.toContain('note: "missing userid"');
+    expect(hook).toContain("DELETE FROM _processed_stripe_events WHERE id = {:id}");
+  });
+
+  it("reconciles missed paid invoices and protects the affiliate ledger from cascade deletion", () => {
+    const hook = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
+    const utils = readWorkspaceFile("pocketbase/pb_hooks/utils.js");
+    const reconciliationMigration = readWorkspaceFile(
+      "pocketbase/pb_migrations/1786469000_add_affiliate_reconciliation_state.js",
+    );
+
+    expect(hook).toContain('cronAdd("reconcile_affiliate_paid_invoices"');
+    expect(hook).toContain("created%5Bgte%5D=");
+    expect(hook).toContain("stripeUtils.reconcileAffiliatePaidInvoice(txApp, invoice)");
+    expect(hook).toContain("_affiliate_reconciliation_state");
+    expect(hook).toContain("var historyPayload = fetchInvoicePage(historyCursor, 0)");
+    expect(hook).toContain("checkoutInvoiceId && checkoutAmountPaidCents > 0");
+    expect(hook).toContain("This account has affiliate financial history and cannot be deleted.");
+    expect(hook).toContain('$app.findRecordsByFilter(collection, filter, "", 1, 0, params).length > 0');
+    expect(hook).toContain("accounting preservation must fail closed");
+    expect(utils).toContain("var reconcileAffiliatePaidInvoice = function");
+    expect(utils).toContain("stripeInvoiceId: invoiceId");
+    expect(reconciliationMigration).toContain("paid_invoice_history");
+    expect(reconciliationMigration).toContain("Financial recovery state is intentionally retained");
   });
 
   it("uses exact days for promocode rewards with a legacy-month migration", () => {

@@ -8,7 +8,7 @@ import {
     Link as LinkIcon,
     ShieldAlert,
     CreditCard,
-    Settings,
+    BadgeDollarSign,
     Check,
     Ban,
     ExternalLink,
@@ -20,6 +20,10 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+    AdminPartnerInfo,
+    type AdminPartnerInfoData,
+} from "@/components/admin/AdminPartnerInfo";
 
 interface AdminUser {
     id: string;
@@ -60,6 +64,11 @@ interface AdminUserActivityResponse {
     request_id: string;
 }
 
+interface AdminPartnerInfoResponse {
+    data: AdminPartnerInfoData;
+    request_id: string;
+}
+
 export default function AdminUserProfile() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -75,6 +84,8 @@ export default function AdminUserProfile() {
     const [customDays, setCustomDays] = useState("30");
     const [selectedPlan, setSelectedPlan] = useState("creator");
     const [updatingPlan, setUpdatingPlan] = useState(false);
+    const [partnerInfo, setPartnerInfo] = useState<AdminPartnerInfoData | null>(null);
+    const [partnerInfoFailed, setPartnerInfoFailed] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -90,7 +101,7 @@ export default function AdminUserProfile() {
             setInternalNotes(userData.internal_notes || "");
             setSelectedPlan(userData.plan || "creator");
 
-            const [linksResult, activityResult] = await Promise.allSettled([
+            const [linksResult, activityResult, partnerResult] = await Promise.allSettled([
                 pb.collection("links").getList(1, 50, {
                     filter: `user_id="${id}"`,
                     sort: "-created",
@@ -99,7 +110,11 @@ export default function AdminUserProfile() {
                 pb.send(`/api/admin/users/${encodeURIComponent(id as string)}/activity`, {
                     method: "GET",
                     requestKey: null
-                }) as Promise<AdminUserActivityResponse>
+                }) as Promise<AdminUserActivityResponse>,
+                pb.send(`/api/admin/users/${encodeURIComponent(id as string)}/partner-info`, {
+                    method: "GET",
+                    requestKey: null
+                }) as Promise<AdminPartnerInfoResponse>
             ]);
 
             let partialFailure = false;
@@ -121,6 +136,16 @@ export default function AdminUserProfile() {
 
             setClicks(activity.recent);
             setClicksTotalItems(activity.total_clicks);
+
+            if (partnerResult.status === "fulfilled") {
+                setPartnerInfo(partnerResult.value.data);
+                setPartnerInfoFailed(false);
+            } else {
+                partialFailure = true;
+                setPartnerInfo(null);
+                setPartnerInfoFailed(true);
+                console.error("Failed to load partner information:", partnerResult.reason);
+            }
 
             const clicksByDay = new Map(
                 activity.trend.map((point) => [point.date, Number(point.clicks || 0)])
@@ -146,6 +171,21 @@ export default function AdminUserProfile() {
             navigate("/admin/users");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const refreshPartnerInfo = async () => {
+        try {
+            const response = await pb.send(
+                `/api/admin/users/${encodeURIComponent(id as string)}/partner-info`,
+                { method: "GET", requestKey: null }
+            ) as AdminPartnerInfoResponse;
+            setPartnerInfo(response.data);
+            setPartnerInfoFailed(false);
+        } catch (error) {
+            setPartnerInfoFailed(true);
+            console.error("Failed to refresh partner information:", error);
+            throw error;
         }
     };
 
@@ -254,6 +294,11 @@ export default function AdminUserProfile() {
                             <span className="px-2 py-0.5 rounded text-xs font-bold bg-accent/20 text-accent uppercase tracking-wider">
                                 {user.plan || "Creator"}
                             </span>
+                            {partnerInfo?.is_partner && (
+                                <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/10 text-emerald-400 uppercase tracking-wider">
+                                    Partner
+                                </span>
+                            )}
                         </div>
                         <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
                             {user.email} <span className="text-border text-xs">•</span> ID: {user.id} <span className="text-border text-xs">•</span> Joined: {new Date(user.created).toLocaleDateString()}
@@ -303,17 +348,22 @@ export default function AdminUserProfile() {
 
             {/* Tabs */}
             <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="bg-surface border border-border w-full justify-start rounded-xl p-1 h-auto mb-6">
-                    <TabsTrigger value="overview" className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground py-2 px-4 rounded-lg flex items-center gap-2">
+                <TabsList className="bg-surface border border-border w-full justify-start overflow-x-auto rounded-xl p-1 h-auto mb-6">
+                    <TabsTrigger value="overview" className="shrink-0 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground py-2 px-4 rounded-lg flex items-center gap-2">
                         <BarChart3 className="w-4 h-4" /> Overview
                     </TabsTrigger>
-                    <TabsTrigger value="links" className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground py-2 px-4 rounded-lg flex items-center gap-2">
+                    <TabsTrigger value="links" className="shrink-0 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground py-2 px-4 rounded-lg flex items-center gap-2">
                         <LinkIcon className="w-4 h-4" /> Links ({totalLinks})
                     </TabsTrigger>
-                    <TabsTrigger value="billing" className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground py-2 px-4 rounded-lg flex items-center gap-2">
+                    <TabsTrigger value="billing" className="shrink-0 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground py-2 px-4 rounded-lg flex items-center gap-2">
                         <CreditCard className="w-4 h-4" /> Billing & Notes
                     </TabsTrigger>
-                    <TabsTrigger value="security" className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground py-2 px-4 rounded-lg flex items-center gap-2">
+                    {partnerInfo?.is_partner && (
+                        <TabsTrigger value="partner" className="shrink-0 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground py-2 px-4 rounded-lg flex items-center gap-2">
+                            <BadgeDollarSign className="w-4 h-4" /> Partner Info
+                        </TabsTrigger>
+                    )}
+                    <TabsTrigger value="security" className="shrink-0 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground py-2 px-4 rounded-lg flex items-center gap-2">
                         <ShieldAlert className="w-4 h-4" /> Security
                     </TabsTrigger>
                 </TabsList>
@@ -536,6 +586,23 @@ export default function AdminUserProfile() {
 
                     </div>
                 </TabsContent>
+
+                {/* PARTNER INFO TAB */}
+                {partnerInfo?.is_partner && (
+                    <TabsContent value="partner">
+                        <AdminPartnerInfo
+                            userId={user.id}
+                            data={partnerInfo}
+                            onPayoutRecorded={refreshPartnerInfo}
+                        />
+                    </TabsContent>
+                )}
+
+                {partnerInfoFailed && (
+                    <p className="sr-only" role="status">
+                        Partner information could not be loaded.
+                    </p>
+                )}
 
                 {/* SECURITY TAB */}
                 <TabsContent value="security" className="space-y-6">
