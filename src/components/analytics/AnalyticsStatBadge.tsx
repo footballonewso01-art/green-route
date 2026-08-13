@@ -23,7 +23,7 @@ export default function AnalyticsStatBadge({
       )}
       {...props}
     >
-      <span className="translate-y-px leading-none">{children}</span>
+      <span className="translate-y-[0.5px] leading-none">{children}</span>
     </span>
   );
 }

@@ -123,6 +123,6 @@ describe("world traffic map", () => {
       "justify-center",
       "leading-none",
     );
-    expect(label).toHaveClass("translate-y-px", "leading-none");
+    expect(label).toHaveClass("translate-y-[0.5px]", "leading-none");
   });
 });
