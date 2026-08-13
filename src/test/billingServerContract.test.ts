@@ -77,6 +77,8 @@ describe("billing period server contract", () => {
     expect(hook).toContain("Stripe entitlement reconciliation deferred");
     expect(hook).toContain("continue;");
     expect(hook).toContain("INNER JOIN billing b");
+    expect(hook).toContain('var repairRows = arrayOf(new DynamicModel({ "id": "" }))');
+    expect(hook).not.toContain("var repairRows = [];");
     expect(hook).not.toContain('console.log("[CRON] Downgraded: " + user.email()');
   });
 });

@@ -3952,7 +3952,11 @@ cronAdd("check_expired_plans", "0 * * * *", () => {
 
         // Also repair missed renewals where the legacy timer already cleared
         // the user plan while billing still expected an active subscription.
-        var repairRows = [];
+        // dbx query destinations must be pointer-backed DynamicModel arrays in
+        // PocketBase's JSVM. A plain JS array makes the hourly cron abort with
+        // "Invalid variable type: must be a pointer" before reconciling any
+        // Stripe entitlement candidates.
+        var repairRows = arrayOf(new DynamicModel({ "id": "" }));
         $app.db().newQuery(`
             SELECT DISTINCT u.id
             FROM users u
