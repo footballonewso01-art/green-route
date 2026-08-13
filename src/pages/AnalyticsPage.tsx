@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { checkPlan } from "@/lib/plans";
 import WorldTrafficMap, { type CountryTrafficDatum } from "@/components/analytics/WorldTrafficMap";
+import AnalyticsStatBadge from "@/components/analytics/AnalyticsStatBadge";
 import ProfileScopeSelect, {
   ALL_PROFILES_SCOPE,
   type AnalyticsProfileOption,
@@ -519,9 +520,9 @@ export default function AnalyticsPage() {
         <div className="glass-card p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 text-sm"><Globe className="w-4 h-4 text-accent" /> Top Locations</h2>
-            <span className="rounded-full border border-border/70 bg-background/30 px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <AnalyticsStatBadge>
               Top 6
-            </span>
+            </AnalyticsStatBadge>
           </div>
           <div className="space-y-4">
             {countries.length === 0 ? <p className="text-sm text-muted-foreground">No data yet</p> : countries.slice(0, 6).map((c) => (

@@ -12,6 +12,7 @@ import type { GeometryCollection, Topology } from "topojson-specification";
 import worldTopology from "world-atlas/countries-110m.json";
 import { Globe2, Minus, Plus, RotateCcw } from "lucide-react";
 import { getCountryDisplayName, normalizeCountryCode } from "@/lib/countryFormatting";
+import AnalyticsStatBadge from "@/components/analytics/AnalyticsStatBadge";
 import {
   getCountryTrafficIntensity,
   isWorldAtlasCountryCode,
@@ -346,9 +347,9 @@ export default function WorldTrafficMap({ countries, metric = "clicks" }: WorldT
             Drag to explore. Scroll to zoom.
           </p>
         </div>
-        <span className="w-fit rounded-full border border-accent/15 bg-accent/[0.06] px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-accent/90">
+        <AnalyticsStatBadge tone="accent">
           {trafficByCode.size} {trafficByCode.size === 1 ? "country" : "countries"} reached
-        </span>
+        </AnalyticsStatBadge>
       </div>
 
       <div className="p-3 sm:p-5">

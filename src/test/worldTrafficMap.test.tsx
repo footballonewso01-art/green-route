@@ -109,4 +109,20 @@ describe("world traffic map", () => {
     fireEvent(window, new Event("resize"));
     expect(map).toHaveAttribute("preserveAspectRatio", "xMidYMid slice");
   });
+
+  it("vertically centers the compact countries-reached badge", () => {
+    render(<WorldTrafficMap countries={[]} />);
+
+    const label = screen.getByText("0 countries reached");
+    const badge = label.parentElement;
+
+    expect(badge).toHaveClass(
+      "inline-flex",
+      "h-7",
+      "items-center",
+      "justify-center",
+      "leading-none",
+    );
+    expect(label).toHaveClass("translate-y-px", "leading-none");
+  });
 });

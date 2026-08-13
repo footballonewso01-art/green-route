@@ -35,6 +35,7 @@ describe("analytics performance contract", () => {
     expect(statsRoute).toContain("normalizedCountry.name !== \"Unknown\"");
     expect(page).toContain("stats.countryMap || stats.countries || []");
     expect(page).toContain('<WorldTrafficMap countries={countryMap} metric={isProfileMode ? "views" : "clicks"} />');
+    expect(page).toContain("<AnalyticsStatBadge>");
   });
 
   it("keeps recent activity bounded and separate from aggregate stats", () => {
