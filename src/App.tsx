@@ -45,6 +45,7 @@ const CompetitorAlternative = lazy(() => import("./pages/CompetitorAlternative")
 const SolutionsIndex = lazy(() => import("./pages/SolutionsIndex"));
 const AlternativesIndex = lazy(() => import("./pages/AlternativesIndex"));
 const SeoContentPage = lazy(() => import("./pages/SeoContentPage"));
+const SeoHubPage = lazy(() => import("./pages/SeoHubPage"));
 const UtmBuilder = lazy(() => import("./pages/UtmBuilder"));
 const QrCodeGenerator = lazy(() => import("./pages/QrCodeGenerator"));
 
@@ -171,13 +172,13 @@ const AppRoutes = () => (
     <Route path="/solutions/qr-code-biolink" element={<QrCodeBiolink />} />
     <Route path="/solutions/:professionPath" element={<ProfessionSolutions />} />
     <Route path="/compare/:comparisonSlug" element={<CompetitorComparison />} />
-    <Route path="/features" element={<Navigate to="/features/link-management" replace />} />
+    <Route path="/features" element={<SeoHubPage kind="feature" />} />
     <Route path="/features/:resourceSlug" element={<SeoContentPage />} />
-    <Route path="/templates" element={<Navigate to="/templates/link-in-bio" replace />} />
+    <Route path="/templates" element={<SeoHubPage kind="template" />} />
     <Route path="/templates/:resourceSlug" element={<SeoContentPage />} />
-    <Route path="/guides" element={<Navigate to="/guides/what-is-link-management" replace />} />
+    <Route path="/guides" element={<SeoHubPage kind="guide" />} />
     <Route path="/guides/:resourceSlug" element={<SeoContentPage />} />
-    <Route path="/tools" element={<Navigate to="/tools/utm-builder" replace />} />
+    <Route path="/tools" element={<SeoHubPage kind="tool" />} />
     <Route path="/tools/utm-builder" element={<UtmBuilder />} />
     <Route path="/tools/qr-code-generator" element={<QrCodeGenerator />} />
     <Route path="/auth" element={<Navigate to="/login" replace />} />

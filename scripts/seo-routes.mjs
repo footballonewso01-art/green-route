@@ -72,7 +72,7 @@ export const getSeoPageConfigs = () => {
       configs.push({
         key: `compare_${routeSlug.replace(/-/g, "_")}`,
         route: `/compare/${routeSlug}`,
-        title: `${competitorA.name} vs ${competitorB.name}: Which is Better? (2026) | Linktery`,
+        title: `${competitorA.name} vs ${competitorB.name}: Features & Pricing | Linktery`,
         description: `Compare ${competitorA.name} vs ${competitorB.name} side-by-side, including published pricing, deep linking, custom domains, transaction fees, and analytics features.`,
         noIndex: false,
       });

@@ -2,8 +2,64 @@ import fs from "node:fs";
 import path from "node:path";
 import { DOMAIN, getSeoPageConfigs } from "./seo-routes.mjs";
 
-const configs = getSeoPageConfigs().filter((config) => !config.noIndex);
+const allConfigs = getSeoPageConfigs();
+const configs = allConfigs.filter((config) => !config.noIndex);
 const failures = [];
+const allRoutes = new Set(allConfigs.map((config) => config.route));
+const contentPages = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "src", "data", "seo-content-pages.json"), "utf8"),
+);
+
+const assertUniqueField = (field) => {
+  const seen = new Map();
+  for (const config of configs) {
+    const normalized = String(config[field] || "").trim().toLowerCase();
+    if (!normalized) {
+      failures.push(`${config.route}: ${field} is empty`);
+      continue;
+    }
+    const previous = seen.get(normalized);
+    if (previous) failures.push(`${config.route}: duplicate ${field} also used by ${previous}`);
+    else seen.set(normalized, config.route);
+  }
+};
+
+assertUniqueField("title");
+assertUniqueField("description");
+
+for (const page of contentPages) {
+  const expectedRoot = page.kind === "feature"
+    ? "/features/"
+    : page.kind === "template"
+      ? "/templates/"
+      : page.kind === "tool"
+        ? "/tools/"
+        : "/guides/";
+  if (!page.path.startsWith(expectedRoot)) failures.push(`${page.path}: path does not match kind ${page.kind}`);
+  if (!allRoutes.has(page.path)) failures.push(`${page.path}: content page is missing from the SEO route catalog`);
+
+  const words = [
+    page.lead,
+    ...page.sections.flatMap((section) => [section.heading, ...section.paragraphs, ...section.bullets]),
+    ...page.faqs.flatMap((faq) => [faq.question, faq.answer]),
+  ].join(" ").trim().split(/\s+/).filter(Boolean).length;
+  const minimumWords = page.kind === "tool" ? 180 : 230;
+  if (words < minimumWords) failures.push(`${page.path}: only ${words} useful words; expected at least ${minimumWords}`);
+
+  const related = new Set();
+  for (const relatedPath of page.related) {
+    if (relatedPath === page.path) failures.push(`${page.path}: related links include the page itself`);
+    if (related.has(relatedPath)) failures.push(`${page.path}: duplicate related link ${relatedPath}`);
+    if (!allRoutes.has(relatedPath)) failures.push(`${page.path}: related link is not a known route: ${relatedPath}`);
+    related.add(relatedPath);
+  }
+}
+
+for (const config of configs) {
+  if (/\(20\d{2}\)/.test(config.title)) {
+    failures.push(`${config.route}: title contains a hard-coded year without a freshness contract`);
+  }
+}
 
 for (const config of configs) {
   const outputPath = config.route === "/"

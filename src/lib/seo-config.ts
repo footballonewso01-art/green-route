@@ -10,8 +10,28 @@ export interface PageSeoConfig {
 export const SEO_PAGES: Record<string, PageSeoConfig> = {
   home: {
     title: "Linktery — Link in Bio & Traffic Analytics Platform",
-    description: "Linktery is a professional link-in-bio and traffic management platform. Design premium custom profiles, set geo & device targeting, and track dynamic analytics in real-time.",
+    description: "Create link-in-bio profiles and managed short links, route traffic by device or country, and measure clicks and profile engagement with Linktery.",
     canonical: "/",
+  },
+  featuresIndex: {
+    title: "Linktery Features: Smart Links, Profiles & Analytics",
+    description: "Explore Linktery features for short links, public profiles, analytics, deep linking, routing, custom domains, QR codes, and API workflows.",
+    canonical: "/features",
+  },
+  templatesIndex: {
+    title: "Link-in-Bio Templates for Public Profiles | Linktery",
+    description: "Compare Linktery public-profile templates, including Classic Cover, Compact Circle, Banner Circle, Hero Portrait, and Cutout Editorial.",
+    canonical: "/templates",
+  },
+  guidesIndex: {
+    title: "Link Management & Link-in-Bio Guides | Linktery",
+    description: "Learn how to build, route, brand, measure, and maintain short links and link-in-bio profiles with practical Linktery guides.",
+    canonical: "/guides",
+  },
+  toolsIndex: {
+    title: "Free UTM Builder & URL QR Code Tools | Linktery",
+    description: "Use Linktery's free UTM builder and URL QR code generator, then connect the result to managed links and analytics when needed.",
+    canonical: "/tools",
   },
   documentation: {
     title: "Linktery API Documentation | Smart Links & Analytics",
@@ -20,7 +40,7 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
   },
   pricing: {
     title: "Pricing & Plans | Linktery",
-    description: "Find the perfect plan for your links and traffic. Upgrade to Creator Pro or Agency for Public API access, advanced targeting, analytics, custom domains, and zero branding.",
+    description: "Compare Linktery plans. Upgrade to Creator Pro or Agency for Public API access, advanced targeting, analytics, custom domains, and brand controls.",
     canonical: "/pricing",
   },
   login: {
@@ -63,8 +83,8 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     canonical: "/solutions/affiliate-smart-link-rotator",
   },
   bioLinkTool: {
-    title: "Best Free Link in Bio Tool for Instagram & TikTok (2026) | Linktery",
-    description: "Create a beautiful, custom link-in-bio page for your social media profiles. Organize all your links, build custom templates, and bypass in-app browser jails free.",
+    title: "Free Link-in-Bio Tool for Instagram & TikTok | Linktery",
+    description: "Create a customizable link-in-bio page, organize important destinations, choose a responsive template, and measure profile engagement.",
     canonical: "/solutions/bio-link-tool",
   },
   smartRedirect: {
@@ -74,7 +94,7 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
   },
   deeplinkGenerator: {
     title: "Deeplink Generator: Open Links Directly in Apps | Linktery",
-    description: "Bypass Instagram, TikTok, and YouTube in-app browsers. Create mobile deep links (deep links) to route users directly into native apps.",
+    description: "Create smart links that attempt supported native-app or external-browser handoffs and retain a reliable HTTPS fallback.",
     canonical: "/solutions/deeplink-generator",
   },
   fitnessCoachSolution: {
@@ -83,8 +103,8 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     canonical: "/solutions/link-in-bio-for-fitness-coaches",
   },
   youtubeSmartLinks: {
-    title: "YouTube Description Smart Links: Bypass In-App Browser | Linktery",
-    description: "Bypass the YouTube in-app browser jail. Route your description link clicks directly into native apps (Instagram, Telegram, Spotify) to boost subscriber conversions.",
+    title: "YouTube Description Smart Links & App Routing | Linktery",
+    description: "Create managed YouTube description links with app-aware destinations, web fallbacks, routing rules, and click analytics.",
     canonical: "/solutions/youtube-smart-links",
   },
   musicSmartLinks: {
@@ -99,12 +119,12 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
   },
   podcastSmartLinks: {
     title: "Podcast Smart Links: Apple & Spotify Podcasts Redirection | Linktery",
-    description: "Maximize your podcast subscribers. Generate universal smart links that open directly in Apple Podcasts and Spotify native apps, bypassing webview login walls.",
+    description: "Create podcast smart links for Apple Podcasts and Spotify with supported native-app handoffs, web fallbacks, and click analytics.",
     canonical: "/solutions/podcast-smart-links",
   },
   shopifySmartLinks: {
-    title: "Shopify & E-commerce Smart Links: Bypass Webview Checkout Frictions | Linktery",
-    description: "Maximize your mobile sales conversions. Redirect Instagram and TikTok bio traffic directly to Safari or Chrome native browsers with active Apple Pay, Google Pay, and Shop Pay sessions.",
+    title: "Shopify & E-commerce Smart Links | Linktery",
+    description: "Create managed commerce links with mobile routing, browser fallbacks, campaign analytics, and destinations for Shopify or other stores.",
     canonical: "/solutions/shopify-smart-links",
   },
   fanvueSmartLinks: {
@@ -113,8 +133,8 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     canonical: "/solutions/fanvue-ai-models",
   },
   geoTargetedRedirect: {
-    title: "Geo-Targeting & Multilingual Redirect: Smart Link Localization | Linktery",
-    description: "Route global clicks dynamically. Automatically detect visitor country or browser language to redirect traffic to localized stores, currency checkout pages, or translation links.",
+    title: "Geo-Targeted Links & Localized Redirects | Linktery",
+    description: "Route clicks to configured country-specific stores, currencies, languages, or regional resources while keeping a reliable default destination.",
     canonical: "/solutions/geo-targeted-redirect",
   },
   amazonSmartLinks: {
@@ -124,22 +144,22 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
   },
 
   ugcPortfolio: {
-    title: "Free UGC Creator Portfolio & Link in Bio Tool (2026) | Linktery",
-    description: "Build a stunning UGC creator portfolio in minutes. Embed TikTok & Reels mockups, display video engagement metrics, integrate rate cards, and share your landing page with brands.",
+    title: "Free UGC Creator Portfolio & Link-in-Bio Tool | Linktery",
+    description: "Build a UGC creator portfolio with video examples, profile links, rate information, and a shareable mobile landing page for brands.",
     canonical: "/solutions/ugc-portfolio",
   },
   qrCodeBiolink: {
-    title: "Free Dynamic QR Code Generator for Business Cards & Retail (2026) | Linktery",
-    description: "Generate dynamic QR codes for business cards, retail menus, and storefronts. Link directly to your custom bio-link, track scan analytics, and update destinations instantly without reprinting.",
+    title: "Dynamic QR Codes for Business Cards & Retail | Linktery",
+    description: "Use managed-link QR codes for cards, menus, and retail campaigns, track visits, and update destinations without reprinting the code.",
     canonical: "/solutions/qr-code-biolink",
   },
   solutionsIndex: {
     title: "Traffic Routing & Conversion Solutions | Linktery",
-    description: "Explore Linktery solutions for creators, brands, and marketers. Optimize link-in-bio pages, deep link directly into native apps, set up geo-routing, and configure CPA link rotators.",
+    description: "Explore Linktery use cases for creators, brands, and marketers across link-in-bio pages, app-aware links, geo-routing, and weighted rotators.",
     canonical: "/solutions",
   },
   alternativesIndex: {
-    title: "Best Link-in-Bio Alternatives & Comparisons (2026) | Linktery",
+    title: "Link-in-Bio Alternatives & Platform Comparisons | Linktery",
     description: "Compare 18 link-in-bio and link-management platforms side-by-side, including pricing, analytics, custom domains, QR codes, and routing features.",
     canonical: "/alternatives",
   },

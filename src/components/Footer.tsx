@@ -10,16 +10,18 @@ export default function Footer() {
             <span className="text-xl font-bold text-foreground/90 tracking-tight">Linktery</span>
           </Link>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
-            Professional link-in-bio & smart traffic redirection engine. Optimize mobile social conversions and bypass sandboxed browser walls.
+            Link-in-bio profiles, managed short links, traffic routing, and analytics for creators, teams, and campaigns.
           </p>
         </div>
 
         <div className="flex flex-col gap-3.5">
           <h4 className="text-xs font-bold text-foreground tracking-wider uppercase">Product</h4>
           <ul className="flex flex-col gap-2.5">
+            <li><Link to="/features" className="text-sm text-muted-foreground hover:text-accent transition-colors">All Features</Link></li>
             <li><Link to="/features/url-shortener" className="text-sm text-muted-foreground hover:text-accent transition-colors">URL Shortener</Link></li>
             <li><Link to="/features/link-management" className="text-sm text-muted-foreground hover:text-accent transition-colors">Link Management</Link></li>
             <li><Link to="/features/link-analytics" className="text-sm text-muted-foreground hover:text-accent transition-colors">Link Analytics</Link></li>
+            <li><Link to="/features/public-api" className="text-sm text-muted-foreground hover:text-accent transition-colors">Public API</Link></li>
             <li><Link to="/features/custom-domains" className="text-sm text-muted-foreground hover:text-accent transition-colors">Custom Domains</Link></li>
           </ul>
         </div>
@@ -28,10 +30,11 @@ export default function Footer() {
           <h4 className="text-xs font-bold text-foreground tracking-wider uppercase">Resources</h4>
           <ul className="flex flex-col gap-2.5">
             <li><Link to="/documentation" className="text-sm text-muted-foreground hover:text-accent transition-colors">API Documentation</Link></li>
-            <li><Link to="/templates/link-in-bio" className="text-sm text-muted-foreground hover:text-accent transition-colors">Profile Templates</Link></li>
+            <li><Link to="/templates" className="text-sm text-muted-foreground hover:text-accent transition-colors">Profile Templates</Link></li>
+            <li><Link to="/tools" className="text-sm text-muted-foreground hover:text-accent transition-colors">Free Tools</Link></li>
             <li><Link to="/tools/utm-builder" className="text-sm text-muted-foreground hover:text-accent transition-colors">UTM Builder</Link></li>
             <li><Link to="/tools/qr-code-generator" className="text-sm text-muted-foreground hover:text-accent transition-colors">QR Generator</Link></li>
-            <li><Link to="/guides/what-is-link-management" className="text-sm text-muted-foreground hover:text-accent transition-colors">Link Management Guide</Link></li>
+            <li><Link to="/guides" className="text-sm text-muted-foreground hover:text-accent transition-colors">Guides</Link></li>
           </ul>
         </div>
 

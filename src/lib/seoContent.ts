@@ -18,6 +18,11 @@ export interface SeoContentFaq {
   answer: string;
 }
 
+export interface SeoContentSource {
+  label: string;
+  url: string;
+}
+
 export interface SeoContentPageDefinition {
   path: string;
   kind: SeoContentKind;
@@ -30,6 +35,7 @@ export interface SeoContentPageDefinition {
   highlights: SeoContentHighlight[];
   sections: SeoContentSection[];
   faqs: SeoContentFaq[];
+  sources?: SeoContentSource[];
   related: string[];
 }
 
@@ -50,7 +56,7 @@ export function getSeoContentLabel(pathname: string): string {
   };
   if (knownLabels[pathname]) return knownLabels[pathname];
 
-  const acronyms = new Set(["qr", "ugc", "url", "utm", "seo"]);
+  const acronyms = new Set(["api", "qr", "ugc", "url", "utm", "seo"]);
   const slug = pathname.split("/").filter(Boolean).pop();
   if (!slug) return pathname;
 

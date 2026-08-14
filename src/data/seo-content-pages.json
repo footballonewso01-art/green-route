@@ -47,7 +47,7 @@
       { "question": "Is link management only for large teams?", "answer": "No. Creators benefit from keeping bio links and campaign destinations organized, while teams gain additional value from consistent naming and reporting." },
       { "question": "Can Linktery manage both redirects and landing pages?", "answer": "Yes. Linktery supports single-destination short links and multi-destination public profiles in the same workspace." }
     ],
-    "related": ["/features/url-shortener", "/features/link-analytics", "/features/custom-domains", "/guides/what-is-link-management"]
+    "related": ["/features/url-shortener", "/features/link-analytics", "/features/public-api", "/guides/what-is-link-management"]
   },
   {
     "path": "/features/branded-links",
@@ -97,7 +97,7 @@
       { "question": "Does Linktery show device and country data?", "answer": "Linktery records supported device and approximate geographic dimensions for traffic analysis and routing." },
       { "question": "How should I name UTM campaigns?", "answer": "Use a consistent lowercase convention for source, medium, and campaign so reports do not split the same channel across multiple spellings." }
     ],
-    "related": ["/features/link-management", "/tools/utm-builder", "/guides/how-to-track-link-clicks", "/guides/utm-parameters-guide"]
+    "related": ["/features/public-profile-analytics", "/guides/build-link-analytics-dashboard-with-api", "/guides/how-to-track-link-clicks", "/tools/utm-builder"]
   },
   {
     "path": "/features/custom-domains",
@@ -197,7 +197,7 @@
       { "question": "What happens when a device is not recognized?", "answer": "The link should continue to its configured default destination." },
       { "question": "Is device targeting based on personal identity?", "answer": "No. It uses broad technical request information such as the browser user-agent." }
     ],
-    "related": ["/features/geo-targeting", "/features/link-rotator", "/solutions/deeplink-generator", "/guides/what-is-a-smart-link"]
+    "related": ["/features/geo-targeting", "/features/link-rotator", "/features/deep-linking", "/guides/what-is-a-smart-link"]
   },
   {
     "path": "/templates/link-in-bio",
@@ -493,7 +493,7 @@
       { "question": "Do I need UTM parameters if the link platform has analytics?", "answer": "UTM parameters remain useful because they pass campaign context to the destination's analytics system." },
       { "question": "Can I track public-profile cards separately?", "answer": "Yes. Linktery records profile engagement and card clicks separately from standalone short-link traffic." }
     ],
-    "related": ["/features/link-analytics", "/tools/utm-builder", "/guides/utm-parameters-guide", "/features/url-shortener"]
+    "related": ["/features/link-analytics", "/features/public-profile-analytics", "/guides/utm-parameters-guide", "/features/url-shortener"]
   },
   {
     "path": "/guides/how-to-create-branded-short-url",
@@ -518,7 +518,7 @@
       { "question": "How long does DNS verification take?", "answer": "It varies by DNS provider and cached TTL values. Some changes appear quickly, while others take longer to propagate." },
       { "question": "What makes a good short-link slug?", "answer": "Use a concise, readable term that describes the campaign or action and can remain stable after the destination changes." }
     ],
-    "related": ["/features/branded-links", "/features/custom-domains", "/features/url-shortener", "/register"]
+    "related": ["/features/branded-links", "/features/custom-domains", "/guides/migrate-from-bitly-to-linktery", "/register"]
   },
   {
     "path": "/guides/dynamic-vs-static-qr-codes",
@@ -569,5 +569,264 @@
       { "question": "Should UTMs contain customer names or emails?", "answer": "No. UTM values are visible in the URL and should not contain personal information or secrets." }
     ],
     "related": ["/tools/utm-builder", "/features/link-analytics", "/guides/how-to-track-link-clicks", "/features/url-shortener"]
+  },
+  {
+    "path": "/features/public-api",
+    "kind": "feature",
+    "eyebrow": "DEVELOPER PLATFORM",
+    "title": "Public API for Links, Profiles, and Analytics",
+    "seoTitle": "Link Management API for Links & Analytics | Linktery",
+    "seoDescription": "Use the Linktery Public API to manage links, read public profiles, and bring aggregate link analytics into your own tools and dashboards.",
+    "lead": "Connect Linktery to internal tools, campaign workflows, and reporting dashboards through an account-scoped API designed for controlled automation.",
+    "highlights": [
+      { "title": "Managed links", "text": "List, create, and update links using the same account ownership and plan rules as the Linktery dashboard." },
+      { "title": "Profile data", "text": "Read the public-profile resources that belong to the authenticated Linktery account." },
+      { "title": "Aggregate analytics", "text": "Retrieve supported link totals and breakdowns without exposing the service's raw click-event store." }
+    ],
+    "sections": [
+      { "heading": "What the Linktery API is for", "paragraphs": ["The Public API provides a stable programmatic layer for workflows that would otherwise require repeated dashboard actions. A team can create campaign links from an internal tool, synchronize destinations, or display Linktery analytics in its own reporting interface.", "The API is not a separate pool of data. Every request is scoped to the account represented by the API key, and plan limits continue to apply."], "bullets": ["Campaign-link creation", "Destination and status updates", "Public-profile reads", "Custom analytics dashboards"] },
+      { "heading": "One account-scoped key", "paragraphs": ["API requests use the key shown in Settings. The key acts as a credential, so it belongs in a server-side secret store rather than frontend JavaScript, public repositories, screenshots, or shared documents.", "Refreshing the key invalidates the previous value. This provides a direct recovery path when a credential may have been copied or exposed."], "bullets": ["Store the key as a secret", "Send it only over HTTPS", "Do not embed it in browser code", "Refresh it after suspected exposure"] },
+      { "heading": "Build integrations defensively", "paragraphs": ["Integrations should validate input before creating a link, handle authentication and rate-limit responses, and avoid retrying write requests indefinitely. Keep a record of the Linktery resource ID returned by a successful request.", "Use the public API hostname documented by Linktery. The underlying database service is an implementation detail and should not be included in customer integrations."], "bullets": ["Validate destination URLs", "Handle non-success responses", "Use bounded retry logic", "Follow the current API documentation"] }
+    ],
+    "faqs": [
+      { "question": "Can an API key access another Linktery account?", "answer": "No. API resources are ownership-scoped to the account associated with the key." },
+      { "question": "Can I use the API key in a browser application?", "answer": "Do not expose a long-lived key in public frontend code. Send API requests from a trusted server or secure automation environment." },
+      { "question": "What happens when I refresh the key?", "answer": "The previous API key becomes invalid and the newly issued key must be updated in your integrations." }
+    ],
+    "related": ["/documentation", "/guides/create-short-links-with-linktery-api", "/guides/build-link-analytics-dashboard-with-api", "/pricing"]
+  },
+  {
+    "path": "/features/public-profile-analytics",
+    "kind": "feature",
+    "eyebrow": "PROFILE MEASUREMENT",
+    "title": "Analytics for Link-in-Bio Profiles",
+    "seoTitle": "Link-in-Bio Analytics & Profile View Tracking | Linktery",
+    "seoDescription": "Measure Linktery public-profile views, card clicks, engagement trends, countries, devices, browsers, and referrers in one analytics workspace.",
+    "lead": "Understand both stages of a link-in-bio journey: opening the public profile and choosing one of its destination cards.",
+    "highlights": [
+      { "title": "Profile views", "text": "See how often a public profile was opened during the selected reporting period." },
+      { "title": "Card performance", "text": "Compare clicks across attached cards so ordering, copy, and visual changes can be evaluated." },
+      { "title": "Audience context", "text": "Explore supported country, device, browser, referrer, and time-based breakdowns." }
+    ],
+    "sections": [
+      { "heading": "Measure the complete profile journey", "paragraphs": ["A short link has one immediate destination, while a public profile asks the visitor to make a choice. Measuring only destination clicks hides how many people opened the profile but did not continue.", "Linktery keeps profile views and managed-card clicks as separate signals. This makes the relationship between reach and action visible without pretending that every view belongs to a permanently identifiable person."], "bullets": ["Total profile views", "Daily unique profile visits", "Managed-card clicks", "Clicks per profile view"] },
+      { "heading": "Find useful patterns", "paragraphs": ["A card near the top can receive more attention because it is immediately visible. A clear title, recognizable icon, or more relevant destination can also affect performance. Change one major element at a time when you want to learn from the result.", "Country and device distributions provide context for layout and destination decisions. They are aggregate operational signals, not precise personal identities."], "bullets": ["Compare card order", "Review mobile-heavy traffic", "Inspect geographic distribution", "Track changes over time"] },
+      { "heading": "All profiles or one profile", "paragraphs": ["Account-level reporting helps teams review combined profile activity, while an individual profile scope is better for diagnosing a specific creator, client, or campaign page.", "When viewing multiple profiles together, remember that daily unique visits are measured per profile. A person who opens two different profiles can contribute to each profile's unique count."], "bullets": ["Combined account overview", "Individual profile scope", "Period comparison", "Profile-specific card reporting"] }
+    ],
+    "faqs": [
+      { "question": "What is the difference between a profile view and a card click?", "answer": "A view records the public profile opening. A card click records a visitor selecting a managed link displayed on that profile." },
+      { "question": "Can card clicks be higher than profile views?", "answer": "Yes. One profile visit can produce clicks on more than one card, so clicks per view is not always limited to 100 percent." },
+      { "question": "Can I view all profiles together?", "answer": "Yes. Linktery supports an all-profiles scope as well as analytics for an individual public profile." }
+    ],
+    "related": ["/features/link-analytics", "/guides/link-in-bio-analytics-guide", "/templates", "/features/link-management"]
+  },
+  {
+    "path": "/features/deep-linking",
+    "kind": "feature",
+    "eyebrow": "MOBILE ROUTING",
+    "title": "Deep Linking with Reliable Web Fallbacks",
+    "seoTitle": "Deep Linking for Smart Links with Web Fallbacks | Linktery",
+    "seoDescription": "Create smart links that attempt supported native-app or external-browser handoffs while preserving a useful HTTPS fallback for every visitor.",
+    "lead": "Reduce mobile journey friction where platforms permit it, without making promises that operating systems and in-app browsers cannot guarantee.",
+    "highlights": [
+      { "title": "Best-effort handoff", "text": "Use destination and platform-aware behavior for compatible mobile environments." },
+      { "title": "HTTPS fallback", "text": "Keep a normal web destination ready when an app is missing or a browser blocks the handoff." },
+      { "title": "Loop protection", "text": "Limit automatic attempts and provide a clear manual path instead of repeatedly reopening the same page." }
+    ],
+    "sections": [
+      { "heading": "What deep linking can control", "paragraphs": ["A deep link can request that an operating system or application open a supported destination. Universal links, Android app links, URI schemes, installed-app state, and the source browser all influence the outcome.", "Linktery can choose and initiate a supported handoff strategy, but the final decision remains with the visitor's device, browser, and destination application."], "bullets": ["Supported destination URL", "Mobile operating system", "Installed application", "Browser or embedded webview"] },
+      { "heading": "Why fallbacks matter", "paragraphs": ["Social apps may restrict automatic navigation, ignore private schemes, or require a user gesture. A link that depends on one automatic action can leave the visitor on a blank or looping page when that action fails.", "A production deep-link flow needs a valid HTTPS destination plus a concise manual option such as opening the browser menu or copying the link."], "bullets": ["Normal HTTPS destination", "Single automatic attempt", "Manual open instructions", "Copy-link recovery"] },
+      { "heading": "Test the actual campaign path", "paragraphs": ["Testing only in desktop Chrome does not represent an Instagram or TikTok webview. Test the shared Linktery URL from the exact social placement and on representative iOS and Android devices.", "Retest important campaigns after destination apps or social platforms release major updates because private webview behavior can change independently of Linktery."], "bullets": ["Instagram on iOS and Android", "Installed and missing destination app", "Return from background", "Fallback after a blocked handoff"] }
+    ],
+    "faqs": [
+      { "question": "Can deep linking force every visitor into an app?", "answer": "No. The operating system, browser, installed apps, and destination platform control whether a handoff is allowed." },
+      { "question": "What happens if the app is not installed?", "answer": "The visitor should continue to the configured web destination or see a clear manual fallback." },
+      { "question": "Does deep linking replace a normal destination URL?", "answer": "No. A valid HTTPS destination remains essential for unsupported and blocked environments." }
+    ],
+    "related": ["/solutions/deeplink-generator", "/guides/deep-links-and-in-app-browsers", "/features/device-targeting", "/guides/what-is-a-smart-link"]
+  },
+  {
+    "path": "/guides/how-to-create-a-link-in-bio",
+    "kind": "guide",
+    "eyebrow": "LINKTERY GUIDE",
+    "title": "How to Create a Link-in-Bio Profile",
+    "seoTitle": "How to Create a Link-in-Bio Profile | Linktery",
+    "seoDescription": "Plan, design, publish, and measure a Linktery link-in-bio profile with a clear primary action, useful cards, social links, and mobile testing.",
+    "lead": "A strong link-in-bio profile is a focused mobile landing page, not a storage place for every URL you have ever shared.",
+    "highlights": [
+      { "title": "Choose one goal", "text": "Decide which action should receive the most attention before adding cards." },
+      { "title": "Build a clear hierarchy", "text": "Use the profile identity, template, card order, and labels to guide the next click." },
+      { "title": "Measure and refine", "text": "Compare profile views and card clicks after making deliberate changes." }
+    ],
+    "sections": [
+      { "heading": "Define the profile's primary action", "paragraphs": ["Start with the reason someone opens the page. That may be watching a new release, booking a service, joining a community, shopping a product, or exploring a portfolio.", "Place the primary destination early and describe it with an action-oriented card title. Supporting links should help the same audience rather than compete with the main goal."], "bullets": ["One primary conversion goal", "Specific card title", "Relevant supporting destinations", "No duplicate choices"] },
+      { "heading": "Choose a template and visual system", "paragraphs": ["Select a template based on the content hierarchy you need. A compact identity area brings cards into view quickly, while portrait and cover layouts give imagery more prominence.", "Use readable contrast, consistent card styling, and recognizable icons. Preview the profile at mobile width throughout editing because most bio traffic arrives from a phone."], "bullets": ["Template matched to content", "Readable type and contrast", "Consistent link-card style", "Mobile preview"] },
+      { "heading": "Publish, test, and measure", "paragraphs": ["Open the public URL outside the editor and test every card, social icon, image, and destination. Check both Wi-Fi and mobile data when the campaign is important.", "After publishing, use profile analytics to compare views with managed-card clicks. Avoid redesigning everything after a small number of visits; wait for enough traffic to identify a useful pattern."], "bullets": ["Test the public URL", "Verify every destination", "Review profile views", "Change one major element at a time"] }
+    ],
+    "faqs": [
+      { "question": "How many links should a link-in-bio profile have?", "answer": "Use the smallest set that serves the visitor's likely goals. Prioritize important actions instead of adding links simply because they exist." },
+      { "question": "Which Linktery template should I choose?", "answer": "Choose a compact template when fast access to cards matters most, or an image-led template when the visual identity is central to the page." },
+      { "question": "How do I know whether the profile works?", "answer": "Review profile views, managed-card clicks, and card order over a meaningful period, then test focused changes." }
+    ],
+    "related": ["/templates", "/features/public-profile-analytics", "/guides/migrate-from-linktree-to-linktery", "/register"]
+  },
+  {
+    "path": "/guides/link-in-bio-analytics-guide",
+    "kind": "guide",
+    "eyebrow": "LINKTERY GUIDE",
+    "title": "How to Read Link-in-Bio Analytics",
+    "seoTitle": "Link-in-Bio Analytics Guide: Views & Card Clicks | Linktery",
+    "seoDescription": "Learn how to interpret profile views, daily unique visits, card clicks, clicks per view, locations, devices, and trends for link-in-bio pages.",
+    "lead": "Link-in-bio analytics are most useful when each metric answers a specific question about reach, page clarity, or destination interest.",
+    "highlights": [
+      { "title": "Reach", "text": "Profile views show how often the public landing page opened during the selected period." },
+      { "title": "Action", "text": "Card clicks show which managed destinations visitors selected after seeing the page." },
+      { "title": "Context", "text": "Country, device, referrer, and time trends help explain changes in traffic." }
+    ],
+    "sections": [
+      { "heading": "Start with views and daily unique visits", "paragraphs": ["Total views measure page openings, including repeat visits. Daily unique profile visits reduce repeated activity from the same privacy-preserving visitor signal within a profile and day, but they are not a permanent identity count.", "Use both metrics together. A rising gap between total and daily unique visits can indicate repeat interest, repeated campaign exposure, or refresh activity."], "bullets": ["Total profile views", "Daily unique profile visits", "Selected reporting period", "All-profiles or individual scope"] },
+      { "heading": "Interpret card clicks carefully", "paragraphs": ["Card clicks reveal destination interest, but the highest card may benefit from position as well as copy or relevance. Compare similar periods before and after a deliberate change.", "One visitor can select multiple cards during one profile visit. For that reason, clicks per view can exceed 100 percent and should not be presented as a conventional single-action conversion rate."], "bullets": ["Clicks by managed card", "Card position", "Clicks per profile view", "Before-and-after comparison"] },
+      { "heading": "Use breakdowns to form a hypothesis", "paragraphs": ["A country map can reveal where campaign traffic is concentrated, while device and browser data can expose a mobile-heavy audience. Referrer data can indicate which placements are sending visitors when the source provides a usable referrer.", "These dimensions are approximate. Use them to choose a test, then confirm the business outcome in the destination's own signup, sales, or content analytics."], "bullets": ["Click geography", "Device and browser", "Referrer context", "Destination-side outcomes"] }
+    ],
+    "faqs": [
+      { "question": "Are daily unique visits the same as unique people?", "answer": "No. They are privacy-preserving daily estimates for a profile, not permanent identities across every device and day." },
+      { "question": "Why can clicks per view exceed 100 percent?", "answer": "A visitor can click more than one card during a single profile visit." },
+      { "question": "Should I optimize using only the most-clicked card?", "answer": "No. Consider card position, campaign intent, destination conversions, and enough traffic to make the comparison meaningful." }
+    ],
+    "related": ["/features/public-profile-analytics", "/features/link-analytics", "/guides/how-to-track-link-clicks", "/guides/how-to-create-a-link-in-bio"]
+  },
+  {
+    "path": "/guides/deep-links-and-in-app-browsers",
+    "kind": "guide",
+    "eyebrow": "LINKTERY GUIDE",
+    "title": "Deep Links and Social In-App Browsers",
+    "seoTitle": "Deep Links & Social In-App Browsers: Practical Guide | Linktery",
+    "seoDescription": "Understand how deep links behave inside Instagram and other social webviews, why automatic handoffs can fail, and how to design reliable fallbacks.",
+    "lead": "Embedded social browsers add another decision-maker between the tap and the destination, so reliable campaigns need more than a custom URL scheme.",
+    "highlights": [
+      { "title": "Webview constraints", "text": "Social applications can block, ignore, or change automatic external navigation behavior." },
+      { "title": "Destination support", "text": "Native-app opening depends on the destination's supported links and the installed application." },
+      { "title": "Recoverable journey", "text": "A useful web page and manual open option protect the visit when automation is unavailable." }
+    ],
+    "sections": [
+      { "heading": "Why a link behaves differently inside social apps", "paragraphs": ["Instagram, TikTok, Facebook, and other applications can open links in embedded browsers instead of Safari or Chrome. These webviews may handle redirects, cookies, downloads, popups, custom schemes, and user gestures differently.", "Behavior can also change between operating-system and social-app versions. A result observed on one phone is not a universal guarantee."], "bullets": ["Embedded browser policies", "Operating-system version", "Social-app version", "User gesture requirements"] },
+      { "heading": "How a safe handoff flow works", "paragraphs": ["First resolve the final approved destination and record the normal redirect context. Then make one best-effort handoff attempt for a supported environment. If the page remains visible, show a concise recovery action instead of starting another automatic cycle.", "The fallback should keep the original HTTPS destination available and must never depend on an endless chain between Linktery URLs."], "bullets": ["Resolve one final destination", "Attempt once", "Stop on return or failure", "Keep the HTTPS fallback"] },
+      { "heading": "A realistic testing matrix", "paragraphs": ["Test from the actual profile, story, advertisement, or message placement. Cover recent iOS and Android versions, the destination app installed and absent, and the normal system browser.", "Track attempted handoffs and fallbacks as operational signals, but do not treat page visibility changes as proof that a conversion occurred."], "bullets": ["Instagram and other target placements", "iOS and Android", "App installed and missing", "Manual fallback path"] }
+    ],
+    "faqs": [
+      { "question": "Why does Instagram sometimes keep a link inside its browser?", "answer": "Instagram controls its embedded browser and may restrict external navigation based on platform behavior, operating system, link type, and user interaction." },
+      { "question": "Can a redirect platform guarantee an external browser?", "answer": "No. A platform can attempt supported handoffs, but the source application and operating system make the final decision." },
+      { "question": "What is the safest fallback?", "answer": "Keep a valid HTTPS destination and provide a clear manual open or copy-link action when automatic handoff is unavailable." }
+    ],
+    "related": ["/features/deep-linking", "/solutions/deeplink-generator", "/features/device-targeting", "/guides/what-is-a-smart-link"]
+  },
+  {
+    "path": "/guides/create-short-links-with-linktery-api",
+    "kind": "guide",
+    "eyebrow": "API RECIPE",
+    "title": "Create Short Links with the Linktery API",
+    "seoTitle": "Create Short Links with the Linktery API | Recipe",
+    "seoDescription": "Create Linktery short links safely from a backend or automation using API authentication, idempotency keys, generated slugs, and predictable errors.",
+    "lead": "Use this recipe when a CRM, publishing workflow, or internal tool needs to create Linktery links without exposing an API key in the browser.",
+    "highlights": [
+      { "title": "Server-side authentication", "text": "Keep the Linktery API key in a trusted backend or secret store, never in public frontend code." },
+      { "title": "Safe retries", "text": "Send an Idempotency-Key so a network retry cannot silently create a duplicate link." },
+      { "title": "Owner-scoped result", "text": "The API creates and returns a link inside the account that owns the supplied key." }
+    ],
+    "sections": [
+      { "heading": "Prepare one authenticated request", "paragraphs": ["Send a POST request to https://api.linktery.com/v1/links from a trusted server. Include Authorization: Bearer followed by the account API key, Content-Type: application/json, and an Idempotency-Key header containing a stable identifier for this creation attempt.", "A minimal JSON body needs a valid destination_url. Add a useful title, the supported Linktery domain, and active status when your workflow needs them. Creator Pro receives a server-generated slug; Agency can request an available custom slug."], "bullets": ["POST /v1/links", "Bearer API authentication", "Idempotency-Key of 8 to 128 safe characters", "HTTPS destination URL"] },
+      { "heading": "Treat the response as the source of truth", "paragraphs": ["A successful response includes the Link ID, resolved slug, public short URL, destination, active state, and ETag. Store the Link ID rather than trying to find the record later by its title. Titles are labels and are not unique identifiers.", "If the same idempotency key is retried with the same canonical payload, Linktery returns the original resource instead of creating another link. Reusing that key with a different payload returns an idempotency conflict, so generate a new key for a genuinely new link."], "bullets": ["Store data.id", "Use data.short_url when sharing", "Retain the ETag for future updates", "Log the returned request ID for support"] },
+      { "heading": "Handle failures without unsafe retries", "paragraphs": ["Retry temporary server and rate-limit responses with bounded exponential backoff. Do not retry validation, authentication, plan, or quota errors until the request or account state has changed. Read the rate-limit headers instead of sending an immediate request loop.", "When updating the link later, read its current ETag and send it in If-Match with PATCH. This prevents an older automation run from overwriting a newer dashboard edit. API v1 does not expose permanent deletion; set active to false when a link should stop resolving."], "bullets": ["Back off after 429 or temporary 503", "Fix 400 and 403 responses before retrying", "Use If-Match for PATCH", "Disable with active: false"] }
+    ],
+    "faqs": [
+      { "question": "Can I call the Linktery API directly from React or browser JavaScript?", "answer": "Do not expose a long-lived API key in client code. Call Linktery from your backend, serverless function, or a secured automation environment." },
+      { "question": "Can every paid plan choose a custom slug through the API?", "answer": "No. Creator Pro receives a generated slug, while Agency can request an available custom slug under the current v1 plan rules." },
+      { "question": "What should I use as the idempotency key?", "answer": "Use a stable identifier for one intended creation, such as an internal job or campaign ID. Use a different key for each genuinely new link." }
+    ],
+    "related": ["/documentation", "/features/public-api", "/guides/build-link-analytics-dashboard-with-api", "/pricing"]
+  },
+  {
+    "path": "/guides/build-link-analytics-dashboard-with-api",
+    "kind": "guide",
+    "eyebrow": "API RECIPE",
+    "title": "Build a Link Analytics Dashboard with the API",
+    "seoTitle": "Build a Link Analytics Dashboard with the Linktery API",
+    "seoDescription": "Use Linktery aggregate analytics to build a private dashboard with click totals, time series, locations, referrers, devices, browsers, and operating systems.",
+    "lead": "Connect Linktery analytics to an internal dashboard without exporting raw visitor events or giving the frontend direct access to a long-lived API key.",
+    "highlights": [
+      { "title": "Aggregate analytics", "text": "Read totals, daily unique click signals, time series, and supported traffic breakdowns for an owned link." },
+      { "title": "Four reporting windows", "text": "Request 24 hours, 7 days, 30 days, or 90 days using the documented period parameter." },
+      { "title": "Private integration", "text": "Proxy requests through your backend and return only the fields your dashboard needs." }
+    ],
+    "sections": [
+      { "heading": "Resolve the links your account owns", "paragraphs": ["Begin with GET https://api.linktery.com/v1/links and store each returned ID with its title and short URL. Use the API's pagination rather than assuming the first response contains every link in a large account.", "When a user selects a link in your dashboard, request GET /v1/links/{id}/analytics with period set to 24h, 7d, 30d, or 90d. Linktery checks that the API key owns that link before returning its analytics."], "bullets": ["List owned links", "Keep the resource ID", "Paginate large collections", "Never accept an unchecked foreign Link ID"] },
+      { "heading": "Map the analytics response to useful widgets", "paragraphs": ["The summary contains clicks and server-derived daily unique click signals. The time series is hourly for the 24-hour window and daily for longer periods. Breakdowns contain the leading countries, referrers, devices, browsers, and operating systems available for that link.", "Label daily unique clicks accurately: they are privacy-preserving 24-hour visitor signals, not permanent people across all devices and days. The API returns aggregate results rather than raw click rows, which limits personal-data exposure and makes dashboard queries more predictable."], "bullets": ["Summary cards", "Hourly or daily trend", "Top traffic dimensions", "UTC reporting window"] },
+      { "heading": "Cache, refresh, and degrade gracefully", "paragraphs": ["Fetch Linktery from your backend, cache a successful response briefly, and let the browser read your own restricted endpoint. A dashboard usually does not need to request every link on every page render. Fetch the selected link first and refresh in response to a user action or a measured interval.", "Honor rate-limit headers and use bounded backoff for 429 responses. If analytics are temporarily optimizing, keep the last successful result visible with a clear updated timestamp rather than showing zero. Never log the API key, and refresh it immediately if it may have been exposed."], "bullets": ["Short server-side cache", "Visible last-updated time", "Bounded retry policy", "No secrets in browser logs"] }
+    ],
+    "faqs": [
+      { "question": "Can the API return analytics for all links in one request?", "answer": "The current v1 analytics route is scoped to one owned Link ID. List the links first, then fetch only the analytics needed by the dashboard." },
+      { "question": "Does the public API expose raw clicks?", "answer": "No. It returns aggregate analytics and supported breakdowns rather than raw visitor-level click records." },
+      { "question": "Which time zone does the analytics response use?", "answer": "The documented v1 response uses UTC and states whether its time-series granularity is hourly or daily." }
+    ],
+    "related": ["/documentation", "/features/public-api", "/features/link-analytics", "/guides/how-to-track-link-clicks"]
+  },
+  {
+    "path": "/guides/migrate-from-linktree-to-linktery",
+    "kind": "guide",
+    "eyebrow": "MIGRATION GUIDE",
+    "title": "Migrate from Linktree to Linktery",
+    "seoTitle": "How to Migrate from Linktree to Linktery | Guide",
+    "seoDescription": "Move a link-in-bio page from Linktree to Linktery with a safe content inventory, analytics archive, profile rebuild, mobile test, and controlled cutover.",
+    "lead": "Preserve the destinations and records you control, rebuild the public profile deliberately, and change the bio URL only after the Linktery page has passed a real-device check.",
+    "highlights": [
+      { "title": "Archive first", "text": "Save eligible Linktree Insights exports and any audience-contact export before changing the live profile URL." },
+      { "title": "Rebuild with intent", "text": "Use the move to remove stale destinations and establish a clearer mobile card hierarchy." },
+      { "title": "Controlled cutover", "text": "Test the Linktery public URL before replacing the Linktree address across social profiles and campaigns." }
+    ],
+    "sections": [
+      { "heading": "Inventory the page before rebuilding it", "paragraphs": ["Record the active card titles, destination URLs, order, social links, profile copy, avatar, and any images you are allowed to reuse. Do not treat screenshots as the only backup; keep a working list where every destination can be opened and checked.", "Linktree documents downloadable Insights activity for eligible Premium accounts, including views, clicks, click-through activity, countries, cities, devices, and referrers. Export availability depends on the current Linktree plan. If you collected audience contacts through an integration, export that data separately where the platform permits it."], "bullets": ["Card title and final destination", "Profile identity and social links", "Reusable media assets", "Insights and audience archives"] },
+      { "heading": "Build and test the Linktery profile", "paragraphs": ["Create a Linktery Public Profile, choose the template that matches the desired content hierarchy, and recreate only the destinations that still serve a clear visitor goal. Managed Linktery cards can then contribute card-click analytics inside the profile reporting scope.", "Open the published URL outside the editor. Test every card and social icon on a phone, verify image crops and contrast, and check the destination after all redirects. Historical Linktree analytics are an archive and are not imported as Linktery profile views or card clicks."], "bullets": ["Create the public profile", "Prioritize the primary card", "Test the real public URL", "Record the analytics cutover time"] },
+      { "heading": "Switch the audience without losing the old record", "paragraphs": ["Replace the Linktree URL in the most important social bio first, then update secondary profiles, pinned posts, email signatures, and campaign assets you control. Keep a checklist so a forgotten placement does not continue sending traffic to an outdated page.", "Retain the Linktree page and exported records during a short verification period if your plan and workflow allow it. A Linktree-owned URL cannot simply become a Linktery URL; preserving the exact host and path requires control of the domain and a compatible Linktery configuration."], "bullets": ["Update primary social bios", "Review old campaign placements", "Verify traffic reaches Linktery", "Keep an export outside both platforms"] }
+    ],
+    "faqs": [
+      { "question": "Can Linktery import my full Linktree page automatically?", "answer": "This guide does not assume an automatic importer. Inventory and rebuild the destinations you control, then verify each one before cutover." },
+      { "question": "Will my old Linktree analytics appear in Linktery?", "answer": "No. Keep the Linktree export as a historical archive; Linktery profile analytics begin when visitors use the Linktery page." },
+      { "question": "Should I delete the Linktree page immediately?", "answer": "A short verification period is safer when available. Confirm important placements and Linktery destinations before retiring the old page." }
+    ],
+    "sources": [
+      { "label": "Linktree: Download a CSV of Insights activity", "url": "https://linktr.ee/help/en/articles/5707122-download-a-csv-of-your-insights-activity" },
+      { "label": "Linktree: Understanding your Insights", "url": "https://linktr.ee/help/en/articles/5434178-understanding-your-insights" },
+      { "label": "Linktree: Third Party Audience Integrations", "url": "https://linktr.ee/help/en/articles/11069074-third-party-audience-integrations" }
+    ],
+    "related": ["/alternatives/linktree", "/templates", "/guides/how-to-create-a-link-in-bio", "/features/public-profile-analytics"]
+  },
+  {
+    "path": "/guides/migrate-from-bitly-to-linktery",
+    "kind": "guide",
+    "eyebrow": "MIGRATION GUIDE",
+    "title": "Migrate from Bitly to Linktery",
+    "seoTitle": "How to Migrate from Bitly to Linktery | Guide",
+    "seoDescription": "Plan a Bitly-to-Linktery migration using a CSV inventory, staged link recreation, API idempotency, custom-domain checks, and an analytics cutover record.",
+    "lead": "Treat a short-link migration as an address and data migration: inventory what exists, recreate and verify the new routes, then change traffic in a controlled order.",
+    "highlights": [
+      { "title": "Export an inventory", "text": "Use Bitly's available CSV export to preserve titles, destinations, custom links, engagement totals, and status." },
+      { "title": "Stage before DNS", "text": "Create and test Linktery routes before changing a custom domain or widely distributed campaign address." },
+      { "title": "Separate analytics eras", "text": "Keep historical Bitly engagement data as an archive and mark when Linktery measurement begins." }
+    ],
+    "sections": [
+      { "heading": "Classify the links before moving them", "paragraphs": ["Bitly documents an emailed CSV export on eligible paid plans. Its listed fields include the Link, Custom Link, creation date, title, destination URL, engagements, and status. Use that file as an inventory, then remove expired tests and separate high-risk evergreen links from disposable campaign URLs.", "Mark links referenced by printed QR codes, paid ads, email automations, mobile apps, or third-party integrations. A QR code continues to open the exact URL encoded in it; creating a different Linktery short URL does not update a printed code."], "bullets": ["Active and inactive status", "Final destination URL", "Custom host and back-half", "External placements and QR codes"] },
+      { "heading": "Recreate links through the dashboard or API", "paragraphs": ["Small inventories can be recreated and checked in the Linktery dashboard. For a controlled batch, use POST /v1/links from a secure backend and give every source row its own stable Idempotency-Key. That makes retries safe if a job stops midway.", "Creator Pro receives generated slugs through the API, while Agency can request available custom slugs. Do not assume a Bitly back-half is available until Linktery accepts it. Store the returned Linktery ID and short URL next to the source row so the migration can be audited and resumed."], "bullets": ["One stable idempotency key per row", "Source-to-Linktery ID mapping", "Plan-aware slug handling", "Destination verification after creation"] },
+      { "heading": "Cut over domains and reporting carefully", "paragraphs": ["If a custom domain is involved, validate the Linktery configuration and recreate required paths before changing DNS. Lowering TTL in advance can reduce cache duration, but it does not guarantee an instant or zero-downtime change. Keep a rollback record and test from more than one network after the change.", "Bitly engagement history is not imported as Linktery click events. Preserve the CSV, record a cutover timestamp, and compare future performance using Linktery analytics from that point. Bitly's own migration guidance also warns that engagement collection begins after links are recreated on the destination platform."], "bullets": ["Verify paths before DNS cutover", "Keep the previous DNS values", "Record the reporting boundary", "Monitor important routes after launch"] }
+    ],
+    "faqs": [
+      { "question": "Can I preserve every Bitly URL exactly?", "answer": "Only when you control the relevant custom domain, the path is available, and the Linktery plan and domain setup support it. Bitly-owned hosts cannot be transferred." },
+      { "question": "Will old Bitly clicks appear in Linktery analytics?", "answer": "No. Archive the Bitly export and use the migration timestamp as the boundary for Linktery reporting." },
+      { "question": "What happens to an existing printed QR code?", "answer": "It continues to request the URL already encoded in the image. It changes behavior only if that exact host and path remain under your control and are routed accordingly." }
+    ],
+    "sources": [
+      { "label": "Bitly: Export all data from the Links page", "url": "https://support.bitly.com/hc/en-us/articles/115000268051-How-do-I-export-all-data-from-the-Links-page" },
+      { "label": "Bitly: Move custom links from another link manager", "url": "https://support.bitly.com/hc/en-us/articles/360039085531-How-do-I-move-my-custom-links-from-my-old-link-manager-to-Bitly" }
+    ],
+    "related": ["/alternatives/bitly", "/features/public-api", "/guides/how-to-create-branded-short-url", "/features/url-shortener"]
   }
 ]

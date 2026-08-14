@@ -122,7 +122,7 @@ export default function CompetitorComparison() {
           },
           {
             "@type": "Question",
-            "name": `Can I bypass social media in-app browsers with these tools?`,
+            "name": `How do these tools handle social media in-app browsers?`,
             "acceptedAnswer": {
               "@type": "Answer",
               "text": `Deep-linking support and behavior vary by platform and plan. Compare the current published features from ${competitorA.name} and ${competitorB.name} before choosing. Linktery supports routing into compatible native apps on paid plans.`
@@ -136,7 +136,7 @@ export default function CompetitorComparison() {
   // Register SEO configuration
   useSeo({
     title: isValid 
-      ? `${competitorA.name} vs ${competitorB.name}: Which is Better? (2026) | Linktery`
+      ? `${competitorA.name} vs ${competitorB.name}: Features & Pricing | Linktery`
       : "Competitor Comparison Matrix | Linktery",
     description: isValid
       ? `Compare ${competitorA.name} vs ${competitorB.name} side-by-side. Analyze pricing, deep linking features, custom domain mapping, transaction fees, and pixel integrations.`
@@ -246,7 +246,7 @@ export default function CompetitorComparison() {
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-accent text-sm mb-6 font-semibold">
             <ArrowLeftRight className="w-4 h-4" />
-            2026 Industry Comparison Analysis
+            Published feature comparison
           </div>
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 leading-tight uppercase">
             {competitorA.name} <span className="text-muted-foreground lowercase text-2xl md:text-4xl font-normal px-2">vs</span> {competitorB.name}
@@ -461,7 +461,7 @@ export default function CompetitorComparison() {
         </div>
       </section>
 
-      {/* Why Linktery is the Ultimate Alternative */}
+      {/* Linktery alternative summary */}
       <section className="py-16 px-6 max-w-6xl mx-auto relative z-10 border-t border-border/40">
         <div className="glass-card p-8 md:p-12 border border-emerald-500/20 bg-emerald-950/5 backdrop-blur-md rounded-[32px] flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
           

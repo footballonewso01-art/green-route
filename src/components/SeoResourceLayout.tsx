@@ -33,10 +33,14 @@ export default function SeoResourceLayout({ page, children, preview }: SeoResour
         url: `${PRIMARY_ORIGIN}${page.path}`,
         name: page.seoTitle,
         description: page.seoDescription,
+        inLanguage: "en",
+        isPartOf: { "@id": `${PRIMARY_ORIGIN}/#website` },
         ...(page.kind === "guide" ? {
           headline: page.title,
+          mainEntityOfPage: { "@id": `${PRIMARY_ORIGIN}${page.path}#page` },
           author: { "@id": `${PRIMARY_ORIGIN}/#organization` },
           publisher: { "@id": `${PRIMARY_ORIGIN}/#organization` },
+          ...(page.sources?.length ? { citation: page.sources.map((source) => source.url) } : {}),
         } : {}),
       },
       {
@@ -67,9 +71,10 @@ export default function SeoResourceLayout({ page, children, preview }: SeoResour
             <span className="text-xl font-extrabold tracking-tight">Linktery</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex" aria-label="SEO resources">
-            <Link className="transition-colors hover:text-foreground" to="/features/link-management">Features</Link>
-            <Link className="transition-colors hover:text-foreground" to="/templates/link-in-bio">Templates</Link>
-            <Link className="transition-colors hover:text-foreground" to="/guides/what-is-link-management">Guides</Link>
+            <Link className="transition-colors hover:text-foreground" to="/features">Features</Link>
+            <Link className="transition-colors hover:text-foreground" to="/templates">Templates</Link>
+            <Link className="transition-colors hover:text-foreground" to="/guides">Guides</Link>
+            <Link className="transition-colors hover:text-foreground" to="/tools">Tools</Link>
             <Link className="transition-colors hover:text-foreground" to="/pricing">Pricing</Link>
           </nav>
           <Link to="/register" className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-accent-foreground transition-transform hover:-translate-y-0.5">
@@ -85,7 +90,7 @@ export default function SeoResourceLayout({ page, children, preview }: SeoResour
             <nav className="mb-8 flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground" aria-label="Breadcrumb">
               <Link to="/" className="hover:text-foreground">Home</Link>
               <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>{kindLabels[page.kind]}</span>
+              <Link to={sectionRoot} className="hover:text-foreground">{kindLabels[page.kind]}</Link>
               <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
               <span className="text-foreground">{page.title}</span>
             </nav>
@@ -153,6 +158,29 @@ export default function SeoResourceLayout({ page, children, preview }: SeoResour
                 )}
               </section>
             ))}
+
+            {page.sources && page.sources.length > 0 && (
+              <aside className="rounded-2xl border border-border bg-card/40 p-6 sm:p-7" aria-labelledby="source-heading">
+                <h2 id="source-heading" className="text-xl font-extrabold tracking-tight">Sources and platform documentation</h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Export availability and platform behavior can change. Check these primary sources before a migration.
+                </p>
+                <ul className="mt-5 space-y-3">
+                  {page.sources.map((source) => (
+                    <li key={source.url}>
+                      <a
+                        href={source.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline"
+                      >
+                        {source.label} <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+            )}
           </div>
         </article>
 

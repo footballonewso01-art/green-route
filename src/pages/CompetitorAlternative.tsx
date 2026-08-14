@@ -81,19 +81,13 @@ export default function CompetitorAlternative() {
     return null;
   };
 
-  // Build a dynamic alternative reference tool for the table comparison
-  // (Pick the first competitor from the database that is not the current one)
-  const fallbackCompetitor = (competitorsData as Competitor[]).find(
-    (item) => item.slug !== competitorSlug
-  ) || competitorsData[0];
-
   const faqItems = competitor ? [
     {
       question: `Which link-in-bio tool has the best free plan compared to ${competitor.name}?`,
-      answer: `Linktery offers a highly competitive free Creator plan featuring full profile customization, A/B split weights, and 0% transaction fees. ${competitor.name} restricts customization or limits key features under their free tier, whereas Linktery keeps core styling features unlocked.`
+      answer: `Compare the current free-plan limits that matter to your workflow, including profile count, customization, analytics, and branding. Linktery offers a free Creator plan, while ${competitor.name} publishes its own current plan terms. Verify both pricing pages before choosing.`
     },
     {
-      question: `How do I bypass the Instagram and TikTok in-app browser jail with a ${competitor.name} alternative?`,
+      question: `How can I reduce Instagram and TikTok in-app browser friction with a ${competitor.name} alternative?`,
       answer: `Links opened inside Instagram or TikTok can remain in an embedded browser. Linktery can route compatible destinations toward supported native-app or system-browser experiences and retain a web fallback. Actual handoff behavior depends on the destination, operating system, installed app, and browser.`
     },
     {
@@ -102,7 +96,7 @@ export default function CompetitorAlternative() {
     },
     {
       question: `Does Linktery charge commission fees on digital store sales?`,
-      answer: `No. Unlike some platforms (such as Beacons which takes a 9% cut on free plans), Linktery does not act as a payment gateway. We route visitors directly to your external checkouts (Shopify, Stripe, Gumroad) with zero platform transaction fees on all subscription tiers.`
+      answer: `Linktery routes visitors to external destinations and does not act as the payment gateway for those transactions. Any checkout, processor, or marketplace fees are controlled by the destination provider and should be reviewed separately.`
     }
   ] : [];
 
@@ -260,10 +254,10 @@ export default function CompetitorAlternative() {
               <HeartCrack className="w-20 h-20 text-accent" />
             </div>
             <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2 uppercase font-mono">
-              <HeartCrack className="w-5 h-5 text-accent" /> The Rent-Seeking Paradigm
+              <HeartCrack className="w-5 h-5 text-accent" /> Plan and branding trade-offs
             </h2>
             <p className="text-xs md:text-sm text-slate-300 leading-relaxed font-medium">
-              Legacy tools like {competitor.name} build their revenue by restricting your basic brand identity. Demanding subscription upgrades simply to remove a platform watermark or map a custom subdomain limits creator autonomy.
+              Link-in-bio products place branding, custom domains, analytics, and profile limits on different plans. Compare the restrictions that affect your workflow instead of choosing from the headline price alone.
             </p>
             <p className="text-xs md:text-sm text-slate-300 leading-relaxed mt-2.5 font-medium">
               With Linktery, we believe your social landing page belongs to you. We provide full theme customization for free on the Creator plan, with custom domain configurations (Agency plan) and watermark removal (Pro plan) transparently priced.
@@ -279,7 +273,7 @@ export default function CompetitorAlternative() {
               Sharing a standard URL in a social bio can keep visitors inside an in-app browser, where login state and checkout capabilities may differ from the native app or system browser.
             </p>
             <p className="text-xs md:text-sm text-slate-300 leading-relaxed mt-2.5 font-medium">
-              Linktery bypasses this webview wall on paid plans, triggering installed applications (Spotify, YouTube, Amazon, Telegram) directly to preserve sessions and complete orders.
+              Linktery can attempt supported app or external-browser handoffs on paid plans and keeps an HTTPS fallback. The final behavior depends on the operating system, installed application, source webview, and destination platform.
             </p>
           </div>
 
@@ -338,10 +332,10 @@ export default function CompetitorAlternative() {
                     <Check className="w-4 h-4 text-accent" /> Spotify streams leaking in in-app webviews
                   </h3>
                   <p className="text-sm text-slate-300 leading-relaxed">
-                    An artist runs Stories ads pointing to a legacy bio link. When users click, they are prompted to log in to Spotify's web player inside the Instagram sandboxed browser. **Over 40% of listeners abandon the stream.**
+                    An artist shares a release in Stories. Some visitors remain inside Instagram's embedded browser and reach Spotify's web experience instead of the installed application.
                   </p>
                   <p className="text-xs md:text-sm text-accent/90 bg-accent/5 border border-accent/20 p-3 rounded-xl mt-2 italic font-mono">
-                    💡 Linktery Solution: Bypasses the webview sandbox, triggering the native Spotify app directly on iOS or Android devices for instant listening.
+                    Linktery approach: attempt a supported Spotify handoff and retain the normal HTTPS destination when the app or browser does not accept it.
                   </p>
                 </div>
               )}
@@ -355,7 +349,7 @@ export default function CompetitorAlternative() {
                     A shop sells to UK and US audiences. UK visitors click the bio link but get sent to the USD store. They abandon checkout due to currency confusion and high international shipping costs.
                   </p>
                   <p className="text-xs md:text-sm text-accent/90 bg-accent/5 border border-accent/20 p-3 rounded-xl mt-2 italic font-mono">
-                    💡 Linktery Solution: Evaluates geo IP data on click. UK traffic goes to the GBP shop, and US traffic to the USD shop automatically, lifting sales by 28%.
+                    Linktery approach: use country routing rules so UK and US visitors can reach the corresponding configured store, with one default destination for unmatched traffic.
                   </p>
                 </div>
               )}
@@ -369,7 +363,7 @@ export default function CompetitorAlternative() {
                     A media buyer runs campaigns to a legacy root domain. Because they don't own the domain, they cannot verify it in Facebook Business Manager, breaking pixel conversion attribution.
                   </p>
                   <p className="text-xs md:text-sm text-accent/90 bg-accent/5 border border-accent/20 p-3 rounded-xl mt-2 italic font-mono">
-                    💡 Linktery Solution: Linktery supports custom domains (`links.brand.com`) on the Agency plan, giving you verified domain ownership and perfect tracking pixel analytics.
+                    Linktery approach: connect an eligible custom domain on the Agency plan and configure supported tracking integrations. Attribution still depends on the destination and advertising platform setup.
                   </p>
                 </div>
               )}
@@ -399,7 +393,6 @@ export default function CompetitorAlternative() {
                 <th className="p-4 md:p-6">Feature Details</th>
                 <th className="p-4 md:p-6 text-accent">Linktery</th>
                 <th className="p-4 md:p-6">{competitor.name} {competitor.emoji}</th>
-                <th className="p-4 md:p-6">{fallbackCompetitor.name} {fallbackCompetitor.emoji}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-xs md:text-sm text-foreground/90 font-mono">
@@ -407,41 +400,37 @@ export default function CompetitorAlternative() {
                 <td className="p-4 md:p-6 font-semibold text-white font-sans">Custom Domains pricing</td>
                 <td className="p-4 md:p-6 text-green-400 font-bold">✅ Requires Agency ($29/mo)</td>
                 <td className="p-4 md:p-6 text-slate-300">{competitor.pricing.customDomains}</td>
-                <td className="p-4 md:p-6 text-slate-300">{fallbackCompetitor.pricing.customDomains}</td>
               </tr>
               <tr className="hover:bg-surface-hover/40 transition-colors">
                 <td className="p-4 md:p-6 font-semibold text-white font-sans">Watermark Removal</td>
                 <td className="p-4 md:p-6 text-green-400 font-bold">✅ Requires Pro ($11/mo)</td>
                 <td className="p-4 md:p-6 text-slate-300">{competitor.pricing.watermarkRemoval}</td>
-                <td className="p-4 md:p-6 text-slate-300">{fallbackCompetitor.pricing.watermarkRemoval}</td>
               </tr>
               <tr className="hover:bg-surface-hover/40 transition-colors">
                 <td className="p-4 md:p-6 font-semibold text-white font-sans">App Deep Linking</td>
                 <td className="p-4 md:p-6 text-green-400 font-bold">Compatible app destinations with web fallback</td>
                 <td className="p-4 md:p-6 text-slate-400">{competitor.features.deepLinking}</td>
-                <td className="p-4 md:p-6 text-slate-400">{fallbackCompetitor.features.deepLinking}</td>
               </tr>
               <tr className="hover:bg-surface-hover/40 transition-colors">
                 <td className="p-4 md:p-6 font-semibold text-white font-sans">Smart Geolocation redirects</td>
                 <td className="p-4 md:p-6 text-green-400 font-bold">✅ Yes (Country routing rules)</td>
                 <td className="p-4 md:p-6 text-slate-400">{competitor.features.geotargeting}</td>
-                <td className="p-4 md:p-6 text-slate-400">{fallbackCompetitor.features.geotargeting}</td>
               </tr>
               <tr className="hover:bg-surface-hover/40 transition-colors">
                 <td className="p-4 md:p-6 font-semibold text-white font-sans">Transaction fee rates</td>
                 <td className="p-4 md:p-6 text-green-400 font-bold">✅ 0% (All plans)</td>
                 <td className="p-4 md:p-6 text-slate-300">{competitor.pricing.transactionFee}</td>
-                <td className="p-4 md:p-6 text-slate-300">{fallbackCompetitor.pricing.transactionFee}</td>
               </tr>
             </tbody>
           </table>
         </div>
-        {competitor.officialPricingUrl && (
-          <p className="mt-4 text-xs leading-5 text-slate-500">
+        <p className="mt-4 text-xs leading-5 text-slate-500">
+          {competitor.officialPricingUrl ? <>
             Source: <a className="text-accent hover:underline" href={competitor.officialPricingUrl} target="_blank" rel="noreferrer">{competitor.name} official pricing</a>
-            {competitor.reviewedAt ? ` · Reviewed ${competitor.reviewedAt}` : ""}. Prices and plan features can change.
-          </p>
-        )}
+            {competitor.reviewedAt ? ` · Reviewed ${competitor.reviewedAt}` : ""}.{" "}
+          </> : null}
+          Prices and plan features can change. Verify the current provider pages before purchasing.
+        </p>
       </section>
 
       {/* Competitor Review Detail Section */}
@@ -462,10 +451,10 @@ export default function CompetitorAlternative() {
                 <Check className="w-4 h-4 text-accent" /> Linktery Advantages
               </h3>
               <ul className="space-y-2 text-xs md:text-sm text-slate-400 font-sans">
-                <li>• **Optimized loading**: Uses lightweight public landing pages and cached assets.</li>
-                <li>• **App launching**: Launch Spotify, YouTube, or Amazon directly on iOS/Android.</li>
-                <li>• **Domain Mapping**: Connect custom subdomains on our Agency plan.</li>
-                <li>• **0% Commission Cuts**: Keep your product sales revenues clean.</li>
+                <li>• Optimized loading: lightweight public pages and cached assets.</li>
+                <li>• App-aware links: supported handoff attempts with web fallbacks.</li>
+                <li>• Domain mapping: connect eligible custom domains on Agency.</li>
+                <li>• External checkout: Linktery does not process destination sales.</li>
               </ul>
             </div>
             <div className="bg-slate-900/60 p-6 rounded-2xl border border-border space-y-2">
@@ -545,7 +534,7 @@ export default function CompetitorAlternative() {
               <div>
                 <h3 className="text-lg font-bold text-white mb-2 uppercase tracking-tight">Deep App Launching</h3>
                 <p className="text-sm text-slate-400 leading-relaxed font-sans">
-                  Bypass the in-app browser drop-off completely. Ensure your link launches native device applications directly (Spotify app for playlists, YouTube app for channel subscriptions) to preserve user login sessions.
+                  Attempt supported native-app handoffs for compatible destinations and preserve a useful web fallback when the app or browser blocks the request.
                 </p>
               </div>
             </div>
