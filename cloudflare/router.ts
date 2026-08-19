@@ -18,13 +18,6 @@ export function createPrimaryRedirectUrl(
   return target;
 }
 
-const LEGACY_REDIRECTS: Readonly<Record<string, string>> = {
-  "/features": "/features/link-management",
-  "/tools": "/tools/utm-builder",
-  "/templates": "/templates/link-in-bio",
-  "/guides": "/guides/what-is-link-management",
-};
-
 const SPA_EXACT_ROUTES = new Set([
   "/login",
   "/register",
@@ -50,7 +43,6 @@ function isSpaPrefixRoute(pathname: string): boolean {
 
 function isCanonicalizablePath(pathname: string): boolean {
   if (pathname === "/") return true;
-  if (LEGACY_REDIRECTS[pathname]) return true;
   if (SPA_EXACT_ROUTES.has(pathname) || isSpaPrefixRoute(pathname)) return true;
   if (isSystemRoute(pathname)) return true;
 
@@ -60,11 +52,6 @@ function isCanonicalizablePath(pathname: string): boolean {
 
 function decideCanonicalPath(pathname: string): EdgeRouteDecision {
   if (pathname === "/") return { kind: "landing" };
-
-  const legacyDestination = LEGACY_REDIRECTS[pathname];
-  if (legacyDestination) {
-    return { kind: "redirect", destination: legacyDestination, status: 308 };
-  }
 
   if (SPA_EXACT_ROUTES.has(pathname) || isSpaPrefixRoute(pathname)) {
     return { kind: "spa", routeType: "system", noIndex: true };

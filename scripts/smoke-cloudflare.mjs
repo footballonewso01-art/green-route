@@ -114,19 +114,16 @@ await expectResponse({
   noIndex: true,
 });
 
-const redirect = await request("/features?utm_source=smoke");
-check(redirect.status === 308, `/features: expected 308, received ${redirect.status}`);
-const redirectLocation = redirect.headers.get("location");
-check(Boolean(redirectLocation), "/features: Location header is missing");
-if (redirectLocation) {
-  const redirectUrl = new URL(redirectLocation, baseUrl);
+for (const hubPath of ["/features", "/templates", "/guides", "/tools"]) {
+  const { response } = await expectResponse({
+    pathname: `${hubPath}?utm_source=smoke`,
+    status: 200,
+    contains: `<link rel="canonical" href="https://linktery.com${hubPath}" />`,
+    noIndex: globallyNoIndexed,
+  });
   check(
-    redirectUrl.pathname === "/features/link-management",
-    "/features: wrong redirect destination",
-  );
-  check(
-    redirectUrl.search === "?utm_source=smoke",
-    "/features: query string was not preserved",
+    !response.headers.has("location"),
+    `${hubPath}: an indexable hub must not return a redirect`,
   );
 }
 

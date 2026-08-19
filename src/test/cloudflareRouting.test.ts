@@ -27,18 +27,14 @@ describe("Cloudflare edge routing contract", () => {
     expect(decideEdgeRoute("/")).toEqual({ kind: "landing" });
   });
 
-  it.each([
-    ["/features", "/features/link-management"],
-    ["/tools", "/tools/utm-builder"],
-    ["/templates", "/templates/link-in-bio"],
-    ["/guides", "/guides/what-is-link-management"],
-  ])("keeps the legacy redirect for %s", (source, destination) => {
-    expect(decideEdgeRoute(source)).toEqual({
-      kind: "redirect",
-      destination,
-      status: 308,
-    });
-  });
+  it.each(["/features", "/tools", "/templates", "/guides"])(
+    "lets the indexable SEO hub %s resolve through its prerendered asset",
+    (route) => {
+      // Static HTML assets are resolved by the Worker after this decision. A
+      // redirect here would conflict with the same canonical URL in sitemap.xml.
+      expect(decideEdgeRoute(route)).toEqual({ kind: "not-found" });
+    },
+  );
 
   it.each([
     "/login",
@@ -106,6 +102,7 @@ describe("Cloudflare edge routing contract", () => {
   it.each([
     ["/Nasty", "/nasty"],
     ["/Pricing", "/pricing"],
+    ["/Features/", "/features"],
     ["/Documentation/", "/documentation"],
     ["/dashboard/settings/", "/dashboard/settings"],
     ["/landing/", "/landing"],
