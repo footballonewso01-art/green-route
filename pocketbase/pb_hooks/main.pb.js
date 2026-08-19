@@ -1612,7 +1612,13 @@ routerAdd("POST", "/api/telemetry", (c) => {
         if (!path || path.charAt(0) !== "/") path = "/";
         path = path.substring(0, 160);
 
-        if (eventName === "landing_pageview" || eventName === "active_session") {
+        if (eventName === "active_session") {
+            // Auth-derived daily activity is the authoritative DAU source. The
+            // heartbeat only covers long-lived visible sessions across UTC day
+            // boundaries and intentionally does not create a raw event every
+            // five minutes.
+            utils.recordDailyUserActivity($app, authUser.id, "active_session");
+        } else if (eventName === "landing_pageview") {
             const analyticsCollection = $app.findCollectionByNameOrId("analytics_events");
             $app.save(new Record(analyticsCollection, {
                 "event_name": eventName,
@@ -3903,6 +3909,12 @@ onRecordAuthRequest((e) => {
         throw new ForbiddenError("This account has been suspended.");
     }
     e.next();
+    try {
+        const utils = require(__hooks + '/utils.js');
+        utils.recordDailyUserActivity($app, e.record && e.record.id, "login");
+    } catch (err) {
+        $app.logger().warn("Unable to record login activity: " + err);
+    }
 }, "users");
 
 onRecordAuthRefreshRequest((e) => {
@@ -3910,6 +3922,12 @@ onRecordAuthRefreshRequest((e) => {
         throw new ForbiddenError("This account has been suspended.");
     }
     e.next();
+    try {
+        const utils = require(__hooks + '/utils.js');
+        utils.recordDailyUserActivity($app, e.record && e.record.id, "auth_refresh");
+    } catch (err) {
+        $app.logger().warn("Unable to record auth refresh activity: " + err);
+    }
 }, "users");
 
 // Slug collision prevention and server-side link entitlement enforcement.
@@ -5457,13 +5475,14 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
         db.newQuery("SELECT (SELECT count(*) FROM users WHERE created >= datetime('now', '-1 days')) as u24, (SELECT count(*) FROM users WHERE created >= datetime('now', '-7 days')) as u7")
             .one(usersKpi);
 
-        // 4. DAU / MAU
+        // 4. DAU / MAU. Authentication-backed daily activity remains complete
+        // even when best-effort browser telemetry is rate-limited or offline.
         var dauMau = new DynamicModel({ "dau": 0, "mau": 0 });
-        db.newQuery("SELECT (SELECT count(DISTINCT user_id) FROM analytics_events WHERE created >= datetime('now', '-1 days') AND user_id != '') as dau, (SELECT count(DISTINCT user_id) FROM analytics_events WHERE created >= datetime('now', '-30 days') AND user_id != '') as mau")
+        db.newQuery("SELECT (SELECT count(DISTINCT user_id) FROM user_activity_daily WHERE last_seen >= datetime('now', '-1 days')) as dau, (SELECT count(DISTINCT user_id) FROM user_activity_daily WHERE last_seen >= datetime('now', '-30 days')) as mau")
             .one(dauMau);
 
         var prevDau = new DynamicModel({ "val": 0 });
-        db.newQuery("SELECT count(DISTINCT user_id) as val FROM analytics_events WHERE created >= datetime('now', '-2 days') AND created < datetime('now', '-1 days') AND user_id != ''")
+        db.newQuery("SELECT count(DISTINCT user_id) as val FROM user_activity_daily WHERE first_seen < datetime('now', '-1 days') AND last_seen >= datetime('now', '-2 days')")
             .one(prevDau);
 
         // 5. MRR / Paid Users / Churn
@@ -5561,8 +5580,8 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
 
         var DayDauModel = new DynamicModel({ "day": "", "dau": 0 });
         var dailyDau = arrayOf(DayDauModel);
-        db.newQuery("SELECT date(created) as day, count(DISTINCT user_id) as dau FROM analytics_events WHERE user_id != '' AND created >= datetime('now', '-' || {:days} || ' days') GROUP BY day ORDER BY day ASC")
-            .bind({ days: days })
+        db.newQuery("SELECT activity_date as day, count(*) as dau FROM user_activity_daily WHERE activity_date >= date('now', '-' || {:daysMinusOne} || ' days') GROUP BY activity_date ORDER BY activity_date ASC")
+            .bind({ daysMinusOne: Math.max(0, days - 1) })
             .all(dailyDau);
 
         // Map daily users/revenue into cumulative data

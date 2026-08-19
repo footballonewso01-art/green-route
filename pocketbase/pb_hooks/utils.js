@@ -1632,6 +1632,47 @@ var setAnalyticsCache = function (key, data, ttlMs) {
     };
 };
 
+// Durable DAU/MAU source of truth. The unique key makes frequent heartbeats,
+// multiple tabs, retries, and auth refreshes collapse into one row per UTC day.
+// Metrics must never block authentication or product usage, so callers receive
+// a boolean and the sanitized failure remains server-side.
+var recordDailyUserActivity = function (app, userId, source) {
+    var safeUserId = String(userId || "").trim();
+    if (!safeUserId) return false;
+    var safeSource = String(source || "activity").trim().substring(0, 40) || "activity";
+
+    try {
+        app.db().newQuery(`
+            INSERT INTO user_activity_daily (
+                user_id,
+                activity_date,
+                first_seen,
+                last_seen,
+                source
+            ) VALUES (
+                {:userId},
+                date('now'),
+                datetime('now'),
+                datetime('now'),
+                {:source}
+            )
+            ON CONFLICT(user_id, activity_date) DO UPDATE SET
+                last_seen = excluded.last_seen,
+                source = excluded.source
+        `).bind({
+            userId: safeUserId,
+            source: safeSource
+        }).execute();
+        return true;
+    } catch (err) {
+        app.logger().warn(
+            "Daily user activity write failed source=" + safeSource +
+            " error_type=" + String(err && err.name ? err.name : "unknown")
+        );
+        return false;
+    }
+};
+
 // Single server-side source of truth for entitlements and monthly list prices.
 // -1 denotes an unlimited resource.
 var STRIPE_PRICE_CATALOG = {
@@ -2965,6 +3006,7 @@ module.exports = {
     analyticsRateLimitAllows,
     getAnalyticsCache,
     setAnalyticsCache,
+    recordDailyUserActivity,
     STRIPE_PRICE_CATALOG,
     getStripePriceCatalogEntry,
     requireKnownStripeLineItemPrice,

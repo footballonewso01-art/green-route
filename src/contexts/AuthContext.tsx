@@ -242,12 +242,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 1. Session tracking pulse (top-level hook)
   useEffect(() => {
     if (user) {
+      let lastPulseAt = 0;
       const trackSession = () => {
+        if (document.visibilityState !== "visible") return;
+        const now = Date.now();
+        if (now - lastPulseAt < 60_000) return;
+        lastPulseAt = now;
         sendTelemetry({ event_name: "active_session", path: window.location.pathname });
       };
       trackSession();
       const interval = setInterval(trackSession, 5 * 60 * 1000);
-      return () => clearInterval(interval);
+      const trackVisibleSession = () => {
+        if (document.visibilityState === "visible") trackSession();
+      };
+      window.addEventListener("focus", trackSession);
+      document.addEventListener("visibilitychange", trackVisibleSession);
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener("focus", trackSession);
+        document.removeEventListener("visibilitychange", trackVisibleSession);
+      };
     }
   }, [user]);
 
