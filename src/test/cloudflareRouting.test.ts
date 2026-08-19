@@ -195,10 +195,13 @@ describe("Cloudflare edge routing contract", () => {
 
   it("expects production preview URLs to remain globally noindex", () => {
     const smoke = readWorkspaceFile("scripts/smoke-cloudflare.mjs");
+    const worker = readWorkspaceFile("cloudflare/worker.ts");
 
     expect(smoke).toContain(
       'baseUrl.hostname.toLowerCase().endsWith(".workers.dev")',
     );
+    expect(worker).toContain('headers.set("X-Robots-Tag", "noindex, nofollow")');
+    expect(worker).toContain('headers.delete("X-Robots-Tag")');
   });
 
   it("keeps routine frontend deploys on Cloudflare", () => {

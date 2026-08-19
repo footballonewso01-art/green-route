@@ -160,6 +160,11 @@ function applyResponseHeaders(
   }
   if (options.noIndex || shouldForceNoIndex(request, env)) {
     headers.set("X-Robots-Tag", "noindex, nofollow");
+  } else {
+    // Static Assets responses may be served from a different edge cache than
+    // the Worker code. Never let a stale staging/preview header keep an
+    // otherwise indexable production page out of search results.
+    headers.delete("X-Robots-Tag");
   }
   if (options.contentType) headers.set("Content-Type", options.contentType);
   if (options.cacheControl) headers.set("Cache-Control", options.cacheControl);
