@@ -19,7 +19,7 @@ describe("landing mobile hero", () => {
     expect(landing).toContain("items-start overflow-hidden px-4 pb-14 pt-28");
     expect(landing).toContain("lg:min-h-[90vh] lg:items-center");
     expect(landing).toContain("text-[clamp(1.85rem,9.6vw,2.25rem)]");
-    expect(landing).toContain('aria-label="Choose your Linktery username"');
+    expect(landing).toContain('aria-label="Choose your Public Profile address"');
     expect(landing).toContain("prefersReducedMotion");
   });
 });

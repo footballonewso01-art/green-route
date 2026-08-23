@@ -7,6 +7,7 @@ import { PlanType, PLAN_RANKS } from "@/lib/plans";
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { trackGrowthEvent } from "@/lib/telemetry";
 
 const plans = [
   {
@@ -52,7 +53,7 @@ const plans = [
     description: "For agencies and power users",
     features: [
       { text: "Unlimited Smart Links", icon: "🚀" },
-      { text: "Unlimited Biolink Profiles", icon: "👥", tooltip: "Create unlimited profiles for brands." },
+      { text: "25 Client Profiles", icon: "👥", tooltip: "Manage up to 25 separate Link-in-Bio profiles for clients or brands." },
       { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
       { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
       { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
@@ -80,6 +81,16 @@ export default function PricingPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useSeo(SEO_PAGES.pricing);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("pricing_viewed")) return;
+      sessionStorage.setItem("pricing_viewed", "true");
+      trackGrowthEvent("pricing_viewed", { surface: "pricing" });
+    } catch {
+      trackGrowthEvent("pricing_viewed", { surface: "pricing" });
+    }
+  }, []);
 
   // Background animated stars canvas
   useEffect(() => {

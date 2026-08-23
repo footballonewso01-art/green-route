@@ -581,7 +581,7 @@ export default function FitnessCoachSolution() {
               When a prospective client clicks the link in your bio, the social app renders your booking calendar (like Calendly or Acuity) or intake questionnaire (like Google Forms or Typeform) inside its own temporary browser frame. Because WebViews isolate cookies, your users are logged out of their Google or Apple accounts. 
             </p>
             <p>
-              Having to manually type an email, password, and confirmation code to book a consultation on a mobile device leads to a massive loss of high-intent clients. Up to **70-80% of clicks bounce** before completing the intake.
+              Having to manually type an email, password, and confirmation code to book a consultation on a mobile device adds friction and can lose high-intent clients before they complete the intake.
             </p>
 
             <h3 className="text-lg sm:text-xl font-bold text-white uppercase pt-4 border-b border-[#1e293b]/55 pb-2 flex items-center gap-2">
@@ -601,7 +601,7 @@ export default function FitnessCoachSolution() {
               <Target className="w-5 h-5 text-[#06b6d4]" /> The Linktery Solution: Clean Redirects & Custom Domains
             </h3>
             <p>
-              Linktery resolves mobile drop-offs by executing an automatic protocol handshake. On our Pro and Agency tiers, we detect the visitor's device parameters and instruct the phone's operating system to launch target calendars, checkout pages, and forms inside native Safari or Chrome app viewports.
+              On Pro and Agency, Linktery detects relevant device parameters and attempts a compatible app or system-browser handoff for configured destinations. The operating system and host app make the final decision, so every route retains a normal web fallback.
             </p>
             <p>
               This preserves pre-saved credit card tokens, Google credentials, and autofill inputs, shortening your client intake journey to a few taps. Connect your own custom domain (e.g. `coach.yourname.com`) to build direct domain reputation and guarantee your social links never get flagged under shared platform bans.

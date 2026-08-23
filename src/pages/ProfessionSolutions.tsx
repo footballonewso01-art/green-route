@@ -18,11 +18,6 @@ interface MockLink {
   clicks: string;
 }
 
-interface MockStat {
-  label: string;
-  value: string;
-}
-
 interface MockFaq {
   question: string;
   answer: string;
@@ -39,7 +34,6 @@ interface ProfessionConfig {
   avatar: string;
   handle: string;
   links: MockLink[];
-  stats: MockStat[];
   problemTitle: string;
   problemDesc: string;
   solutionTitle: string;
@@ -63,6 +57,20 @@ export default function ProfessionSolutions() {
   const config = (professionsData as ProfessionConfig[]).find(
     (item) => item.slug === professionSlug
   );
+  const factualFaqs: MockFaq[] = config ? [
+    {
+      question: `Can I create a separate Public Profile for my ${config.name.toLowerCase()} work?`,
+      answer: "Yes. A Public Profile has its own name, avatar, public slug, visual template, social links, and attached smart links. It stays separate from your Linktery account identity.",
+    },
+    {
+      question: "What can I measure from a Public Profile?",
+      answer: "Linktery records profile views and clicks on attached links. Available analytics can include time, country, device, browser, operating system, and referrer breakdowns, depending on the signal and your plan.",
+    },
+    {
+      question: "Will deeplinking always force an external app or browser?",
+      answer: "No service can override every social app or mobile operating-system restriction. Linktery attempts supported app or browser handoffs and keeps a normal web fallback when automatic opening is blocked.",
+    },
+  ] : [];
 
   // FAQ State
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
@@ -106,7 +114,7 @@ export default function ProfessionSolutions() {
       },
       {
         "@type": "FAQPage",
-        "mainEntity": config.faqs.map(item => ({
+        "mainEntity": factualFaqs.map(item => ({
           "@type": "Question",
           "name": item.question,
           "acceptedAnswer": {
@@ -233,7 +241,7 @@ export default function ProfessionSolutions() {
             </div>
             
             <div className="text-xs text-slate-400 font-mono">
-              Live Mockup Preview
+              Illustrative profile preview
             </div>
           </div>
 
@@ -267,7 +275,7 @@ export default function ProfessionSolutions() {
                     >
                       <span className="text-sm">{link.icon}</span>
                       <span className="text-[10px] font-bold text-white leading-tight flex-1">{link.title}</span>
-                      <span className="text-[8px] bg-white/10 text-slate-400 px-1.5 py-0.5 rounded font-mono font-bold">{link.clicks}</span>
+                      <ExternalLink className="h-3 w-3 text-slate-500" />
                     </div>
                   ))}
                 </div>
@@ -295,12 +303,12 @@ export default function ProfessionSolutions() {
                     <p>&gt; Profile Type: <span className="text-white">{config.name}</span></p>
                     <p>&gt; Custom handle: <span className="text-accent">{config.handle}</span></p>
                     
-                    {/* Dynamic Metrics Cards */}
+                    {/* Supported analytics dimensions, not fabricated results. */}
                     <div className="grid grid-cols-3 gap-3 pt-2">
-                      {config.stats.map((stat, idx) => (
-                        <div key={idx} className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl text-center space-y-1">
-                          <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest font-mono block">{stat.label}</span>
-                          <p className="text-xs md:text-sm font-extrabold text-white">{stat.value}</p>
+                      {[["Profile", "Views"], ["Links", "Clicks"], ["Traffic", "Sources"]].map(([label, value]) => (
+                        <div key={label} className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl text-center space-y-1">
+                          <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest font-mono block">{label}</span>
+                          <p className="text-xs md:text-sm font-extrabold text-white">{value}</p>
                         </div>
                       ))}
                     </div>
@@ -369,21 +377,21 @@ export default function ProfessionSolutions() {
               <div className="space-y-4 pt-4 border-t border-red-950/40 font-sans text-xs text-slate-300">
                 <div className="flex gap-3">
                   <div className="w-5 h-5 rounded-full bg-red-500/10 flex items-center justify-center text-red-400 shrink-0 font-bold text-xs">1</div>
-                  <p>{config.bullet1}</p>
+                  <p>A generic destination gives every visitor the same path, even when their device or country differs.</p>
                 </div>
                 <div className="flex gap-3">
                   <div className="w-5 h-5 rounded-full bg-red-500/10 flex items-center justify-center text-red-400 shrink-0 font-bold text-xs">2</div>
-                  <p>{config.bullet2}</p>
+                  <p>Updating several social bios separately makes campaign changes slower and easier to miss.</p>
                 </div>
                 <div className="flex gap-3">
                   <div className="w-5 h-5 rounded-full bg-red-500/10 flex items-center justify-center text-red-400 shrink-0 font-bold text-xs">3</div>
-                  <p>{config.bullet3}</p>
+                  <p>Without profile-view and link-click data, it is difficult to see which destinations earn attention.</p>
                 </div>
               </div>
             </div>
             
             <div className="mt-8 pt-4 border-t border-red-950/40 flex items-center gap-2 text-xs text-red-400 font-mono">
-              <ShieldAlert className="w-4 h-4" /> Result: Lost client conversions, platform bans, or bloated subscription bills.
+              <ShieldAlert className="w-4 h-4" /> Result: More friction, slower updates, and less visibility into visitor behavior.
             </div>
           </div>
 
@@ -393,11 +401,11 @@ export default function ProfessionSolutions() {
             <div className="space-y-6">
               <div>
                 <span className="text-accent text-xs font-bold uppercase tracking-widest font-mono block mb-2">Our Solution</span>
-                <h3 className="text-2xl font-black text-white uppercase tracking-tight">{config.solutionTitle}</h3>
+                <h3 className="text-2xl font-black text-white uppercase tracking-tight">A measurable profile and routing layer</h3>
               </div>
               
               <p className="text-sm text-slate-300 leading-relaxed">
-                {config.solutionDesc}
+                Build a dedicated Public Profile for this audience, attach your existing smart links, choose a visual template, and measure profile views separately from destination clicks. Optional device and country rules stay on the underlying links.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-emerald-950/20">
@@ -406,10 +414,10 @@ export default function ProfessionSolutions() {
                     <div className="w-6 h-6 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent">
                       <Layers className="w-3.5 h-3.5" />
                     </div>
-                    <h4 className="text-xs font-bold text-white uppercase font-mono">Unified Console</h4>
+                    <h4 className="text-xs font-bold text-white uppercase font-mono">Profile Library</h4>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Build and control all your bio-links (personal pages, storefronts, portfolios) from one master account. Swap workspaces in 1 click.
+                    Keep separate Public Profiles under one account, up to the profile allowance included with your plan.
                   </p>
                 </div>
 
@@ -418,10 +426,10 @@ export default function ProfessionSolutions() {
                     <div className="w-6 h-6 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent">
                       <Globe className="w-3.5 h-3.5" />
                     </div>
-                    <h4 className="text-xs font-bold text-white uppercase font-mono">Independent Domains</h4>
+                    <h4 className="text-xs font-bold text-white uppercase font-mono">Attached Smart Links</h4>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Connect distinct custom domains (e.g. vlog.com for Profile A, shop.com for Profile B) without buying separate subscription plans.
+                    Attach existing Linktery links to a profile without duplicating their destination, routing rules, or click history.
                   </p>
                 </div>
 
@@ -430,10 +438,10 @@ export default function ProfessionSolutions() {
                     <div className="w-6 h-6 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent">
                       <BarChart3 className="w-3.5 h-3.5" />
                     </div>
-                    <h4 className="text-xs font-bold text-white uppercase font-mono">Isolated Data & Pixels</h4>
+                    <h4 className="text-xs font-bold text-white uppercase font-mono">Profile Analytics</h4>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Add separate Facebook Pixels, TikTok tags, and Google Analytics to each brand profile. Data stays clean and unpolluted.
+                    Review profile views separately from clicks on the smart links visitors choose inside the profile.
                   </p>
                 </div>
 
@@ -442,10 +450,10 @@ export default function ProfessionSolutions() {
                     <div className="w-6 h-6 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent">
                       <Zap className="w-3.5 h-3.5" />
                     </div>
-                    <h4 className="text-xs font-bold text-white uppercase font-mono">Ultra SSG Speed</h4>
+                    <h4 className="text-xs font-bold text-white uppercase font-mono">Visual Templates</h4>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Public marketing pages are pre-rendered and assets are cached so repeat requests avoid downloading the full stylesheet again.
+                    Choose from five profile structures and tune card, social-link, color, avatar, and background-image presentation.
                   </p>
                 </div>
               </div>
@@ -461,53 +469,29 @@ export default function ProfessionSolutions() {
         </div>
       </section>
 
-      {/* COMPARISON MATRIX */}
+      {/* VERIFIED CAPABILITY SUMMARY */}
       <section className="py-16 px-6 max-w-6xl mx-auto relative z-10 border-t border-border/40">
         <div className="text-center mb-12">
-          <span className="text-accent text-xs font-bold uppercase tracking-widest font-mono">Comparison Matrix</span>
-          <h2 className="text-3xl font-extrabold tracking-tight text-white mt-2 mb-3">Feature Comparison</h2>
+          <span className="text-accent text-xs font-bold uppercase tracking-widest font-mono">Product fit</span>
+          <h2 className="text-3xl font-extrabold tracking-tight text-white mt-2 mb-3">What you can build in Linktery</h2>
           <p className="text-sm text-muted-foreground max-w-lg mx-auto">
-            Compare dynamic bio link capabilities between Linktery and other standard tools.
+            A concise view of current capabilities, without speculative competitor claims.
           </p>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-border bg-surface/50 backdrop-blur-md">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-border bg-surface-hover/80 text-muted-foreground text-xs md:text-sm font-bold tracking-wider uppercase font-mono">
-                <th className="p-4 md:p-6">Feature Details</th>
-                <th className="p-4 md:p-6 text-accent">Linktery</th>
-                <th className="p-4 md:p-6">Linktree</th>
-                <th className="p-4 md:p-6">Bento.me</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border text-xs md:text-sm text-foreground/90 font-mono">
-              <tr className="hover:bg-surface-hover/40 transition-colors">
-                <td className="p-4 md:p-6 font-semibold text-white font-sans">Multi-Profile Dashboard Management</td>
-                <td className="p-4 md:p-6 text-green-400">✅ Yes (Unlimited under one login)</td>
-                <td className="p-4 md:p-6 text-red-500">❌ No (Forced separate accounts)</td>
-                <td className="p-4 md:p-6 text-red-500">❌ No (Single profile page only)</td>
-              </tr>
-              <tr className="hover:bg-surface-hover/40 transition-colors">
-                <td className="p-4 md:p-6 font-semibold text-white font-sans">Page Load Speed (LCP)</td>
-                <td className="p-4 md:p-6 text-green-400">✅ Instant &lt; 150ms (SSG)</td>
-                <td className="p-4 md:p-6 text-amber-500">⚠️ Slow LCP delays (CSR)</td>
-                <td className="p-4 md:p-6 text-amber-500">⚠️ Medium loading speeds</td>
-              </tr>
-              <tr className="hover:bg-surface-hover/40 transition-colors">
-                <td className="p-4 md:p-6 font-semibold text-white font-sans">Pixel Tracking & UTM Analytics</td>
-                <td className="p-4 md:p-6 text-green-400">✅ Yes (Facebook, TikTok, Google tags)</td>
-                <td className="p-4 md:p-6 text-amber-500">⚠️ Paywalled on Pro tier</td>
-                <td className="p-4 md:p-6 text-red-500">❌ Basic stats only</td>
-              </tr>
-              <tr className="hover:bg-surface-hover/40 transition-colors">
-                <td className="p-4 md:p-6 font-semibold text-white font-sans">Independent Subdomains mapping</td>
-                <td className="p-4 md:p-6 text-green-400">✅ Yes (Link personal domain per profile)</td>
-                <td className="p-4 md:p-6 text-amber-500">⚠️ Paywalled</td>
-                <td className="p-4 md:p-6 text-red-500">❌ Paywalled</td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {[
+            ["Separate profile identity", "Each Public Profile has its own public name, avatar, slug, theme, and social links."],
+            ["Reusable smart links", "Attach an existing link to a profile while keeping its routing settings and analytics source of truth."],
+            ["Profile and click analytics", "Measure profile views and the destination-link clicks generated inside each profile."],
+            ["Five visual templates", "Choose a profile structure, then customize link cards, colors, icons, and background images."],
+          ].map(([title, description]) => (
+            <div key={title} className="rounded-2xl border border-border bg-surface/40 p-6">
+              <Check className="mb-4 h-5 w-5 text-accent" />
+              <h3 className="text-sm font-bold text-white">{title}</h3>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{description}</p>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -519,7 +503,7 @@ export default function ProfessionSolutions() {
         </div>
 
         <div className="space-y-4">
-          {config.faqs.map((item, index) => (
+          {factualFaqs.map((item, index) => (
             <div 
               key={index}
               className="border border-border/60 bg-surface/20 rounded-2xl overflow-hidden transition-all duration-200"

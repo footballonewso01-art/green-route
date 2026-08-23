@@ -3,7 +3,7 @@ import { pb } from "@/lib/pocketbase";
 import {
     Users, Activity, TrendingUp, ChevronLeft,
     ArrowUpRight, ArrowDownRight, Zap, Target, MousePointer2,
-    Lightbulb, History
+    Lightbulb, History, Waypoints
 } from "lucide-react";
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -31,6 +31,8 @@ interface DashboardStats {
     mrr: number;
     arpu: number;
     conversionRate: number;
+    activatedAccounts?: number;
+    activationRate?: number;
     churnRate: number;
     avgLinksPerUser?: number;
     totalClicksInPeriod: number;
@@ -75,6 +77,13 @@ interface PulseEvent {
     created: string;
 }
 
+interface SourcePerformance {
+    name: string;
+    signups: number;
+    activated: number;
+    paid: number;
+}
+
 interface OverviewResponse {
     stats: DashboardStats;
     growthData: GrowthDataPoint[];
@@ -84,6 +93,7 @@ interface OverviewResponse {
     pulseEvents?: PulseEvent[];
     conversionEvents?: ConversionEvent[];
     trafficData?: NamedValue[];
+    sourceData?: SourcePerformance[];
 }
 
 interface KPIBadgeProps {
@@ -120,11 +130,11 @@ export default function AdminOverview() {
 
     const [growthData, setGrowthData] = useState<GrowthDataPoint[]>([]);
     const [planData, setPlanData] = useState<NamedValue[]>([]);
-    const [trafficData, setTrafficData] = useState<NamedValue[]>([]);
     const [topCreators, setTopCreators] = useState<TopCreator[]>([]);
     const [dauData, setDauData] = useState<DauDataPoint[]>([]);
     const [conversionEvents, setConversionEvents] = useState<ConversionEvent[]>([]);
     const [pulseEvents, setPulseEvents] = useState<PulseEvent[]>([]);
+    const [sourceData, setSourceData] = useState<SourcePerformance[]>([]);
 
     useEffect(() => {
         fetchDashboardData();
@@ -147,7 +157,7 @@ export default function AdminOverview() {
             setTopCreators(res.topCreators || []);
             setPulseEvents(res.pulseEvents || []);
             setConversionEvents(res.conversionEvents || []);
-            setTrafficData(res.trafficData || []);
+            setSourceData(res.sourceData || []);
         } catch (err) {
             console.error("Dashboard Fetch Error:", err);
             toast.error("Telemetry failure. Real-time monitoring disrupted.");
@@ -224,8 +234,9 @@ export default function AdminOverview() {
             </div>
 
             {/* KPI Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
                 <KPIBadge label="Total Users" value={stats.totalUsers} trend={stats.trends.users} />
+                <KPIBadge label="Activated Accounts" value={stats.activatedAccounts || 0} />
                 <KPIBadge label="Total Redirects" value={stats.totalClicksInPeriod} trend={stats.trends.clicks} />
                 <KPIBadge label="Active (DAU/MAU)" value={`${stats.dau} / ${stats.mau}`} trend={stats.trends.dau} />
                 <KPIBadge label="MRR" value={stats.mrr} isCurrency={true} />
@@ -315,22 +326,40 @@ export default function AdminOverview() {
                     {/* Funnel & Traffic */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="bg-surface border border-border rounded-3xl p-8 shadow-xl">
-                            <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
-                                Acquisition Funnel <Target className="w-5 h-5 text-blue-500" />
-                            </h2>
-                            <div className="space-y-6">
+                            <div className="mb-6 flex items-start justify-between gap-4">
+                                <div>
+                                    <h2 className="text-xl font-bold flex items-center gap-3">
+                                        Activation Funnel <Target className="w-5 h-5 text-accent" />
+                                    </h2>
+                                    <p className="mt-1 text-xs text-muted-foreground">From first visit to first real traffic.</p>
+                                </div>
+                                <span className="rounded-full border border-accent/20 bg-accent/5 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-accent">
+                                    {(stats.activationRate || 0).toFixed(1)}% activated
+                                </span>
+                            </div>
+                            <div className="relative space-y-1 before:absolute before:bottom-5 before:left-[7px] before:top-5 before:w-px before:bg-gradient-to-b before:from-accent before:to-accent/10">
                                 {conversionEvents.map((step, i) => (
-                                    <div key={i} className="space-y-2">
-                                        <div className="flex justify-between items-end">
-                                            <span className="text-sm font-bold text-muted-foreground">{step.name}</span>
-                                            <span className="text-lg font-black">{step.value.toLocaleString()}</span>
+                                    <div key={step.name} className="relative grid grid-cols-[16px_1fr_auto] items-center gap-3 rounded-xl px-0 py-2.5">
+                                        <span className="relative z-10 h-[15px] w-[15px] rounded-full border-4 border-surface bg-accent shadow-[0_0_12px_rgba(52,211,153,0.35)]" />
+                                        <div className="min-w-0">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="truncate text-sm font-semibold text-foreground/85">{step.name}</span>
+                                                {i > 0 && (
+                                                    <span className="font-mono text-[10px] text-muted-foreground">
+                                                        {conversionEvents[i - 1].value > 0
+                                                            ? `${((step.value / conversionEvents[i - 1].value) * 100).toFixed(0)}%`
+                                                            : "—"}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-background">
+                                                <div
+                                                    className="h-full rounded-full bg-gradient-to-r from-emerald-700 to-accent transition-all duration-700"
+                                                    style={{ width: `${Math.min(100, (step.value / (conversionEvents[0]?.value || 1)) * 100)}%` }}
+                                                />
+                                            </div>
                                         </div>
-                                        <div className="h-4 w-full bg-background rounded-full overflow-hidden border border-white/5">
-                                            <div
-                                                className="h-full rounded-full transition-all duration-1000 ease-out"
-                                                style={{ width: `${(step.value / (conversionEvents[0].value || 1)) * 100}%`, backgroundColor: step.color }}
-                                            />
-                                        </div>
+                                        <span className="min-w-10 text-right font-mono text-sm font-black text-white">{step.value.toLocaleString()}</span>
                                     </div>
                                 ))}
                             </div>
@@ -358,6 +387,42 @@ export default function AdminOverview() {
                                     <p className="text-sm text-muted-foreground text-center py-10 italic">Awaiting traffic data...</p>
                                 )}
                             </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-surface border border-border rounded-3xl p-8 shadow-xl">
+                        <div className="mb-6 flex items-start justify-between gap-4">
+                            <div>
+                                <h2 className="text-xl font-bold flex items-center gap-3">
+                                    Acquisition Sources <Waypoints className="w-5 h-5 text-accent" />
+                                </h2>
+                                <p className="mt-1 text-xs text-muted-foreground">First-touch source quality for new accounts.</p>
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[520px] text-left">
+                                <thead>
+                                    <tr className="border-b border-white/5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                                        <th className="pb-3 font-medium">Source</th>
+                                        <th className="pb-3 text-right font-medium">Signups</th>
+                                        <th className="pb-3 text-right font-medium">Activated</th>
+                                        <th className="pb-3 text-right font-medium">Paid</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sourceData.map((source) => (
+                                        <tr key={source.name} className="border-b border-white/[0.04] last:border-0">
+                                            <td className="py-3.5 text-sm font-semibold text-white">{source.name}</td>
+                                            <td className="py-3.5 text-right font-mono text-sm text-muted-foreground">{source.signups.toLocaleString()}</td>
+                                            <td className="py-3.5 text-right font-mono text-sm text-accent">{source.activated.toLocaleString()}</td>
+                                            <td className="py-3.5 text-right font-mono text-sm text-white">{source.paid.toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {sourceData.length === 0 && (
+                                <p className="py-8 text-center text-sm text-muted-foreground">Acquisition data will appear after the first attributed signup.</p>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -409,9 +474,6 @@ export default function AdminOverview() {
                                 </p>
                             ))}
                         </div>
-                        <button className="mt-8 w-full py-3 bg-accent text-black font-black rounded-xl text-sm uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all">
-                            Generate Report
-                        </button>
                     </div>
                 </div>
             </div>
@@ -422,7 +484,6 @@ export default function AdminOverview() {
                     <h2 className="text-2xl font-black text-white flex items-center gap-3">
                         Real-Time Pulse <History className="w-6 h-6 text-accent" />
                     </h2>
-                    <button className="text-sm font-bold text-accent hover:underline">View All Logs</button>
                 </div>
                 <div className="space-y-4">
                     {pulseEvents.length > 0 ? pulseEvents.map((event, i) => (

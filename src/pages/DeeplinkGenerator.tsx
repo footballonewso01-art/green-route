@@ -104,7 +104,7 @@ export default function DeeplinkGenerator() {
     },
     {
       question: "How do deep links increase conversions and sales?",
-      answer: "By opening native applications (such as YouTube or Shopify) where users are already authenticated, the path to a subscription or checkout is minimized to a single tap. Removing the high-friction login barrier routinely improves mobile checkout conversions by 40% to 150%."
+      answer: "When the operating system permits a native-app handoff, visitors may keep their existing signed-in state and avoid repeated navigation. The effect on conversion depends on the destination, audience, device, and host platform, so measure it against your own baseline analytics."
     },
     {
       question: "Is using deep links safe for my social media accounts?",
@@ -362,7 +362,7 @@ export default function DeeplinkGenerator() {
 
                     <div className="pt-2 border-t border-red-500/10 flex items-center justify-between text-[9px]">
                       <span className="text-slate-500">RESULT: VISITOR BOUNCES</span>
-                      <span className="text-red-500 font-black">~80% Drop-off</span>
+                      <span className="text-red-500 font-black">High friction</span>
                     </div>
                   </div>
 
@@ -398,7 +398,7 @@ export default function DeeplinkGenerator() {
 
                     <div className="pt-2 border-t border-emerald-500/20 flex items-center justify-between text-[9px]">
                       <span className="text-slate-500">RESULT: ACTION COMPLETED</span>
-                      <span className="text-emerald-400 font-black">&lt;5% Drop-off</span>
+                      <span className="text-emerald-400 font-black">Fewer steps</span>
                     </div>
                   </div>
                 </div>
@@ -442,28 +442,28 @@ export default function DeeplinkGenerator() {
                   <td className="p-4 sm:p-5">WKWebView Sandbox</td>
                   <td className="p-4 sm:p-5 text-red-400">Strictly Sandboxed</td>
                   <td className="p-4 sm:p-5">Logged Out (Guest)</td>
-                  <td className="p-4 sm:p-5 text-right text-red-500 font-bold">~85% Drop-off</td>
+                  <td className="p-4 sm:p-5 text-right text-red-500 font-bold">High friction</td>
                 </tr>
                 <tr>
                   <td className="p-4 sm:p-5 font-bold text-white uppercase">TikTok</td>
                   <td className="p-4 sm:p-5">Client WebKit Wrapper</td>
                   <td className="p-4 sm:p-5 text-red-400">Strictly Sandboxed</td>
                   <td className="p-4 sm:p-5">Logged Out (Guest)</td>
-                  <td className="p-4 sm:p-5 text-right text-red-500 font-bold">~82% Drop-off</td>
+                  <td className="p-4 sm:p-5 text-right text-red-500 font-bold">High friction</td>
                 </tr>
                 <tr>
                   <td className="p-4 sm:p-5 font-bold text-white uppercase">YouTube Mobile</td>
                   <td className="p-4 sm:p-5">Custom Web View</td>
                   <td className="p-4 sm:p-5 text-amber-500">Isolated viewport</td>
                   <td className="p-4 sm:p-5">Logged Out (Guest)</td>
-                  <td className="p-4 sm:p-5 text-right text-amber-500 font-bold">~75% Drop-off</td>
+                  <td className="p-4 sm:p-5 text-right text-amber-500 font-bold">Medium friction</td>
                 </tr>
                 <tr>
                   <td className="p-4 sm:p-5 font-bold text-emerald-400 uppercase">Linktery Deep Link</td>
                   <td className="p-4 sm:p-5 text-emerald-400">OS Protocol Handshake</td>
                   <td className="p-4 sm:p-5 text-emerald-400">Native App Container</td>
                   <td className="p-4 sm:p-5 text-emerald-400">Session Authenticated</td>
-                  <td className="p-4 sm:p-5 text-right text-emerald-400 font-bold">&lt; 5% Drop-off</td>
+                  <td className="p-4 sm:p-5 text-right text-emerald-400 font-bold">Reduced friction</td>
                 </tr>
               </tbody>
             </table>
@@ -495,7 +495,7 @@ export default function DeeplinkGenerator() {
               This built-in browser is a sandboxed environment. It is completely isolated from your device's primary system browser (like Safari or Chrome). The critical issue for businesses and creators is that the visitor is logged out of every external platform inside this temporary viewport.
             </p>
             <p>
-              If a user wants to subscribe to your YouTube channel, pledge support on Patreon, or buy a product from your shop, they are forced to manually type their username, remember their password, pass two-factor auth checks, or re-type credit card details. Users on mobile devices rarely complete these high-friction steps. Consequently, they abandon the tab and swipe away, resulting in up to an 80% loss in potential transactions.
+              If a user wants to subscribe, pledge support, or buy a product from an in-app browser, they may need to sign in again or repeat checkout steps. Those extra actions increase abandonment risk, which is why every deeplink also needs a reliable browser fallback.
             </p>
 
             <h3 className="text-xl font-bold text-white uppercase pt-4 border-b border-slate-900 pb-2 flex items-center gap-2">
@@ -530,7 +530,7 @@ export default function DeeplinkGenerator() {
               <Sparkles className="w-5 h-5 text-[#eab308]" /> Why Choose Linktery for Deeplinking?
             </h3>
             <p>
-              Linktery processes redirects globally on serverless edge networks in under 15ms. In addition to high-speed delivery, we provide granular click analytics filtered by devices and locations, and enforce a strict 0% commission policy on your direct product sales. Create your first link for free today and test deep linking performance in real time.
+              Linktery processes routing through globally distributed edge infrastructure. Actual latency varies by visitor network, destination, and enabled rules. Link analytics include device and location dimensions, and Linktery does not take a commission from purchases made at your destination.
             </p>
           </div>
         </article>

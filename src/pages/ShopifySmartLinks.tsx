@@ -77,7 +77,7 @@ export default function ShopifySmartLinks() {
   const faqItems: FaqItem[] = [
     {
       question: "Why do standard bio links kill my store's Shopify sales conversions?",
-      answer: "When a potential buyer clicks the link in your Instagram bio, the app opens your Shopify store inside its private in-app webview browser. In this webview, native quick-checkout buttons like Apple Pay, Google Pay, and Shop Pay are completely disabled by mobile OS security policies. Customers are forced to type their 16-digit credit card number and billing address manually, leading to up to an 80% checkout abandonment rate."
+      answer: "Instagram may open a Shopify store inside an in-app webview. Wallet availability, cookies, and signed-in state depend on the device and checkout configuration, which can add steps for the buyer. Linktery attempts supported browser or app handoffs and retains a safe fallback when automatic opening is blocked."
     },
     {
       question: "How does Linktery solve the Apple Pay / Google Pay webview issue?",
@@ -337,7 +337,7 @@ export default function ShopifySmartLinks() {
                         </div>
                       </div>
                       <span className="text-[8px] text-red-500 font-black uppercase text-center">
-                        80% User Checkout Dropoff
+                        Extra checkout friction
                       </span>
                     </div>
                   )}
@@ -437,7 +437,7 @@ export default function ShopifySmartLinks() {
                 <div className="flex gap-3 text-left">
                   <span className="text-xs font-mono font-bold text-red-500 bg-red-500/10 w-5 h-5 rounded-full flex items-center justify-center shrink-0">3</span>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    <strong className="text-white">Blocked Mobile Wallets.</strong> Because it's an in-app browser, native Apple Pay or Google Pay buttons are disabled by OS policies. She sees an error or must use credit card fields.
+                    <strong className="text-white">Wallet availability varies.</strong> In-app browser, device, and Shopify configuration determine whether Apple Pay, Google Pay, or Shop Pay are available. The buyer may see extra checkout steps.
                   </p>
                 </div>
                 <div className="flex gap-3 text-left">
@@ -450,7 +450,7 @@ export default function ShopifySmartLinks() {
             </div>
 
             <div className="border-t border-red-500/10 pt-4 text-center text-xs font-mono text-red-400 font-bold uppercase tracking-wider">
-              ⚠️ Result: Sale lost. Minus 80% checkout conversion.
+              ⚠️ Result: The buyer may face extra sign-in or payment steps.
             </div>
           </div>
 
@@ -474,7 +474,7 @@ export default function ShopifySmartLinks() {
                 <div className="flex gap-3 text-left">
                   <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 w-5 h-5 rounded-full flex items-center justify-center shrink-0">1</span>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    <strong className="text-white">Instant Native Escape.</strong> Linktery detects the shopper's device and automatically launches your store inside their native browser (Safari on iOS, Chrome on Android).
+                    <strong className="text-white">Supported browser handoff.</strong> Linktery detects the device and attempts to open a compatible system browser or app, with a safe web fallback when the social platform blocks automatic opening.
                   </p>
                 </div>
                 <div className="flex gap-3 text-left">
@@ -499,7 +499,7 @@ export default function ShopifySmartLinks() {
             </div>
 
             <div className="border-t border-emerald-500/10 pt-4 text-center text-xs font-mono text-emerald-400 font-bold uppercase tracking-wider">
-              🎉 Result: Successful purchase. Up to 216% higher checkout conversion.
+              🎉 Result: A shorter path to the configured checkout when the device allows it.
             </div>
           </div>
 
@@ -524,7 +524,7 @@ export default function ShopifySmartLinks() {
               However, these built-in webview browsers are isolated sandboxes. For security reasons, Apple and Google block in-app webviews from accessing native device keys, saved passwords, and hardware payment wallets like <strong className="text-white">Apple Pay</strong> and <strong className="text-white">Google Pay</strong>.
             </p>
             <p>
-              This leaves your shoppers with blank cart forms, forcing them to manually type out their credit card details. Linktery solves this by using secure mobile OS URI handshakes to bypass the webview sandboxes and force-open the shopper's native default browser.
+              This can leave shoppers signed out or without their preferred wallet. Linktery attempts supported mobile handoffs and preserves a normal web destination when the operating system or social platform blocks them.
             </p>
           </div>
         </div>
@@ -625,7 +625,7 @@ export default function ShopifySmartLinks() {
                   </div>
                   <span className="text-[10px] font-bold text-accent uppercase font-mono block mb-1">Recovered Revenue</span>
                   <span className="text-xl font-black text-white font-mono">${recoveredRevenue.toLocaleString()}</span>
-                  <span className="text-[9px] text-accent block mt-1 font-bold">+216% Sales Lift</span>
+                  <span className="text-[9px] text-accent block mt-1 font-bold">Destination analytics</span>
                 </div>
               </div>
 

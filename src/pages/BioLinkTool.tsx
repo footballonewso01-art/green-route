@@ -81,7 +81,7 @@ export default function BioLinkTool() {
     },
     {
       question: "What is the 'Instagram Browser Jail' and how does Linktery solve it?",
-      answer: "When a follower clicks your profile link in Instagram, TikTok, or Facebook, the social app loads it in a sandboxed, built-in browser (webview). Because visitors are logged out of external websites inside that webview, they cannot purchase items, subscribe, or follow you easily. Linktery dispatches custom device protocols (e.g., youtube://, spotify://) to trigger the native app directly on the phone, preventing up to 80% user drop-off."
+      answer: "When a follower clicks your profile link in Instagram, TikTok, or Facebook, the social app may load it in a restricted in-app browser. Visitors can be signed out of destination services there. Linktery uses supported app links and safe browser fallbacks to reduce that friction; the final handoff still depends on the device, installed apps, and host platform."
     },
     {
       question: "Can I map my own custom subdomain to my Link-in-Bio profile?",
@@ -434,7 +434,7 @@ export default function BioLinkTool() {
             </div>
             <h3 className="text-md font-black uppercase text-white mb-2">Edge Routing Redirections</h3>
             <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-              Linktery processes redirections on globally distributed serverless networks in under 15ms. Rapid delivery speeds improve user experience and reduce bounce drop-offs.
+              Linktery serves routing logic through globally distributed edge infrastructure. Actual redirect time varies by visitor network, location, destination, and enabled link rules.
             </p>
           </div>
 
@@ -492,7 +492,7 @@ export default function BioLinkTool() {
                   <td className="p-4 sm:p-5">Custom WKWebView</td>
                   <td className="p-4 sm:p-5 text-red-400">Strictly Isolated</td>
                   <td className="p-4 sm:p-5">Logged Out (Web client)</td>
-                  <td className="p-4 sm:p-5 text-right text-red-500 font-bold">85% Bounce</td>
+                  <td className="p-4 sm:p-5 text-right text-red-500 font-bold">Higher friction</td>
                 </tr>
                 <tr>
                   <td className="p-4 sm:p-5 font-bold text-white uppercase">TikTok</td>
@@ -537,7 +537,7 @@ export default function BioLinkTool() {
               <div className="border-2 border-red-500/30 bg-red-950/10 p-4 rounded-none space-y-2">
                 <span className="text-red-500 font-mono text-[10px] font-bold uppercase tracking-wider block">1. The Pain: In-App Browser Sandbox</span>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Follower clicks your bio link inside Instagram or TikTok ➡️ Loaded inside the sandboxed social webview ➡️ Browser cookies are blocked ➡️ User is logged out of YouTube/Spotify/Store accounts ➡️ High-friction login screen appears ➡️ **80%+ bounce rate.**
+                  Follower clicks your bio link inside Instagram or TikTok ➡️ It may load inside an in-app webview ➡️ Existing destination sessions may be unavailable ➡️ A login screen can add extra friction and abandonment risk.
                 </p>
               </div>
 
@@ -610,7 +610,7 @@ export default function BioLinkTool() {
           <div className="bg-[#07090e] border-2 border-slate-950 p-6 shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] space-y-2">
             <h4 className="text-sm font-black text-white uppercase">Redirection Latency</h4>
             <p className="text-xs text-slate-400 leading-relaxed">
-              The time delta between clicking a link and the host server dispatching the redirect header. High latency increases page bounce rates, while serverless edge routing keeps it under 15ms.
+              The time between clicking a link and the routing layer returning its next step. Edge execution reduces network distance, while actual latency still varies by route, visitor network, and destination.
             </p>
           </div>
         </div>

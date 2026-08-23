@@ -67,7 +67,7 @@ export default function MusicSmartLinks() {
   const faqItems: FaqItem[] = [
     {
       question: "Why do standard bio links lower my Spotify streams?",
-      answer: "When a listener clicks a standard link on Instagram or TikTok, the social app opens it inside its own built-in browser (webview). This web player does not carry the user's active Spotify or Apple Music subscription login cookies. Instead of playing the song, it prompts them to log in or redirects to a basic 30-second preview, causing up to 85% of fans to close the page immediately."
+      answer: "Instagram or TikTok may open a music destination inside an in-app browser that does not share the listener's Spotify or Apple Music session. This can add a login or preview step. Linktery attempts supported native-app handoffs and uses a web fallback when the host platform blocks them."
     },
     {
       question: "How do Linktery Smart Links bypass the mobile browser jail?",
@@ -210,7 +210,7 @@ export default function MusicSmartLinks() {
           <div className="space-y-2">
             <span className="text-red-500 text-xs font-bold uppercase tracking-widest block">The Fan Drop-Off Trap</span>
             <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
-              Why 85% of Bio Link Clicks Never Listen
+              Why in-app browsers interrupt listening
             </h2>
           </div>
           <div className="space-y-4 text-muted-foreground text-sm md:text-base leading-relaxed">
@@ -386,7 +386,7 @@ export default function MusicSmartLinks() {
                     </div>
 
                     <div className="border-t border-slate-900 pt-2 text-center text-[7px] text-red-500 font-bold uppercase tracking-wider">
-                      ⚠️ Conversion dropped. 85% bounce risk.
+                      ⚠️ Playback interrupted by extra steps.
                     </div>
                   </div>
                 )}
@@ -491,7 +491,7 @@ export default function MusicSmartLinks() {
               <div className="bg-emerald-500/5 border border-emerald-500/10 p-4 rounded-2xl text-left">
                 <span className="text-[11px] text-emerald-400 font-bold uppercase tracking-wider block">Linktery Smart Link streams</span>
                 <span className="text-2xl font-black text-white">{smartStreams.toLocaleString()}</span>
-                <span className="text-xs text-muted-foreground block mt-1">~85% actual streams</span>
+                <span className="text-xs text-muted-foreground block mt-1">Destination playback path</span>
               </div>
             </div>
           </div>

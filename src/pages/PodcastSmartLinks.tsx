@@ -6,7 +6,7 @@ import {
   User as UserIcon, Check, X, ChevronDown, 
   Sparkles, Layers, ShieldAlert, AlertTriangle, HelpCircle,
   Play, Pause, ShieldCheck, Smartphone, ExternalLink,
-  Mic, Radio, Headphones, Volume2, Search, Share2, Sliders, ShieldX, MessageSquare
+  Mic, Radio, Search, Share2, Sliders, ShieldX, MessageSquare
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
@@ -64,11 +64,11 @@ export default function PodcastSmartLinks() {
   const faqItems: FaqItem[] = [
     {
       question: "Why do standard bio links lower my podcast subscriber conversions?",
-      answer: "When a listener clicks a link in your Instagram or TikTok bio, the social network opens it inside its private in-app webview browser. In this webview, the user is completely logged out of Apple Podcasts, Spotify, and other audio accounts. Instead of launching the native player, they see a web preview prompting them to sign in, which causes up to 85% of fans to abandon the page."
+      answer: "Instagram and TikTok may open podcast destinations inside an in-app browser where the listener is not signed in. That adds friction before playback or subscription. Linktery can attempt supported native-app handoffs and keeps a web fallback when the device or host platform blocks them."
     },
     {
       question: "How does Linktery launch native podcast applications directly?",
-      answer: "Linktery uses mobile OS URI handshakes. When a mobile user clicks your link, our system identifies their operating system (iOS/Android) and executes custom protocols (like pokcast://, spotify://, or podcasts://). This forces their phone to launch the native podcast player app directly with your show already loaded."
+      answer: "Linktery selects a supported app link or URI for the visitor's mobile platform and attempts to open the installed podcast app. Mobile operating systems and social apps retain control, so Linktery also provides a browser fallback when an automatic handoff is blocked."
     },
     {
       question: "Can I use custom domains for my podcast smart links?",
@@ -176,7 +176,7 @@ export default function PodcastSmartLinks() {
             <span className="gradient-text">PODCAST APPS</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed font-medium">
-            Tired of losing subscribers? Standard social links open checkouts in trapped webviews. Switch to Linktery and route listeners straight to Apple Podcasts or Spotify native applications.
+            Standard social links can open podcast destinations in restricted webviews. Linktery attempts supported Apple Podcasts or Spotify app handoffs and keeps a safe web fallback.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             {user ? (
@@ -312,7 +312,7 @@ export default function PodcastSmartLinks() {
                     </div>
 
                     <div className="border-t border-slate-900 pt-1.5 text-center text-[6px] text-red-500 font-bold uppercase">
-                      ⚠️ Lost subscriber. 85% dropoff risk.
+                      ⚠️ Extra login and playback friction.
                     </div>
                   </div>
                 )}
@@ -377,7 +377,7 @@ export default function PodcastSmartLinks() {
             WHERE ARE YOU LOSING LISTENERS?
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Standard bio link shorteners lose up to 85% of traffic between click and play. Linktery repairs the leakage by routing users natively.
+            Standard links can add steps between a social click and playback. Linktery reduces that friction with destination-aware app links and browser fallbacks.
           </p>
         </div>
 
@@ -451,7 +451,7 @@ export default function PodcastSmartLinks() {
 
           {/* Explanation Text (5 columns) */}
           <div className="lg:col-span-5 space-y-6 text-left">
-            <h3 className="text-2xl font-bold text-white uppercase tracking-tight">The 80% Conversion Leak</h3>
+            <h3 className="text-2xl font-bold text-white uppercase tracking-tight">The in-app browser conversion leak</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
               Standard redirect tools fail because they are unaware of mobile environments. If a customer clicks a podcast link on a phone:
             </p>
@@ -469,46 +469,6 @@ export default function PodcastSmartLinks() {
                 <strong>Linktery bypasses this:</strong> Launches the local podcasts player directly. Listener hits play in one click.
               </li>
             </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* COHESIVE TESTIMONIALS SECTION (E-E-A-T Signal Boost) */}
-      <section className="py-16 px-6 max-w-5xl mx-auto relative z-10 border-t border-border/40">
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <span className="text-accent text-xs font-bold uppercase tracking-widest">Creator Reviews</span>
-          <h2 className="text-3xl font-extrabold tracking-tight text-white mt-1">TRUSTED BY TOP SHOWS</h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="glass-card p-6 md:p-8 border border-border/80 bg-surface/30 backdrop-blur-md rounded-3xl relative overflow-hidden flex flex-col justify-between">
-            <p className="text-sm text-muted-foreground leading-relaxed italic">
-              "We used to see thousands of clicks on our Instagram bio link, but our subscriber base in Apple Podcasts barely grew. After switching to Linktery, we saw our listener-to-subscriber conversion rate spike by 45% in the first week. The bypass script is magic."
-            </p>
-            <div className="flex items-center gap-3.5 border-t border-border/40 pt-4 mt-6">
-              <div className="w-10 h-10 bg-accent/10 border border-accent/20 rounded-full flex items-center justify-center">
-                <Headphones className="w-5 h-5 text-accent" />
-              </div>
-              <div className="text-left font-mono">
-                <h4 className="text-xs font-bold text-white">The Tech Daily Show</h4>
-                <p className="text-[10px] text-muted-foreground uppercase">120K monthly downloads</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card p-6 md:p-8 border border-border/80 bg-surface/30 backdrop-blur-md rounded-3xl relative overflow-hidden flex flex-col justify-between">
-            <p className="text-sm text-muted-foreground leading-relaxed italic">
-              "Promoting a podcast on TikTok is incredibly painful because the in-app browser blocks everything. Linktery deep links force their phones to open the native Spotify App. We added over 12,000 active subscribers last month alone."
-            </p>
-            <div className="flex items-center gap-3.5 border-t border-border/40 pt-4 mt-6">
-              <div className="w-10 h-10 bg-accent/10 border border-accent/20 rounded-full flex items-center justify-center">
-                <Volume2 className="w-5 h-5 text-accent" />
-              </div>
-              <div className="text-left font-mono">
-                <h4 className="text-xs font-bold text-white">Mindset & Wealth Podcast</h4>
-                <p className="text-[10px] text-muted-foreground uppercase">300K monthly downloads</p>
-              </div>
-            </div>
           </div>
         </div>
       </section>

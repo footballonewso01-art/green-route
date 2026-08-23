@@ -34,7 +34,7 @@ describe("public profile appearance settings", () => {
     const migration = readWorkspaceFile("pocketbase/pb_migrations/1784365000_add_profile_presentation_styles.js");
     const publicProfile = readWorkspaceFile("src/pages/PublicProfile.tsx");
 
-    expect(hook.match(/validateProfilePresentation/g)).toHaveLength(2);
+    expect(hook.match(/validateProfilePresentation/g)).toHaveLength(3);
     expect(utils).toContain('"image-first": true');
     expect(utils).not.toContain('"labeled-rows": true');
     expect(migration).toContain('name: "link_card_style"');
@@ -106,5 +106,18 @@ describe("public profile appearance settings", () => {
     expect(publicProfile).toContain("profile.full_avatar_url");
     expect(migration).toContain("social_link_style = 'icons'");
     expect(migration).toContain("theme = 'sunset'");
+  });
+
+  it("keeps desktop public profiles in one document scroll context", () => {
+    const publicProfile = readWorkspaceFile("src/pages/PublicProfile.tsx");
+    const canvas = readWorkspaceFile("src/components/profile/ProfileCanvas.tsx");
+
+    expect(publicProfile).toContain("overflow-x-clip");
+    expect(publicProfile).not.toContain('relative overflow-x-hidden flex items-start');
+    expect(publicProfile).toContain('data-profile-ambient-background="true"');
+    expect(publicProfile).toContain("pointer-events-none fixed inset-0 z-0 overflow-hidden");
+    expect(canvas).not.toContain("overflow-y-auto");
+    expect(canvas).toContain("pb-10 pt-[2px] sm:pb-6");
+    expect(canvas).toContain("sm:pb-5 sm:pt-8");
   });
 });

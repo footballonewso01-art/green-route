@@ -330,6 +330,26 @@ Record the Git SHA plus the active version ID for both Workers. Verify:
 Always inspect the **live** `robots.txt`, not only `public/robots.txt`.
 Cloudflare Managed Content Signals can prepend crawler rules at the edge.
 
+## Search discovery and IndexNow
+
+The canonical Bing Webmaster Tools property is `https://linktery.com/`. Its
+sitemap is `https://linktery.com/sitemap.xml`; alias domains must not be added
+as separate canonical properties or submitted as sitemap hosts.
+
+IndexNow notifications are provided by Cloudflare **Crawler Hints** on the
+`linktery.com` zone. Keep **Caching -> Configuration -> Crawler Hints** enabled.
+Cloudflare uses cache change signals to notify IndexNow-compatible search
+engines without adding a public IndexNow key or a network-dependent step to the
+frontend build. Do not submit every sitemap URL after every deploy: the sitemap
+is the complete URL inventory, while Crawler Hints is the incremental change
+signal.
+
+Crawler Hints is a zone-level setting and is not stored in `wrangler.jsonc`.
+Re-verify it after a zone transfer, account migration, DNS cutover, or accidental
+Cloudflare configuration reset. Non-indexable app routes and redirect utility
+URLs must continue to emit `X-Robots-Tag: noindex`; this keeps global crawler
+hints from turning private dashboard routes or short-link hops into SEO pages.
+
 ## DNS invariants
 
 Do not change these during a routine frontend deploy:

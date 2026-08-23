@@ -622,7 +622,7 @@ export default function AffiliateSolution() {
                   <td className="p-4 sm:p-5 font-bold text-white">OnlyFans & Fansly Linkouts</td>
                   <td className="p-4 sm:p-5 text-red-400">Immediate account suspension inside Instagram/TikTok ads</td>
                   <td className="p-4 sm:p-5 text-slate-400">Edge browser challenge checks to redirect compliance bots</td>
-                  <td className="p-4 sm:p-5 text-emerald-400 font-mono">99.8% ad uptime</td>
+                  <td className="p-4 sm:p-5 text-emerald-400 font-mono">Rule-based routing</td>
                 </tr>
               </tbody>
             </table>

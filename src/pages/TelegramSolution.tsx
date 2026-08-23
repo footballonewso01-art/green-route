@@ -109,7 +109,7 @@ export default function TelegramSolution() {
   const faqItems: FaqItem[] = [
     {
       question: "Why do standard t.me links result in massive drop-offs on Instagram and TikTok?",
-      answer: "When a user clicks a standard t.me link inside social applications (Instagram, TikTok, Facebook), the host platform opens the link in an in-app WebView. Because this WebView does not share local cookies, active sessions, or credentials with the system browser or the installed Telegram app, the user appears logged out on the Web client. They are forced to enter their phone number and confirmation code. 80% to 85% of users abandon the flow at this point."
+      answer: "Social applications may open t.me links inside an in-app webview that does not share the user's normal Telegram or browser session. That can add login and confirmation steps. Linktery attempts supported Telegram handoffs and provides a web fallback when the host app blocks automatic opening."
     },
     {
       question: "What is an App-to-App redirection protocol and how does it work?",
@@ -183,7 +183,7 @@ export default function TelegramSolution() {
         <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white mb-6 max-w-4xl mx-auto leading-[1.1]">
           Bypass In-App Browser Jails.<br />
           <span className="bg-gradient-to-r from-[#33b3ff] via-[#0088cc] to-emerald-400 bg-clip-text text-transparent">
-            Convert 80% More Telegram Traffic.
+            Reduce friction in Telegram traffic.
           </span>
         </h1>
 
@@ -279,7 +279,7 @@ export default function TelegramSolution() {
                   <div className="bg-red-500/5 border border-red-500/10 p-3 rounded text-center">
                     <span className="text-[10px] font-bold text-red-400 block uppercase tracking-wider">Friction Trap</span>
                     <p className="text-[11px] text-slate-400 mt-1 leading-normal">
-                      Users don't recall their Telegram passwords inside third-party webviews. 80%+ drop-off.
+                      Third-party webviews can add login and confirmation friction.
                     </p>
                   </div>
                 </div>
@@ -475,7 +475,7 @@ export default function TelegramSolution() {
                 </div>
                 <h3 className="text-lg font-bold text-white">2. Private VIP Signals Channel</h3>
                 <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-                  Direct users from TikTok Reels or Instagram stories to a closed premium channel. Bypassing the WebView ensures they see the "Request to Join" button inside their native app, which matches their authentic logged-in profile.
+                  Send users from TikTok Reels or Instagram stories toward a closed premium channel. When the device accepts the Telegram handoff, they can continue in their signed-in app; otherwise the configured web fallback remains available.
                 </p>
               </div>
               <div className="border-t border-[#1e293b] pt-4 mt-6 flex items-center justify-between text-[11px] font-mono text-slate-500">

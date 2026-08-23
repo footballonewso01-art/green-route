@@ -174,6 +174,79 @@ var getClientIP = function(eventOrRequest) {
     return "unknown";
 };
 
+var normalizeGrowthField = function(value, maxLength, fallback) {
+    var normalized = String(value || "")
+        .replace(/[\u0000-\u001f\u007f]/g, " ")
+        .trim()
+        .substring(0, maxLength);
+    return normalized || String(fallback || "");
+};
+
+// Authoritative product-funnel writer. Browser events reach this helper only
+// through the trusted Cloudflare endpoint; billing and product milestones are
+// emitted by server hooks. A deterministic id makes retries idempotent and
+// lets the authenticated completion event enrich an anonymous first touch.
+var recordGrowthEvent = function(app, options) {
+    options = options || {};
+    var requestedId = normalizeGrowthField(options.id, 96, "");
+    var eventId = /^[a-zA-Z0-9:_-]{12,96}$/.test(requestedId)
+        ? requestedId
+        : "growth:" + $security.randomString(32);
+    var eventName = normalizeGrowthField(options.eventName, 48, "");
+    if (!/^[a-z][a-z0-9_]{2,47}$/.test(eventName)) {
+        throw new Error("Invalid growth event name");
+    }
+
+    var rawUserId = normalizeGrowthField(options.userId, 32, "");
+    var userId = rawUserId && /^[a-zA-Z0-9]{10,32}$/.test(rawUserId) ? rawUserId : null;
+    var journeyId = normalizeGrowthField(options.journeyId, 64, "");
+    if (journeyId && !/^[a-zA-Z0-9_-]{12,64}$/.test(journeyId)) journeyId = "";
+
+    var source = normalizeGrowthField(options.source, 64, "direct").toLowerCase();
+    var medium = normalizeGrowthField(options.medium, 64, "").toLowerCase();
+    var campaign = normalizeGrowthField(options.campaign, 96, "");
+    var surface = normalizeGrowthField(options.surface, 64, "").toLowerCase();
+    var targetPlan = normalizeGrowthField(options.targetPlan, 16, "").toLowerCase();
+    if (targetPlan !== "creator" && targetPlan !== "pro" && targetPlan !== "agency") targetPlan = "";
+    var objectId = normalizeGrowthField(options.objectId, 64, "");
+    var reason = normalizeGrowthField(options.reason, 48, "").toLowerCase();
+
+    app.db().newQuery(`
+        INSERT INTO growth_events (
+            id, event_name, user_id, journey_id, source, medium, campaign,
+            surface, target_plan, object_id, reason, created
+        ) VALUES (
+            {:id}, {:eventName}, {:userId}, {:journeyId}, {:source}, {:medium},
+            {:campaign}, {:surface}, {:targetPlan}, {:objectId}, {:reason},
+            strftime('%Y-%m-%d %H:%M:%fZ', 'now')
+        )
+        ON CONFLICT(id) DO UPDATE SET
+            user_id = COALESCE(excluded.user_id, growth_events.user_id),
+            journey_id = CASE WHEN excluded.journey_id != '' THEN excluded.journey_id ELSE growth_events.journey_id END,
+            source = CASE WHEN excluded.source NOT IN ('', 'direct') THEN excluded.source ELSE growth_events.source END,
+            medium = CASE WHEN excluded.medium != '' THEN excluded.medium ELSE growth_events.medium END,
+            campaign = CASE WHEN excluded.campaign != '' THEN excluded.campaign ELSE growth_events.campaign END,
+            surface = CASE WHEN excluded.surface != '' THEN excluded.surface ELSE growth_events.surface END,
+            target_plan = CASE WHEN excluded.target_plan != '' THEN excluded.target_plan ELSE growth_events.target_plan END,
+            object_id = CASE WHEN excluded.object_id != '' THEN excluded.object_id ELSE growth_events.object_id END,
+            reason = CASE WHEN excluded.reason != '' THEN excluded.reason ELSE growth_events.reason END
+    `).bind({
+        id: eventId,
+        eventName: eventName,
+        userId: userId,
+        journeyId: journeyId,
+        source: source,
+        medium: medium,
+        campaign: campaign,
+        surface: surface,
+        targetPlan: targetPlan,
+        objectId: objectId,
+        reason: reason
+    }).execute();
+
+    return eventId;
+};
+
 var normalizeAnalyticsReferrer = function(value) {
     var raw = String(value || "").trim();
     if (!raw || raw === "Direct") return "Direct";
@@ -2960,6 +3033,7 @@ module.exports = {
     isTrustedApiGatewayRequest,
     isApiGatewayEnforcementEnabled,
     getClientIP,
+    recordGrowthEvent,
     normalizeAnalyticsReferrer,
     clickRateLimitAllows,
     isUniqueTrackedClick,

@@ -91,7 +91,8 @@ const runPrerender = async () => {
 
   const { render } = await import(pathToFileURL(serverBundlePath).href);
   const template = fs.readFileSync(templatePath, "utf8");
-  const configs = getSeoPageConfigs().filter((config) => !config.noIndex);
+  const configs = getSeoPageConfigs();
+  const indexableConfigs = configs.filter((config) => !config.noIndex);
   if (!configs.length) throw new Error("No indexable routes configured for prerendering.");
 
   const failures = [];
@@ -111,7 +112,7 @@ const runPrerender = async () => {
       pageHtml = upsertMeta(pageHtml, "property", "og:url", canonicalUrl);
       pageHtml = upsertMeta(pageHtml, "name", "twitter:title", config.title);
       pageHtml = upsertMeta(pageHtml, "name", "twitter:description", config.description);
-      pageHtml = upsertMeta(pageHtml, "name", "robots", "index, follow");
+      pageHtml = upsertMeta(pageHtml, "name", "robots", config.noIndex ? "noindex, follow" : "index, follow");
       pageHtml = replaceOrInsertHeadTag(
         pageHtml,
         /<link\s+[^>]*rel=["']canonical["'][^>]*>/i,
@@ -163,7 +164,7 @@ const runPrerender = async () => {
   }
 
   console.log(`Generated ${comparisonAliases} noindex comparison aliases.`);
-  console.log(`Prerendered ${configs.length} indexable routes.`);
+  console.log(`Prerendered ${configs.length} routes (${indexableConfigs.length} indexable).`);
 };
 
 try {

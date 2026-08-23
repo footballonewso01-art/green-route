@@ -110,7 +110,7 @@ export function ProfileCanvas({
 
       <div
         data-card-theme-content="true"
-        className={`relative -mt-[2px] flex flex-1 flex-col pb-10 pt-[2px] ${getContentPadding(template, preview)}`}
+        className={`relative -mt-[2px] flex flex-1 flex-col pb-10 pt-[2px] sm:pb-6 ${getContentPadding(template, preview)}`}
         style={{ backgroundColor: cardColor }}
       >
         <div data-tracking-active="true" className="hidden" />
@@ -146,7 +146,7 @@ export function ProfileCanvas({
           )}
         </div>
 
-        <div className="mt-auto flex flex-grow flex-col items-center justify-end gap-5 pb-6 pt-12 min-[380px]:pt-14">
+        <div className="mt-auto flex flex-grow flex-col items-center justify-end gap-5 pb-6 pt-12 min-[380px]:pt-14 sm:pb-5 sm:pt-8">
           {!checkPlan(plan, "remove_branding") && (
             <div className="mt-auto text-center">
               <a

@@ -40,6 +40,7 @@ export const getSeoPageConfigs = () => {
   const professions = readJson("src/data/professions.json");
   const competitors = readJson("src/data/competitors.json");
   const contentPages = readJson("src/data/seo-content-pages.json");
+  const indexableComparisons = new Set(readJson("src/data/indexable-comparisons.json"));
 
   for (const page of contentPages) {
     configs.push({
@@ -61,9 +62,9 @@ export const getSeoPageConfigs = () => {
     });
   }
 
-  // Every competitor in the catalog is an intentional SEO entity. Generate
-  // every canonical pair so previously published comparison URLs never fall
-  // through to the frontend's static 404 page.
+  // Preserve every published comparison as a real 200 page, but only expose
+  // high-intent pairs to search engines. This prevents 153 near-duplicate
+  // pages from diluting stronger alternatives and solution clusters.
   for (let i = 0; i < competitors.length; i += 1) {
     for (let j = i + 1; j < competitors.length; j += 1) {
       const [competitorA, competitorB] = [competitors[i], competitors[j]]
@@ -74,7 +75,7 @@ export const getSeoPageConfigs = () => {
         route: `/compare/${routeSlug}`,
         title: `${competitorA.name} vs ${competitorB.name}: Features & Pricing | Linktery`,
         description: `Compare ${competitorA.name} vs ${competitorB.name} side-by-side, including published pricing, deep linking, custom domains, transaction fees, and analytics features.`,
-        noIndex: false,
+        noIndex: !indexableComparisons.has(routeSlug),
       });
     }
   }

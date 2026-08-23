@@ -64,7 +64,7 @@ export default function DigitalProductsSolution() {
   const faqItems: FaqItem[] = [
     {
       question: "Why do in-app browsers hurt my digital product sales?",
-      answer: "When a user clicks your Gumroad or Lemon Squeezy link inside Instagram or TikTok, the app opens the page in an in-app webview container. This sandboxed browser blocks access to secure hardware APIs, which completely disables Apple Pay and Google Pay. Additionally, users are logged out of their standard browsers, forcing them to manually type credit card credentials, which triggers up to 80% checkout abandonment."
+      answer: "When a user clicks a checkout link inside Instagram or TikTok, it may open in an in-app webview. Wallet availability and signed-in state vary by platform, device, and checkout provider, so buyers can face extra steps. Linktery uses supported app/browser handoffs and fallbacks to reduce that friction where the environment allows it."
     },
     {
       question: "How does Linktery solve the Apple Pay / Google Pay block?",
@@ -221,7 +221,7 @@ export default function DigitalProductsSolution() {
               <strong>Disabled Hardware APIs:</strong> These webviews are sandboxed, meaning **Apple Pay & Google Pay are completely disabled**. Your fans must manually type their credit card numbers, billing addresses, and emails.
             </p>
             <p>
-              This massive friction causes over 80% of buyers to abandon the purchase.
+              This additional friction can cause high-intent buyers to abandon the purchase.
             </p>
             <p>
               Linktery redirects mobile checkouts directly into native system browsers (Safari for iOS, Chrome for Android) where hardware wallets are active and payment credentials are auto-filled.
@@ -369,7 +369,7 @@ export default function DigitalProductsSolution() {
                     </div>
 
                     <div className="border-t border-slate-900 pt-2 text-center text-[7px] text-red-500 font-bold uppercase tracking-wider">
-                      ⚠️ Friction wall. 80% checkout bounce.
+                      ⚠️ Friction wall. Extra checkout steps.
                     </div>
                   </div>
                 )}

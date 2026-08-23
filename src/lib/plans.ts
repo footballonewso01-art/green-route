@@ -36,7 +36,7 @@ export const FEATURES_ACCESS = {
     multi_links: ["pro", "agency"],
     analytics: ["pro", "agency"],
     priority_support: ["agency"],
-    team_access: ["agency"],
+    team_access: [],
     profile_customization: ["creator", "pro", "agency"],
     remove_branding: ["pro", "agency"],
     geo_targeting: ["pro", "agency"],
@@ -120,11 +120,11 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         id: "agency",
         name: "Agency",
         price: 29,
-        description: "For teams and agencies managing multiple brands.",
+        description: "For agencies and operators managing multiple brands.",
         buttonText: "Upgrade to Agency",
         features: [
             { text: "Unlimited Links", icon: "🚀" },
-            { text: "Unlimited Biolink Profiles", icon: "👥", tooltip: "Create unlimited public profiles for different brands." },
+            { text: "25 Client Profiles", icon: "👥", tooltip: "Manage up to 25 separate Link-in-Bio profiles for clients or brands." },
             { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
             { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
             { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
@@ -137,7 +137,9 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             cloaking: true,
             custom_domain: true,
             priority_support: true,
-            team_access: true,
+            // Reserved for a future seats/roles product. Do not market an
+            // entitlement until collaborative workspaces actually exist.
+            team_access: false,
             profile_customization: true,
             deep_links: true,
             geo_targeting: true,

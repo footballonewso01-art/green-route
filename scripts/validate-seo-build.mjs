@@ -61,7 +61,7 @@ for (const config of configs) {
   }
 }
 
-for (const config of configs) {
+for (const config of allConfigs) {
   const outputPath = config.route === "/"
     ? path.join(process.cwd(), "dist", "landing.html")
     : path.join(process.cwd(), "dist", config.route.replace(/^\//, ""), "index.html");
@@ -79,6 +79,10 @@ for (const config of configs) {
   if (/Loading\.\.\./i.test(rootContent)) failures.push(`${config.route}: loading placeholder leaked into app root`);
   if (!/<h1(?:\s|>)/i.test(rootContent)) failures.push(`${config.route}: H1 is missing`);
   if (!html.includes(`<link rel="canonical" href="${canonical}" />`)) failures.push(`${config.route}: canonical is incorrect`);
+  const expectedRobots = config.noIndex ? "noindex, follow" : "index, follow";
+  if (!html.includes(`<meta name="robots" content="${expectedRobots}" />`)) {
+    failures.push(`${config.route}: robots directive must be ${expectedRobots}`);
+  }
   if (!/<meta name="twitter:title" content="[^"]+" \/>/i.test(html)) failures.push(`${config.route}: twitter:title is missing`);
   if (!/<meta name="twitter:description" content="[^"]+" \/>/i.test(html)) failures.push(`${config.route}: twitter:description is missing`);
   if (/aggregateRating/i.test(html)) failures.push(`${config.route}: unverified aggregateRating is present`);

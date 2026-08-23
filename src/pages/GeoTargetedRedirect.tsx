@@ -18,14 +18,12 @@ interface FaqItem {
   answer: string;
 }
 
-interface TestimonialItem {
-  name: string;
-  role: string;
-  company: string;
+interface RoutingPlaybook {
+  title: string;
+  audience: string;
   flag: string;
-  country: string;
-  quote: string;
-  metrics: string;
+  description: string;
+  rule: string;
 }
 
 export default function GeoTargetedRedirect() {
@@ -92,43 +90,34 @@ export default function GeoTargetedRedirect() {
     return null;
   };
 
-  // Generated Testimonials
-  const testimonials: TestimonialItem[] = [
+  const routingPlaybooks: RoutingPlaybook[] = [
     {
-      name: "Sarah Jenkins",
-      role: "Global Marketing Director",
-      company: "Aura Apparel Group",
+      title: "Localized storefronts",
+      audience: "E-commerce",
       flag: "🇺🇸",
-      country: "United States",
-      quote: "We were losing thousands of European and Asian visitors by sending them all to our US Shopify store. With Linktery's country routing rules, we automatically detect and route clicks to localized checkouts. Our international sales conversion rate spiked by 42% in under a month.",
-      metrics: "+42% International Revenue"
+      description: "Send visitors to the storefront that matches their country, while keeping one campaign URL across every channel.",
+      rule: "Country → regional checkout"
     },
     {
-      name: "Hiroshi Tanaka",
-      role: "E-commerce Lead",
-      company: "Kuro Tech Gear",
+      title: "Regional campaign offers",
+      audience: "Paid media",
       flag: "🇯🇵",
-      country: "Japan",
-      quote: "Managing separate landing pages for Japan, North America, and Europe used to require complex script adjustments. Linktery handles everything natively. A single link in our global Instagram bio automatically redirects users with localized currencies. Absolute game changer.",
-      metrics: "3.2x ROI on Campaign Spend"
+      description: "Reuse one ad destination and route supported countries to the most relevant language, currency, or promotion.",
+      rule: "Country tier → campaign page"
     },
     {
-      name: "Max Hoffmann",
-      role: "Founder",
-      company: "Berlin Craft Roasters",
+      title: "Market-specific lead capture",
+      audience: "Lead generation",
       flag: "🇩🇪",
-      country: "Germany",
-      quote: "Linktery lets us automatically serve English to non-German speakers in Europe and direct local Germans to our German checkout. The redirection latency is practically non-existent, ensuring zero bounce rate increase.",
-      metrics: "-18% Checkout Bounce Rate"
+      description: "Route each supported market to its own booking form, representative, or compliant consent flow.",
+      rule: "Country → local form"
     },
     {
-      name: "Camila Silva",
-      role: "Digital Campaign Manager",
-      company: "Moda Brasil",
+      title: "Safe global fallback",
+      audience: "Global links",
       flag: "🇧🇷",
-      country: "Brazil",
-      quote: "Most redirect rotators fail in South America due to outdated IP databases. Linktery's location detection is incredibly accurate. We track all UTMs by country, allowing us to allocate budget to high-performing regions instantly.",
-      metrics: "99.8% Geo-IP Accuracy"
+      description: "Keep a default destination for VPN traffic, unknown locations, and countries without a dedicated routing rule.",
+      rule: "No match → default URL"
     }
   ];
 
@@ -255,7 +244,7 @@ export default function GeoTargetedRedirect() {
               Create Smart Target Link <ArrowRight className="w-4 h-4" />
             </Link>
           )}
-          <a href="#testimonials" className="px-6 py-3.5 rounded-xl border border-border text-foreground font-medium hover:bg-surface-hover transition-all duration-200 text-base inline-flex items-center justify-center">
+          <a href="#playbooks" className="px-6 py-3.5 rounded-xl border border-border text-foreground font-medium hover:bg-surface-hover transition-all duration-200 text-base inline-flex items-center justify-center">
             View Success Stories
           </a>
         </div>
@@ -464,20 +453,19 @@ export default function GeoTargetedRedirect() {
         </div>
       </section>
 
-      {/* USER REVIEWS FEATURE GRID (Generated Testimonials) */}
-      <section id="testimonials" className="py-16 px-6 max-w-6xl mx-auto border-t border-border/40 z-10 relative">
+      <section id="playbooks" className="py-16 px-6 max-w-6xl mx-auto border-t border-border/40 z-10 relative">
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <span className="text-accent text-xs font-bold uppercase tracking-widest font-mono">GLOBAL SUCCESS STORIES</span>
-          <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white mt-1">What Global Brands Say</h2>
+          <span className="text-accent text-xs font-bold uppercase tracking-widest font-mono">ROUTING PLAYBOOKS</span>
+          <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white mt-1">Practical ways to route global traffic</h2>
           <p className="text-sm text-muted-foreground mt-2">
-            See how international store owners and marketers recovered sales with dynamic link localization.
+            Common rule patterns you can configure without relying on unverified performance promises.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {testimonials.map((item, index) => (
+          {routingPlaybooks.map((item) => (
             <div 
-              key={index}
+              key={item.title}
               className="glass-card p-6 md:p-8 border border-border/80 bg-surface/30 backdrop-blur-md rounded-3xl relative overflow-hidden flex flex-col justify-between"
             >
               <div className="space-y-4 text-left">
@@ -485,21 +473,17 @@ export default function GeoTargetedRedirect() {
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{item.flag}</span>
                     <div>
-                      <h4 className="text-sm font-bold text-white uppercase tracking-tight">{item.name}</h4>
-                      <p className="text-[10px] text-muted-foreground uppercase font-mono">{item.role}, {item.company}</p>
+                      <h4 className="text-sm font-bold text-white uppercase tracking-tight">{item.title}</h4>
+                      <p className="text-[10px] text-muted-foreground uppercase font-mono">{item.audience}</p>
                     </div>
                   </div>
                   <span className="text-[9px] font-bold text-accent bg-accent/10 border border-accent/25 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                    {item.metrics}
+                    {item.rule}
                   </span>
                 </div>
-                <p className="text-xs md:text-sm text-slate-300 leading-relaxed italic">
-                  "{item.quote}"
+                <p className="text-xs md:text-sm text-slate-300 leading-relaxed">
+                  {item.description}
                 </p>
-              </div>
-              <div className="border-t border-border/40 pt-4 mt-6 flex justify-between items-center text-[10px] text-slate-500 font-mono">
-                <span>Country: {item.country}</span>
-                <span>Verified Client ✅</span>
               </div>
             </div>
           ))}

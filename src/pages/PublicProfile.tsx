@@ -179,21 +179,29 @@ export default function PublicProfile() {
   const cardColor = profile.card_color || "#000000";
 
   return (
-    <div className="min-h-[100dvh] bg-[#120b14] text-white relative overflow-x-hidden flex items-start justify-center sm:px-4 pt-0">
-      {/* Mobile-first ambient background: Sunset by default, avatar-derived when available. */}
-      <div className="pointer-events-none absolute inset-[-10%] z-0 overflow-hidden blur-[42px] scale-110">
-        {profile.full_avatar_url && (
-          <div
-            className="absolute inset-0 bg-cover bg-center opacity-60"
-            style={{ backgroundImage: `url('${profile.full_avatar_url}')` }}
-          />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-br from-orange-500/45 via-pink-500/30 to-purple-900/55" />
+    <div className="relative isolate flex min-h-[100dvh] items-start justify-center overflow-x-clip bg-[#120b14] pt-0 text-white sm:px-4">
+      {/*
+        Keep the ambience attached to the viewport instead of the document.
+        The oversized blurred image must never expand the page's scroll area;
+        long profiles should use the browser's single, normal scroll context.
+      */}
+      <div
+        data-profile-ambient-background="true"
+        className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+        aria-hidden="true"
+      >
+        <div className="absolute inset-[-10%] scale-110 blur-[42px]">
+          {profile.full_avatar_url && (
+            <div
+              className="absolute inset-0 bg-cover bg-center opacity-60"
+              style={{ backgroundImage: `url('${profile.full_avatar_url}')` }}
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-500/45 via-pink-500/30 to-purple-900/55" />
+        </div>
+        <div className="absolute inset-0 bg-[#120b14]/45 backdrop-blur-[24px]" />
+        <div className="absolute left-1/2 top-[-20%] h-[600px] w-[1200px] -translate-x-1/2 rounded-full bg-accent/10 opacity-30 blur-[150px]" />
       </div>
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[#120b14]/45 backdrop-blur-[24px]" />
-
-      {/* Background Glow */}
-      <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-accent/10 blur-[150px] rounded-full pointer-events-none opacity-30 z-0" />
 
       <div className="relative z-10 flex w-full justify-center">
         <ProfileCanvas

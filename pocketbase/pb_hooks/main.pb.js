@@ -137,6 +137,19 @@ routerAdd("POST", "/api/stripe/create-checkout", (c) => {
         }
         const session = res.json;
 
+        try {
+            stripeUtils.recordGrowthEvent($app, {
+                id: "checkout-start:" + session.id,
+                eventName: "checkout_started",
+                userId: user.id,
+                surface: "pricing",
+                targetPlan: priceConfig.plan,
+                objectId: session.id
+            });
+        } catch (growthErr) {
+            $app.logger().warn("create-checkout growth event failed: " + growthErr);
+        }
+
         return c.json(200, { url: session.url });
     } catch (err) {
         let errStr = String(err);
@@ -295,6 +308,17 @@ routerAdd("POST", "/api/stripe/cancel-subscription", (c) => {
         });
 
         $app.logger().info("cancel-subscription: auto-renewal disabled for subscription '" + subscriptionId + "' of user " + user.id);
+        try {
+            stripeUtils.recordGrowthEvent($app, {
+                id: "cancel:" + subscriptionId,
+                eventName: "renewal_cancelled",
+                userId: user.id,
+                objectId: subscriptionId,
+                surface: "billing"
+            });
+        } catch (growthErr) {
+            $app.logger().warn("cancel-subscription growth event failed: " + growthErr);
+        }
         return c.json(200, {
             success: true,
             cancelAtPeriodEnd: true,
@@ -507,6 +531,18 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
             }
 
             $app.logger().info("Webhook: SUCCESS plan '" + planName + "' activated for user " + userId);
+            try {
+                stripeUtils.recordGrowthEvent($app, {
+                    id: "checkout-complete:" + session.id,
+                    eventName: "checkout_completed",
+                    userId: userId,
+                    targetPlan: planName,
+                    objectId: session.id,
+                    surface: "stripe"
+                });
+            } catch (growthErr) {
+                $app.logger().warn("checkout completion growth event failed: " + growthErr);
+            }
 
         } else if (verifiedEvent.type === "invoice.paid") {
             var invoice = verifiedEvent.data.object;
@@ -651,6 +687,18 @@ routerAdd("POST", "/api/stripe/webhook", (c) => {
                         });
                     });
                     $app.logger().info("Webhook: SUCCESS plan '" + planName + "' extended (interval=" + billingInterval + ") for user " + bUserId);
+                    try {
+                        stripeUtils.recordGrowthEvent($app, {
+                            id: "renewal:" + invoice.id,
+                            eventName: "renewal_paid",
+                            userId: bUserId,
+                            targetPlan: planName,
+                            objectId: invoice.id,
+                            surface: "stripe"
+                        });
+                    } catch (growthErr) {
+                        $app.logger().warn("invoice renewal growth event failed: " + growthErr);
+                    }
                 } else {
                     $app.logger().error("Webhook: invoice.paid - NO USER FOUND. customer=" + invCustomerId + " email=" + (invoice.customer_email || "none") + " sub=" + subscriptionId);
                     // Acknowledging an unmapped paid invoice would make the
@@ -1586,7 +1634,15 @@ routerAdd("POST", "/api/telemetry", (c) => {
 
         const data = new DynamicModel({
             "event_name": "",
+            "event_id": "",
+            "journey_id": "",
             "path": "",
+            "source": "",
+            "medium": "",
+            "campaign": "",
+            "surface": "",
+            "target_plan": "",
+            "reason": "",
             "message": "",
             "filename": "",
             "line": 0,
@@ -1597,6 +1653,10 @@ routerAdd("POST", "/api/telemetry", (c) => {
         const eventName = String(data.event_name || "").trim();
         const allowedEvents = {
             "landing_pageview": true,
+            "landing_cta_clicked": true,
+            "pricing_viewed": true,
+            "signup_started": true,
+            "signup_completed": true,
             "active_session": true,
             "client_error": true,
             "unhandled_rejection": true
@@ -1604,7 +1664,13 @@ routerAdd("POST", "/api/telemetry", (c) => {
         if (!allowedEvents[eventName]) return c.json(400, { message: "Unsupported telemetry event" });
 
         const authUser = c.auth && c.auth.collection().name === "users" ? c.auth : null;
-        if (eventName !== "landing_pageview" && !authUser) {
+        const anonymousEvents = {
+            "landing_pageview": true,
+            "landing_cta_clicked": true,
+            "pricing_viewed": true,
+            "signup_started": true
+        };
+        if (!anonymousEvents[eventName] && !authUser) {
             return c.json(202, { accepted: false });
         }
 
@@ -1618,14 +1684,7 @@ routerAdd("POST", "/api/telemetry", (c) => {
             // boundaries and intentionally does not create a raw event every
             // five minutes.
             utils.recordDailyUserActivity($app, authUser.id, "active_session");
-        } else if (eventName === "landing_pageview") {
-            const analyticsCollection = $app.findCollectionByNameOrId("analytics_events");
-            $app.save(new Record(analyticsCollection, {
-                "event_name": eventName,
-                "user_id": authUser ? authUser.id : "",
-                "metadata": { path: path }
-            }));
-        } else {
+        } else if (eventName === "client_error" || eventName === "unhandled_rejection") {
             let filename = String(data.filename || "").split("?")[0].split("#")[0].substring(0, 180);
             const logsCollection = $app.findCollectionByNameOrId("system_logs");
             $app.save(new Record(logsCollection, {
@@ -1640,6 +1699,23 @@ routerAdd("POST", "/api/telemetry", (c) => {
                     user_id: authUser.id
                 }
             }));
+        } else {
+            var eventId = String(data.event_id || "");
+            if (eventName === "signup_completed" && authUser) {
+                eventId = "signup:" + authUser.id;
+            }
+            utils.recordGrowthEvent($app, {
+                id: eventId,
+                eventName: eventName,
+                userId: authUser ? authUser.id : "",
+                journeyId: data.journey_id,
+                source: data.source,
+                medium: data.medium,
+                campaign: data.campaign,
+                surface: data.surface,
+                targetPlan: data.target_plan,
+                reason: data.reason
+            });
         }
         return c.json(202, { accepted: true });
     } catch (err) {
@@ -1647,6 +1723,193 @@ routerAdd("POST", "/api/telemetry", (c) => {
         return c.json(202, { accepted: false });
     }
 }, $apis.bodyLimit(8 * 1024));
+
+// The homepage promise is a Public Profile address, not an internal account
+// username. Hold the slug briefly while the visitor completes registration.
+routerAdd("POST", "/api/onboarding/profile-reservation", (c) => {
+    try {
+        const utils = require(__hooks + '/utils.js');
+        if (!utils.isTrustedRedirectEdgeRequest(c)) return c.json(404, { message: "Not found" });
+        c.response.header().add("X-Linktery-Service-Origin", "v1");
+
+        const data = new DynamicModel({ "slug": "", "journey_id": "" });
+        c.bindBody(data);
+        const slug = utils.validatePublicSlug(data.slug);
+        const journeyId = String(data.journey_id || "").trim();
+        if (!/^[a-zA-Z0-9_-]{12,64}$/.test(journeyId)) {
+            return c.json(400, { message: "Please refresh the page and try again." });
+        }
+
+        const clientIp = utils.getClientIP(c);
+        const rateKey = "profile-reservation:" + $security.sha256(clientIp).substring(0, 24);
+        const nowMs = new Date().getTime();
+        var rateState = $app.store().get(rateKey) || { count: 0, resetAt: nowMs + 10 * 60 * 1000 };
+        if (nowMs >= Number(rateState.resetAt || 0)) {
+            rateState = { count: 0, resetAt: nowMs + 10 * 60 * 1000 };
+        }
+        if (Number(rateState.count || 0) >= 10) {
+            return c.json(429, { message: "Too many address reservations. Please try again later." });
+        }
+
+        const token = $security.randomString(48);
+        const tokenHash = $security.sha256(token);
+        const journeyHash = $security.sha256(journeyId);
+        const expiresAt = new Date(new Date().getTime() + 20 * 60 * 1000)
+            .toISOString().replace("T", " ").substring(0, 19);
+
+        $app.runInTransaction((txApp) => {
+            txApp.db().newQuery("DELETE FROM profile_slug_reservations WHERE expires_at <= datetime('now')").execute();
+
+            var taken = new DynamicModel({ "taken": 0 });
+            txApp.db().newQuery(`
+                SELECT CASE WHEN
+                  EXISTS (SELECT 1 FROM links WHERE lower(slug) = {:slug}) OR
+                  EXISTS (SELECT 1 FROM public_profiles WHERE lower(slug) = {:slug})
+                THEN 1 ELSE 0 END AS taken
+            `).bind({ slug: slug }).one(taken);
+            if (taken.taken) throw new BadRequestError("This public address is already in use.");
+
+            var ReservationModel = new DynamicModel({ "journey_hash": "" });
+            var reservations = arrayOf(ReservationModel);
+            txApp.db().newQuery("SELECT journey_hash FROM profile_slug_reservations WHERE slug = {:slug} LIMIT 1")
+                .bind({ slug: slug }).all(reservations);
+            if (reservations.length && !$security.equal(String(reservations[0].journey_hash), journeyHash)) {
+                throw new BadRequestError("This public address is being reserved by another visitor.");
+            }
+
+            var JourneyCount = new DynamicModel({ "count": 0 });
+            txApp.db().newQuery("SELECT count(*) AS count FROM profile_slug_reservations WHERE journey_hash = {:journeyHash}")
+                .bind({ journeyHash: journeyHash }).one(JourneyCount);
+            if (!reservations.length && JourneyCount.count >= 3) {
+                throw new BadRequestError("Choose one of the addresses you already reserved, or wait for it to expire.");
+            }
+
+            txApp.db().newQuery(`
+                INSERT INTO profile_slug_reservations (slug, token_hash, journey_hash, expires_at, updated)
+                VALUES ({:slug}, {:tokenHash}, {:journeyHash}, {:expiresAt}, datetime('now'))
+                ON CONFLICT(slug) DO UPDATE SET
+                  token_hash = excluded.token_hash,
+                  journey_hash = excluded.journey_hash,
+                  expires_at = excluded.expires_at,
+                  updated = datetime('now')
+            `).bind({
+                slug: slug,
+                tokenHash: tokenHash,
+                journeyHash: journeyHash,
+                expiresAt: expiresAt
+            }).execute();
+        });
+
+        rateState.count = Number(rateState.count || 0) + 1;
+        $app.store().set(rateKey, rateState);
+
+        return c.json(200, {
+            slug: slug,
+            token: token,
+            expires_at: expiresAt.replace(" ", "T") + "Z"
+        });
+    } catch (err) {
+        if (err instanceof BadRequestError) {
+            return c.json(409, { message: "This public address isn't available right now. Choose another address or try again later." });
+        }
+        $app.logger().warn("Profile slug reservation failed: " + err);
+        return c.json(500, { message: "We couldn't reserve this address. Please try again." });
+    }
+}, $apis.bodyLimit(4 * 1024));
+
+// Authenticated, transactional claim. Deleting the reservation and creating
+// the starter profile happen on the same SQLite connection, so no link/profile
+// can steal the slug in between.
+routerAdd("POST", "/api/onboarding/profile-claim", (c) => {
+    try {
+        const utils = require(__hooks + '/utils.js');
+        if (!utils.isTrustedRedirectEdgeRequest(c)) return c.json(404, { message: "Not found" });
+        c.response.header().add("X-Linktery-Service-Origin", "v1");
+        const user = c.auth && c.auth.collection().name === "users" ? c.auth : null;
+        if (!user) return c.json(401, { message: "Sign in to claim this address." });
+
+        const data = new DynamicModel({ "slug": "", "token": "" });
+        c.bindBody(data);
+        const slug = utils.validatePublicSlug(data.slug);
+        const token = String(data.token || "");
+        if (token.length < 32 || token.length > 96) return c.json(400, { message: "This reservation is invalid." });
+
+        var createdProfileId = "";
+        $app.runInTransaction((txApp) => {
+            var ReservationModel = new DynamicModel({ "token_hash": "", "expires_at": "" });
+            var reservations = arrayOf(ReservationModel);
+            txApp.db().newQuery(`
+                SELECT token_hash, expires_at FROM profile_slug_reservations
+                WHERE slug = {:slug} AND expires_at > datetime('now') LIMIT 1
+            `).bind({ slug: slug }).all(reservations);
+            if (!reservations.length || !$security.equal(String(reservations[0].token_hash), $security.sha256(token))) {
+                throw new BadRequestError("This reservation expired. Choose the address again.");
+            }
+
+            var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
+            if (plan.publicProfiles !== -1) {
+                var count = new DynamicModel({ "count": 0 });
+                txApp.db().newQuery("SELECT count(*) AS count FROM public_profiles WHERE user_id = {:userId}")
+                    .bind({ userId: user.id }).one(count);
+                if (count.count >= plan.publicProfiles) throw new BadRequestError("Your profile limit has been reached.");
+            }
+
+            var collision = new DynamicModel({ "taken": 0 });
+            txApp.db().newQuery(`
+                SELECT CASE WHEN
+                  EXISTS (SELECT 1 FROM links WHERE lower(slug) = {:slug}) OR
+                  EXISTS (SELECT 1 FROM public_profiles WHERE lower(slug) = {:slug})
+                THEN 1 ELSE 0 END AS taken
+            `).bind({ slug: slug }).one(collision);
+            if (collision.taken) throw new BadRequestError("This public address is already in use.");
+
+            txApp.db().newQuery("DELETE FROM profile_slug_reservations WHERE slug = {:slug}")
+                .bind({ slug: slug }).execute();
+
+            const collection = txApp.findCollectionByNameOrId("public_profiles");
+            const profile = new Record(collection, {
+                user_id: user.id,
+                slug: slug,
+                domain: "linktery.com",
+                name: slug,
+                username: slug,
+                theme: "sunset",
+                profile_template: "classic",
+                link_card_style: "solid",
+                social_link_style: "icons",
+                card_color: "#000000"
+            });
+            utils.validateProfileSocialLinks(profile);
+            utils.validateProfileTemplate(profile);
+            utils.validateProfilePresentation(profile);
+            txApp.save(profile);
+            createdProfileId = profile.id;
+            utils.recordGrowthEvent(txApp, {
+                id: "profile-created:" + profile.id,
+                eventName: "profile_created",
+                userId: user.id,
+                objectId: profile.id,
+                surface: "onboarding"
+            });
+        });
+
+        return c.json(201, { id: createdProfileId, slug: slug });
+    } catch (err) {
+        if (err instanceof BadRequestError) {
+            return c.json(409, { message: "This reservation is no longer available. Return to the homepage and choose the address again." });
+        }
+        $app.logger().warn("Profile reservation claim failed: " + err);
+        return c.json(500, { message: "Your account is ready, but the profile couldn't be created yet." });
+    }
+}, $apis.bodyLimit(4 * 1024));
+
+cronAdd("cleanup_profile_slug_reservations", "*/10 * * * *", () => {
+    try {
+        $app.db().newQuery("DELETE FROM profile_slug_reservations WHERE expires_at <= datetime('now')").execute();
+    } catch (err) {
+        $app.logger().warn("Profile reservation cleanup failed: " + err);
+    }
+});
 
 // Non-blocking click ingestion for the browser redirect flow.
 // The browser only queues a minimal event; geo and User-Agent dimensions are
@@ -3885,6 +4148,24 @@ onRecordCreateRequest((e) => {
     e.next();
 }, "users");
 
+// Server milestones are authoritative and idempotent. Client telemetry can
+// later enrich this row with the browser journey and first-touch source.
+onRecordAfterCreateSuccess((e) => {
+    e.next();
+    try {
+        const utils = require(__hooks + '/utils.js');
+        utils.recordGrowthEvent($app, {
+            id: "signup:" + e.record.id,
+            eventName: "signup_completed",
+            userId: e.record.id,
+            objectId: e.record.id,
+            surface: "account"
+        });
+    } catch (err) {
+        $app.logger().warn("Signup growth milestone failed: " + err);
+    }
+}, "users");
+
 // Plan changes can also come from the admin UI or future maintenance tools,
 // not only Stripe. Revoke eagerly on every entitlement loss/ban so dormant
 // credentials never survive a manual downgrade and later reactivate.
@@ -4383,6 +4664,22 @@ onRecordUpdateRequest((e) => {
     e.next();
 }, "links");
 
+onRecordAfterCreateSuccess((e) => {
+    e.next();
+    try {
+        const utils = require(__hooks + '/utils.js');
+        utils.recordGrowthEvent($app, {
+            id: "link-created:" + e.record.id,
+            eventName: "link_created",
+            userId: e.record.get("user_id"),
+            objectId: e.record.id,
+            surface: "links"
+        });
+    } catch (err) {
+        $app.logger().warn("Link growth milestone failed: " + err);
+    }
+}, "links");
+
 // Parasite & XSS Patch for Link Creation
 onRecordCreateRequest((e) => {
     try {
@@ -4497,6 +4794,22 @@ onRecordCreateRequest((e) => {
         throw new BadRequestError("We couldn't validate this Public Profile. Please review its settings and try again.");
     }
     e.next();
+}, "public_profiles");
+
+onRecordAfterCreateSuccess((e) => {
+    e.next();
+    try {
+        const utils = require(__hooks + '/utils.js');
+        utils.recordGrowthEvent($app, {
+            id: "profile-created:" + e.record.id,
+            eventName: "profile_created",
+            userId: e.record.get("user_id"),
+            objectId: e.record.id,
+            surface: "profiles"
+        });
+    } catch (err) {
+        $app.logger().warn("Profile growth milestone failed: " + err);
+    }
 }, "public_profiles");
 
 onRecordUpdateRequest((e) => {
@@ -5500,19 +5813,72 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
         var churnRate = billingStats.paid_count > 0 ? (cancelled30.val / billingStats.paid_count) * 100 : 0;
         var arpu = billingStats.paid_count > 0 ? billingStats.mrr / billingStats.paid_count : 0;
 
-        // 6. Funnel analytics (Landing Views, Signups, Paid signups)
-        var funnelCurrent = new DynamicModel({ "views": 0, "paid": 0 });
-        db.newQuery("SELECT (SELECT count(id) FROM analytics_events WHERE event_name = 'landing_pageview' AND created >= datetime('now', '-' || {:days} || ' days')) as views, (SELECT count(*) FROM users WHERE plan != 'creator' AND plan_status = 'active' AND created >= datetime('now', '-' || {:days} || ' days')) as paid")
+        // 6. Acquisition and activation funnel. Product milestones are written
+        // server-side; browser events only supply first-touch acquisition data.
+        var funnelCurrent = new DynamicModel({
+            "views": 0, "cta": 0, "signup_started": 0, "signups": 0,
+            "built": 0, "activated": 0, "checkout_started": 0, "paid": 0
+        });
+        db.newQuery(`
+            SELECT
+              (SELECT count(DISTINCT CASE WHEN journey_id != '' THEN journey_id ELSE id END)
+                 FROM growth_events WHERE event_name = 'landing_pageview'
+                   AND created >= datetime('now', '-' || {:days} || ' days')) AS views,
+              (SELECT count(DISTINCT CASE WHEN journey_id != '' THEN journey_id ELSE id END)
+                 FROM growth_events WHERE event_name = 'landing_cta_clicked'
+                   AND created >= datetime('now', '-' || {:days} || ' days')) AS cta,
+              (SELECT count(DISTINCT CASE WHEN journey_id != '' THEN journey_id ELSE id END)
+                 FROM growth_events WHERE event_name = 'signup_started'
+                   AND created >= datetime('now', '-' || {:days} || ' days')) AS signup_started,
+              (SELECT count(*) FROM users u
+                 WHERE u.created >= datetime('now', '-' || {:days} || ' days')) AS signups,
+              (SELECT count(*) FROM users u
+                 WHERE u.created >= datetime('now', '-' || {:days} || ' days')
+                   AND EXISTS (SELECT 1 FROM growth_events ge
+                     WHERE ge.user_id = u.id AND ge.event_name IN ('link_created','profile_created'))) AS built,
+              (SELECT count(*) FROM users u
+                 WHERE u.created >= datetime('now', '-' || {:days} || ' days')
+                   AND (
+                     EXISTS (SELECT 1 FROM links l JOIN clicks cl ON cl.link_id = l.id
+                       WHERE l.user_id = u.id AND cl.created >= u.created)
+                     OR EXISTS (SELECT 1 FROM public_profiles pp JOIN profile_view_events pv ON pv.profile_id = pp.id
+                       WHERE pp.user_id = u.id AND pv.created >= u.created)
+                   )) AS activated,
+              (SELECT count(DISTINCT ge.user_id) FROM growth_events ge JOIN users u ON u.id = ge.user_id
+                 WHERE ge.event_name = 'checkout_started'
+                   AND u.created >= datetime('now', '-' || {:days} || ' days')) AS checkout_started,
+              (SELECT count(*) FROM users u
+                 WHERE u.created >= datetime('now', '-' || {:days} || ' days')
+                   AND EXISTS (SELECT 1 FROM billing b WHERE b.user_id = u.id AND b.status = 'success')) AS paid
+        `)
             .bind({ days: days })
             .one(funnelCurrent);
 
-        var funnelPrev = new DynamicModel({ "views": 0, "paid": 0 });
-        db.newQuery("SELECT (SELECT count(id) FROM analytics_events WHERE event_name = 'landing_pageview' AND created >= datetime('now', '-' || {:prevDays} || ' days') AND created < datetime('now', '-' || {:days} || ' days')) as views, (SELECT count(*) FROM users WHERE plan != 'creator' AND plan_status = 'active' AND created >= datetime('now', '-' || {:prevDays} || ' days') AND created < datetime('now', '-' || {:days} || ' days')) as paid")
+        var funnelPrev = new DynamicModel({ "views": 0, "paid": 0, "activated": 0 });
+        db.newQuery(`
+            SELECT
+              (SELECT count(DISTINCT CASE WHEN journey_id != '' THEN journey_id ELSE id END)
+                 FROM growth_events WHERE event_name = 'landing_pageview'
+                   AND created >= datetime('now', '-' || {:prevDays} || ' days')
+                   AND created < datetime('now', '-' || {:days} || ' days')) AS views,
+              (SELECT count(*) FROM users u
+                 WHERE u.created >= datetime('now', '-' || {:prevDays} || ' days')
+                   AND u.created < datetime('now', '-' || {:days} || ' days')
+                   AND EXISTS (SELECT 1 FROM billing b WHERE b.user_id = u.id AND b.status = 'success')) AS paid,
+              (SELECT count(*) FROM users u
+                 WHERE u.created >= datetime('now', '-' || {:prevDays} || ' days')
+                   AND u.created < datetime('now', '-' || {:days} || ' days')
+                   AND (
+                     EXISTS (SELECT 1 FROM links l JOIN clicks cl ON cl.link_id = l.id WHERE l.user_id = u.id AND cl.created >= u.created)
+                     OR EXISTS (SELECT 1 FROM public_profiles pp JOIN profile_view_events pv ON pv.profile_id = pp.id WHERE pp.user_id = u.id AND pv.created >= u.created)
+                   )) AS activated
+        `)
             .bind({ days: days, prevDays: prevDays })
             .one(funnelPrev);
 
         var convRate = funnelCurrent.views > 0 ? (funnelCurrent.paid / funnelCurrent.views) * 100 : 0;
         var prevConvRate = funnelPrev.views > 0 ? (funnelPrev.paid / funnelPrev.views) * 100 : 0;
+        var activationRate = funnelCurrent.signups > 0 ? (funnelCurrent.activated / funnelCurrent.signups) * 100 : 0;
 
         // 7. Trends calculations helper
         var getTrend = function (curr, prev) {
@@ -5562,8 +5928,32 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
         // 11. Pulse activity feed (Top 10)
         var PulseModel = new DynamicModel({ "id": "", "event_name": "", "created": "" });
         var pulseRaw = arrayOf(PulseModel);
-        db.newQuery("SELECT id, event_name, created FROM analytics_events WHERE event_name != 'active_session' ORDER BY created DESC LIMIT 10")
+        db.newQuery("SELECT id, event_name, created FROM growth_events ORDER BY created DESC LIMIT 10")
             .all(pulseRaw);
+
+        var SourceModel = new DynamicModel({ "name": "", "signups": 0, "activated": 0, "paid": 0 });
+        var sourceRaw = arrayOf(SourceModel);
+        db.newQuery(`
+            WITH acquired AS (
+              SELECT u.id,
+                     COALESCE(NULLIF(MAX(CASE WHEN ge.source != 'direct' THEN ge.source ELSE '' END), ''), 'direct') AS source
+              FROM users u
+              LEFT JOIN growth_events ge ON ge.user_id = u.id AND ge.event_name = 'signup_completed'
+              WHERE u.created >= datetime('now', '-' || {:days} || ' days')
+              GROUP BY u.id
+            )
+            SELECT a.source AS name,
+                   count(*) AS signups,
+                   sum(CASE WHEN
+                     EXISTS (SELECT 1 FROM links l JOIN clicks cl ON cl.link_id = l.id WHERE l.user_id = a.id)
+                     OR EXISTS (SELECT 1 FROM public_profiles pp JOIN profile_view_events pv ON pv.profile_id = pp.id WHERE pp.user_id = a.id)
+                   THEN 1 ELSE 0 END) AS activated,
+                   sum(CASE WHEN EXISTS (SELECT 1 FROM billing b WHERE b.user_id = a.id AND b.status = 'success') THEN 1 ELSE 0 END) AS paid
+            FROM acquired a
+            GROUP BY a.source
+            ORDER BY signups DESC
+            LIMIT 8
+        `).bind({ days: days }).all(sourceRaw);
 
         // 12. Growth cumulative timeline (O(N) daily SQL aggregation)
         var DayModel = new DynamicModel({ "day": "", "count": 0 });
@@ -5643,10 +6033,14 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
 
         // 13. Conversion Events funnel
         var conversionEvents = [
-            { name: "Landing Visitors", value: funnelCurrent.views, color: "#3b82f6" },
-            { name: "Signups", value: curStats.users, color: "#10b981" },
-            { name: "Active Users", value: dauMau.dau, color: "#f59e0b" },
-            { name: "Paid Conversions", value: funnelCurrent.paid, color: "#8b5cf6" }
+            { name: "Landing visitors", value: funnelCurrent.views, color: "#34d399" },
+            { name: "Primary CTA", value: funnelCurrent.cta, color: "#2dd4bf" },
+            { name: "Signup started", value: funnelCurrent.signup_started, color: "#22c55e" },
+            { name: "Accounts created", value: funnelCurrent.signups, color: "#10b981" },
+            { name: "First asset built", value: funnelCurrent.built, color: "#059669" },
+            { name: "Activated accounts", value: funnelCurrent.activated, color: "#047857" },
+            { name: "Checkout started", value: funnelCurrent.checkout_started, color: "#065f46" },
+            { name: "Paid conversions", value: funnelCurrent.paid, color: "#064e3b" }
         ];
 
         return c.json(200, {
@@ -5661,6 +6055,8 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
                 mrr: billingStats.mrr,
                 arpu: arpu,
                 conversionRate: convRate,
+                activatedAccounts: funnelCurrent.activated,
+                activationRate: activationRate,
                 churnRate: churnRate,
                 totalClicksInPeriod: curStats.clicks,
                 trends: trends
@@ -5671,7 +6067,8 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
             topCreators: creatorsRaw,
             pulseEvents: pulseRaw,
             conversionEvents: conversionEvents,
-            trafficData: countriesRaw
+            trafficData: countriesRaw,
+            sourceData: sourceRaw
         });
 
     } catch (e) {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Gift, Eye, EyeOff, ChevronDown } from "lucide-react";
+import { Gift, Eye, EyeOff, ChevronDown, Link2 } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { parseAuthError } from "@/lib/authErrors";
@@ -8,6 +8,8 @@ import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
 import { maskError } from "@/lib/utils";
 import { captureReferral, claimStoredReferral, normalizeReferralCode } from "@/lib/affiliate";
+import { trackGrowthEvent } from "@/lib/telemetry";
+import { claimStarterProfile } from "@/lib/profileOnboarding";
 
 interface Star {
   x: number;
@@ -108,6 +110,8 @@ export default function RegisterPage() {
   }, []);
 
   const [searchParams] = useSearchParams();
+  const reservedProfileSlug = (searchParams.get("profile") || "")
+    .trim().toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 64);
   const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState(searchParams.get("username") || "");
   const [email, setEmail] = useState("");
@@ -123,6 +127,10 @@ export default function RegisterPage() {
     const referralCode = normalizeReferralCode(searchParams.get("ref"));
     if (referralCode) captureReferral(referralCode);
   }, [searchParams]);
+
+  useEffect(() => {
+    trackGrowthEvent("signup_started", { surface: "register" });
+  }, []);
 
   // Helper function to generate a guaranteed unique username
   const generateUniqueUsername = async (emailOrName: string) => {
@@ -146,6 +154,20 @@ export default function RegisterPage() {
       }
     }
     return finalUsername;
+  };
+
+  const claimReservedProfileAfterSignup = async () => {
+    if (!reservedProfileSlug) return null;
+    try {
+      const profile = await claimStarterProfile(reservedProfileSlug);
+      if (profile) toast.success(`Your profile link linktery.com/${profile.slug} is ready.`);
+      return profile;
+    } catch (error) {
+      toast.error(error instanceof Error
+        ? error.message
+        : "Your account is ready, but the reserved profile needs to be created again.");
+      return null;
+    }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -207,6 +229,12 @@ export default function RegisterPage() {
         username: cleanUsername,
       });
       await pb.collection('users').authWithPassword(email, password);
+      if (pb.authStore.model?.id) {
+        trackGrowthEvent("signup_completed", {
+          event_id: `signup:${pb.authStore.model.id}`,
+          surface: "password",
+        });
+      }
 
       // Claim the browser's first-touch referral before applying an optional
       // typed promo code. This makes attribution deterministic when both exist.
@@ -237,7 +265,8 @@ export default function RegisterPage() {
         toast.success("Account created successfully!");
       }
       
-      navigate("/dashboard");
+      const starterProfile = await claimReservedProfileAfterSignup();
+      navigate(starterProfile ? `/dashboard/profile/${starterProfile.id}` : "/dashboard");
     } catch (error: unknown) {
       toast.error(parseAuthError(error, "register"));
     } finally {
@@ -251,6 +280,10 @@ export default function RegisterPage() {
     try {
       const authData = await pb.collection('users').authWithOAuth2({
         provider: 'google'
+      });
+      trackGrowthEvent("signup_completed", {
+        event_id: `signup:${authData.record.id}`,
+        surface: "google",
       });
 
       const updateData: Record<string, string> = {};
@@ -270,7 +303,8 @@ export default function RegisterPage() {
       }
 
       toast.success("Successfully signed up with Google!");
-      navigate("/dashboard");
+      const starterProfile = await claimReservedProfileAfterSignup();
+      navigate(starterProfile ? `/dashboard/profile/${starterProfile.id}` : "/dashboard");
     } catch (error: unknown) {
       const err = error as { name?: string; originalError?: { message?: string }; message?: string };
       if (err.name !== "ClientResponseError" || err.originalError?.message !== "The user cancelled the request.") {
@@ -323,6 +357,18 @@ export default function RegisterPage() {
         </div>
 
         <form onSubmit={handleRegister} className="space-y-4">
+          {reservedProfileSlug && (
+            <div className="flex items-start gap-3 rounded-xl border border-accent/20 bg-accent/[0.06] px-3.5 py-3 text-left">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                <Link2 className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">Reserved Public Profile</p>
+                <p className="truncate text-sm font-semibold text-foreground">linktery.com/{reservedProfileSlug}</p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">Your account username stays private to Linktery and can be different.</p>
+              </div>
+            </div>
+          )}
           <div>
             <label className="text-sm font-medium text-foreground mb-1.5 block">Username</label>
             <input

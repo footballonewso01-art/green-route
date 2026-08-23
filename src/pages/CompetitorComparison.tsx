@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
 import { useSeo } from "@/hooks/useSeo";
 import competitorsData from "@/data/competitors.json";
+import indexableComparisons from "@/data/indexable-comparisons.json";
 import Footer from "@/components/Footer";
 
 interface CompetitorPricing {
@@ -60,7 +61,8 @@ export default function CompetitorComparison() {
   const canonicalComparisonSlug = canonicalCompetitors.length === 2
     ? `${canonicalCompetitors[0].slug}-vs-${canonicalCompetitors[1].slug}`
     : "";
-  const isIndexableComparison = !!(competitorA && competitorB);
+  const isIndexableComparison = !!(competitorA && competitorB)
+    && (indexableComparisons as string[]).includes(canonicalComparisonSlug);
 
   // Accordion State
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
@@ -109,7 +111,7 @@ export default function CompetitorComparison() {
             "name": `Which is better: ${competitorA.name} or ${competitorB.name}?`,
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": `${competitorA.name} and ${competitorB.name} serve different needs. ${competitorA.name} is best described as: ${competitorA.description}. ${competitorB.name} is described as: ${competitorB.description}. However, for performance marketing and advanced redirections, Linktery offers a faster, more robust solution with zero transaction fees.`
+              "text": `${competitorA.name} and ${competitorB.name} serve different needs. ${competitorA.name} is best described as: ${competitorA.description}. ${competitorB.name} is described as: ${competitorB.description}. Linktery combines Link-in-Bio profiles with rule-based routing, aggregate analytics, and a public API, and does not charge a platform commission on sales completed at external destinations.`
             }
           },
           {

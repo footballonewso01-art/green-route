@@ -57,6 +57,10 @@ The old Vercel workflow must not be used for routine releases. Commands named
 Full DNS invariants, smoke checks, rollback procedures, and PocketBase rules
 are documented in [DEPLOYMENT.md](./DEPLOYMENT.md).
 
+SEO discovery uses the generated production sitemap plus Cloudflare Crawler
+Hints (IndexNow) on the canonical `linktery.com` zone. The zone-level setting
+and verification rules are documented in [DEPLOYMENT.md](./DEPLOYMENT.md).
+
 ## Public API
 
 Developer API behavior and authentication are documented in

@@ -109,7 +109,7 @@ export default function SolutionsIndex() {
     {
       icon: Radio,
       title: "Podcast Smart Links",
-      desc: "Route listeners directly into native Apple Podcasts or Spotify apps to double subscribe rates.",
+      desc: "Attempt native Apple Podcasts or Spotify handoffs with a safe web fallback and click analytics.",
       path: "/solutions/podcast-smart-links"
     },
     {

@@ -4,12 +4,13 @@ import { ArrowRight, BarChart3, Shield, Zap, Globe, MousePointer, User as UserIc
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { PlanType, PLAN_RANKS } from "@/lib/plans";
-import { sendTelemetry } from "@/lib/telemetry";
+import { trackGrowthEvent } from "@/lib/telemetry";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
 import Footer from "@/components/Footer";
 import MarketingHeader from "@/components/MarketingHeader";
+import { reserveStarterProfile } from "@/lib/profileOnboarding";
 
 const features = [
   {
@@ -88,7 +89,7 @@ const plans = [
     description: "For agencies and power users",
     features: [
       { text: "Unlimited Smart Links", icon: "🚀" },
-      { text: "Unlimited Biolink Profiles", icon: "👥", tooltip: "Create unlimited profiles for brands." },
+      { text: "25 Client Profiles", icon: "👥", tooltip: "Manage up to 25 separate Link-in-Bio profiles for clients or brands." },
       { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
       { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
       { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
@@ -113,6 +114,8 @@ export default function LandingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [usernameInput, setUsernameInput] = useState("");
+  const [slugReservationLoading, setSlugReservationLoading] = useState(false);
+  const [slugReservationError, setSlugReservationError] = useState("");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
   const videoRef = useRef<HTMLVideoElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
@@ -156,10 +159,7 @@ export default function LandingPage() {
       try {
         const isTracked = sessionStorage.getItem("landing_viewed");
         if (!isTracked) {
-          sendTelemetry({
-            event_name: "landing_pageview",
-            path: "/",
-          });
+          trackGrowthEvent("landing_pageview", { surface: "landing" });
           sessionStorage.setItem("landing_viewed", "true");
         }
       } catch (e) {
@@ -264,7 +264,7 @@ export default function LandingPage() {
             </h1>
 
             <p className="mb-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:mb-8 md:text-[20px]">
-              Advanced link management with smart routing. Designed for creators, affiliates, and marketers.
+              Smart links and Link-in-Bio profiles built to convert social traffic — with routing, analytics, and API access in one platform.
             </p>
 
             <div className="relative z-20 mb-6 flex w-full max-w-md flex-col items-start gap-4 sm:mb-8">
@@ -274,10 +274,19 @@ export default function LandingPage() {
                 </Link>
               ) : (
                 <form
-                  onSubmit={(e) => {
+                  onSubmit={async (e) => {
                     e.preventDefault();
-                    if (usernameInput.trim()) {
-                      navigate(`/register?username=${usernameInput.trim().toLowerCase()}`);
+                    const slug = usernameInput.trim().toLowerCase();
+                    if (!slug || slugReservationLoading) return;
+                    setSlugReservationError("");
+                    setSlugReservationLoading(true);
+                    trackGrowthEvent("landing_cta_clicked", { surface: "hero_profile_slug" });
+                    try {
+                      await reserveStarterProfile(slug);
+                      navigate(`/register?profile=${encodeURIComponent(slug)}`);
+                    } catch (error) {
+                      setSlugReservationError(error instanceof Error ? error.message : "We couldn't reserve this address.");
+                      setSlugReservationLoading(false);
                     }
                   }}
                   className="flex w-full items-center rounded-full border border-border/60 bg-surface/40 p-1.5 shadow-glow/5 backdrop-blur-xl transition-all duration-300 hover:border-border/80 focus-within:border-accent/40 focus-within:shadow-glow/15"
@@ -288,20 +297,27 @@ export default function LandingPage() {
                   </div>
                   <input
                     type="text"
-                    aria-label="Choose your Linktery username"
+                    aria-label="Choose your Public Profile address"
                     value={usernameInput}
-                    onChange={(e) => setUsernameInput(e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_.]/g, "").slice(0, 22))}
-                    maxLength={22}
+                    onChange={(e) => {
+                      setSlugReservationError("");
+                      setUsernameInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 64));
+                    }}
+                    maxLength={64}
                     placeholder="yourname"
                     className="m-0 min-w-0 w-full border-0 bg-transparent p-0 py-2 pl-px pr-1 text-[13px] text-white outline-none placeholder:text-white/30 focus:ring-0 sm:pr-2 sm:text-[16.6px]"
                   />
                   <button
                     type="submit"
+                    disabled={slugReservationLoading}
                     className="btn-primary-glow whitespace-nowrap !rounded-full !px-4 !py-2.5 text-xs font-bold transition-transform active:scale-95 sm:!px-6 sm:text-sm"
                   >
-                    Start for free
+                    {slugReservationLoading ? "Reserving…" : "Start for free"}
                   </button>
                 </form>
+              )}
+              {slugReservationError && (
+                <p role="alert" className="px-4 text-sm text-red-300">{slugReservationError}</p>
               )}
             </div>
 
@@ -314,48 +330,18 @@ export default function LandingPage() {
                 <span className="text-accent">•</span> No credit card
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="text-accent">•</span> 30 sec setup
+                <span className="text-accent">•</span> Profile link reserved at signup
               </span>
             </div>
 
-            {/* Rating social proof widget */}
-            <div className="flex w-full max-w-xl flex-row items-center gap-3 border-t border-border/50 pt-7 sm:gap-4 sm:pt-9">
-              {/* Overlapping avatars */}
-              <div className="flex -space-x-3.5">
-                <img
-                  className="inline-block h-10 w-10 rounded-full object-cover ring-2 ring-background sm:h-[44px] sm:w-[44px]"
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&h=100&q=80"
-                  alt="User avatar 1"
-                />
-                <img
-                  className="inline-block h-10 w-10 rounded-full object-cover ring-2 ring-background sm:h-[44px] sm:w-[44px]"
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80"
-                  alt="User avatar 2"
-                />
-                <img
-                  className="inline-block h-10 w-10 rounded-full object-cover ring-2 ring-background sm:h-[44px] sm:w-[44px]"
-                  src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&h=100&q=80"
-                  alt="User avatar 3"
-                />
-              </div>
-              <div className="flex flex-col items-start justify-center">
-                {/* 5 Stars */}
-                <div className="flex items-center gap-0.5 text-amber-400 mb-1">
-                  {[...Array(5)].map((_, i) => (
-                    <svg
-                      key={i}
-                      className="w-[19px] h-[19px] fill-current"
-                      viewBox="0 0 20 20"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
+            {/* Factual product proof — no invented ratings or customer identities. */}
+            <div className="grid w-full max-w-xl grid-cols-3 gap-px overflow-hidden rounded-2xl border border-border/50 bg-border/50">
+              {[["01", "Smart routing"], ["02", "Profile analytics"], ["03", "Public API"]].map(([number, label]) => (
+                <div key={number} className="bg-background/80 px-3 py-3.5 backdrop-blur-sm sm:px-4">
+                  <span className="font-mono text-[10px] font-bold text-accent">{number}</span>
+                  <p className="mt-1 text-[11px] font-semibold leading-tight text-foreground/80 sm:text-xs">{label}</p>
                 </div>
-                <span className="text-left text-[13px] font-medium leading-snug text-muted-foreground sm:text-[14px] md:text-[16px]">
-                  Built for creators, marketers, and growing teams
-                </span>
-              </div>
+              ))}
             </div>
           </div>
 

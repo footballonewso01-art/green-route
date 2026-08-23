@@ -59,7 +59,7 @@ export default function YoutubeSmartLinks() {
   const faqItems: FaqItem[] = [
     {
       question: "What is the YouTube in-app browser 'jail' and why does it hurt conversions?",
-      answer: "When a viewer clicks any external link in your YouTube video description or comments on mobile, the YouTube app opens it inside its built-in Webview container (the in-app browser) rather than Safari or Chrome. In this webview, the user is completely logged out of all external accounts. If they click to subscribe to your Patreon, join your Telegram channel, or buy from your Shopify store, they must manually type their username, password, and billing info, causing up to 80% of users to drop off immediately."
+      answer: "YouTube may open external destinations inside its in-app browser. The visitor may not share their normal browser session there, so subscriptions, communities, and checkouts can require extra steps. Linktery attempts supported app/browser handoffs and keeps a fallback when the platform blocks them."
     },
     {
       question: "How do Linktery Smart Links bypass the in-app webview?",
@@ -196,7 +196,7 @@ export default function YoutubeSmartLinks() {
           <div className="space-y-2">
             <span className="text-red-500 text-xs font-bold uppercase tracking-widest block">The Hidden Conversion Killer</span>
             <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
-              Why 80% of YouTube Description Clicks Never Convert
+              Why YouTube in-app clicks can lose momentum
             </h2>
           </div>
           <div className="space-y-4 text-muted-foreground text-sm md:text-base leading-relaxed">
@@ -375,7 +375,7 @@ export default function YoutubeSmartLinks() {
                     </div>
 
                     <div className="border-t border-slate-100 pt-2 text-center text-[7px] text-slate-400">
-                      ⚠️ Conversion dropped. 80% bounce risk.
+                      ⚠️ Conversion path interrupted by extra steps.
                     </div>
                   </div>
                 )}
@@ -470,7 +470,7 @@ export default function YoutubeSmartLinks() {
           <div className="space-y-4 max-w-xl text-left">
             <h3 className="text-2xl font-bold text-white">How much revenue are you losing?</h3>
             <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-              If your video description link sells a product or offers a subscription, losing 80% of clicks to the "password log-in prompt" directly drains your wallet. Let's look at the average numbers:
+              If your video description link sells a product or offers a subscription, an unexpected sign-in prompt adds friction. The example below shows where that friction appears without claiming a universal conversion rate:
             </p>
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div className="bg-red-500/5 border border-red-500/20 p-4 rounded-xl">

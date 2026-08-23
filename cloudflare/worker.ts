@@ -300,7 +300,9 @@ async function handleFirstPartyServiceRequest(
 
   const isClick = url.pathname === "/api/track-click";
   const isTelemetry = url.pathname === "/api/telemetry";
-  if (!isClick && !isTelemetry) return null;
+  const isOnboarding = url.pathname === "/api/onboarding/profile-reservation"
+    || url.pathname === "/api/onboarding/profile-claim";
+  if (!isClick && !isTelemetry && !isOnboarding) return null;
   if (request.method !== "POST") {
     return applyResponseHeaders(request, env, new Response("Method not allowed.", {
       status: 405,
@@ -332,13 +334,13 @@ async function handleFirstPartyServiceRequest(
     if (!rate.success) {
       // Analytics must never block navigation or expose an abuse-control
       // oracle. A dropped event is still acknowledged to the browser.
-      return applyResponseHeaders(request, env, new Response(null, { status: 202 }), {
+      return applyResponseHeaders(request, env, new Response(null, { status: isOnboarding ? 429 : 202 }), {
         noIndex: true,
         cacheControl: "no-store",
       });
     }
   } catch {
-    return applyResponseHeaders(request, env, new Response(null, { status: 202 }), {
+    return applyResponseHeaders(request, env, new Response(null, { status: isOnboarding ? 503 : 202 }), {
       noIndex: true,
       cacheControl: "no-store",
     });
@@ -374,19 +376,29 @@ async function handleFirstPartyServiceRequest(
       headers,
       body: bodyResult.body,
       redirect: "manual",
-      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(3_000) : undefined,
+      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(isOnboarding ? 5_000 : 3_000) : undefined,
     });
-    if (upstream.headers.get("X-Linktery-Telemetry-Origin") !== "v1") {
+    const validOrigin = isOnboarding
+      ? upstream.headers.get("X-Linktery-Service-Origin") === "v1"
+      : upstream.headers.get("X-Linktery-Telemetry-Origin") === "v1";
+    if (!validOrigin) {
       return applyResponseHeaders(request, env, new Response(null, { status: 502 }), {
         noIndex: true,
         cacheControl: "no-store",
       });
     }
+    if (isOnboarding) {
+      const body = await upstream.text();
+      return applyResponseHeaders(request, env, new Response(body, {
+        status: upstream.status,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      }), { noIndex: true, cacheControl: "no-store" });
+    }
     return applyResponseHeaders(request, env, new Response(null, {
       status: upstream.status >= 200 && upstream.status < 300 ? 202 : 502,
     }), { noIndex: true, cacheControl: "no-store" });
   } catch {
-    return applyResponseHeaders(request, env, new Response(null, { status: 202 }), {
+    return applyResponseHeaders(request, env, new Response(null, { status: isOnboarding ? 503 : 202 }), {
       noIndex: true,
       cacheControl: "no-store",
     });

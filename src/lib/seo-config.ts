@@ -74,7 +74,7 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
   },
   telegramSolution: {
     title: "Telegram Link in Bio: Optimize Social Traffic & Conversions | Linktery",
-    description: "Boost your Telegram channel growth. Seamlessly redirect Instagram and TikTok traffic to native applications, preventing drop-offs and optimizing user conversions.",
+    description: "Create Telegram smart links that attempt supported native-app handoffs, retain a safe web fallback, and measure incoming social traffic.",
     canonical: "/solutions/telegram-bio-link",
   },
   affiliateSolution: {
