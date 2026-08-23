@@ -22,4 +22,11 @@ describe("landing mobile hero", () => {
     expect(landing).toContain('aria-label="Choose your Public Profile address"');
     expect(landing).toContain("prefersReducedMotion");
   });
+
+  it("keeps the original rating social proof in the hero", () => {
+    expect(landing).toContain("Rating social proof widget");
+    expect(landing).toContain("Built for creators, marketers, and growing teams");
+    expect(landing).toContain("[...Array(5)]");
+    expect(landing).not.toContain("Factual product proof");
+  });
 });
