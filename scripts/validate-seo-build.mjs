@@ -10,6 +10,10 @@ const contentPages = JSON.parse(
   fs.readFileSync(path.join(process.cwd(), "src", "data", "seo-content-pages.json"), "utf8"),
 );
 
+if (fs.existsSync(path.join(process.cwd(), "public", "sitemap.xml"))) {
+  failures.push("public/sitemap.xml must not exist; the release sitemap is generated from the SEO route catalog");
+}
+
 const assertUniqueField = (field) => {
   const seen = new Map();
   for (const config of configs) {

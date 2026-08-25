@@ -180,6 +180,28 @@ describe("Cloudflare edge routing contract", () => {
 
     expect(generator).toContain('"dist", "sitemap.xml"');
     expect(generator).not.toContain('"public", "sitemap.xml"');
+    expect(fs.existsSync(path.join(process.cwd(), "public", "sitemap.xml"))).toBe(false);
+  });
+
+  it("keeps the submitted Taplink vs UrMy.bio comparison indexable", () => {
+    const indexableComparisons = JSON.parse(
+      readWorkspaceFile("src/data/indexable-comparisons.json"),
+    ) as string[];
+
+    expect(indexableComparisons).toContain("taplink-vs-urmybio");
+  });
+
+  it("audits every production sitemap URL after deployment", () => {
+    const packageJson = JSON.parse(readWorkspaceFile("package.json")) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts["cf:smoke:production"]).toContain(
+      "cf:seo:audit:production",
+    );
+    expect(packageJson.scripts["cf:seo:audit:production"]).toContain(
+      "scripts/audit-live-seo.mjs",
+    );
   });
 
   it("bootstraps the candidate Worker only when production traffic is disabled", () => {
