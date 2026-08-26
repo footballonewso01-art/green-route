@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildAndroidBrowserIntent,
+  buildIOSChromeExternalUrl,
   buildMetaExternalBrowserUrl,
   detectInAppBrowser,
   getDeeplinkDestinationName,
@@ -9,12 +10,24 @@ import {
 } from "@/lib/deeplink";
 
 describe("deeplink handoff", () => {
-  it("detects supported social in-app browsers without treating Chrome as one", () => {
+  it("detects Meta and Snapchat WebViews without treating real browsers as in-app", () => {
     expect(detectInAppBrowser("Mozilla/5.0 Instagram 390.0 Android")).toBe("instagram");
     expect(detectInAppBrowser("Mozilla/5.0 iPhone Barcelona 390.0")).toBe("threads");
     expect(detectInAppBrowser("Mozilla/5.0 TikTok iPhone")).toBe("tiktok");
     expect(detectInAppBrowser("Mozilla/5.0 FBAN/FBIOS FBAV/500.0")).toBe("facebook");
+    expect(detectInAppBrowser("Mozilla/5.0 iPhone Snapchat/13.0")).toBe("snapchat");
+    expect(detectInAppBrowser(
+      "Mozilla/5.0 (Linux; Android 15; Pixel 9 Build/AP3A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/140.0 Mobile Safari/537.36",
+    )).toBe("webview");
+    expect(detectInAppBrowser(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/22G86",
+    )).toBe("webview");
+    expect(detectInAppBrowser(
+      "Mozilla/5.0 iPhone AppleWebKit/605.1.15 Mobile/22G86 Safari/604.1",
+      "https://www.snapchat.com/",
+    )).toBe("snapchat");
     expect(detectInAppBrowser("Mozilla/5.0 Chrome/140.0 Mobile Safari/537.36")).toBeNull();
+    expect(detectInAppBrowser("Mozilla/5.0 iPhone AppleWebKit/605.1.15 Mobile/22G86 Safari/604.1")).toBeNull();
   });
 
   it("builds a user-gesture Android browser intent with a direct fallback", () => {
@@ -52,6 +65,21 @@ describe("deeplink handoff", () => {
       .toEqual({ href: destination, label: "Open YouTube" });
   });
 
+  it("offers a user-tapped Chrome escape for Snapchat on iOS without changing Meta", () => {
+    const destination = "https://example.com/checkout?a=1#offer";
+    const snapchatUa = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Mobile/22G86 Snapchat/13.0";
+
+    expect(buildIOSChromeExternalUrl(destination, snapchatUa))
+      .toBe("googlechromes://example.com/checkout?a=1#offer");
+    expect(getDeeplinkPrimaryAction(destination, snapchatUa)).toEqual({
+      href: "googlechromes://example.com/checkout?a=1#offer",
+      label: "Open in Chrome",
+    });
+    expect(buildIOSChromeExternalUrl(destination, "Mozilla/5.0 iPhone Instagram 390.0")).toBeNull();
+    expect(getDeeplinkPrimaryAction(destination, "Mozilla/5.0 iPhone Instagram 390.0").href)
+      .toBe(`instagram://extbrowser/?url=${encodeURIComponent(destination)}`);
+  });
+
   it("prepares only one guarded automatic Android attempt", () => {
     const values = new Map<string, string>();
     const storage = {
@@ -60,7 +88,7 @@ describe("deeplink handoff", () => {
     };
     const input = {
       destination: "https://example.com/offer",
-      userAgent: "Mozilla/5.0 Android Instagram",
+      userAgent: "Mozilla/5.0 (Linux; Android 15; Pixel Build/AP3A; wv) AppleWebKit/537.36 Version/4.0 Chrome/140.0 Mobile Safari/537.36",
       storage,
       scope: "summer-offer",
     };

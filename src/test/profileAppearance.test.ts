@@ -65,6 +65,25 @@ describe("public profile appearance settings", () => {
     expect(identity).not.toContain("linear-gradient(to top, ${cardColor} 15%, transparent)");
   });
 
+  it("stores profile artwork separately from link-card images and validates every presentation control", () => {
+    const migration = readWorkspaceFile("pocketbase/pb_migrations/1787672000_add_profile_image_backgrounds.js");
+    const utils = readWorkspaceFile("pocketbase/pb_hooks/utils.js");
+    const dashboard = readWorkspaceFile("src/pages/DashboardProfile.tsx");
+    const publicProfile = readWorkspaceFile("src/pages/PublicProfile.tsx");
+
+    expect(migration).toContain('name: "profile_background_image"');
+    expect(migration).toContain('mimeTypes: ["image/jpeg", "image/png", "image/webp"]');
+    expect(migration).not.toContain("image/svg+xml");
+    expect(migration).not.toContain("image/gif");
+    expect(utils).toContain('"visual": true');
+    expect(utils).toContain('var PROFILE_BACKGROUND_MODES');
+    expect(utils).toContain('var PROFILE_BACKGROUND_POSITIONS');
+    expect(utils).toContain('var PROFILE_BACKGROUND_OVERLAYS');
+    expect(dashboard).toContain("updateData.profile_background_image = profileBackgroundFile");
+    expect(dashboard).not.toContain('fileData.append("profile_background_image"');
+    expect(publicProfile).toContain('thumb: "1280x0"');
+  });
+
   it("keeps the Cutout Editorial username below the portrait frame", () => {
     const identity = readWorkspaceFile("src/components/profile/ProfileIdentity.tsx");
     const cutoutSection = identity.slice(

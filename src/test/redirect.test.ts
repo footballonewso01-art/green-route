@@ -12,11 +12,14 @@ function loadRedirectTraceHelpers(metaEscapeValue = "true"): {
   resolveCountryFromIP: (request: { header: { get: (name: string) => string } }) => string;
   buildAndroidBrowserIntent: (destination: string) => string;
   buildMetaExternalBrowserUrl: (destination: string, userAgent: string) => string;
+  buildIOSChromeExternalUrl: (destination: string, userAgent: string, referrer?: string) => string;
+  getInAppBrowser: (userAgent: string, referrer?: string) => string;
   getDeeplinkHandoffHtml: (
     destination: string,
     userAgent: string,
     pixelScripts: string,
     attemptScope: string,
+    referrer?: string,
   ) => string;
 } {
   const moduleContainer = { exports: {} };
@@ -38,11 +41,14 @@ function loadRedirectTraceHelpers(metaEscapeValue = "true"): {
     resolveCountryFromIP: (request: { header: { get: (name: string) => string } }) => string;
     buildAndroidBrowserIntent: (destination: string) => string;
     buildMetaExternalBrowserUrl: (destination: string, userAgent: string) => string;
+    buildIOSChromeExternalUrl: (destination: string, userAgent: string, referrer?: string) => string;
+    getInAppBrowser: (userAgent: string, referrer?: string) => string;
     getDeeplinkHandoffHtml: (
       destination: string,
       userAgent: string,
       pixelScripts: string,
       attemptScope: string,
+      referrer?: string,
     ) => string;
   };
 }
@@ -136,8 +142,8 @@ describe("Redirect Loop Detection", () => {
     const server = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
 
     expect(server).toContain('const isDeeplinkEnabled = link.get("mode") === "direct"');
-    expect(server).toContain("(hasPixels && !isBot) || (isDeeplinkEnabled && isInApp)");
-    expect(server).toContain("isDeeplinkEnabled && isInApp");
+    expect(server).toContain("(hasPixels && !isBot) || (isDeeplinkEnabled && isInApp && !isBot)");
+    expect(server).toContain("isDeeplinkEnabled && isInApp && !isBot");
     expect(server).not.toContain("x-safari-https://");
   });
 
@@ -165,12 +171,37 @@ describe("Redirect Loop Detection", () => {
     expect(utils).toContain("package=com.android.chrome");
     expect(utils).toContain('sessionStorage.setItem(key, "attempted")');
     expect(utils).toContain("attempts the automatic handoff only once");
-    expect(server).toContain("isDeeplinkEnabled && isInApp && !managedTarget");
+    expect(server).toContain("isDeeplinkEnabled && isInApp && !isBot && !managedTarget");
     expect(client).not.toContain("redirect_attempts_");
     expect(client).toContain("__LINKTERY_SUPPRESS_CLIENT_CLICK__");
     expect(client).not.toContain("x-safari-https://");
     expect(client).not.toContain("googlechrome://navigate");
     expect(utils).toContain("instagram://extbrowser/?url=");
+  });
+
+  it("detects Snapchat and unbranded mobile WebViews without changing Meta routing", () => {
+    const helpers = loadRedirectTraceHelpers();
+    const destination = "https://example.com/checkout";
+    const androidSnapWebView = "Mozilla/5.0 (Linux; Android 15; Pixel Build/AP3A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/140.0 Mobile Safari/537.36";
+    const iosSnapchat = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Mobile/22G86 Snapchat/13.0";
+    const iosInstagram = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Mobile/22G86 Instagram 390.0";
+
+    expect(helpers.getInAppBrowser(androidSnapWebView)).toBe("In-app browser");
+    expect(helpers.getInAppBrowser(iosSnapchat)).toBe("Snapchat");
+    expect(helpers.buildIOSChromeExternalUrl(destination, iosSnapchat))
+      .toBe("googlechromes://example.com/checkout");
+
+    const snapchatHtml = helpers.getDeeplinkHandoffHtml(destination, iosSnapchat, "", "link-id");
+    expect(snapchatHtml).toContain('href="googlechromes://example.com/checkout"');
+    expect(snapchatHtml).toContain("Open in Chrome");
+    expect(snapchatHtml).not.toContain("var action = \"googlechromes://");
+
+    expect(helpers.getInAppBrowser(iosInstagram)).toBe("Instagram");
+    expect(helpers.buildMetaExternalBrowserUrl(destination, iosInstagram))
+      .toBe(`instagram://extbrowser/?url=${encodeURIComponent(destination)}`);
+    const instagramHtml = helpers.getDeeplinkHandoffHtml(destination, iosInstagram, "", "link-id");
+    expect(instagramHtml).toContain("instagram://extbrowser/?url=");
+    expect(instagramHtml).not.toContain("googlechromes://");
   });
 
   it("renders a guarded iOS Instagram escape without exposing an unsafe destination", () => {

@@ -894,6 +894,10 @@ var serializeApiProfile = function(record) {
         profile_template: String(record.get("profile_template") || "classic"),
         link_card_style: String(record.get("link_card_style") || "glass"),
         social_link_style: String(record.get("social_link_style") || "icons"),
+        profile_background_mode: String(record.get("profile_background_mode") || "color"),
+        profile_background_image: String(record.get("profile_background_image") || ""),
+        profile_background_position: String(record.get("profile_background_position") || "center"),
+        profile_background_overlay: String(record.get("profile_background_overlay") || "balanced"),
         social_links: socialLinks,
         created: String(record.get("created") || ""),
         updated: String(record.get("updated") || "")
@@ -1831,7 +1835,8 @@ var PROFILE_TEMPLATES = {
     "compact": true,
     "banner": true,
     "hero": true,
-    "cutout": true
+    "cutout": true,
+    "visual": true
 };
 
 var PROFILE_LINK_CARD_STYLES = {
@@ -1845,6 +1850,23 @@ var PROFILE_LINK_CARD_STYLES = {
 var PROFILE_SOCIAL_LINK_STYLES = {
     "icons": true,
     "branded-pills": true
+};
+
+var PROFILE_BACKGROUND_MODES = {
+    "color": true,
+    "image": true
+};
+
+var PROFILE_BACKGROUND_POSITIONS = {
+    "top": true,
+    "center": true,
+    "bottom": true
+};
+
+var PROFILE_BACKGROUND_OVERLAYS = {
+    "light": true,
+    "balanced": true,
+    "strong": true
 };
 
 var getPlanCatalogEntry = function(planName) {
@@ -2746,6 +2768,24 @@ var validateProfilePresentation = function(record) {
         throw new BadRequestError("Unsupported public profile social link style.");
     }
     record.set("social_link_style", socialLinkStyle);
+
+    var backgroundMode = String(record.get("profile_background_mode") || "color").trim().toLowerCase();
+    if (!PROFILE_BACKGROUND_MODES[backgroundMode]) {
+        throw new BadRequestError("Unsupported public profile background mode.");
+    }
+    record.set("profile_background_mode", backgroundMode);
+
+    var backgroundPosition = String(record.get("profile_background_position") || "center").trim().toLowerCase();
+    if (!PROFILE_BACKGROUND_POSITIONS[backgroundPosition]) {
+        throw new BadRequestError("Unsupported public profile background position.");
+    }
+    record.set("profile_background_position", backgroundPosition);
+
+    var backgroundOverlay = String(record.get("profile_background_overlay") || "balanced").trim().toLowerCase();
+    if (!PROFILE_BACKGROUND_OVERLAYS[backgroundOverlay]) {
+        throw new BadRequestError("Unsupported public profile background overlay.");
+    }
+    record.set("profile_background_overlay", backgroundOverlay);
 };
 
 var escapeHtml = function(value) {
@@ -2843,12 +2883,26 @@ var getSocialPreviewHtml = function(options) {
 </html>`;
 };
 
-var getInAppBrowser = function(userAgent) {
+var getInAppBrowser = function(userAgent, referrer) {
     var ua = String(userAgent || "");
+    var ref = String(referrer || "");
     if (/Threads|Barcelona/i.test(ua)) return "Threads";
     if (/Instagram/i.test(ua)) return "Instagram";
     if (/TikTok|musical_ly/i.test(ua)) return "TikTok";
     if (/FBAN|FBAV/i.test(ua)) return "Facebook";
+    if (/Snapchat(?:WebView)?(?:\/|\s|$)/i.test(ua) || /^https?:\/\/([^\/?#]+\.)?(snapchat\.com|snap\.com)(?:[\/?#]|$)/i.test(ref)) {
+        return "Snapchat";
+    }
+
+    // Snapchat's Android in-app browser has historically used a standard
+    // Android WebView UA without a Snapchat token. The generic fallback is
+    // intentionally limited to opt-in Deeplink links by the redirect hook.
+    if (/Android/i.test(ua) && (/;\s*wv\)/i.test(ua) || /\bwv\b/i.test(ua) || /Version\/4\.0[\s\S]*Chrome\//i.test(ua))) {
+        return "In-app browser";
+    }
+    if (/iPhone|iPad|iPod/i.test(ua) && /AppleWebKit/i.test(ua) && /Mobile\//i.test(ua) && !/Safari\//i.test(ua)) {
+        return "In-app browser";
+    }
     return "";
 };
 
@@ -2907,16 +2961,29 @@ var buildMetaExternalBrowserUrl = function(destination, userAgent) {
     return "";
 };
 
-var getDeeplinkHandoffHtml = function(destination, userAgent, pixelScripts, attemptScope) {
+var buildIOSChromeExternalUrl = function(destination, userAgent, referrer) {
+    var value = String(destination || "");
+    var ua = String(userAgent || "");
+    if (!/iPhone|iPad|iPod/i.test(ua) || !/^https?:\/\//i.test(value)) return "";
+    if (value.length > 8192 || /[\u0000-\u001f\u007f]/.test(value)) return "";
+    var sourceApp = getInAppBrowser(ua, referrer);
+    if (sourceApp !== "Snapchat" && sourceApp !== "In-app browser") return "";
+    var parsedDestination = parseHttpRoutingUrl(value);
+    if (!parsedDestination || parsedDestination.hasCredentials) return "";
+    return value.replace(/^https:/i, "googlechromes:").replace(/^http:/i, "googlechrome:");
+};
+
+var getDeeplinkHandoffHtml = function(destination, userAgent, pixelScripts, attemptScope, referrer) {
     var dest = String(destination || "");
     var ua = String(userAgent || "");
-    var sourceApp = getInAppBrowser(ua) || "this app";
+    var sourceApp = getInAppBrowser(ua, referrer) || "this app";
     var isAndroid = /Android/i.test(ua);
     var metaExternalUrl = buildMetaExternalBrowserUrl(dest, ua);
-    var actionUrl = isAndroid ? buildAndroidBrowserIntent(dest) : (metaExternalUrl || dest);
+    var chromeExternalUrl = buildIOSChromeExternalUrl(dest, ua, referrer);
+    var actionUrl = isAndroid ? buildAndroidBrowserIntent(dest) : (metaExternalUrl || chromeExternalUrl || dest);
     var destinationName = getDeeplinkDestinationName(dest);
     var hasAndroidIntent = isAndroid && actionUrl !== dest;
-    var actionLabel = hasAndroidIntent ? "Open in Chrome" : (metaExternalUrl ? "Open in Browser" : (destinationName ? "Open " + destinationName : "Open destination"));
+    var actionLabel = hasAndroidIntent ? "Open in Chrome" : (metaExternalUrl ? "Open in Browser" : (chromeExternalUrl ? "Open in Chrome" : (destinationName ? "Open " + destinationName : "Open destination")));
     var safeDest = escapeHtml(dest);
     var safeActionUrl = escapeHtml(actionUrl);
     var attemptKey = "linktery_deeplink_v2_" + String(attemptScope || "link").replace(/[^a-zA-Z0-9_-]/g, "").substring(0, 40);
@@ -2924,7 +2991,10 @@ var getDeeplinkHandoffHtml = function(destination, userAgent, pixelScripts, atte
     // Linktery click analytics are already written server-side; this delay is
     // only for optional third-party pixels loaded asynchronously in <head>.
     var automaticDelayMs = String(pixelScripts || "").trim() ? 450 : (metaExternalUrl ? 0 : 120);
-    var automaticScript = actionUrl !== dest ? `
+    // Chrome documents its iOS custom scheme for user-triggered navigation.
+    // Do not fire it from a timer; leave it as a real button tap so Snapchat
+    // cannot classify it as an unsolicited popup.
+    var automaticScript = (hasAndroidIntent || !!metaExternalUrl) ? `
     <script>
         (function () {
             var key = ${safeJsonForHtml(attemptKey)};
@@ -2981,7 +3051,9 @@ var getDeeplinkHandoffHtml = function(destination, userAgent, pixelScripts, atte
         <h1>${isAndroid ? "Opening your browser&hellip;" : "Continue outside " + escapeHtml(sourceApp)}</h1>
         <p>${isAndroid
             ? "Linktery is making one safe attempt to leave " + escapeHtml(sourceApp) + ". If it is blocked, tap the button below."
-            : "Tap below to open the supported app or destination. iOS may still require the browser menu."}</p>
+            : (chromeExternalUrl
+                ? escapeHtml(sourceApp) + " cannot be forced into Safari by a webpage. Tap below to open Chrome if it is installed, or use the browser menu."
+                : "Tap below to open the supported app or destination. iOS may still require the browser menu.")}</p>
         <div class="actions">
             <a class="button primary" href="${safeActionUrl}" rel="noopener noreferrer">${actionLabel}</a>
             <a class="button secondary" href="${safeDest}" rel="noopener noreferrer">Continue inside ${escapeHtml(sourceApp)}</a>
@@ -3136,6 +3208,7 @@ module.exports = {
     getDeeplinkDestinationName,
     buildAndroidBrowserIntent,
     buildMetaExternalBrowserUrl,
+    buildIOSChromeExternalUrl,
     getDeeplinkHandoffHtml,
     getLinkUnavailableHtml
 };

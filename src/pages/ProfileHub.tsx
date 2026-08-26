@@ -37,6 +37,8 @@ interface ProfileRecord {
   social_link_style?: string;
   card_color?: string;
   avatar?: string;
+  profile_background_mode?: string;
+  profile_background_image?: string;
   online_counter?: boolean;
 }
 
@@ -196,6 +198,9 @@ export default function ProfileHub() {
         link_card_style: "solid",
         social_link_style: "icons",
         card_color: "#000000",
+        profile_background_mode: "color",
+        profile_background_position: "center",
+        profile_background_overlay: "balanced",
       });
 
       toast.success("Public Profile created");
@@ -301,6 +306,10 @@ export default function ProfileHub() {
               profileTemplate: profile.profile_template,
               cardColor: profile.card_color,
               avatarUrl: profile.avatar ? pb.files.getUrl(profile, profile.avatar) : null,
+              profileBackgroundMode: profile.profile_background_mode,
+              profileBackgroundUrl: profile.profile_background_image
+                ? pb.files.getUrl(profile, profile.profile_background_image, { thumb: "640x0" })
+                : null,
               onlineCounter: profile.online_counter,
               linkCount: profileCountMap[profile.id] || 0,
               fullUrl: getProfileFullUrl(profile),

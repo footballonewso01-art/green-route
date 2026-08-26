@@ -3,7 +3,11 @@ import { Globe } from "lucide-react";
 import { checkPlan } from "@/lib/plans";
 import {
   isLightProfileColor,
+  ProfileBackgroundMode,
+  ProfileBackgroundOverlay,
+  ProfileBackgroundPosition,
   ProfileTemplateId,
+  supportsProfileImageBackground,
 } from "@/lib/profileTemplates";
 import {
   LinkCardStyleId,
@@ -36,6 +40,10 @@ interface ProfileCanvasProps {
   avatarUrl?: string | null;
   avatarFallback: string;
   cardColor: string;
+  backgroundMode?: ProfileBackgroundMode;
+  backgroundImageUrl?: string | null;
+  backgroundPosition?: ProfileBackgroundPosition;
+  backgroundOverlay?: ProfileBackgroundOverlay;
   socialLinks?: ProfileSocialLink[];
   onlineCounter?: ReactNode;
   links: ProfileCanvasLink[];
@@ -56,9 +64,22 @@ function getLinkSpacing(
 ): string {
   if (cardStyle === "minimal") return "space-y-0";
   if (template === "compact") return "space-y-2.5";
+  if (template === "visual") return "space-y-3.5";
   if (template === "cutout") return "space-y-3.5";
   return "space-y-3";
 }
+
+const BACKGROUND_POSITION_CLASS: Record<ProfileBackgroundPosition, string> = {
+  top: "object-top",
+  center: "object-center",
+  bottom: "object-bottom",
+};
+
+const BACKGROUND_OVERLAY_GRADIENT: Record<ProfileBackgroundOverlay, string> = {
+  light: "linear-gradient(to bottom, rgba(3,6,5,0.28) 0%, rgba(3,6,5,0.38) 42%, rgba(3,6,5,0.66) 100%)",
+  balanced: "linear-gradient(to bottom, rgba(3,6,5,0.40) 0%, rgba(3,6,5,0.54) 42%, rgba(3,6,5,0.78) 100%)",
+  strong: "linear-gradient(to bottom, rgba(3,6,5,0.55) 0%, rgba(3,6,5,0.70) 42%, rgba(3,6,5,0.88) 100%)",
+};
 
 export function ProfileCanvas({
   template,
@@ -70,13 +91,22 @@ export function ProfileCanvas({
   avatarUrl,
   avatarFallback,
   cardColor,
+  backgroundMode = "color",
+  backgroundImageUrl,
+  backgroundPosition = "center",
+  backgroundOverlay = "balanced",
   socialLinks = [],
   onlineCounter,
   links,
   plan = "creator",
   preview = false,
 }: ProfileCanvasProps) {
-  const lightCard = isLightProfileColor(cardColor);
+  const imageBackgroundActive = backgroundMode === "image"
+    && supportsProfileImageBackground(template)
+    && Boolean(backgroundImageUrl);
+  const visualCanvas = template === "visual";
+  const layeredCanvas = visualCanvas || imageBackgroundActive;
+  const lightCard = layeredCanvas ? false : isLightProfileColor(cardColor);
   const interactiveClass = preview ? "pointer-events-none select-none" : "";
 
   return (
@@ -93,25 +123,57 @@ export function ProfileCanvas({
       data-link-card-style={linkCardStyle}
       data-social-link-style={socialLinkStyle}
       data-profile-preview={preview ? "true" : "false"}
+      data-profile-background={imageBackgroundActive ? "image" : "color"}
     >
-      <ProfileIdentity
-        template={template}
-        name={name}
-        username={username}
-        bio={bio}
-        avatarUrl={avatarUrl}
-        avatarFallback={avatarFallback}
-        cardColor={cardColor}
-        socialLinks={socialLinks}
-        socialStyle={socialLinkStyle}
-        onlineCounter={onlineCounter}
-        preview={preview}
-      />
+      {layeredCanvas && (
+        <div
+          aria-hidden="true"
+          data-profile-background-layer="true"
+          className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+        >
+          {imageBackgroundActive ? (
+            <img
+              src={backgroundImageUrl || undefined}
+              alt=""
+              className={`absolute inset-0 h-full w-full object-cover saturate-[0.92] contrast-[1.04] ${BACKGROUND_POSITION_CLASS[backgroundPosition]}`}
+            />
+          ) : (
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `radial-gradient(circle at 20% 8%, rgba(51, 238, 154, 0.24), transparent 30%), radial-gradient(circle at 86% 54%, rgba(54, 154, 255, 0.18), transparent 34%), linear-gradient(155deg, ${cardColor} 0%, #0a1711 48%, #030806 100%)`,
+              }}
+            />
+          )}
+          <div
+            className="absolute inset-0"
+            style={{ background: BACKGROUND_OVERLAY_GRADIENT[backgroundOverlay] }}
+          />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_5%,transparent_0%,rgba(0,0,0,0.12)_44%,rgba(0,0,0,0.46)_100%)]" />
+        </div>
+      )}
+
+      <div className="relative z-10">
+        <ProfileIdentity
+          template={template}
+          name={name}
+          username={username}
+          bio={bio}
+          avatarUrl={avatarUrl}
+          avatarFallback={avatarFallback}
+          cardColor={cardColor}
+          forceDarkAppearance={layeredCanvas}
+          socialLinks={socialLinks}
+          socialStyle={socialLinkStyle}
+          onlineCounter={onlineCounter}
+          preview={preview}
+        />
+      </div>
 
       <div
         data-card-theme-content="true"
-        className={`relative -mt-[2px] flex flex-1 flex-col pb-10 pt-[2px] sm:pb-6 ${getContentPadding(template, preview)}`}
-        style={{ backgroundColor: cardColor }}
+        className={`relative -mt-[2px] z-10 flex flex-1 flex-col pb-10 pt-[2px] sm:pb-6 ${getContentPadding(template, preview)}`}
+        style={{ backgroundColor: layeredCanvas ? "transparent" : cardColor }}
       >
         <div data-tracking-active="true" className="hidden" />
 
@@ -139,6 +201,7 @@ export function ProfileCanvas({
                 backgroundUrl={link.backgroundUrl}
                 template={template}
                 cardColor={cardColor}
+                forceDarkAppearance={layeredCanvas}
                 cardStyle={linkCardStyle}
                 preview={preview}
               />

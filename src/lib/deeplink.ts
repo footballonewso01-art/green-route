@@ -1,10 +1,44 @@
-export type InAppBrowser = "instagram" | "threads" | "tiktok" | "facebook" | null;
+export type InAppBrowser =
+  | "instagram"
+  | "threads"
+  | "tiktok"
+  | "facebook"
+  | "snapchat"
+  | "webview"
+  | null;
 
-export const detectInAppBrowser = (userAgent: string): InAppBrowser => {
+const isSnapchatReferrer = (referrer: string): boolean => {
+  try {
+    const hostname = new URL(referrer).hostname.toLowerCase().replace(/^www\./, "");
+    return hostname === "snapchat.com" || hostname.endsWith(".snapchat.com") || hostname === "snap.com" || hostname.endsWith(".snap.com");
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Snapchat does not consistently brand its mobile User-Agent. In particular,
+ * its Android browser can use the standard Android WebView `wv` signature.
+ * Keep the named app checks first for useful UI copy, then fall back to
+ * platform WebView signatures. This only changes opt-in Deeplink handling;
+ * normal short links remain normal HTTP redirects.
+ */
+export const detectInAppBrowser = (userAgent: string, referrer = ""): InAppBrowser => {
   if (/Threads|Barcelona/i.test(userAgent)) return "threads";
   if (/Instagram/i.test(userAgent)) return "instagram";
   if (/TikTok|musical_ly/i.test(userAgent)) return "tiktok";
   if (/FBAN|FBAV/i.test(userAgent)) return "facebook";
+  if (/Snapchat(?:WebView)?(?:\/|\s|$)/i.test(userAgent) || isSnapchatReferrer(referrer)) return "snapchat";
+
+  const androidWebView = /Android/i.test(userAgent)
+    && (/;\s*wv\)/i.test(userAgent) || /\bwv\b/i.test(userAgent) || /Version\/4\.0[^]*Chrome\//i.test(userAgent));
+  if (androidWebView) return "webview";
+
+  const iosWebView = /iPhone|iPad|iPod/i.test(userAgent)
+    && /AppleWebKit/i.test(userAgent)
+    && /Mobile\//i.test(userAgent)
+    && !/Safari\//i.test(userAgent);
+  if (iosWebView) return "webview";
   return null;
 };
 
@@ -111,6 +145,32 @@ export const buildMetaExternalBrowserUrl = (
 };
 
 /**
+ * iOS does not expose a public Safari URL scheme to websites inside third-party
+ * WKWebViews. Chrome does publish googlechrome(s) handlers, so a real user tap
+ * can still leave Snapchat when Chrome is installed. Keep the normal HTTPS
+ * destination visible as the fallback when it is not.
+ */
+export const buildIOSChromeExternalUrl = (
+  destination: string,
+  userAgent: string,
+): string | null => {
+  if (!isIOSUserAgent(userAgent)) return null;
+  const source = detectInAppBrowser(userAgent);
+  if (source !== "snapchat" && source !== "webview") return null;
+  if (destination.length > 8_192 || hasUnsafeControlCharacters(destination)) return null;
+
+  try {
+    const url = new URL(destination);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    if (url.username || url.password) return null;
+    const scheme = url.protocol === "https:" ? "googlechromes:" : "googlechrome:";
+    return `${scheme}${url.toString().slice(url.protocol.length)}`;
+  } catch {
+    return null;
+  }
+};
+
+/**
  * Some social WebViews accept an external-browser navigation during page
  * load. Make exactly one best-effort attempt, then leave the stable handoff UI
  * in place for a real tap. The destination is never the Linktery short URL, so
@@ -175,6 +235,14 @@ export const getDeeplinkPrimaryAction = (destination: string, userAgent: string)
     return {
       href: metaExternalUrl,
       label: "Open in Browser",
+    };
+  }
+
+  const chromeExternalUrl = buildIOSChromeExternalUrl(destination, userAgent);
+  if (chromeExternalUrl) {
+    return {
+      href: chromeExternalUrl,
+      label: "Open in Chrome",
     };
   }
 

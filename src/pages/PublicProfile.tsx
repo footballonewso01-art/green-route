@@ -5,7 +5,11 @@ import { toast } from "sonner";
 import { ProfileCanvas } from "@/components/profile/ProfileCanvas";
 import {
   isLightProfileColor,
+  normalizeProfileBackgroundMode,
+  normalizeProfileBackgroundOverlay,
+  normalizeProfileBackgroundPosition,
   normalizeProfileTemplate,
+  supportsProfileImageBackground,
 } from "@/lib/profileTemplates";
 import {
   normalizeLinkCardStyle,
@@ -23,12 +27,17 @@ interface ProfileData {
   link_card_style?: string;
   social_link_style?: string;
   full_avatar_url?: string;
+  profile_background_mode?: string;
+  profile_background_image?: string;
+  full_profile_background_url?: string;
+  profile_background_position?: string;
+  profile_background_overlay?: string;
   card_color?: string;
   online_counter?: boolean;
   social_links?: { id: string; url: string; icon_type: string; icon_value: string; label?: string }[];
 }
 
-function OnlineCounter({ cardColor }: { cardColor: string }) {
+function OnlineCounter({ cardColor, forceDark = false }: { cardColor: string; forceDark?: boolean }) {
   const base = useMemo(() => Math.floor(Math.random() * (387 - 318 + 1)) + 318, []);
   const [count, setCount] = useState(base);
   const [mounted, setMounted] = useState(false);
@@ -46,7 +55,7 @@ function OnlineCounter({ cardColor }: { cardColor: string }) {
 
   if (!mounted) return null;
 
-  const light = isLightProfileColor(cardColor);
+  const light = forceDark ? false : isLightProfileColor(cardColor);
 
   return (
     <div className="mt-4 flex items-center justify-center gap-2">
@@ -104,6 +113,13 @@ export default function PublicProfile() {
           social_link_style: normalizeSocialLinkStyle(profileRecord.social_link_style),
           avatar: profileRecord.name ? profileRecord.name.charAt(0).toUpperCase() : profileRecord.slug.charAt(0).toUpperCase(),
           full_avatar_url: profileRecord.avatar ? pb.files.getUrl(profileRecord, profileRecord.avatar) : undefined,
+          profile_background_mode: normalizeProfileBackgroundMode(profileRecord.profile_background_mode),
+          profile_background_image: profileRecord.profile_background_image || "",
+          full_profile_background_url: profileRecord.profile_background_image
+            ? pb.files.getUrl(profileRecord, profileRecord.profile_background_image, { thumb: "1280x0" })
+            : undefined,
+          profile_background_position: normalizeProfileBackgroundPosition(profileRecord.profile_background_position),
+          profile_background_overlay: normalizeProfileBackgroundOverlay(profileRecord.profile_background_overlay),
           card_color: profileRecord.card_color || "#000000",
           online_counter: !!profileRecord.online_counter,
           social_links: Array.isArray(profileRecord.social_links) ? profileRecord.social_links : [],
@@ -177,6 +193,16 @@ export default function PublicProfile() {
   const linkCardStyle = normalizeLinkCardStyle(profile.link_card_style);
   const socialLinkStyle = normalizeSocialLinkStyle(profile.social_link_style);
   const cardColor = profile.card_color || "#000000";
+  const backgroundMode = normalizeProfileBackgroundMode(profile.profile_background_mode);
+  const backgroundPosition = normalizeProfileBackgroundPosition(profile.profile_background_position);
+  const backgroundOverlay = normalizeProfileBackgroundOverlay(profile.profile_background_overlay);
+  const imageBackgroundActive = backgroundMode === "image"
+    && supportsProfileImageBackground(profileTemplate)
+    && Boolean(profile.full_profile_background_url);
+  const darkProfileSurface = profileTemplate === "visual" || imageBackgroundActive;
+  const ambientImageUrl = imageBackgroundActive
+    ? profile.full_profile_background_url
+    : profile.full_avatar_url;
 
   return (
     <div className="relative isolate flex min-h-[100dvh] items-start justify-center overflow-x-clip bg-[#120b14] pt-0 text-white sm:px-4">
@@ -191,10 +217,10 @@ export default function PublicProfile() {
         aria-hidden="true"
       >
         <div className="absolute inset-[-10%] scale-110 blur-[42px]">
-          {profile.full_avatar_url && (
+          {ambientImageUrl && (
             <div
               className="absolute inset-0 bg-cover bg-center opacity-60"
-              style={{ backgroundImage: `url('${profile.full_avatar_url}')` }}
+              style={{ backgroundImage: `url('${ambientImageUrl}')` }}
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-br from-orange-500/45 via-pink-500/30 to-purple-900/55" />
@@ -214,8 +240,12 @@ export default function PublicProfile() {
           avatarUrl={profile.full_avatar_url}
           avatarFallback={profile.avatar}
           cardColor={cardColor}
+          backgroundMode={backgroundMode}
+          backgroundImageUrl={profile.full_profile_background_url}
+          backgroundPosition={backgroundPosition}
+          backgroundOverlay={backgroundOverlay}
           socialLinks={profile.social_links}
-          onlineCounter={profile.online_counter ? <OnlineCounter cardColor={cardColor} /> : undefined}
+          onlineCounter={profile.online_counter ? <OnlineCounter cardColor={cardColor} forceDark={darkProfileSurface} /> : undefined}
           plan={profile.plan}
           links={links.map((item) => ({
             id: item.id,

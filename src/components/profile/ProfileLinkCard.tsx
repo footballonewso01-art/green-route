@@ -16,12 +16,14 @@ interface ProfileLinkCardProps {
   backgroundUrl?: string | null;
   template: ProfileTemplateId;
   cardColor: string;
+  forceDarkAppearance?: boolean;
   cardStyle?: LinkCardStyleId;
   preview?: boolean;
 }
 
 function getRadiusClass(template: ProfileTemplateId): string {
   if (template === "compact") return "rounded-[14px]";
+  if (template === "visual") return "rounded-[22px]";
   if (template === "cutout") return "rounded-[9px]";
   if (template === "banner") return "rounded-[20px]";
   if (template === "hero") return "rounded-[16px]";
@@ -30,6 +32,7 @@ function getRadiusClass(template: ProfileTemplateId): string {
 
 function getTitleClass(template: ProfileTemplateId): string {
   if (template === "compact") return "font-geist font-semibold tracking-[-0.02em]";
+  if (template === "visual") return "font-geist font-bold tracking-[-0.025em]";
   if (template === "banner") return "font-geist font-bold tracking-[-0.025em]";
   if (template === "hero") return "font-sans font-extrabold tracking-[-0.025em]";
   if (template === "cutout") return "font-serif font-bold tracking-[-0.025em]";
@@ -73,10 +76,11 @@ export function ProfileLinkCard({
   backgroundUrl,
   template,
   cardColor,
+  forceDarkAppearance = false,
   cardStyle = "glass",
   preview = false,
 }: ProfileLinkCardProps) {
-  const light = isLightProfileColor(cardColor);
+  const light = forceDarkAppearance ? false : isLightProfileColor(cardColor);
   const featured = size === "large";
   const minimal = cardStyle === "minimal" && !featured;
   const imageFirst = cardStyle === "image-first" && Boolean(backgroundUrl) && !featured;

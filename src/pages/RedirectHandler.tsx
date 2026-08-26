@@ -311,7 +311,7 @@ export default function RedirectHandler() {
                 // "facebook" catches FBAN/FBAV (real users), "instagram" catches in-app (real users)
                 // Only match actual crawler/preview bots, not webview browsers
                 const isBot = /bot|crawl|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(ua);
-                const inAppBrowser = detectInAppBrowser(ua);
+                const inAppBrowser = detectInAppBrowser(ua, document.referrer);
                 const isInApp = inAppBrowser !== null;
 
                 // Bot cloaking
@@ -512,7 +512,7 @@ export default function RedirectHandler() {
     if (status === "deeplink") {
         const userAgent = navigator.userAgent;
         const action = getDeeplinkPrimaryAction(destination, userAgent);
-        const inAppBrowser = detectInAppBrowser(userAgent);
+        const inAppBrowser = detectInAppBrowser(userAgent, document.referrer);
         const isAndroid = isAndroidUserAgent(userAgent);
         const browserName = inAppBrowser === "instagram"
             ? "Instagram"
@@ -522,7 +522,10 @@ export default function RedirectHandler() {
                 ? "TikTok"
                 : inAppBrowser === "facebook"
                     ? "Facebook"
-                    : "this app";
+                    : inAppBrowser === "snapchat"
+                        ? "Snapchat"
+                        : "this in-app browser";
+        const iosChromeHandoff = !isAndroid && action.label === "Open in Chrome";
         return (
             <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center animate-fade-in">
                 <div className="relative mb-10">
@@ -542,7 +545,9 @@ export default function RedirectHandler() {
                     <p className="text-muted-foreground text-sm leading-relaxed">
                         {isAndroid
                             ? `Linktery is making one safe attempt to leave ${browserName}. If it is blocked, tap the button below.`
-                            : "Tap below to open the supported app or destination. iOS may still require the browser menu."}
+                            : iosChromeHandoff
+                                ? `${inAppBrowser === "snapchat" ? "Snapchat" : "This iOS WebView"} cannot be forced into Safari by a webpage. Tap below to open Chrome if it is installed, or use the browser menu.`
+                                : "Tap below to open the supported app or destination. iOS may still require the browser menu."}
                     </p>
                 </div>
 

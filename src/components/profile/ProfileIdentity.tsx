@@ -23,6 +23,7 @@ interface ProfileIdentityProps {
   avatarUrl?: string | null;
   avatarFallback: string;
   cardColor: string;
+  forceDarkAppearance?: boolean;
   socialLinks?: ProfileSocialLink[];
   socialStyle?: SocialLinkStyleId;
   onlineCounter?: ReactNode;
@@ -228,12 +229,13 @@ export function ProfileIdentity({
   avatarUrl,
   avatarFallback,
   cardColor,
+  forceDarkAppearance = false,
   socialLinks = [],
   socialStyle = "icons",
   onlineCounter,
   preview = false,
 }: ProfileIdentityProps) {
-  const light = isLightProfileColor(cardColor);
+  const light = forceDarkAppearance ? false : isLightProfileColor(cardColor);
   const primaryText = light ? "text-black" : "text-white";
   const secondaryText = light ? "text-black/55" : "text-white/55";
   const bioText = light ? "text-black/80" : "text-white/90";
@@ -245,6 +247,8 @@ export function ProfileIdentity({
             ? `font-sans text-4xl font-black leading-[0.94] tracking-[-0.045em] ${preview ? "" : "sm:text-5xl"}`
             : template === "compact"
               ? "font-geist text-[28px] font-bold leading-tight tracking-[-0.035em]"
+              : template === "visual"
+                ? `font-geist text-[32px] font-extrabold leading-[0.98] tracking-[-0.045em] min-[380px]:text-[36px] ${preview ? "" : "sm:text-[40px]"}`
               : template === "banner"
                 ? "font-geist text-3xl font-extrabold leading-tight tracking-[-0.035em]"
                 : template === "cutout"
@@ -254,7 +258,7 @@ export function ProfileIdentity({
       >
         {name}
       </h1>
-      <p className={`mt-1.5 break-all text-sm font-medium tracking-wide ${secondaryText} ${template === "compact" || template === "banner" ? "font-geist" : "font-sans"}`}>
+      <p className={`mt-1.5 break-all text-sm font-medium tracking-wide ${secondaryText} ${template === "compact" || template === "banner" || template === "visual" ? "font-geist" : "font-sans"}`}>
         @{username}
       </p>
     </div>
@@ -270,6 +274,27 @@ export function ProfileIdentity({
         {bio}
       </p>
     ) : null;
+
+  if (template === "visual") {
+    return (
+      <section className={`relative z-10 px-5 pb-2 pt-14 min-[380px]:px-7 min-[380px]:pt-[4.5rem] ${preview ? "" : "sm:pt-20"}`}>
+        <div className="mx-auto w-fit rounded-full border border-white/[0.18] bg-black/20 p-1.5 shadow-[0_18px_55px_rgba(0,0,0,0.38)] backdrop-blur-xl">
+          <Avatar
+            avatarUrl={avatarUrl}
+            fallback={avatarFallback}
+            alt={`${name} profile image`}
+            className="h-24 w-24 rounded-full border border-white/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.22)] min-[380px]:h-28 min-[380px]:w-28"
+          />
+        </div>
+        <div className="mt-6">{identityText()}</div>
+        {bio && <div className="mt-4">{biography()}</div>}
+        <div className="mt-4">
+          <SocialDock links={socialLinks} light={false} preview={preview} style={socialStyle} />
+        </div>
+        {onlineCounter}
+      </section>
+    );
+  }
 
   if (template === "compact") {
     return (

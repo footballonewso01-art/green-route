@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { pb } from "@/lib/pocketbase";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Loader2, Camera, Palette, Smartphone, User, Check, Upload, Globe, Plus, Eye, EyeOff, Edit, Trash2, X, Save, Lock, Copy, ChevronDown, Sparkles, Layers3, Share2, Search, ExternalLink } from "lucide-react";
+import { Loader2, Camera, Palette, Smartphone, User, Check, Upload, Globe, Plus, Eye, EyeOff, Edit, Trash2, X, Save, Lock, Copy, ChevronDown, Sparkles, Layers3, Share2, Search, ExternalLink, ImageIcon } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { IconPicker } from '@/components/icons/IconPicker';
 import { IconRenderer } from '@/components/icons/IconRenderer';
@@ -22,9 +22,18 @@ import { buildProfileLinkUpdateFormData } from "@/lib/profileLinkPersistence";
 import { CoreLinkRecord, getProfileLinkTitle, ProfileLinkItem, ProfileLinkRecord } from "@/lib/profileLinks";
 import {
   isLightProfileColor,
+  normalizeProfileBackgroundMode,
+  normalizeProfileBackgroundOverlay,
+  normalizeProfileBackgroundPosition,
   normalizeProfileTemplate,
+  PROFILE_BACKGROUND_OVERLAYS,
+  PROFILE_BACKGROUND_POSITIONS,
   PROFILE_TEMPLATES,
+  ProfileBackgroundMode,
+  ProfileBackgroundOverlay,
+  ProfileBackgroundPosition,
   ProfileTemplateId,
+  supportsProfileImageBackground,
 } from "@/lib/profileTemplates";
 import {
   LINK_CARD_STYLES,
@@ -51,6 +60,23 @@ function TemplateThumbnail({ template }: { template: ProfileTemplateId }) {
       ))}
     </div>
   );
+
+  if (template === "visual") {
+    return (
+      <div className="relative h-28 overflow-hidden rounded-lg border border-white/10 bg-[linear-gradient(150deg,#244c3a_0%,#172d43_48%,#080c0a_100%)]">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_8%,rgba(52,211,153,0.42),transparent_34%),linear-gradient(to_bottom,transparent,rgba(0,0,0,0.52))]" />
+        <div className="relative pt-2.5">
+          <div className="mx-auto h-8 w-8 rounded-full border-2 border-white/35 bg-gradient-to-br from-white/75 to-white/10 shadow-lg" />
+          <div className="mx-auto mt-1.5 h-1.5 w-14 rounded-full bg-white/80" />
+          <div className="mx-auto mt-1 h-1 w-9 rounded-full bg-white/35" />
+          <div className="mt-2 px-2">
+            <div className="h-3.5 rounded-[5px] border border-white/20 bg-white/15 backdrop-blur" />
+            <div className="mt-1.5 h-3.5 rounded-[5px] border border-white/15 bg-white/10 backdrop-blur" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (template === "compact") {
     return (
@@ -182,6 +208,10 @@ interface ProfileRecord {
   social_link_style?: string;
   card_color?: string;
   avatar?: string;
+  profile_background_mode?: string;
+  profile_background_image?: string;
+  profile_background_position?: string;
+  profile_background_overlay?: string;
   online_counter?: boolean;
   social_links?: SocialLink[];
 }
@@ -213,6 +243,24 @@ function readVisualSectionState(): VisualSectionState {
   }
 }
 
+const PROFILE_BACKGROUND_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
+const PROFILE_BACKGROUND_POSITION_LABELS: Record<ProfileBackgroundPosition, string> = {
+  top: "Top",
+  center: "Center",
+  bottom: "Bottom",
+};
+
+const PROFILE_BACKGROUND_OVERLAY_LABELS: Record<ProfileBackgroundOverlay, string> = {
+  light: "Light",
+  balanced: "Balanced",
+  strong: "Strong",
+};
+
 export default function DashboardProfile() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -241,6 +289,12 @@ export default function DashboardProfile() {
   const [linkCardStyle, setLinkCardStyle] = useState<LinkCardStyleId>("glass");
   const [socialLinkStyle, setSocialLinkStyle] = useState<SocialLinkStyleId>("icons");
   const [cardColor, setCardColor] = useState(user?.card_color || "#000000");
+  const [profileBackgroundMode, setProfileBackgroundMode] = useState<ProfileBackgroundMode>("color");
+  const [profileBackgroundPreview, setProfileBackgroundPreview] = useState<string | null>(null);
+  const [profileBackgroundFile, setProfileBackgroundFile] = useState<File | null>(null);
+  const [profileBackgroundRemoved, setProfileBackgroundRemoved] = useState(false);
+  const [profileBackgroundPosition, setProfileBackgroundPosition] = useState<ProfileBackgroundPosition>("center");
+  const [profileBackgroundOverlay, setProfileBackgroundOverlay] = useState<ProfileBackgroundOverlay>("balanced");
   const [onlineCounter, setOnlineCounter] = useState(!!user?.online_counter);
   const [openVisualSections, setOpenVisualSections] = useState<VisualSectionState>(readVisualSectionState);
   const userPlan = (user as { plan?: string })?.plan || "creator";
@@ -248,6 +302,7 @@ export default function DashboardProfile() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null); // Actual file to upload
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const backgroundFileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleVisualSection = (section: VisualSectionId) => {
     setOpenVisualSections((current) => ({
@@ -263,6 +318,14 @@ export default function DashboardProfile() {
       // The editor still works when browser storage is unavailable.
     }
   }, [openVisualSections]);
+
+  useEffect(() => {
+    return () => {
+      if (profileBackgroundPreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(profileBackgroundPreview);
+      }
+    };
+  }, [profileBackgroundPreview]);
 
   // Avatar Cropper State
   const [imageToCrop, setImageToCrop] = useState<string | null>(null);
@@ -328,6 +391,16 @@ export default function DashboardProfile() {
       setLinkCardStyle(normalizeLinkCardStyle(active.link_card_style));
       setSocialLinkStyle(normalizeSocialLinkStyle(active.social_link_style));
       setCardColor(active.card_color || "#000000");
+      setProfileBackgroundMode(normalizeProfileBackgroundMode(active.profile_background_mode));
+      setProfileBackgroundPosition(normalizeProfileBackgroundPosition(active.profile_background_position));
+      setProfileBackgroundOverlay(normalizeProfileBackgroundOverlay(active.profile_background_overlay));
+      setProfileBackgroundFile(null);
+      setProfileBackgroundRemoved(false);
+      setProfileBackgroundPreview(
+        active.profile_background_image
+          ? pb.files.getUrl(active, active.profile_background_image, { thumb: "1280x0" })
+          : null,
+      );
       setOnlineCounter(!!active.online_counter);
       
       if (active.avatar) {
@@ -366,6 +439,16 @@ export default function DashboardProfile() {
     setLinkCardStyle(normalizeLinkCardStyle(p.link_card_style));
     setSocialLinkStyle(normalizeSocialLinkStyle(p.social_link_style));
     setCardColor(p.card_color || "#000000");
+    setProfileBackgroundMode(normalizeProfileBackgroundMode(p.profile_background_mode));
+    setProfileBackgroundPosition(normalizeProfileBackgroundPosition(p.profile_background_position));
+    setProfileBackgroundOverlay(normalizeProfileBackgroundOverlay(p.profile_background_overlay));
+    setProfileBackgroundFile(null);
+    setProfileBackgroundRemoved(false);
+    setProfileBackgroundPreview(
+      p.profile_background_image
+        ? pb.files.getUrl(p, p.profile_background_image, { thumb: "1280x0" })
+        : null,
+    );
     setOnlineCounter(!!p.online_counter);
     
     if (p.avatar) {
@@ -439,6 +522,9 @@ export default function DashboardProfile() {
         link_card_style: "solid",
         social_link_style: "icons",
         card_color: "#000000",
+        profile_background_mode: "color",
+        profile_background_position: "center",
+        profile_background_overlay: "balanced",
       });
 
       toast.success("Profile created successfully!");
@@ -557,6 +643,34 @@ export default function DashboardProfile() {
     setImageToCrop(null);
   };
 
+  const handleProfileBackgroundChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !canCustomize) return;
+
+    if (!PROFILE_BACKGROUND_MIME_TYPES.has(file.type)) {
+      toast.error("Use a JPG, PNG, or WebP image.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Profile background must be 5MB or smaller.");
+      return;
+    }
+
+    setProfileBackgroundFile(file);
+    setProfileBackgroundPreview(URL.createObjectURL(file));
+    setProfileBackgroundRemoved(false);
+    setProfileBackgroundMode("image");
+  };
+
+  const handleRemoveProfileBackground = () => {
+    if (!canCustomize) return;
+    setProfileBackgroundFile(null);
+    setProfileBackgroundPreview(null);
+    setProfileBackgroundRemoved(true);
+    setProfileBackgroundMode("color");
+  };
+
   const handleSaveProfile = async () => {
     if (!user || !activeProfileId) return;
     setProfileLoading(true);
@@ -601,7 +715,7 @@ export default function DashboardProfile() {
       }
 
       // Step 1: Update profile metadata
-      const updateData = {
+      const updateData: Record<string, unknown> = {
         name,
         slug: cleanSlug,
         domain,
@@ -611,21 +725,28 @@ export default function DashboardProfile() {
         link_card_style: linkCardStyle,
         social_link_style: socialLinkStyle,
         card_color: cardColor,
+        profile_background_mode: profileBackgroundMode,
+        profile_background_position: profileBackgroundPosition,
+        profile_background_overlay: profileBackgroundOverlay,
         online_counter: onlineCounter,
         social_links: socialLinks,
       };
 
+      if (avatarFile) {
+        updateData.avatar = avatarFile;
+      }
+      if (profileBackgroundFile) {
+        updateData.profile_background_image = profileBackgroundFile;
+      } else if (profileBackgroundRemoved) {
+        updateData.profile_background_image = null;
+      }
+
       console.log("[handleSaveProfile] Updating profile metadata...", updateData);
       await pb.collection("public_profiles").update(activeProfileId, updateData, { requestKey: null });
 
-      // Step 2: Upload files
-      if (avatarFile) {
-        const fileData = new FormData();
-        if (avatarFile) fileData.append("avatar", avatarFile);
-        await pb.collection("public_profiles").update(activeProfileId, fileData, { requestKey: null });
-      }
-
       setAvatarFile(null);
+      setProfileBackgroundFile(null);
+      setProfileBackgroundRemoved(false);
 
       // Link CRUD is persisted independently and immediately. Saving profile
       // settings must never create, delete or overwrite records in `links`.
@@ -721,6 +842,9 @@ export default function DashboardProfile() {
   };
 
   const visibleProfileLinks = profileLinkItems.filter(item => item.visible && item.link.active);
+  const supportsImageBackground = supportsProfileImageBackground(profileTemplate);
+  const imageBackgroundSelected = supportsImageBackground && profileBackgroundMode === "image";
+  const previewUsesDarkAppearance = profileTemplate === "visual" || (imageBackgroundSelected && Boolean(profileBackgroundPreview));
   const assignedLinkIds = new Set(profileLinkItems.map(item => item.link_id));
   const normalizedLinkSearch = linkPickerSearch.trim().toLowerCase();
   const availableProfileLinks = allLinks.filter(link => {
@@ -879,7 +1003,7 @@ export default function DashboardProfile() {
               )}
             </div>
 
-            {/* Card Color Theme */}
+            {/* Profile background */}
             <div className="space-y-4 pt-4 border-t border-white/10">
               <button
                 type="button"
@@ -890,18 +1014,27 @@ export default function DashboardProfile() {
               >
                 <div>
                   <h3 className="text-sm font-medium flex items-center gap-2 text-white">
-                    <Palette className="w-4 h-4 text-accent" /> Card Theme
+                    {imageBackgroundSelected ? <ImageIcon className="w-4 h-4 text-accent" /> : <Palette className="w-4 h-4 text-accent" />}
+                    Profile Background
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Choose the base color for your profile card and gradient.
+                    Set the color or artwork behind your profile content.
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <span
-                    className="h-5 w-5 rounded-md border border-white/15 shadow-inner"
-                    style={{ backgroundColor: cardColor }}
-                    aria-hidden="true"
-                  />
+                  {imageBackgroundSelected && profileBackgroundPreview ? (
+                    <img
+                      src={profileBackgroundPreview}
+                      alt=""
+                      className="h-6 w-6 rounded-md border border-white/15 object-cover shadow-inner"
+                    />
+                  ) : (
+                    <span
+                      className="h-5 w-5 rounded-md border border-white/15 shadow-inner"
+                      style={{ backgroundColor: cardColor }}
+                      aria-hidden="true"
+                    />
+                  )}
                   <ChevronDown
                     className={`h-4 w-4 text-muted-foreground transition-transform group-hover:text-white ${openVisualSections.card ? "rotate-180" : ""}`}
                   />
@@ -909,39 +1042,182 @@ export default function DashboardProfile() {
               </button>
 
               {openVisualSections.card && (
-                <div id="card-theme-options" className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {cardColor.toUpperCase()}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <div className="relative group/picker">
-                        <input
-                          type="color"
-                          value={cardColor}
-                          onChange={(e) => canCustomize && setCardColor(e.target.value)}
+                <div id="card-theme-options" className="space-y-4">
+                  {supportsImageBackground ? (
+                    <div className="grid grid-cols-2 rounded-xl border border-border bg-background/45 p-1" role="group" aria-label="Profile background type">
+                      {(["color", "image"] as ProfileBackgroundMode[]).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => {
+                            if (!canCustomize) return;
+                            setProfileBackgroundMode(mode);
+                            if (mode === "image" && !profileBackgroundPreview) {
+                              window.requestAnimationFrame(() => backgroundFileInputRef.current?.click());
+                            }
+                          }}
                           disabled={!canCustomize}
-                          className={`w-10 h-10 rounded-xl cursor-pointer bg-surface border-2 border-border p-0.5 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-lg [&::-webkit-color-swatch]:border-none ${!canCustomize ? "opacity-50 cursor-not-allowed" : "hover:border-accent/40"}`}
-                          title="Card Color"
-                        />
-                      </div>
-                      {cardColor !== "#000000" && (
+                          aria-pressed={profileBackgroundMode === mode}
+                          className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 ${
+                            profileBackgroundMode === mode
+                              ? "bg-white/[0.09] text-white shadow-sm"
+                              : "text-muted-foreground hover:text-white"
+                          } ${!canCustomize ? "cursor-not-allowed opacity-50" : ""}`}
+                        >
+                          {mode === "color" ? <Palette className="h-3.5 w-3.5" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                          {mode === "color" ? "Color" : "Custom image"}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-3 rounded-xl border border-accent/10 bg-accent/[0.035] px-3.5 py-3">
+                      <ImageIcon className="mt-0.5 h-4 w-4 shrink-0 text-accent/70" />
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        Custom images are available in Compact Circle and Visual Canvas. Your uploaded artwork stays saved when you switch templates.
+                      </p>
+                    </div>
+                  )}
+
+                  {imageBackgroundSelected ? (
+                    <div className="space-y-4">
+                      <input
+                        ref={backgroundFileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleProfileBackgroundChange}
+                        disabled={!canCustomize}
+                        className="hidden"
+                      />
+
+                      {profileBackgroundPreview ? (
+                        <div className="group relative h-36 overflow-hidden rounded-2xl border border-white/[0.11] bg-background">
+                          <img
+                            src={profileBackgroundPreview}
+                            alt="Current profile background"
+                            className={`h-full w-full object-cover ${profileBackgroundPosition === "top" ? "object-top" : profileBackgroundPosition === "bottom" ? "object-bottom" : "object-center"}`}
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+                          <div className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3">
+                            <span className="text-[11px] font-semibold text-white/75">Profile artwork</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => backgroundFileInputRef.current?.click()}
+                                className="rounded-lg border border-white/15 bg-black/45 px-2.5 py-1.5 text-[11px] font-bold text-white backdrop-blur-md transition-colors hover:bg-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                              >
+                                Replace
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleRemoveProfileBackground}
+                                className="rounded-lg border border-red-400/20 bg-black/45 px-2.5 py-1.5 text-[11px] font-bold text-red-300 backdrop-blur-md transition-colors hover:bg-red-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
                         <button
                           type="button"
-                          onClick={() => canCustomize && setCardColor("#000000")}
+                          onClick={() => backgroundFileInputRef.current?.click()}
                           disabled={!canCustomize}
-                          className="text-xs text-muted-foreground hover:text-white transition-colors underline underline-offset-2"
+                          className="flex min-h-32 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-accent/30 bg-accent/[0.035] px-5 text-center transition-colors hover:border-accent/55 hover:bg-accent/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          Reset
+                          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-accent/15 bg-accent/[0.08] text-accent">
+                            <Upload className="h-4 w-4" />
+                          </span>
+                          <span className="mt-3 text-xs font-bold text-white">Upload profile artwork</span>
+                          <span className="mt-1 text-[11px] text-muted-foreground">JPG, PNG or WebP · up to 5MB</span>
                         </button>
                       )}
-                    </div>
-                  </div>
 
-                  <div
-                    className="w-full h-12 rounded-xl shadow-inner transition-colors"
-                    style={{ backgroundColor: cardColor }}
-                  />
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <fieldset>
+                          <legend className="mb-2 text-[11px] font-semibold text-muted-foreground">Image position</legend>
+                          <div className="grid grid-cols-3 rounded-xl border border-border bg-background/35 p-1">
+                            {PROFILE_BACKGROUND_POSITIONS.map((position) => (
+                              <button
+                                key={position}
+                                type="button"
+                                onClick={() => canCustomize && setProfileBackgroundPosition(position)}
+                                disabled={!canCustomize}
+                                aria-pressed={profileBackgroundPosition === position}
+                                className={`min-h-9 rounded-lg px-2 text-[11px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 ${
+                                  profileBackgroundPosition === position ? "bg-white/[0.09] text-white" : "text-muted-foreground hover:text-white"
+                                }`}
+                              >
+                                {PROFILE_BACKGROUND_POSITION_LABELS[position]}
+                              </button>
+                            ))}
+                          </div>
+                        </fieldset>
+
+                        <fieldset>
+                          <legend className="mb-2 text-[11px] font-semibold text-muted-foreground">Text contrast</legend>
+                          <div className="grid grid-cols-3 rounded-xl border border-border bg-background/35 p-1">
+                            {PROFILE_BACKGROUND_OVERLAYS.map((overlay) => (
+                              <button
+                                key={overlay}
+                                type="button"
+                                onClick={() => canCustomize && setProfileBackgroundOverlay(overlay)}
+                                disabled={!canCustomize}
+                                aria-pressed={profileBackgroundOverlay === overlay}
+                                className={`min-h-9 rounded-lg px-1.5 text-[10px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 ${
+                                  profileBackgroundOverlay === overlay ? "bg-white/[0.09] text-white" : "text-muted-foreground hover:text-white"
+                                }`}
+                              >
+                                {PROFILE_BACKGROUND_OVERLAY_LABELS[overlay]}
+                              </button>
+                            ))}
+                          </div>
+                        </fieldset>
+                      </div>
+
+                      <p className="text-[11px] leading-relaxed text-muted-foreground">
+                        Linktery adds a readability layer automatically. Balanced works best for most photos.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold text-white">Base color</p>
+                          <span className="mt-0.5 block text-[11px] font-medium text-muted-foreground">
+                            {cardColor.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="relative group/picker">
+                            <input
+                              type="color"
+                              value={cardColor}
+                              onChange={(e) => canCustomize && setCardColor(e.target.value)}
+                              disabled={!canCustomize}
+                              className={`w-10 h-10 rounded-xl cursor-pointer bg-surface border-2 border-border p-0.5 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-lg [&::-webkit-color-swatch]:border-none ${!canCustomize ? "opacity-50 cursor-not-allowed" : "hover:border-accent/40"}`}
+                              title="Profile background color"
+                              aria-label="Profile background color"
+                            />
+                          </div>
+                          {cardColor !== "#000000" && (
+                            <button
+                              type="button"
+                              onClick={() => canCustomize && setCardColor("#000000")}
+                              disabled={!canCustomize}
+                              className="text-xs text-muted-foreground hover:text-white transition-colors underline underline-offset-2"
+                            >
+                              Reset
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div
+                        className="w-full h-12 rounded-xl shadow-inner transition-colors"
+                        style={{ backgroundColor: cardColor }}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1355,6 +1631,10 @@ export default function DashboardProfile() {
                     avatarUrl={avatarPreview}
                     avatarFallback={name.charAt(0).toUpperCase() || "?"}
                     cardColor={cardColor}
+                    backgroundMode={profileBackgroundMode}
+                    backgroundImageUrl={profileBackgroundPreview}
+                    backgroundPosition={profileBackgroundPosition}
+                    backgroundOverlay={profileBackgroundOverlay}
                     socialLinks={socialLinks}
                     plan={userPlan}
                     onlineCounter={onlineCounter ? (
@@ -1363,8 +1643,8 @@ export default function DashboardProfile() {
                           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
                           <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
                         </span>
-                        <span className={`text-xs font-medium tracking-wide ${isLightProfileColor(cardColor) ? "text-black/50" : "text-white/50"}`}>
-                          <span className={isLightProfileColor(cardColor) ? "font-bold text-black/70" : "font-bold text-white/70"}>342</span>{" "}
+                        <span className={`text-xs font-medium tracking-wide ${!previewUsesDarkAppearance && isLightProfileColor(cardColor) ? "text-black/50" : "text-white/50"}`}>
+                          <span className={!previewUsesDarkAppearance && isLightProfileColor(cardColor) ? "font-bold text-black/70" : "font-bold text-white/70"}>342</span>{" "}
                           people are currently watching this
                         </span>
                       </div>

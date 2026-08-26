@@ -226,8 +226,53 @@ describe("Public Profile design contracts", () => {
 
       const content = container.querySelector<HTMLElement>("[data-card-theme-content='true']");
       expect(content).toHaveClass("-mt-[2px]", "pt-[2px]");
-      expect(content).toHaveStyle({ backgroundColor: "#472524" });
+      expect(content).toHaveStyle({ backgroundColor: template === "visual" ? "transparent" : "#472524" });
       unmount();
     });
+  });
+
+  it("renders one full-canvas image only for background-capable templates", () => {
+    const { container, rerender } = render(
+      <ProfileCanvas
+        preview
+        template="compact"
+        linkCardStyle="glass"
+        socialLinkStyle="icons"
+        name="Visual creator"
+        username="visual"
+        avatarFallback="V"
+        cardColor="#f4f4ef"
+        backgroundMode="image"
+        backgroundImageUrl="/profile-background.webp"
+        backgroundPosition="bottom"
+        backgroundOverlay="strong"
+        links={[]}
+      />,
+    );
+
+    expect(container.querySelector("main")).toHaveAttribute("data-profile-background", "image");
+    expect(container.querySelector("[data-profile-background-layer='true'] img")).toHaveClass("object-bottom");
+    expect(container.querySelector<HTMLElement>("[data-card-theme-content='true']"))
+      .toHaveStyle({ backgroundColor: "transparent" });
+    expect(screen.getByRole("heading", { name: "Visual creator" })).toHaveClass("text-white");
+
+    rerender(
+      <ProfileCanvas
+        preview
+        template="classic"
+        linkCardStyle="glass"
+        socialLinkStyle="icons"
+        name="Classic creator"
+        username="classic"
+        avatarFallback="C"
+        cardColor="#f4f4ef"
+        backgroundMode="image"
+        backgroundImageUrl="/profile-background.webp"
+        links={[]}
+      />,
+    );
+
+    expect(container.querySelector("main")).toHaveAttribute("data-profile-background", "color");
+    expect(container.querySelector("[data-profile-background-layer='true']")).not.toBeInTheDocument();
   });
 });

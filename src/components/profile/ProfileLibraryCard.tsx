@@ -16,8 +16,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  normalizeProfileBackgroundMode,
   normalizeProfileTemplate,
   PROFILE_TEMPLATES,
+  supportsProfileImageBackground,
 } from "@/lib/profileTemplates";
 
 export interface ProfileLibraryCardData {
@@ -27,6 +29,8 @@ export interface ProfileLibraryCardData {
   profileTemplate?: string;
   cardColor?: string;
   avatarUrl?: string | null;
+  profileBackgroundMode?: string;
+  profileBackgroundUrl?: string | null;
   onlineCounter?: boolean;
   linkCount: number;
   fullUrl: string;
@@ -55,6 +59,10 @@ export function ProfileLibraryCard({
   const templateName = PROFILE_TEMPLATES.find((item) => item.id === template)?.name || "Classic Cover";
   const name = profile.name?.trim() || profile.slug;
   const cardColor = /^#[0-9a-fA-F]{6}$/.test(profile.cardColor || "") ? profile.cardColor! : "#101311";
+  const profileBackgroundActive = normalizeProfileBackgroundMode(profile.profileBackgroundMode) === "image"
+    && supportsProfileImageBackground(template)
+    && Boolean(profile.profileBackgroundUrl);
+  const previewArtwork = profileBackgroundActive ? profile.profileBackgroundUrl : profile.avatarUrl;
   const displayUrl = profile.fullUrl.replace(/^https?:\/\//, "");
   const fallback = (name[0] || "?").toUpperCase();
 
@@ -72,11 +80,11 @@ export function ProfileLibraryCard({
         style={{ backgroundColor: cardColor }}
       >
         <div className="absolute inset-0 overflow-hidden">
-          {profile.avatarUrl && (
+          {previewArtwork && (
             <img
-              src={profile.avatarUrl}
+              src={previewArtwork}
               alt=""
-              className="h-full w-full scale-110 object-cover object-center opacity-30 blur-xl"
+              className={`h-full w-full object-cover object-center ${profileBackgroundActive ? "opacity-75" : "scale-110 opacity-30 blur-xl"}`}
             />
           )}
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_115%,rgba(255,255,255,0.2),transparent_42%),linear-gradient(110deg,rgba(0,0,0,0.08),rgba(0,0,0,0.42))]" />

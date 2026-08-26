@@ -1063,6 +1063,7 @@ routerAdd("GET", "/{slug}", (c) => {
 
     const request = c.request;
     const uaStr = request.header.get("User-Agent") || "";
+    const requestReferrer = request.header.get("Referer") || "";
     const socialPreviewEnabled = String($os.getenv("SOCIAL_PREVIEW_ENABLED") || "")
         .toLowerCase() === "true";
     const socialPreviewCrawler = socialPreviewEnabled && utils.isSocialPreviewCrawler(uaStr);
@@ -1433,6 +1434,7 @@ routerAdd("GET", "/{slug}", (c) => {
                             else if (ref.includes("t.co") || ref.includes("twitter.com")) referrer = "Twitter";
                             else if (ref.includes("facebook.com")) referrer = "Facebook";
                             else if (ref.includes("tiktok.com")) referrer = "TikTok";
+                            else if (ref.includes("snapchat.com") || ref.includes("snap.com")) referrer = "Snapchat";
                             else if (ref.includes("google.com")) referrer = "Google";
                             else if (ref.includes("com.google.android.googlequicksearchbox")) referrer = "Google App";
                             else referrer = ref.split("/")[2] || "Other";
@@ -1480,13 +1482,14 @@ routerAdd("GET", "/{slug}", (c) => {
         const googlePixel = trackingPixels.google;
         const tiktokPixel = trackingPixels.tiktok;
         const hasPixels = !!(fbPixel || googlePixel || tiktokPixel);
-        const isInApp = /Instagram|Threads|Barcelona|TikTok|musical_ly|FBAN|FBAV/i.test(uaStr);
+        const inAppBrowser = utils.getInAppBrowser(uaStr, requestReferrer);
+        const isInApp = !!inAppBrowser;
         const isDeeplinkEnabled = link.get("mode") === "direct";
 
         // Standard links remain standard HTTP redirects in social WebViews.
         // Deeplink handoff is opt-in only; applying it to every Instagram visit
         // previously caused ordinary links to enter browser-scheme retry loops.
-        if ((hasPixels && !isBot) || (isDeeplinkEnabled && isInApp)) {
+        if ((hasPixels && !isBot) || (isDeeplinkEnabled && isInApp && !isBot)) {
             let pixelScripts = "";
 
             if (fbPixel && fbPixel.trim() !== "") {
@@ -1534,8 +1537,8 @@ routerAdd("GET", "/{slug}", (c) => {
 `;
             }
 
-            if (isDeeplinkEnabled && isInApp && !managedTarget && !managedPublicDestination) {
-                return c.html(200, utils.getDeeplinkHandoffHtml(finalDest, uaStr, pixelScripts, link.id));
+            if (isDeeplinkEnabled && isInApp && !isBot && !managedTarget && !managedPublicDestination) {
+                return c.html(200, utils.getDeeplinkHandoffHtml(finalDest, uaStr, pixelScripts, link.id, requestReferrer));
             }
 
             // Pixels require a lightweight document, but this is still a normal
@@ -1877,7 +1880,10 @@ routerAdd("POST", "/api/onboarding/profile-claim", (c) => {
                 profile_template: "classic",
                 link_card_style: "solid",
                 social_link_style: "icons",
-                card_color: "#000000"
+                card_color: "#000000",
+                profile_background_mode: "color",
+                profile_background_position: "center",
+                profile_background_overlay: "balanced"
             });
             utils.validateProfileSocialLinks(profile);
             utils.validateProfileTemplate(profile);
