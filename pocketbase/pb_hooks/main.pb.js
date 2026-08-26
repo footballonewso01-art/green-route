@@ -5840,8 +5840,10 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
                  WHERE u.created >= datetime('now', '-' || {:days} || ' days')) AS signups,
               (SELECT count(*) FROM users u
                  WHERE u.created >= datetime('now', '-' || {:days} || ' days')
-                   AND EXISTS (SELECT 1 FROM growth_events ge
-                     WHERE ge.user_id = u.id AND ge.event_name IN ('link_created','profile_created'))) AS built,
+                   AND (
+                     EXISTS (SELECT 1 FROM links l WHERE l.user_id = u.id)
+                     OR EXISTS (SELECT 1 FROM public_profiles pp WHERE pp.user_id = u.id)
+                   )) AS built,
               (SELECT count(*) FROM users u
                  WHERE u.created >= datetime('now', '-' || {:days} || ' days')
                    AND (
@@ -6037,16 +6039,24 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
             });
         }
 
-        // 13. Conversion Events funnel
+        // 13. Activation funnel. Every row uses the same new-account cohort
+        // and each later milestone is a real subset of the previous one.
+        // Anonymous acquisition events remain useful directional signals, but
+        // they are not a funnel because visitors can enter registration from
+        // the header, pricing, referrals, or a direct /register visit.
+        var cohortRate = function (value) {
+            if (funnelCurrent.signups <= 0) return 0;
+            return Math.max(0, Math.min(100, (Number(value || 0) / funnelCurrent.signups) * 100));
+        };
         var conversionEvents = [
-            { name: "Landing visitors", value: funnelCurrent.views, color: "#34d399" },
-            { name: "Primary CTA", value: funnelCurrent.cta, color: "#2dd4bf" },
-            { name: "Signup started", value: funnelCurrent.signup_started, color: "#22c55e" },
-            { name: "Accounts created", value: funnelCurrent.signups, color: "#10b981" },
-            { name: "First asset built", value: funnelCurrent.built, color: "#059669" },
-            { name: "Activated accounts", value: funnelCurrent.activated, color: "#047857" },
-            { name: "Checkout started", value: funnelCurrent.checkout_started, color: "#065f46" },
-            { name: "Paid conversions", value: funnelCurrent.paid, color: "#064e3b" }
+            { name: "Accounts created", value: funnelCurrent.signups, rate: funnelCurrent.signups > 0 ? 100 : 0, color: "#34d399" },
+            { name: "First asset built", value: funnelCurrent.built, rate: cohortRate(funnelCurrent.built), color: "#10b981" },
+            { name: "First real traffic", value: funnelCurrent.activated, rate: cohortRate(funnelCurrent.activated), color: "#047857" }
+        ];
+        var acquisitionSignals = [
+            { name: "Landing visits", value: funnelCurrent.views },
+            { name: "Hero CTA", value: funnelCurrent.cta },
+            { name: "Signup starts", value: funnelCurrent.signup_started }
         ];
 
         return c.json(200, {
@@ -6073,6 +6083,7 @@ routerAdd("GET", "/api/admin/overview-stats", (c) => {
             topCreators: creatorsRaw,
             pulseEvents: pulseRaw,
             conversionEvents: conversionEvents,
+            acquisitionSignals: acquisitionSignals,
             trafficData: countriesRaw,
             sourceData: sourceRaw
         });

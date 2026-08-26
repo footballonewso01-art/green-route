@@ -69,6 +69,7 @@ interface TopCreator {
 
 interface ConversionEvent extends NamedValue {
     color: string;
+    rate?: number;
 }
 
 interface PulseEvent {
@@ -92,6 +93,7 @@ interface OverviewResponse {
     topCreators?: TopCreator[];
     pulseEvents?: PulseEvent[];
     conversionEvents?: ConversionEvent[];
+    acquisitionSignals?: NamedValue[];
     trafficData?: NamedValue[];
     sourceData?: SourcePerformance[];
 }
@@ -107,6 +109,13 @@ const TIME_RANGES = ["24h", "7d", "30d", "all"] as const;
 type TimeRange = typeof TIME_RANGES[number];
 
 const COLORS = ['#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#3b82f6'];
+
+function getFunnelStepRate(step: ConversionEvent, cohortSize: number): number {
+    const serverRate = Number(step.rate);
+    if (Number.isFinite(serverRate)) return Math.max(0, Math.min(100, serverRate));
+    if (cohortSize <= 0) return 0;
+    return Math.max(0, Math.min(100, (step.value / cohortSize) * 100));
+}
 
 export default function AdminOverview() {
     const navigate = useNavigate();
@@ -133,6 +142,7 @@ export default function AdminOverview() {
     const [topCreators, setTopCreators] = useState<TopCreator[]>([]);
     const [dauData, setDauData] = useState<DauDataPoint[]>([]);
     const [conversionEvents, setConversionEvents] = useState<ConversionEvent[]>([]);
+    const [acquisitionSignals, setAcquisitionSignals] = useState<NamedValue[]>([]);
     const [pulseEvents, setPulseEvents] = useState<PulseEvent[]>([]);
     const [sourceData, setSourceData] = useState<SourcePerformance[]>([]);
 
@@ -157,6 +167,7 @@ export default function AdminOverview() {
             setTopCreators(res.topCreators || []);
             setPulseEvents(res.pulseEvents || []);
             setConversionEvents(res.conversionEvents || []);
+            setAcquisitionSignals(res.acquisitionSignals || []);
             setSourceData(res.sourceData || []);
         } catch (err) {
             console.error("Dashboard Fetch Error:", err);
@@ -331,7 +342,7 @@ export default function AdminOverview() {
                                     <h2 className="text-xl font-bold flex items-center gap-3">
                                         Activation Funnel <Target className="w-5 h-5 text-accent" />
                                     </h2>
-                                    <p className="mt-1 text-xs text-muted-foreground">From first visit to first real traffic.</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">New-account cohort for the selected period.</p>
                                 </div>
                                 <span className="rounded-full border border-accent/20 bg-accent/5 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-accent">
                                     {(stats.activationRate || 0).toFixed(1)}% activated
@@ -344,18 +355,16 @@ export default function AdminOverview() {
                                         <div className="min-w-0">
                                             <div className="flex items-center justify-between gap-3">
                                                 <span className="truncate text-sm font-semibold text-foreground/85">{step.name}</span>
-                                                {i > 0 && (
-                                                    <span className="font-mono text-[10px] text-muted-foreground">
-                                                        {conversionEvents[i - 1].value > 0
-                                                            ? `${((step.value / conversionEvents[i - 1].value) * 100).toFixed(0)}%`
-                                                            : "—"}
-                                                    </span>
-                                                )}
+                                                <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                                                    {i === 0
+                                                        ? "Cohort"
+                                                        : `${getFunnelStepRate(step, conversionEvents[0]?.value || 0).toFixed(0)}% of cohort`}
+                                                </span>
                                             </div>
                                             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-background">
                                                 <div
                                                     className="h-full rounded-full bg-gradient-to-r from-emerald-700 to-accent transition-all duration-700"
-                                                    style={{ width: `${Math.min(100, (step.value / (conversionEvents[0]?.value || 1)) * 100)}%` }}
+                                                    style={{ width: `${getFunnelStepRate(step, conversionEvents[0]?.value || 0)}%` }}
                                                 />
                                             </div>
                                         </div>
@@ -363,6 +372,24 @@ export default function AdminOverview() {
                                     </div>
                                 ))}
                             </div>
+                            {acquisitionSignals.length > 0 && (
+                                <div className="mt-5 border-t border-white/5 pt-5">
+                                    <p className="mb-3 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                                        Acquisition signals
+                                    </p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {acquisitionSignals.map((signal) => (
+                                            <div key={signal.name} className="min-w-0 rounded-xl border border-white/5 bg-background/35 px-3 py-2.5">
+                                                <p className="truncate text-[10px] font-medium text-muted-foreground">{signal.name}</p>
+                                                <p className="mt-1 font-mono text-sm font-black text-white">{signal.value.toLocaleString()}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground/70">
+                                        Directional events only. Visitors can enter signup without using the hero CTA.
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         <div className="bg-surface border border-border rounded-3xl p-8 shadow-xl flex flex-col">
