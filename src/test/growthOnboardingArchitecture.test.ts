@@ -13,7 +13,7 @@ describe("growth onboarding architecture", () => {
     expect(landing).not.toContain("/register?username=${usernameInput");
     expect(register).toContain('searchParams.get("username") || ""');
     expect(register).toContain('searchParams.get("profile") || ""');
-    expect(register).toContain("claimStarterProfile(reservedProfileSlug)");
+    expect(register).toContain("ensureStarterProfile(accountUsername, reservedProfileSlug)");
     expect(register).not.toContain("setUsername(reservedProfileSlug)");
     expect(register).not.toContain("username: reservedProfileSlug");
 
@@ -29,6 +29,9 @@ describe("growth onboarding architecture", () => {
     expect(hooks).toContain('routerAdd("POST", "/api/onboarding/profile-reservation"');
     expect(hooks).toContain('routerAdd("POST", "/api/onboarding/profile-claim"');
     expect(hooks).toContain("$app.runInTransaction((txApp) =>");
+    expect(hooks).toContain("SELECT id, slug FROM public_profiles");
+    expect(hooks).toContain("var profileBaseSlug = accountUsername");
+    expect(hooks).toContain("utils.recordGrowthEvent(e.app || $app");
     expect(migration).toContain("block_reserved_profile_slug_insert");
     expect(migration).toContain("block_reserved_link_slug_insert");
     expect(worker).toContain('url.pathname === "/api/onboarding/profile-claim"');

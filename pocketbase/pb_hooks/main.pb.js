@@ -1820,9 +1820,11 @@ routerAdd("POST", "/api/onboarding/profile-reservation", (c) => {
     }
 }, $apis.bodyLimit(4 * 1024));
 
-// Authenticated, transactional claim. Deleting the reservation and creating
-// the starter profile happen on the same SQLite connection, so no link/profile
-// can steal the slug in between.
+// Authenticated, transactional and idempotent starter-profile creation. A
+// homepage reservation is preferred when it is still valid; every other
+// signup receives an available slug derived from the account username. The
+// account username is only copied at creation time and remains independent
+// from the Public Profile afterwards.
 routerAdd("POST", "/api/onboarding/profile-claim", (c) => {
     try {
         const utils = require(__hooks + '/utils.js');
@@ -1833,23 +1835,33 @@ routerAdd("POST", "/api/onboarding/profile-claim", (c) => {
 
         const data = new DynamicModel({ "slug": "", "token": "" });
         c.bindBody(data);
-        const slug = utils.validatePublicSlug(data.slug);
+        var requestedSlug = String(data.slug || "").trim().toLowerCase();
+        if (requestedSlug) requestedSlug = utils.validatePublicSlug(requestedSlug);
         const token = String(data.token || "");
-        if (token.length < 32 || token.length > 96) return c.json(400, { message: "This reservation is invalid." });
+        if (token && (token.length < 32 || token.length > 96)) {
+            return c.json(400, { message: "This reservation is invalid." });
+        }
 
         var createdProfileId = "";
+        var createdProfileSlug = "";
+        var profileWasCreated = false;
         $app.runInTransaction((txApp) => {
-            var ReservationModel = new DynamicModel({ "token_hash": "", "expires_at": "" });
-            var reservations = arrayOf(ReservationModel);
+            var ExistingProfileModel = new DynamicModel({ "id": "", "slug": "" });
+            var existingProfiles = arrayOf(ExistingProfileModel);
             txApp.db().newQuery(`
-                SELECT token_hash, expires_at FROM profile_slug_reservations
-                WHERE slug = {:slug} AND expires_at > datetime('now') LIMIT 1
-            `).bind({ slug: slug }).all(reservations);
-            if (!reservations.length || !$security.equal(String(reservations[0].token_hash), $security.sha256(token))) {
-                throw new BadRequestError("This reservation expired. Choose the address again.");
+                SELECT id, slug FROM public_profiles
+                WHERE user_id = {:userId}
+                ORDER BY created ASC, id ASC
+                LIMIT 1
+            `).bind({ userId: user.id }).all(existingProfiles);
+            if (existingProfiles.length) {
+                createdProfileId = String(existingProfiles[0].id || "");
+                createdProfileSlug = String(existingProfiles[0].slug || "");
+                return;
             }
 
-            var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
+            const txUser = txApp.findRecordById("users", user.id);
+            var plan = utils.getPlanCatalogEntry(txUser.get("plan") || "creator");
             if (plan.publicProfiles !== -1) {
                 var count = new DynamicModel({ "count": 0 });
                 txApp.db().newQuery("SELECT count(*) AS count FROM public_profiles WHERE user_id = {:userId}")
@@ -1857,25 +1869,73 @@ routerAdd("POST", "/api/onboarding/profile-claim", (c) => {
                 if (count.count >= plan.publicProfiles) throw new BadRequestError("Your profile limit has been reached.");
             }
 
-            var collision = new DynamicModel({ "taken": 0 });
-            txApp.db().newQuery(`
-                SELECT CASE WHEN
-                  EXISTS (SELECT 1 FROM links WHERE lower(slug) = {:slug}) OR
-                  EXISTS (SELECT 1 FROM public_profiles WHERE lower(slug) = {:slug})
-                THEN 1 ELSE 0 END AS taken
-            `).bind({ slug: slug }).one(collision);
-            if (collision.taken) throw new BadRequestError("This public address is already in use.");
+            txApp.db().newQuery("DELETE FROM profile_slug_reservations WHERE expires_at <= datetime('now')").execute();
 
-            txApp.db().newQuery("DELETE FROM profile_slug_reservations WHERE slug = {:slug}")
-                .bind({ slug: slug }).execute();
+            var reservationIsValid = false;
+            if (requestedSlug && token) {
+                var ReservationModel = new DynamicModel({ "token_hash": "" });
+                var reservations = arrayOf(ReservationModel);
+                txApp.db().newQuery(`
+                    SELECT token_hash FROM profile_slug_reservations
+                    WHERE slug = {:slug} AND expires_at > datetime('now') LIMIT 1
+                `).bind({ slug: requestedSlug }).all(reservations);
+                reservationIsValid = reservations.length > 0 &&
+                    $security.equal(String(reservations[0].token_hash), $security.sha256(token));
+            }
+
+            var accountUsername = String(txUser.get("username") || "").trim().toLowerCase();
+            var profileBaseSlug = accountUsername
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-+|-+$/g, "")
+                .substring(0, 64)
+                .replace(/-+$/g, "");
+            if (!profileBaseSlug || utils.isReservedPublicSlug(profileBaseSlug)) {
+                profileBaseSlug = "member-" + String(user.id || "account").substring(0, 8);
+            }
+
+            var selectedSlug = "";
+            for (var attempt = 0; attempt < 1000; attempt++) {
+                var candidate = "";
+                if (attempt === 0 && reservationIsValid) {
+                    candidate = requestedSlug;
+                } else {
+                    var fallbackIndex = reservationIsValid ? attempt - 1 : attempt;
+                    var suffix = fallbackIndex === 0 ? "" : "-" + String(fallbackIndex + 1);
+                    var prefixLength = Math.max(1, 64 - suffix.length);
+                    candidate = profileBaseSlug.substring(0, prefixLength).replace(/-+$/g, "") + suffix;
+                }
+                if (!candidate || utils.isReservedPublicSlug(candidate)) continue;
+
+                var collision = new DynamicModel({ "asset_taken": 0, "reservation_taken": 0 });
+                txApp.db().newQuery(`
+                    SELECT CASE WHEN
+                      EXISTS (SELECT 1 FROM links WHERE lower(slug) = {:slug}) OR
+                      EXISTS (SELECT 1 FROM public_profiles WHERE lower(slug) = {:slug})
+                    THEN 1 ELSE 0 END AS asset_taken,
+                    CASE WHEN EXISTS (
+                      SELECT 1 FROM profile_slug_reservations
+                      WHERE slug = {:slug} AND expires_at > datetime('now')
+                    ) THEN 1 ELSE 0 END AS reservation_taken
+                `).bind({ slug: candidate }).one(collision);
+                var ownsCandidateReservation = reservationIsValid && candidate === requestedSlug;
+                if (!collision.asset_taken && (!collision.reservation_taken || ownsCandidateReservation)) {
+                    selectedSlug = candidate;
+                    break;
+                }
+            }
+            if (!selectedSlug) throw new BadRequestError("No public profile address is currently available.");
+
+            if (reservationIsValid) {
+                txApp.db().newQuery("DELETE FROM profile_slug_reservations WHERE slug = {:slug}")
+                    .bind({ slug: requestedSlug }).execute();
+            }
 
             const collection = txApp.findCollectionByNameOrId("public_profiles");
             const profile = new Record(collection, {
                 user_id: user.id,
-                slug: slug,
+                slug: selectedSlug,
                 domain: "linktery.com",
-                name: slug,
-                username: slug,
+                name: accountUsername || selectedSlug,
                 theme: "sunset",
                 profile_template: "classic",
                 link_card_style: "solid",
@@ -1890,21 +1950,20 @@ routerAdd("POST", "/api/onboarding/profile-claim", (c) => {
             utils.validateProfilePresentation(profile);
             txApp.save(profile);
             createdProfileId = profile.id;
-            utils.recordGrowthEvent(txApp, {
-                id: "profile-created:" + profile.id,
-                eventName: "profile_created",
-                userId: user.id,
-                objectId: profile.id,
-                surface: "onboarding"
-            });
+            createdProfileSlug = selectedSlug;
+            profileWasCreated = true;
         });
 
-        return c.json(201, { id: createdProfileId, slug: slug });
+        return c.json(profileWasCreated ? 201 : 200, {
+            id: createdProfileId,
+            slug: createdProfileSlug,
+            created: profileWasCreated
+        });
     } catch (err) {
         if (err instanceof BadRequestError) {
-            return c.json(409, { message: "This reservation is no longer available. Return to the homepage and choose the address again." });
+            return c.json(409, { message: "We couldn't finish the starter profile setup. Please try again." });
         }
-        $app.logger().warn("Profile reservation claim failed: " + err);
+        $app.logger().warn("Starter profile creation failed: " + err);
         return c.json(500, { message: "Your account is ready, but the profile couldn't be created yet." });
     }
 }, $apis.bodyLimit(4 * 1024));
@@ -4745,6 +4804,7 @@ onRecordsListRequest((e) => {
 onRecordCreateRequest((e) => {
     try {
         const utils = require(__hooks + '/utils.js');
+        const requestApp = e.app || $app;
         var authInfo = utils.getAuthInfo(e);
         if (!authInfo.isAdmin) {
             if (!e.record.get("user_id")) {
@@ -4758,7 +4818,7 @@ onRecordCreateRequest((e) => {
         e.record.set("slug", slug);
         let linkWithSameSlug = null;
         try {
-            linkWithSameSlug = $app.findFirstRecordByFilter("links", "slug = {:slug}", { slug: slug });
+            linkWithSameSlug = requestApp.findFirstRecordByFilter("links", "slug = {:slug}", { slug: slug });
         } catch (err) { }
 
         if (linkWithSameSlug) {
@@ -4769,12 +4829,12 @@ onRecordCreateRequest((e) => {
         // Application admins can create profiles on behalf of users without customer limits.
         if (!authInfo.isAdmin) {
             const profileUserId = e.record.get("user_id");
-            const profileUser = $app.findRecordById("users", profileUserId);
+            const profileUser = requestApp.findRecordById("users", profileUserId);
             const profilePlan = profileUser.get("plan") || "creator";
             const maxProfiles = utils.getPlanCatalogEntry(profilePlan).publicProfiles;
 
             if (maxProfiles !== -1) {
-                const existingProfiles = $app.findRecordsByFilter(
+                const existingProfiles = requestApp.findRecordsByFilter(
                     "public_profiles",
                     "user_id = {:userId}",
                     "-created",
@@ -4806,7 +4866,10 @@ onRecordAfterCreateSuccess((e) => {
     e.next();
     try {
         const utils = require(__hooks + '/utils.js');
-        utils.recordGrowthEvent($app, {
+        // e.app preserves the active transaction. Using the global app here
+        // opens a second SQLite connection and can fail with SQLITE_BUSY while
+        // the onboarding route is still committing the profile.
+        utils.recordGrowthEvent(e.app || $app, {
             id: "profile-created:" + e.record.id,
             eventName: "profile_created",
             userId: e.record.get("user_id"),

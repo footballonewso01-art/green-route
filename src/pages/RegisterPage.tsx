@@ -9,7 +9,7 @@ import { SEO_PAGES } from "@/lib/seo-config";
 import { maskError } from "@/lib/utils";
 import { captureReferral, claimStoredReferral, normalizeReferralCode } from "@/lib/affiliate";
 import { trackGrowthEvent } from "@/lib/telemetry";
-import { claimStarterProfile } from "@/lib/profileOnboarding";
+import { ensureStarterProfile } from "@/lib/profileOnboarding";
 
 interface Star {
   x: number;
@@ -156,17 +156,20 @@ export default function RegisterPage() {
     return finalUsername;
   };
 
-  const claimReservedProfileAfterSignup = async () => {
-    if (!reservedProfileSlug) return null;
+  const finishStarterProfileSetup = async (accountUsername: string) => {
     try {
-      const profile = await claimStarterProfile(reservedProfileSlug);
-      if (profile) toast.success(`Your profile link linktery.com/${profile.slug} is ready.`);
-      return profile;
+      return {
+        profile: await ensureStarterProfile(accountUsername, reservedProfileSlug),
+        error: "",
+      };
     } catch (error) {
-      toast.error(error instanceof Error
-        ? error.message
-        : "Your account is ready, but the reserved profile needs to be created again.");
-      return null;
+      console.error("Starter profile setup failed:", error);
+      return {
+        profile: null,
+        error: error instanceof Error
+          ? error.message
+          : "Your account is ready, but the Public Profile couldn't be created yet.",
+      };
     }
   };
 
@@ -244,7 +247,10 @@ export default function RegisterPage() {
         console.info("Referral attribution was not claimed:", err);
       }
       
-      // 3. Apply promocode after successful registration
+      // 3. Apply promocode after successful registration. Completion uses one
+      // consolidated notification after the starter profile is also ready.
+      let promoResultMessage = "";
+      let promoWarning = "";
       if (trimmedPromo) {
         try {
           const applyRes = await pb.send("/api/promocodes/apply", {
@@ -252,21 +258,32 @@ export default function RegisterPage() {
             body: { code: trimmedPromo }
           });
           if (applyRes.success) {
-            toast.success(applyRes.message);
+            promoResultMessage = String(applyRes.message || "Your promo code was applied.");
             // Refresh auth state to get updated plan and promocode_used into AuthContext
             await pb.collection("users").authRefresh();
           }
         } catch (err: unknown) {
           console.error("Failed to apply promocode after registration", err);
-          toast.error(maskError(err, "Your account was created, but the promo code wasn't applied. Try it again in Settings."));
-          // Don't fail the whole registration if promo applying fails somehow
+          promoWarning = maskError(err, "Your promo code wasn't applied. You can try it again in Settings.");
         }
-      } else {
-        toast.success("Account created successfully!");
       }
-      
-      const starterProfile = await claimReservedProfileAfterSignup();
-      navigate(starterProfile ? `/dashboard/profile/${starterProfile.id}` : "/dashboard");
+
+      const profileSetup = await finishStarterProfileSetup(cleanUsername);
+      if (profileSetup.profile) {
+        const profileDescription = promoWarning || promoResultMessage ||
+          `linktery.com/${profileSetup.profile.slug} is ready.`;
+        if (promoWarning) {
+          toast.warning("Account and Public Profile are ready.", { description: profileDescription });
+        } else {
+          toast.success("Account and Public Profile are ready.", { description: profileDescription });
+        }
+        navigate(`/dashboard/profile/${profileSetup.profile.id}`);
+      } else {
+        toast.error("Your account is ready, but profile setup didn't finish.", {
+          description: profileSetup.error || "Open Profiles from the dashboard to try again.",
+        });
+        navigate("/dashboard");
+      }
     } catch (error: unknown) {
       toast.error(parseAuthError(error, "register"));
     } finally {
@@ -287,9 +304,11 @@ export default function RegisterPage() {
       });
 
       const updateData: Record<string, string> = {};
+      let accountUsername = String(authData.record.username || "");
       if (!authData.record.username) {
         const generatedUsername = await generateUniqueUsername(authData.record.email);
         updateData.username = generatedUsername;
+        accountUsername = generatedUsername;
       }
 
       if (Object.keys(updateData).length > 0) {
@@ -302,9 +321,18 @@ export default function RegisterPage() {
         console.info("Referral attribution was not claimed:", err);
       }
 
-      toast.success("Successfully signed up with Google!");
-      const starterProfile = await claimReservedProfileAfterSignup();
-      navigate(starterProfile ? `/dashboard/profile/${starterProfile.id}` : "/dashboard");
+      const profileSetup = await finishStarterProfileSetup(accountUsername);
+      if (profileSetup.profile) {
+        toast.success("Account and Public Profile are ready.", {
+          description: `linktery.com/${profileSetup.profile.slug} is ready.`,
+        });
+        navigate(`/dashboard/profile/${profileSetup.profile.id}`);
+      } else {
+        toast.error("You're signed in, but profile setup didn't finish.", {
+          description: profileSetup.error || "Open Profiles from the dashboard to try again.",
+        });
+        navigate("/dashboard");
+      }
     } catch (error: unknown) {
       const err = error as { name?: string; originalError?: { message?: string }; message?: string };
       if (err.name !== "ClientResponseError" || err.originalError?.message !== "The user cancelled the request.") {
