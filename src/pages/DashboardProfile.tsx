@@ -21,6 +21,12 @@ import { isReservedPublicSlug } from "@/lib/systemRoutes";
 import { buildProfileLinkUpdateFormData } from "@/lib/profileLinkPersistence";
 import { CoreLinkRecord, getProfileLinkTitle, ProfileLinkItem, ProfileLinkRecord } from "@/lib/profileLinks";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
+import {
   isLightProfileColor,
   normalizeProfileBackgroundMode,
   normalizeProfileBackgroundOverlay,
@@ -1364,16 +1370,47 @@ export default function DashboardProfile() {
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground mb-1 block">Choose Domain</label>
-                <select
+                <Select
                   value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
+                  onValueChange={setDomain}
                   disabled={!canCustomize}
-                  className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-white focus:outline-none focus:border-accent/50 cursor-pointer disabled:opacity-50"
                 >
-                  {availableDomains.map((d: string) => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
+                  <SelectTrigger
+                    aria-label="Choose profile domain"
+                    data-profile-domain-select="trigger"
+                    className="h-10 w-full rounded-xl border-border bg-surface pl-4 pr-5 text-white shadow-none transition-[border-color,background-color,box-shadow] hover:border-border/90 hover:bg-surface-hover/40 focus:border-accent/50 focus:ring-2 focus:ring-accent/10 focus:ring-offset-0 data-[state=open]:border-accent/45 data-[state=open]:bg-surface-hover/40 [&>svg]:ml-3 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0 [&>svg]:text-accent/80 [&>svg]:opacity-100"
+                  >
+                    <div data-profile-domain-value="true" className="flex min-w-0 flex-1 items-center gap-2.5">
+                      <Globe className="h-4 w-4 shrink-0 text-accent/80" />
+                      <span className="truncate text-sm font-medium">{domain}</span>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent
+                    position="popper"
+                    side="bottom"
+                    align="start"
+                    sideOffset={6}
+                    data-profile-domain-select="content"
+                    className="z-[130] w-[var(--radix-select-trigger-width)] rounded-xl border-border/80 bg-popover/95 shadow-2xl backdrop-blur-xl"
+                  >
+                    {availableDomains.map((domainOption: string, index: number) => (
+                      <SelectItem
+                        key={domainOption}
+                        value={domainOption}
+                        textValue={domainOption}
+                        className="rounded-lg py-2.5 pl-9 pr-3 focus:bg-white/[0.06] focus:text-foreground data-[state=checked]:bg-accent/[0.08] data-[state=checked]:text-accent"
+                      >
+                        <span className="flex min-w-0 items-center gap-2.5">
+                          <Globe className="h-3.5 w-3.5 shrink-0 text-accent/70" />
+                          <span className="truncate font-medium">{domainOption}</span>
+                          <span className={`ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${index === 0 ? "bg-accent/10 text-accent" : "bg-white/5 text-muted-foreground"}`}>
+                            {index === 0 ? "Primary" : "Alias"}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground mb-1 block">Profile Slug</label>

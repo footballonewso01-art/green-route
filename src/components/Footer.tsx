@@ -26,7 +26,8 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl">
         <section
           aria-labelledby="footer-cta-title"
-          className="grid gap-7 border-b border-border/50 py-10 sm:py-12 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end"
+          data-footer-cta="true"
+          className="grid gap-7 border-b border-border/50 pb-7 pt-10 sm:pb-8 sm:pt-12 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
         >
           <div className="max-w-2xl">
             <p className="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-accent">

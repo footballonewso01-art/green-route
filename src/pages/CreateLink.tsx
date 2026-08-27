@@ -502,9 +502,15 @@ export default function CreateLink() {
                 </div>
               )}
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-0 sm:gap-2">
-              <span className="text-[12px] sm:text-sm text-muted-foreground bg-surface px-3 py-2 sm:py-2.5 rounded-t-xl sm:rounded-xl border border-border sm:border-r-0 sm:rounded-r-none whitespace-nowrap overflow-hidden text-ellipsis">
-                {form.domain}/
+            <div
+              data-link-slug-control="true"
+              className={`flex min-w-0 items-stretch overflow-hidden rounded-xl border border-border bg-surface transition-[border-color,box-shadow,background-color] focus-within:border-accent/50 focus-within:bg-surface-hover/20 focus-within:ring-2 focus-within:ring-accent/10 ${!checkPlan(userPlan, "custom_slug") ? "opacity-60" : ""}`}
+            >
+              <span className="relative flex h-12 min-w-0 max-w-[54%] shrink-0 items-center gap-2 px-3.5 text-xs text-muted-foreground sm:max-w-[46%] sm:text-sm">
+                <Globe className="h-3.5 w-3.5 shrink-0 text-accent/70" />
+                <span className="truncate">{form.domain}</span>
+                <span className="shrink-0 text-muted-foreground/60">/</span>
+                <span aria-hidden="true" className="absolute inset-y-2.5 right-0 w-px bg-gradient-to-b from-transparent via-border to-transparent" />
               </span>
               <input
                 required
@@ -513,7 +519,10 @@ export default function CreateLink() {
                 maxLength={64}
                 disabled={!checkPlan(userPlan, "custom_slug")}
                 placeholder="my-link"
-                className={`flex-1 px-4 py-2 sm:py-2.5 rounded-b-xl sm:rounded-xl bg-surface border border-border sm:border-l-0 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent/50 transition-colors sm:rounded-l-none ${!checkPlan(userPlan, "custom_slug") ? "opacity-60 cursor-not-allowed" : ""}`}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                className={`h-12 min-w-0 flex-1 border-0 bg-transparent px-3.5 text-sm text-foreground outline-none placeholder:text-muted-foreground/60 ${!checkPlan(userPlan, "custom_slug") ? "cursor-not-allowed" : ""}`}
               />
             </div>
           </div>

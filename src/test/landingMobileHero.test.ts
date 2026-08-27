@@ -63,6 +63,10 @@ describe("landing mobile hero", () => {
     expect(header).toContain("Documentation");
     expect(header).toContain("Start free");
     expect(footer).toContain("Put your next link to work.");
+    expect(footer).toContain('data-footer-cta="true"');
+    expect(footer).toContain("pb-7 pt-10 sm:pb-8 sm:pt-12");
+    expect(footer).toContain("lg:items-center");
+    expect(footer).not.toContain("lg:items-end");
     expect(footer).toContain("min-h-11 items-center whitespace-nowrap");
     expect(footer).toContain('aria-label="Explore Linktery"');
     expect(footer).toContain('aria-label="Linktery resources"');
