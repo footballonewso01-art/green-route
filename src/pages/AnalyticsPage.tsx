@@ -13,6 +13,7 @@ import ProfileScopeSelect, {
   type AnalyticsProfileOption,
 } from "@/components/analytics/ProfileScopeSelect";
 import { getCountryDisplayName, normalizeCountryCode } from "@/lib/countryFormatting";
+import { refreshOnTabReturn } from "@/lib/refreshOnTabReturn";
 
 interface ClickRecord {
   id: string;
@@ -136,14 +137,25 @@ export default function AnalyticsPage() {
     if (isProfileMode && !profileOptionsLoaded) return;
     if (profileScopeNeedsNormalization) return;
     let active = true;
+    let inFlight = false;
+    let pendingReturnRefresh = false;
+    let hasData = false;
     const requestKey = "analytics-stats";
-    const fetchAnalytics = async () => {
+    const fetchAnalytics = async (refresh = false) => {
+      if (!active) return;
+      if (inFlight) {
+        pendingReturnRefresh ||= refresh;
+        return;
+      }
+      inFlight = true;
+      pendingReturnRefresh = false;
       if (loadedOnceRef.current) setRefreshing(true);
       else setLoading(true);
       try {
         // === SERVER-SIDE SQL AGGREGATION ===
         // Single API call returns pre-aggregated data (~2KB) instead of thousands of raw records.
         const queryParams = new URLSearchParams({ period });
+        if (refresh) queryParams.set("refresh", "1");
         if (isProfileMode) queryParams.set("profileId", profileScope || ALL_PROFILES_SCOPE);
         else if (linkId) queryParams.set("linkId", linkId);
 
@@ -151,6 +163,7 @@ export default function AnalyticsPage() {
         const stats = await pb.send(`${analyticsPath}?${queryParams.toString()}`, {
           method: "GET",
           requestKey,
+          cache: "no-store",
         });
         if (!active) return;
 
@@ -260,11 +273,16 @@ export default function AnalyticsPage() {
         // 8. Heatmap — server returns ready 7×24 matrix
         setHeatmapData(stats.heatmap || Array.from({ length: 7 }, () => Array(24).fill(0)));
         setResolvedAnalyticsScope(analyticsScopeKey);
+        hasData = true;
 
         // 9. Recent activities — small separate query (only 5 records with expand)
       } catch (error: unknown) {
-        if ((error as { isAbort?: boolean }).isAbort) return;
+        if (!active || (error as { isAbort?: boolean }).isAbort) return;
         console.error("Analytics fetch error:", error);
+        if (hasData) {
+          toast.error("Couldn't refresh analytics. Showing the last loaded data.");
+          return;
+        }
         setClicksCount(0);
         setUniqueCount(0);
         setProfileCardClicks(0);
@@ -281,47 +299,73 @@ export default function AnalyticsPage() {
         setResolvedAnalyticsScope(analyticsScopeKey);
         toast.error("Failed to fetch analytics");
       } finally {
+        inFlight = false;
         if (active) {
           loadedOnceRef.current = true;
           setLoading(false);
           setRefreshing(false);
+          if (pendingReturnRefresh && document.visibilityState !== "hidden") {
+            void fetchAnalytics(true);
+          }
         }
       }
     };
-    fetchAnalytics();
+    void fetchAnalytics();
+    const stopReturnRefresh = refreshOnTabReturn(() => fetchAnalytics(true));
     return () => {
       active = false;
+      stopReturnRefresh();
       pb.cancelRequest(requestKey);
     };
   }, [analyticsScopeKey, canUseAnalytics, isProfileMode, linkId, period, profileOptionsLoaded, profileScope, profileScopeNeedsNormalization, user?.id]);
 
   useEffect(() => {
-    if (!canUseAnalytics) return;
+    if (!canUseAnalytics || !user?.id) return;
     if (isProfileMode) {
       setRecentActivities([]);
       return;
     }
     let active = true;
+    let inFlight = false;
+    let pendingReturnRefresh = false;
     const requestKey = "analytics-recent";
     const queryParams = new URLSearchParams();
     if (linkId) queryParams.set("linkId", linkId);
     const suffix = queryParams.toString() ? `?${queryParams.toString()}` : "";
 
-    pb.send(`/api/analytics/recent${suffix}`, { method: "GET", requestKey })
-      .then((result: { items?: ClickRecord[] }) => {
+    const fetchRecent = async () => {
+      if (!active) return;
+      if (inFlight) {
+        pendingReturnRefresh = true;
+        return;
+      }
+      inFlight = true;
+      pendingReturnRefresh = false;
+      try {
+        const result: { items?: ClickRecord[] } = await pb.send(`/api/analytics/recent${suffix}`, {
+          method: "GET", requestKey, cache: "no-store",
+        });
         if (active) setRecentActivities(result.items || []);
-      })
-      .catch((error: unknown) => {
-        if (!(error as { isAbort?: boolean }).isAbort) {
+      } catch (error: unknown) {
+        if (active && !(error as { isAbort?: boolean }).isAbort) {
           console.error("Recent analytics fetch error:", error);
         }
-      });
+      } finally {
+        inFlight = false;
+        if (active && pendingReturnRefresh && document.visibilityState !== "hidden") {
+          void fetchRecent();
+        }
+      }
+    };
+    void fetchRecent();
+    const stopReturnRefresh = refreshOnTabReturn(fetchRecent);
 
     return () => {
       active = false;
+      stopReturnRefresh();
       pb.cancelRequest(requestKey);
     };
-  }, [linkId, isProfileMode, canUseAnalytics]);
+  }, [linkId, isProfileMode, canUseAnalytics, user?.id]);
 
   if (!canUseAnalytics) {
     return (

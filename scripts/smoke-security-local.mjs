@@ -123,7 +123,7 @@ try {
     user_id: owner.id, slug: "security-smoke-profile", name: "Security profile", domain: "linktery.com",
     social_links: [{ id: "youtube", url: "https://youtube.com/@example", icon_type: "preset", icon_value: "youtube" }],
   });
-  await admin.collection("profile_links").create({ user_id: owner.id, profile_id: profile.id, link_id: link.id, visible: true });
+  const card = await admin.collection("profile_links").create({ user_id: owner.id, profile_id: profile.id, link_id: link.id, visible: true });
   const publicProfile = await anonymous.send(`/api/public/profiles/${profile.slug}?domain=linktery.com`, { method: "GET" });
   assert.equal(publicProfile.links.length, 1);
   assert(!("user_id" in publicProfile.profile));
@@ -131,12 +131,64 @@ try {
   assert.equal(publicProfile.links[0].link.destination_url, "");
   assert.equal(publicProfile.profile.social_links[0].url, "https://youtube.com/@example", JSON.stringify(publicProfile.profile.social_links));
   assert.equal(sql(db, "SELECT count(*) FROM profile_view_events;").trim(), "0");
+  const profileStatsPath = `/api/analytics/profile-stats?profileId=${profile.id}&period=7d`;
+  const allProfileStatsPath = "/api/analytics/profile-stats?profileId=all&period=7d";
+  const linkStatsPath = `/api/analytics/stats?linkId=${link.id}&period=7d`;
+  // This fixture has no historical customer rows; its live click rollups are
+  // already complete, so mark only the synthetic instance's backfill state.
+  sql(db, "INSERT INTO analytics_rollup_state (id,status,updated) VALUES ('historical','complete',datetime('now')) ON CONFLICT(id) DO UPDATE SET status='complete';");
+  const initialLinkStats = await customer.send(linkStatsPath, { method: "GET" });
+  assert.equal(initialLinkStats.total, 1);
+  const initialStats = await customer.send(profileStatsPath, { method: "GET" });
+  assert.equal(initialStats.views, 0);
+  assert.equal((await customer.send(allProfileStatsPath, { method: "GET" })).cardClicks, 0);
   const profileDocument = await fetch(`${origin}/${profile.slug}`, { headers: edgeHeaders });
   assert.equal(profileDocument.status, 404, "The attested profile signal must still request the SPA");
   assert.equal(profileDocument.headers.get("X-Linktery-Redirect-Origin"), "v1");
   assert.equal(sql(db, "SELECT country FROM profile_view_events;").trim(), "US");
   await anonymous.send(`/api/public/profiles/${profile.slug}?domain=linktery.com`, { method: "GET" });
   assert.equal(sql(db, "SELECT count(*) FROM profile_view_events;").trim(), "1", "Profile DTO reads must not double-count visits");
+
+  // Exercise the real card URL, not just an independent short-link visit.
+  // Both root redirects and browser fallback telemetry must use the same
+  // atomic profile counter, while preserving trusted geographic dimensions.
+  assert.equal(sql(db, "SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name='increment_profile_click_rollup';").trim(), "1");
+  const cardClick = await fetch(`${origin}/${link.slug}?ref=profile&profile_id=${profile.id}&profile_link_id=${card.id}`, {
+    headers: { ...edgeHeaders, "X-Linktery-Request-Id": "security-smoke-profile-click" }, redirect: "manual",
+  });
+  assert.equal(cardClick.status, 302);
+  assert.equal(cardClick.headers.get("location"), resolved.destination_url);
+  assert.equal(sql(db, "SELECT sum(total) FROM profile_click_hourly_rollup;").trim(), "1");
+  const cachedStats = await customer.send(profileStatsPath, { method: "GET" });
+  assert.equal(cachedStats.generatedAt, initialStats.generatedAt, "Ordinary requests retain the response cache");
+  const freshStats = await customer.send(profileStatsPath + "&refresh=1", { method: "GET" });
+  assert.equal(freshStats.views, 1);
+  assert.equal(freshStats.uniqueViews, 1);
+  assert.equal(freshStats.cardClicks, 1, "After-success hook must not increment the atomic counter again");
+  assert.equal(freshStats.cards[0].profileLinkId, card.id);
+  assert.equal(freshStats.cards[0].clicks, 1);
+  assert.equal(freshStats.countryMap[0].code, "US");
+  const fallbackClick = await fetch(`${origin}/api/track-click`, {
+    method: "POST", headers: { ...edgeHeaders, "Content-Type": "application/json" },
+    body: JSON.stringify({ link_id: link.id, profile_id: profile.id, profile_link_id: card.id, referrer: "Profile" }),
+  });
+  assert.equal(fallbackClick.status, 202);
+  assert.equal((await fallbackClick.json()).accepted, true);
+  assert.equal(sql(db, "SELECT sum(total) FROM profile_click_hourly_rollup;").trim(), "2");
+  assert.equal(sql(db, `SELECT count(*) FROM clicks WHERE source_profile_id=${quote(profile.id)} AND profile_link_id=${quote(card.id)} AND country='US';`).trim(), "2");
+  assert.equal((await customer.collection("links").getOne(link.id)).clicks_count, 3);
+  assert.equal((await customer.send(allProfileStatsPath + "&refresh=1", { method: "GET" })).cardClicks, 2);
+  assert.equal((await customer.send(linkStatsPath, { method: "GET" })).total, 1);
+  assert.equal((await customer.send(linkStatsPath + "&refresh=1", { method: "GET" })).total, 3);
+  await assert.rejects(anonymous.send(profileStatsPath + "&refresh=1", { method: "GET" }), error => error.status === 401);
+  await assert.rejects(stranger.send(profileStatsPath + "&refresh=1", { method: "GET" }), error => error.status === 404);
+  await assert.rejects(stranger.send(linkStatsPath + "&refresh=1", { method: "GET" }), error => error.status === 404);
+  let refreshRateLimited = false;
+  for (let i = 0; i < 12; i++) {
+    try { await customer.send(profileStatsPath + "&refresh=1", { method: "GET" }); }
+    catch (error) { if (error.status !== 429) throw error; refreshRateLimited = true; break; }
+  }
+  assert(refreshRateLimited, "Fresh refreshes must remain computation-rate-limited");
   const image = new FormData();
   image.append("avatar", new Blob(["<svg xmlns='http://www.w3.org/2000/svg'/>"], { type: "image/png" }), "fake.png");
   await assert.rejects(customer.collection("public_profiles").update(profile.id, image), error => error.status === 400);
@@ -158,7 +210,7 @@ try {
   execFileSync(executable, ["migrate", "up", `--dir=${temporary}`, "--encryptionEnv=PB_ENCRYPTION_KEY", `--migrationsDir=${path.join(root, "pocketbase/pb_migrations")}`], {
     env, windowsHide: true, stdio: "pipe",
   });
-  console.log("PASS: owner isolation, immutable ownership, private routing DTO, trusted geo, HTTP redirect and click count, profile/social data and view count, slug checks, forged SVG rejection, raster upload and file CSP, migration, encrypted settings reload.");
+  console.log("PASS: owner isolation, immutable ownership, private routing DTO, trusted geo, HTTP redirect and click count, profile/social data and view count, atomic card clicks from redirects and fallback telemetry, fresh analytics and cache/rate-limit isolation, slug checks, forged SVG rejection, raster upload and file CSP, migration, encrypted settings reload.");
 } catch (error) {
   console.error(error.stack || String(error));
   process.exitCode = 1;

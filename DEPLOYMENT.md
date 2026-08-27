@@ -496,3 +496,24 @@ from the current source, not from old commits. Before calling this incident
 fully resolved, rotate exposed credentials and coordinate a history rewrite
 and force-push with repository collaborators. Do not force-push during a
 normal application deploy.
+
+### Atomic profile counters rollout (2026-08-28)
+
+Deploy `1787865000_make_profile_click_rollup_atomic.js` with its matching
+PocketBase hooks, backend first. The `increment_profile_click_rollup` SQLite
+trigger replaces (not supplements) the old after-success JS increment. Clicks
+and profile counters now commit together, including browser-fallback telemetry.
+The existing hourly reconciliation repairs recent drift within its bounded
+six-hour window; do not run a full-history rebuild during application startup.
+
+Verify the trigger exists on staging and production, then check that attributed
+click totals match their rollups. Test both cached analytics reads and owner-
+authenticated `refresh=1` reads; the latter must still enforce ownership, plans
+and computation rate limits. Frontend tab-return refreshes require this backend
+revision for fresh responses without waiting for the normal 30-second cache.
+
+Prefer a forward fix if backend rollback is needed. Do not deploy old hooks
+while this trigger remains active: both would increment the same click. A full
+rollback must remove this trigger via the matching down migration while request
+handling is stopped, then restore the old hooks together. Rolling back only the
+frontend is safe; it does not change the counter writer.

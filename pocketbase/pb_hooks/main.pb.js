@@ -3072,11 +3072,11 @@ cronAdd("cleanup_profile_analytics_events", "43 3 * * *", () => {
     }
 });
 
-// Repair the only deliberately non-transactional part of the profile funnel:
-// a raw click is committed before its after-create rollup hook runs. Rebuild a
-// bounded, indexed 6-hour window with absolute totals so retries are
-// idempotent and can never double-count. Joining the current Profile and Link
-// also skips historical attribution rows whose parent was later deleted.
+// Repair historical drift or interrupted older-version rollup writes. The database
+// trigger now commits new profile counters atomically with their clicks, so
+// this single UPSERT cannot race an after-success increment. Rebuild a bounded,
+// indexed 6-hour window with absolute totals. Joining the current Profile and
+// Link also skips attribution rows whose parent was later deleted.
 cronAdd("reconcile_profile_click_rollups", "29 * * * *", () => {
     try {
         $app.db().newQuery(`
@@ -4843,8 +4843,6 @@ onRecordViewRequest((e) => {
 // PocketBase v0.24 JSVM: GLOBAL function (not $app.), callback first, collection last
 onRecordAfterCreateSuccess((e) => {
     const linkId = e.record.get("link_id");
-    const sourceProfileId = String(e.record.get("source_profile_id") || "");
-    const profileLinkId = String(e.record.get("profile_link_id") || "");
 
     if (linkId) {
         // Keep the total counter and daily rollup independent so a failure in one
@@ -4921,26 +4919,8 @@ onRecordAfterCreateSuccess((e) => {
             $app.logger().error("Failed to update analytics_hourly_rollup for click_id " + e.record.id + " link_id " + linkId + ": " + err);
         }
 
-        if (sourceProfileId && profileLinkId) {
-            try {
-                $app.db().newQuery(`
-                    INSERT INTO profile_click_hourly_rollup (
-                        profile_id, profile_link_id, link_id, bucket, total, unique_count
-                    )
-                    SELECT source_profile_id, profile_link_id, link_id,
-                           strftime('%Y-%m-%dT%H:00:00Z', created),
-                           1, CASE WHEN is_unique = 1 THEN 1 ELSE 0 END
-                    FROM clicks
-                    WHERE id = {:clickId}
-                    ON CONFLICT (profile_id, profile_link_id, link_id, bucket)
-                    DO UPDATE SET
-                        total = total + 1,
-                        unique_count = unique_count + excluded.unique_count
-                `).bind({ clickId: e.record.id }).execute();
-            } catch (err) {
-                $app.logger().error("Failed to update profile_click_hourly_rollup for click_id " + e.record.id + ": " + err);
-            }
-        }
+        // Profile card counters are maintained by the atomic database trigger
+        // increment_profile_click_rollup, not by an after-commit JS increment.
     }
 
     e.next();
@@ -5341,6 +5321,7 @@ routerAdd("GET", "/api/admin/promocodes/{id}/payments", (c) => {
 // hourly rows. Response time therefore scales with hours/dimensions rather
 // than the number of individual click events.
 routerAdd("GET", "/api/analytics/stats", (c) => {
+    c.response.header().set("Cache-Control", "private, no-store");
     var cacheKey = "";
     var ownsInflight = false;
     try {
@@ -5378,7 +5359,10 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
 
         cacheKey = "stats|" + userId + "|" + linkId + "|" + period;
         var cached = utils.getAnalyticsCache(cacheKey);
-        if (cached) return c.json(200, cached);
+        // A tab-return refresh bypasses only the response cache. Ownership,
+        // plan checks, the computation rate limit and inflight guard still apply.
+        var refreshRequested = c.request.url.query().get("refresh") === "1";
+        if (cached && !refreshRequested) return c.json(200, cached);
 
         if (!utils.analyticsRateLimitAllows(userId)) {
             return c.json(429, { message: "Too many analytics requests. Please wait a minute." });
@@ -5561,6 +5545,7 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
 // have separate rollups so dashboard latency is bounded by time buckets, not
 // by the number of raw visitor events.
 routerAdd("GET", "/api/analytics/profile-stats", (c) => {
+    c.response.header().set("Cache-Control", "private, no-store");
     var cacheKey = "";
     var inflightKey = "";
     var ownsInflight = false;
@@ -5623,7 +5608,8 @@ routerAdd("GET", "/api/analytics/profile-stats", (c) => {
 
         cacheKey = "profile-stats|" + user.id + "|" + profileId + "|" + scopeFingerprint + "|" + period;
         var cached = utils.getAnalyticsCache(cacheKey);
-        if (cached) return c.json(200, cached);
+        var refreshRequested = query.get("refresh") === "1";
+        if (cached && !refreshRequested) return c.json(200, cached);
 
         if (!utils.analyticsRateLimitAllows(user.id)) {
             return c.json(429, { message: "Too many analytics requests. Please wait a minute." });
