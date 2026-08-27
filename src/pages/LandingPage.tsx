@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, BarChart3, Shield, Zap, Globe, MousePointer, User as UserIcon, Sparkles } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { PlanType, PLAN_RANKS } from "@/lib/plans";
+import { getPublicProfileFeatureCopy, PlanType, PLAN_RANKS } from "@/lib/plans";
 import { trackGrowthEvent } from "@/lib/telemetry";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useSeo } from "@/hooks/useSeo";
@@ -53,7 +53,7 @@ const plans = [
     description: "Perfect for getting started",
     features: [
       { text: "3 Smart Links", icon: "🔗", tooltip: "Includes 3 Smart Links on Free plan." },
-      { text: "1 Biolink Profile", icon: "👤", tooltip: "Create 1 public Link-in-Bio profile." },
+      { ...getPublicProfileFeatureCopy(1), icon: "👤" },
       { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
       { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
       { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." },
@@ -71,7 +71,7 @@ const plans = [
     popular: true,
     features: [
       { text: "15 Smart Links", icon: "🔗", tooltip: "Create and manage up to 15 active smart redirect links." },
-      { text: "3 Biolink Profiles", icon: "👥", tooltip: "Create up to 3 separate Link-in-Bio profiles." },
+      { ...getPublicProfileFeatureCopy(3), icon: "👥" },
       { text: "Remove Linktery Branding", icon: "✨", tooltip: "Completely remove the branding badge from your public profile." },
       { text: "Deeplink", icon: "⚡", tooltip: "Bypass in-app social browsers to open your links directly in Safari or Chrome." },
       { text: "Advanced Analytics", icon: "📊", tooltip: "Detailed tracking: clicks over time, countries, referrers, and device types." },
@@ -89,7 +89,7 @@ const plans = [
     description: "For agencies and power users",
     features: [
       { text: "Unlimited Smart Links", icon: "🚀" },
-      { text: "25 Client Profiles", icon: "👥", tooltip: "Manage up to 25 separate Link-in-Bio profiles for clients or brands." },
+      { ...getPublicProfileFeatureCopy(25), icon: "👥" },
       { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
       { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
       { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
@@ -126,6 +126,14 @@ export default function LandingPage() {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      setWordIndex(0);
+      return;
+    }
+
     let interval: NodeJS.Timeout;
 
     const startInterval = () => {
@@ -150,7 +158,7 @@ export default function LandingPage() {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [prefersReducedMotion]);
 
   useSeo(SEO_PAGES.home);
 
@@ -216,11 +224,12 @@ export default function LandingPage() {
   const userPlan = (user as { plan?: PlanType })?.plan;
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <div className="min-h-screen bg-background relative overflow-x-clip">
       <MarketingHeader current="home" />
 
-      {/* Hero */}
-      <section className="relative flex items-start overflow-hidden px-4 pb-14 pt-28 sm:px-6 sm:pb-16 sm:pt-32 lg:min-h-[90vh] lg:items-center lg:pb-20 lg:pt-32">
+      <main>
+        {/* Hero */}
+        <section className="relative flex items-start overflow-hidden px-4 pb-14 pt-28 sm:px-6 sm:pb-16 sm:pt-32 lg:min-h-[90vh] lg:items-center lg:pb-20 lg:pt-32">
         {/* Background Video (Localized to Hero) */}
         <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-30">
           <video
@@ -274,6 +283,7 @@ export default function LandingPage() {
                 </Link>
               ) : (
                 <form
+                  data-landing-slug-form
                   onSubmit={async (e) => {
                     e.preventDefault();
                     const slug = usernameInput.trim().toLowerCase();
@@ -289,28 +299,30 @@ export default function LandingPage() {
                       setSlugReservationLoading(false);
                     }
                   }}
-                  className="flex w-full items-center rounded-full border border-border/60 bg-surface/40 p-1.5 shadow-glow/5 backdrop-blur-xl transition-all duration-300 hover:border-border/80 focus-within:border-accent/40 focus-within:shadow-glow/15"
+                  className="grid w-full grid-cols-1 gap-1.5 rounded-2xl border border-border/60 bg-surface/40 p-1.5 shadow-glow/5 backdrop-blur-xl transition-[border-color,box-shadow] duration-300 hover:border-border/80 focus-within:border-accent/40 focus-within:shadow-glow/15 min-[360px]:grid-cols-[minmax(0,1fr)_auto] min-[360px]:items-center min-[360px]:gap-0 min-[360px]:rounded-full"
                 >
-                  <div className="flex flex-shrink-0 select-none items-center pl-1 pr-0 text-[13px] font-medium text-zinc-300 sm:text-[16.6px]">
-                    <img src="/logo.webp" alt="" className="mr-1 h-8 w-auto flex-shrink-0 mix-blend-screen sm:h-10" />
-                    <span>linktery.com/</span>
+                  <div className="flex min-w-0 items-center">
+                    <div className="flex flex-shrink-0 select-none items-center pl-1 pr-0 text-[13px] font-medium text-zinc-300 sm:text-[16.6px]">
+                      <img src="/logo.webp" alt="" className="mr-1 h-8 w-auto flex-shrink-0 mix-blend-screen sm:h-10" />
+                      <span>linktery.com/</span>
+                    </div>
+                    <input
+                      type="text"
+                      aria-label="Choose your Public Profile address"
+                      value={usernameInput}
+                      onChange={(e) => {
+                        setSlugReservationError("");
+                        setUsernameInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 64));
+                      }}
+                      maxLength={64}
+                      placeholder="yourname"
+                      className="m-0 min-w-0 w-full border-0 bg-transparent p-0 py-2.5 pl-px pr-1 text-[13px] text-white outline-none placeholder:text-white/30 focus:ring-0 sm:pr-2 sm:text-[16.6px]"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    aria-label="Choose your Public Profile address"
-                    value={usernameInput}
-                    onChange={(e) => {
-                      setSlugReservationError("");
-                      setUsernameInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 64));
-                    }}
-                    maxLength={64}
-                    placeholder="yourname"
-                    className="m-0 min-w-0 w-full border-0 bg-transparent p-0 py-2 pl-px pr-1 text-[13px] text-white outline-none placeholder:text-white/30 focus:ring-0 sm:pr-2 sm:text-[16.6px]"
-                  />
                   <button
                     type="submit"
                     disabled={slugReservationLoading}
-                    className="btn-primary-glow whitespace-nowrap !rounded-full !px-4 !py-2.5 text-xs font-bold transition-transform active:scale-95 sm:!px-6 sm:text-sm"
+                    className="btn-primary-glow min-h-11 w-full whitespace-nowrap !rounded-xl !px-4 !py-2.5 text-xs font-bold transition-transform active:scale-95 min-[360px]:w-auto min-[360px]:!rounded-full sm:!px-6 sm:text-sm"
                   >
                     {slugReservationLoading ? "Reserving…" : "Start for free"}
                   </button>
@@ -390,10 +402,10 @@ export default function LandingPage() {
             </div>
           </div>
         </div>
-      </section>
+        </section>
 
       {/* Features */}
-      <section id="features" ref={sectionRef} className="py-24 px-6 relative overflow-hidden group">
+        <section id="features" ref={sectionRef} className="py-24 px-6 relative overflow-hidden group">
         {/* Features Video Background */}
         <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.07] scale-110 group-hover:scale-100 transition-transform [transition-duration:3s] ease-out">
           <video
@@ -431,10 +443,10 @@ export default function LandingPage() {
             ))}
           </div>
         </div>
-      </section>
+        </section>
 
       {/* Pricing */}
-      <section id="pricing" className="py-24 px-6 relative z-10">
+        <section id="pricing" className="relative z-10 px-4 py-24 sm:px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-accent/20 bg-accent/5 text-accent text-xs mb-4">
@@ -474,7 +486,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div data-pricing-grid className="grid min-w-0 gap-8 md:grid-cols-3">
             {plans.map((plan) => {
               const effectivePlan = userPlan || "creator";
               const isCurrent = !!user && effectivePlan === plan.id;
@@ -488,7 +500,7 @@ export default function LandingPage() {
               const isAgency = plan.id === "agency";
 
               return (
-                <div key={plan.id} className={`relative group transition-all duration-500 hover:translate-y-[-10px] flex flex-col ${isPro ? "hover:scale-[1.03]" : ""}`}>
+                <div data-pricing-card key={plan.id} className={`relative group min-w-0 transition-all duration-500 hover:translate-y-[-10px] flex flex-col ${isPro ? "hover:scale-[1.03]" : ""}`}>
                   {/* Backdrop glowing background blurs */}
                   {isPro && (
                     <div className="absolute inset-0 bg-accent/10 rounded-[28px] blur-[30px] -z-10 group-hover:bg-accent/15 transition-all duration-500 pointer-events-none" />
@@ -497,7 +509,7 @@ export default function LandingPage() {
                     <div className="absolute inset-0 bg-cyan-500/5 rounded-[28px] blur-[30px] -z-10 group-hover:bg-cyan-500/10 transition-all duration-500 pointer-events-none" />
                   )}
 
-                  <div className={`glass-card pt-10 px-8 pb-8 rounded-[28px] relative flex flex-col h-full bg-card/60 backdrop-blur-2xl border transition-all duration-500 ${isPro
+                  <div className={`glass-card relative flex h-full min-w-0 flex-col rounded-[28px] border bg-card/60 px-5 pb-8 pt-10 backdrop-blur-2xl transition-all duration-500 sm:px-8 ${isPro
                     ? "border-accent/40 shadow-glow hover:border-accent/60"
                     : isAgency
                       ? "border-cyan-500/20 shadow-cyan-glow hover:border-cyan-500/40"
@@ -522,14 +534,14 @@ export default function LandingPage() {
                       </div>
                     </div>
 
-                    <ul className="space-y-3.5 mb-8 flex-1 text-left">
+                    <ul className="mb-8 min-w-0 flex-1 space-y-3.5 text-left">
                       {plan.features.map((f, idx) => (
-                        <li key={idx} className="flex items-center gap-3 text-sm text-muted-foreground group/feature">
+                        <li key={idx} className="group/feature flex min-w-0 items-center gap-3 text-sm text-muted-foreground">
                           <span className={`w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-sm flex-shrink-0 transition-all duration-300 ${isPro ? "group-hover/feature:bg-accent/10 group-hover/feature:border-accent/30" : isAgency ? "group-hover/feature:bg-cyan-500/10 group-hover/feature:border-cyan-500/30" : "group-hover/feature:bg-white/10"
                             }`}>
                             {f.icon}
                           </span>
-                          <span className="flex-1 truncate">{f.text}</span>
+                          <span className="min-w-0 flex-1 truncate">{f.text}</span>
                           {f.tooltip && (
                             <Tooltip delayDuration={0}>
                               <TooltipTrigger asChild>
@@ -621,7 +633,8 @@ export default function LandingPage() {
             </div>
           </div>
         </div>
-      </section>
+        </section>
+      </main>
 
       {/* Footer */}
       <Footer />

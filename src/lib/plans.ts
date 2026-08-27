@@ -31,6 +31,17 @@ export interface PlanDetails {
     limits: PlanLimits;
 }
 
+export function getPublicProfileFeatureCopy(limit: number) {
+    const profileLabel = limit === 1 ? "Public Profile" : "Public Profiles";
+    const allowance = limit === 1 ? "one" : `up to ${limit}`;
+    const ownership = limit === 1 ? "its own" : "separate";
+
+    return {
+        text: `${limit} ${profileLabel}`,
+        tooltip: `Create and manage ${allowance} ${profileLabel} with ${ownership} links, socials, and design.`
+    };
+}
+
 export const FEATURES_ACCESS = {
     direct_link: ["pro", "agency"],
     multi_links: ["pro", "agency"],
@@ -55,7 +66,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         buttonText: "Current Plan",
         features: [
             { text: "3 Smart Links", icon: "🔗", tooltip: "Includes 3 Smart Links on Free plan." },
-            { text: "1 Biolink Profile", icon: "👤", tooltip: "Create 1 public Link-in-Bio profile." },
+            { ...getPublicProfileFeatureCopy(1), icon: "👤" },
             { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
             { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
             { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." },
@@ -89,7 +100,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         buttonText: "Upgrade to Pro",
         features: [
             { text: "15 Smart Links", icon: "🔗" },
-            { text: "3 Biolink Profiles", icon: "👥", tooltip: "Create up to 3 separate Link-in-Bio profiles." },
+            { ...getPublicProfileFeatureCopy(3), icon: "👥" },
             { text: "Remove Linktery Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
             { text: "Deeplink", icon: "⚡", tooltip: "Smart route optimization for social app traffic." },
             { text: "Advanced Analytics", icon: "📊" },
@@ -124,7 +135,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         buttonText: "Upgrade to Agency",
         features: [
             { text: "Unlimited Links", icon: "🚀" },
-            { text: "25 Client Profiles", icon: "👥", tooltip: "Manage up to 25 separate Link-in-Bio profiles for clients or brands." },
+            { ...getPublicProfileFeatureCopy(25), icon: "👥" },
             { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
             { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
             { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },

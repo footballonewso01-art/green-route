@@ -1,75 +1,85 @@
+import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
+
+const exploreLinks = [
+  { label: "All Features", to: "/features" },
+  { label: "Pricing", to: "/pricing" },
+  { label: "Profile Templates", to: "/templates" },
+  { label: "Solutions", to: "/solutions" },
+  { label: "Free Tools", to: "/tools" },
+] as const;
+
+const resourceLinks = [
+  { label: "API Documentation", to: "/documentation" },
+  { label: "Public API", to: "/features/public-api" },
+  { label: "Guides", to: "/guides" },
+  { label: "Privacy", to: "/privacy" },
+  { label: "Terms", to: "/terms" },
+] as const;
+
+const footerLinkClass =
+  "inline-flex min-h-11 items-center whitespace-nowrap text-sm text-muted-foreground transition-colors hover:text-accent focus-visible:rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
 export default function Footer() {
   return (
-    <footer className="border-t border-border/60 bg-background/50 py-16 px-6 relative z-10 font-sans">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 md:gap-8 mb-12">
-        <div className="flex flex-col gap-4 text-left">
-          <Link to="/" className="flex items-center gap-[11px] hover:opacity-80 transition-opacity w-fit">
-            <img src="/logo.webp" alt="Linktery Logo" className="h-12 w-auto mix-blend-screen grayscale" />
-            <span className="text-xl font-bold text-foreground/90 tracking-tight">Linktery</span>
+    <footer className="relative z-10 border-t border-border/60 bg-background/70 px-4 font-sans sm:px-6">
+      <div className="mx-auto max-w-7xl">
+        <section
+          aria-labelledby="footer-cta-title"
+          className="grid gap-7 border-b border-border/50 py-10 sm:py-12 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end"
+        >
+          <div className="max-w-2xl">
+            <p className="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-accent">
+              One link. Clearer traffic.
+            </p>
+            <h2 id="footer-cta-title" className="text-3xl font-black tracking-tight text-foreground sm:text-4xl">
+              Put your next link to work.
+            </h2>
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+              Create a Link-in-Bio profile or smart redirect, then see exactly where your traffic goes.
+            </p>
+          </div>
+          <Link
+            to="/register"
+            className="btn-primary-glow inline-flex min-h-12 w-full items-center justify-center gap-2 whitespace-nowrap !px-6 !py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-fit"
+          >
+            Start for free <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
-          <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
-            Link-in-bio profiles, managed short links, traffic routing, and analytics for creators, teams, and campaigns.
-          </p>
+        </section>
+
+        <div className="grid gap-2 border-b border-border/40 py-5 sm:grid-cols-[7rem_minmax(0,1fr)] sm:items-start sm:gap-6">
+          <h3 className="pt-3 text-xs font-bold uppercase tracking-[0.14em] text-foreground">Explore</h3>
+          <nav aria-label="Explore Linktery" className="flex min-w-0 flex-wrap gap-x-5">
+            {exploreLinks.map((item) => (
+              <Link key={item.to} to={item.to} className={footerLinkClass}>
+                {item.label}
+              </Link>
+            ))}
+          </nav>
         </div>
 
-        <div className="flex flex-col gap-3.5">
-          <h4 className="text-xs font-bold text-foreground tracking-wider uppercase">Product</h4>
-          <ul className="flex flex-col gap-2.5">
-            <li><Link to="/features" className="text-sm text-muted-foreground hover:text-accent transition-colors">All Features</Link></li>
-            <li><Link to="/features/url-shortener" className="text-sm text-muted-foreground hover:text-accent transition-colors">URL Shortener</Link></li>
-            <li><Link to="/features/link-management" className="text-sm text-muted-foreground hover:text-accent transition-colors">Link Management</Link></li>
-            <li><Link to="/features/link-analytics" className="text-sm text-muted-foreground hover:text-accent transition-colors">Link Analytics</Link></li>
-            <li><Link to="/features/public-api" className="text-sm text-muted-foreground hover:text-accent transition-colors">Public API</Link></li>
-            <li><Link to="/features/custom-domains" className="text-sm text-muted-foreground hover:text-accent transition-colors">Custom Domains</Link></li>
-          </ul>
+        <div className="grid gap-2 border-b border-border/40 py-5 sm:grid-cols-[7rem_minmax(0,1fr)] sm:items-start sm:gap-6">
+          <h3 className="pt-3 text-xs font-bold uppercase tracking-[0.14em] text-foreground">Resources</h3>
+          <nav aria-label="Linktery resources" className="flex min-w-0 flex-wrap gap-x-5">
+            {resourceLinks.map((item) => (
+              <Link key={item.to} to={item.to} className={footerLinkClass}>
+                {item.label}
+              </Link>
+            ))}
+          </nav>
         </div>
 
-        <div className="flex flex-col gap-3.5">
-          <h4 className="text-xs font-bold text-foreground tracking-wider uppercase">Resources</h4>
-          <ul className="flex flex-col gap-2.5">
-            <li><Link to="/documentation" className="text-sm text-muted-foreground hover:text-accent transition-colors">API Documentation</Link></li>
-            <li><Link to="/templates" className="text-sm text-muted-foreground hover:text-accent transition-colors">Profile Templates</Link></li>
-            <li><Link to="/tools" className="text-sm text-muted-foreground hover:text-accent transition-colors">Free Tools</Link></li>
-            <li><Link to="/tools/utm-builder" className="text-sm text-muted-foreground hover:text-accent transition-colors">UTM Builder</Link></li>
-            <li><Link to="/tools/qr-code-generator" className="text-sm text-muted-foreground hover:text-accent transition-colors">QR Generator</Link></li>
-            <li><Link to="/guides" className="text-sm text-muted-foreground hover:text-accent transition-colors">Guides</Link></li>
-          </ul>
+        <div className="flex flex-col gap-4 py-6 sm:flex-row sm:items-center sm:justify-between">
+          <Link
+            to="/"
+            aria-label="Linktery home"
+            className="flex min-h-11 w-fit items-center gap-2.5 transition-opacity hover:opacity-80 focus-visible:rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <img src="/logo.webp" alt="" className="h-10 w-auto mix-blend-screen" />
+            <span className="text-base font-extrabold tracking-tight text-foreground">Linktery</span>
+          </Link>
+          <p className="text-xs leading-5 text-muted-foreground">© 2026 Linktery. All rights reserved.</p>
         </div>
-
-        <div className="flex flex-col gap-3.5">
-          <h4 className="text-xs font-bold text-foreground tracking-wider uppercase">Platform</h4>
-          <ul className="flex flex-col gap-2.5">
-            <li>
-              <Link to="/pricing" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Pricing Plans
-              </Link>
-            </li>
-            <li>
-              <Link to="/privacy" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Privacy Policy
-              </Link>
-            </li>
-            <li>
-              <Link to="/terms" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Terms & Conditions
-              </Link>
-            </li>
-            <li>
-              <Link to="/solutions" className="text-sm text-muted-foreground hover:text-accent transition-colors">
-                Solutions
-              </Link>
-            </li>
-          </ul>
-        </div>
-      </div>
-
-      {/* Bottom Row */}
-      <div className="max-w-7xl mx-auto border-t border-border/40 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-        <p className="text-xs text-muted-foreground">
-          © 2026 Linktery. All rights reserved.
-        </p>
       </div>
     </footer>
   );

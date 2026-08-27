@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Zap, Check, Shield, BarChart3, Globe, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { pb } from "@/lib/pocketbase";
-import { PlanType, PLAN_RANKS } from "@/lib/plans";
+import { getPublicProfileFeatureCopy, PlanType, PLAN_RANKS } from "@/lib/plans";
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
@@ -17,7 +17,7 @@ const plans = [
     description: "Perfect for getting started",
     features: [
       { text: "3 Smart Links", icon: "🔗", tooltip: "Includes 3 Smart Links on Free plan." },
-      { text: "1 Biolink Profile", icon: "👤", tooltip: "Create 1 public Link-in-Bio profile." },
+      { ...getPublicProfileFeatureCopy(1), icon: "👤" },
       { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
       { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
       { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." },
@@ -35,7 +35,7 @@ const plans = [
     popular: true,
     features: [
       { text: "15 Smart Links", icon: "🔗", tooltip: "Create and manage up to 15 active smart redirect links." },
-      { text: "3 Biolink Profiles", icon: "👥", tooltip: "Create up to 3 separate Link-in-Bio profiles." },
+      { ...getPublicProfileFeatureCopy(3), icon: "👥" },
       { text: "Remove Linktery Branding", icon: "✨", tooltip: "Completely remove the branding badge from your public profile." },
       { text: "Deeplink", icon: "⚡", tooltip: "Bypass in-app social browsers to open your links directly in Safari or Chrome." },
       { text: "Advanced Analytics", icon: "📊", tooltip: "Detailed tracking: clicks over time, countries, referrers, and device types." },
@@ -53,7 +53,7 @@ const plans = [
     description: "For agencies and power users",
     features: [
       { text: "Unlimited Smart Links", icon: "🚀" },
-      { text: "25 Client Profiles", icon: "👥", tooltip: "Manage up to 25 separate Link-in-Bio profiles for clients or brands." },
+      { ...getPublicProfileFeatureCopy(25), icon: "👥" },
       { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
       { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
       { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },

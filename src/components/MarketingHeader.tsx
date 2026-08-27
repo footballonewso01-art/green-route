@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BookOpen, User as UserIcon } from "lucide-react";
+import { Menu, User as UserIcon, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,10 +12,30 @@ interface MarketingHeaderProps {
 export default function MarketingHeader({ current = "home" }: MarketingHeaderProps) {
   const { user } = useAuth();
   const [mounted, setMounted] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    const desktopQuery = window.matchMedia("(min-width: 768px)");
+    const handleDesktopChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileOpen(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    desktopQuery.addEventListener("change", handleDesktopChange);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      desktopQuery.removeEventListener("change", handleDesktopChange);
+    };
+  }, [mobileOpen]);
 
   const showUser = mounted && Boolean(user);
   const avatarUrl = user?.avatar
@@ -79,16 +99,7 @@ export default function MarketingHeader({ current = "home" }: MarketingHeaderPro
           )}
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-3 md:hidden">
-          {current !== "documentation" && (
-            <Link
-              to="/documentation"
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              <BookOpen className="h-4 w-4" />
-              Docs
-            </Link>
-          )}
+        <div className="flex items-center gap-1.5 md:hidden">
           {showUser ? (
             <Link
               to="/dashboard"
@@ -105,14 +116,61 @@ export default function MarketingHeader({ current = "home" }: MarketingHeaderPro
             </Link>
           ) : (
             <Link
-              to="/login"
-              className="inline-flex min-h-10 items-center rounded-lg px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              to="/register"
+              className="btn-primary-glow inline-flex min-h-10 items-center justify-center whitespace-nowrap !rounded-lg !px-3 !py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:text-sm"
             >
-              Login
+              Start free
             </Link>
           )}
+          <button
+            type="button"
+            aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-marketing-navigation"
+            onClick={() => setMobileOpen((open) => !open)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border/70 bg-surface/60 text-foreground transition-colors hover:border-accent/40 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
       </div>
+
+      {mobileOpen && (
+        <div id="mobile-marketing-navigation" className="border-t border-border/50 bg-background/95 shadow-2xl shadow-black/30 md:hidden">
+          <div className="mx-auto grid max-w-7xl gap-1 px-4 py-3 sm:px-6">
+            <a
+              href={featuresHref}
+              onClick={() => setMobileOpen(false)}
+              className="inline-flex min-h-12 items-center rounded-xl px-3 text-sm font-semibold text-foreground transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              Features
+            </a>
+            <a
+              href={pricingHref}
+              onClick={() => setMobileOpen(false)}
+              className="inline-flex min-h-12 items-center rounded-xl px-3 text-sm font-semibold text-foreground transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              Pricing
+            </a>
+            <Link
+              to="/documentation"
+              aria-current={current === "documentation" ? "page" : undefined}
+              onClick={() => setMobileOpen(false)}
+              className="inline-flex min-h-12 items-center rounded-xl px-3 text-sm font-semibold text-foreground transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              Documentation
+            </Link>
+            <div className="my-1 h-px bg-border/50" />
+            <Link
+              to={showUser ? "/dashboard" : "/login"}
+              onClick={() => setMobileOpen(false)}
+              className="inline-flex min-h-12 items-center rounded-xl px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              {showUser ? "Open Dashboard" : "Login"}
+            </Link>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
