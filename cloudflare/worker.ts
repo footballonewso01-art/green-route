@@ -283,6 +283,9 @@ async function handleFirstPartyServiceRequest(
   env: Env,
 ): Promise<Response | null> {
   const url = new URL(request.url);
+  if (/^\/api\/public\/links\/[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(url.pathname)) {
+    return resolvePublicLinkForBrowser(request, env);
+  }
   if (url.pathname === "/api/geo") {
     if (request.method !== "GET") {
       return applyResponseHeaders(request, env, new Response("Method not allowed.", {
@@ -402,6 +405,53 @@ async function handleFirstPartyServiceRequest(
       noIndex: true,
       cacheControl: "no-store",
     });
+  }
+}
+
+// Fixed-path, read-only resolver, not a generic PocketBase proxy. This keeps
+// fallback targeting at the same trusted Geo/IP boundary as /slug redirects.
+async function resolvePublicLinkForBrowser(request: Request, env: Env): Promise<Response> {
+  const jsonResponse = (status: number, body: string) => applyResponseHeaders(
+    request, env, new Response(body, {
+      status,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+    }), { noIndex: true, cacheControl: "private, no-store" },
+  );
+  if (request.method !== "GET") return jsonResponse(405, '{"message":"Method not allowed."}');
+  const secret = String(env.REDIRECT_ORIGIN_SECRET || "");
+  if (secret.length < 32) return jsonResponse(503, '{"message":"Link resolution is temporarily unavailable."}');
+
+  const url = new URL(request.url);
+  const origin = new URL(env.POCKETBASE_ORIGIN);
+  if (origin.protocol !== "https:") return jsonResponse(503, '{"message":"Link resolution is temporarily unavailable."}');
+  // Ignore incoming domain/query overrides and all client-supplied internal
+  // headers. Only edge-provided country/IP and the actual hostname are trusted.
+  const upstreamUrl = new URL(url.pathname, origin);
+  const headers = new Headers({
+    Accept: "application/json",
+    "X-Linktery-Redirect-Secret": secret,
+    "X-Linktery-Public-Host": url.hostname.toLowerCase(),
+    "X-Linktery-Client-IP": getEdgeClientIp(request),
+    "X-Linktery-Request-Id": (request.headers.get("CF-Ray") || crypto.randomUUID()).slice(0, 128),
+  });
+  const country = getEdgeCountry(request);
+  if (country) headers.set("X-Linktery-Country", country);
+  for (const name of ["Authorization", "User-Agent", "Referer"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  try {
+    const upstream = await fetch(upstreamUrl, {
+      method: "GET", headers, redirect: "manual",
+      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(5_000) : undefined,
+    });
+    if (upstream.headers.get("X-Linktery-Public-Resolver") !== "v1"
+        || ![200, 404, 410, 429].includes(upstream.status)) {
+      return jsonResponse(503, '{"message":"Link resolution is temporarily unavailable."}');
+    }
+    return jsonResponse(upstream.status, await upstream.text());
+  } catch {
+    return jsonResponse(503, '{"message":"Link resolution is temporarily unavailable."}');
   }
 }
 

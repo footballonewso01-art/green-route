@@ -46,8 +46,9 @@ describe("public /slug routing contract", () => {
     const handlerSource = readWorkspaceFile("src/pages/RedirectHandler.tsx");
 
     expect(handlerSource).toContain("Promise.allSettled");
-    expect(handlerSource).toContain("pb.collection('links').getFirstListItem");
-    expect(handlerSource).toContain("pb.collection('public_profiles').getFirstListItem");
+    expect(handlerSource).toContain("resolvePublicLink(username, currentDomain)");
+    expect(handlerSource).toContain("getPublicProfile(username, currentDomain)");
+    expect(handlerSource).not.toContain("pb.collection('links').getFirstListItem");
     expect(handlerSource).toContain("if (!link && userProfile)");
     expect(handlerSource).toContain("if (!link && !userProfile)");
   });

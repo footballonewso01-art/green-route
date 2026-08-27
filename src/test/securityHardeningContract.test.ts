@@ -67,7 +67,8 @@ describe("production security hardening contract", () => {
     expect(landing).not.toContain('collection("analytics_events").create');
     expect(auth).not.toContain('collection("system_logs").create');
     expect(redirect).toContain('const trackingUrl = "/api/track-click"');
-    expect(redirect).toContain('fetch("/api/geo"');
+    expect(frontendWorker).toContain("resolvePublicLinkForBrowser");
+    expect(frontendWorker).toContain('headers.set("X-Linktery-Country", country)');
     expect(utils).not.toContain("ip-api.com");
   });
 
@@ -82,7 +83,9 @@ describe("production security hardening contract", () => {
 
   it("ships an exact browser-origin allowlist instead of wildcard CORS", () => {
     const dockerfile = read("pocketbase/Dockerfile");
-    expect(dockerfile).toContain("--origins=https://linktery.com,https://www.linktery.com");
-    expect(dockerfile).not.toContain("--origins=*");
+    const entrypoint = read("pocketbase/entrypoint.sh");
+    expect(dockerfile).toContain('ENTRYPOINT ["/pb/entrypoint.sh"]');
+    expect(entrypoint).toContain("--origins=https://linktery.com,https://www.linktery.com");
+    expect(entrypoint).not.toContain("--origins=*");
   });
 });

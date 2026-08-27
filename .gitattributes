@@ -1,0 +1,2 @@
+# Container entrypoints must remain executable on Linux after Windows checkout.
+*.sh text eol=lf

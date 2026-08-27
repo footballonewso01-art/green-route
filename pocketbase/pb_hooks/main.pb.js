@@ -1618,6 +1618,280 @@ routerAdd("GET", "/{slug}", (c) => {
     return c.next();
 });
 
+// Public slug availability is intentionally boolean-only. It replaces raw
+// Records API probes without revealing which account or asset owns an address.
+routerAdd("GET", "/api/public/slugs/{slug}/availability", (c) => {
+    try {
+        const utils = require(__hooks + '/utils.js');
+        const slug = String(c.request.pathValue("slug") || "").trim().toLowerCase();
+        if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug)) {
+            return c.json(400, { message: "Invalid public address" });
+        }
+        if (!utils.publicReadRateLimitAllows(c, "availability:" + slug)) {
+            return c.json(429, { message: "Please wait before checking this address again." });
+        }
+
+        c.response.header().add("Cache-Control", "no-store");
+        c.response.header().add("X-Robots-Tag", "noindex, nofollow");
+        if (utils.isReservedPublicSlug(slug)) {
+            return c.json(200, { available: false });
+        }
+
+        let excludedLinkId = "";
+        let excludedProfileId = "";
+        const authUser = c.auth;
+        const isAppAdmin = authUser && authUser.collection().name === "users" && authUser.get("role") === "admin";
+        const isSuperuser = authUser && authUser.collection().name === "_superusers";
+        const requestedLinkExclusion = String(c.request.url.query().get("exclude_link_id") || "");
+        const requestedProfileExclusion = String(c.request.url.query().get("exclude_profile_id") || "");
+
+        if (/^[a-z0-9]{15}$/.test(requestedLinkExclusion) && authUser) {
+            try {
+                const record = $app.findRecordById("links", requestedLinkExclusion);
+                if (isAppAdmin || isSuperuser || record.get("user_id") === authUser.id) {
+                    excludedLinkId = requestedLinkExclusion;
+                }
+            } catch (ignoreLinkExclusion) {}
+        }
+        if (/^[a-z0-9]{15}$/.test(requestedProfileExclusion) && authUser) {
+            try {
+                const record = $app.findRecordById("public_profiles", requestedProfileExclusion);
+                if (isAppAdmin || isSuperuser || record.get("user_id") === authUser.id) {
+                    excludedProfileId = requestedProfileExclusion;
+                }
+            } catch (ignoreProfileExclusion) {}
+        }
+
+        const availability = new DynamicModel({ "taken": 0 });
+        $app.db().newQuery(`
+            SELECT CASE WHEN
+              EXISTS (
+                SELECT 1 FROM links
+                WHERE lower(slug) = {:slug}
+                  AND ({:excludedLinkId} = '' OR id != {:excludedLinkId})
+              ) OR EXISTS (
+                SELECT 1 FROM public_profiles
+                WHERE lower(slug) = {:slug}
+                  AND ({:excludedProfileId} = '' OR id != {:excludedProfileId})
+              )
+            THEN 1 ELSE 0 END AS taken
+        `).bind({
+            slug: slug,
+            excludedLinkId: excludedLinkId,
+            excludedProfileId: excludedProfileId
+        }).one(availability);
+
+        return c.json(200, { available: !availability.taken });
+    } catch (err) {
+        $app.logger().error("Public slug availability failed: " + err);
+        return c.json(503, { message: "Address availability is temporarily unavailable." });
+    }
+});
+
+// One-link resolver used only by the React fallback. It exposes the minimum
+// redirect contract for a guessed slug and never returns owner relations,
+// counters, internal route controls, or bulk query capabilities.
+routerAdd("GET", "/api/public/links/{slug}", (c) => {
+    try {
+        const utils = require(__hooks + '/utils.js');
+        c.response.header().add("Cache-Control", "private, no-store");
+        c.response.header().add("X-Robots-Tag", "noindex, nofollow");
+        const providedSecret = String(c.request.header.get("X-Linktery-Redirect-Secret") || "");
+        const trustedEdge = utils.isTrustedRedirectEdgeRequest(c);
+        if (providedSecret && !trustedEdge) return c.json(401, { message: "Request unavailable." });
+        if (trustedEdge) c.response.header().add("X-Linktery-Public-Resolver", "v1");
+        const slug = String(c.request.pathValue("slug") || "").trim().toLowerCase();
+        if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug)) {
+            return c.json(404, { message: "Not found" });
+        }
+        if (!utils.publicReadRateLimitAllows(c, "link:" + slug)) {
+            return c.json(429, { message: "Please try again shortly." });
+        }
+
+        let requestedHost = String((trustedEdge
+            ? c.request.header.get("X-Linktery-Public-Host")
+            : c.request.url.query().get("domain")) || "")
+            .trim().toLowerCase().replace(/^www\./, "");
+        if (!/^[a-z0-9.-]{1,253}$/.test(requestedHost)) requestedHost = "";
+
+        let link = null;
+        if (requestedHost) {
+            try {
+                link = $app.findFirstRecordByFilter(
+                    "links",
+                    "slug = {:slug} && active = true && (domain = {:domain} || domain = '')",
+                    { slug: slug, domain: requestedHost }
+                );
+            } catch (domainLookupError) {}
+        }
+        if (!link) {
+            try {
+                link = $app.findFirstRecordByFilter(
+                    "links",
+                    "slug = {:slug} && active = true",
+                    { slug: slug }
+                );
+            } catch (slugLookupError) {}
+        }
+        if (!link) return c.json(404, { message: "Not found" });
+
+        const now = new Date();
+        const startAt = String(link.get("start_at") || "");
+        const expireAt = String(link.get("expire_at") || "");
+        if ((startAt && new Date(startAt) > now) || (expireAt && new Date(expireAt) < now)) {
+            return c.json(410, { message: "This link is not currently available." });
+        }
+
+        const resolved = utils.resolvePublicLinkDestination(link, c);
+        const parsedDestination = utils.parseHttpRoutingUrl(resolved.destination);
+        if (!parsedDestination || parsedDestination.hasCredentials) {
+            return c.json(410, { message: "This link is not currently available." });
+        }
+        const trackingPixels = utils.getSafeLinkTrackingPixels(link);
+        return c.json(200, {
+            id: link.id,
+            slug: String(link.get("slug") || ""),
+            title: String(link.get("title") || ""),
+            domain: String(link.get("domain") || ""),
+            active: true,
+            destination_url: resolved.destination,
+            mode: resolved.botSafePage ? "redirect" : String(link.get("mode") || ""),
+            interstitial_enabled: !resolved.botSafePage && link.get("interstitial_enabled") === true,
+            fb_pixel: resolved.botSafePage ? "" : trackingPixels.meta,
+            google_pixel: resolved.botSafePage ? "" : trackingPixels.google,
+            tiktok_pixel: resolved.botSafePage ? "" : trackingPixels.tiktok
+        });
+    } catch (err) {
+        $app.logger().error("Public link resolver failed: " + err);
+        return c.json(503, { message: "Link resolution is temporarily unavailable." });
+    }
+});
+
+// Public Profile composition is also explicit and field-limited. Link
+// destinations and account identifiers never leave this endpoint.
+routerAdd("GET", "/api/public/profiles/{slug}", (c) => {
+    try {
+        const utils = require(__hooks + '/utils.js');
+        const slug = String(c.request.pathValue("slug") || "").trim().toLowerCase();
+        if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug)) {
+            return c.json(404, { message: "Not found" });
+        }
+        if (!utils.publicReadRateLimitAllows(c, "profile:" + slug)) {
+            return c.json(429, { message: "Please try again shortly." });
+        }
+
+        let requestedHost = String(c.request.url.query().get("domain") || "")
+            .trim().toLowerCase().replace(/^www\./, "");
+        if (!/^[a-z0-9.-]{1,253}$/.test(requestedHost)) requestedHost = "";
+
+        let profile = null;
+        if (requestedHost) {
+            try {
+                profile = $app.findFirstRecordByFilter(
+                    "public_profiles",
+                    "slug = {:slug} && (domain = {:domain} || domain = '')",
+                    { slug: slug, domain: requestedHost }
+                );
+            } catch (domainLookupError) {}
+        }
+        if (!profile) return c.json(404, { message: "Not found" });
+
+        let plan = "creator";
+        try {
+            const owner = $app.findRecordById("users", String(profile.get("user_id") || ""));
+            plan = utils.getEffectivePlanNameForUser(owner);
+        } catch (ownerLookupError) {}
+
+        // PB 0.24 get() exposes JSON fields as a Go byte slice. getString()
+        // preserves the actual JSON rather than serializing its byte values.
+        const rawSocialLinks = utils.parseRecordJson(profile.getString("social_links"));
+        const requestedPage = String(c.request.url.query().get("page") || "1");
+        if (!/^[1-9][0-9]{0,4}$/.test(requestedPage)) return c.json(400, { message: "Invalid page." });
+        const page = Number(requestedPage);
+        const assignments = $app.findRecordsByFilter(
+            "profile_links",
+            "profile_id = {:profileId} && visible = true",
+            "order,created",
+            101,
+            (page - 1) * 100,
+            { profileId: profile.id }
+        );
+        const publicLinks = [];
+        for (let i = 0; i < Math.min(assignments.length, 100); i++) {
+            const assignment = assignments[i];
+            let link = null;
+            try {
+                link = $app.findRecordById("links", String(assignment.get("link_id") || ""));
+            } catch (linkLookupError) {}
+            if (!link || link.get("active") !== true || link.get("user_id") !== profile.get("user_id")) continue;
+
+            const iconType = String(link.get("icon_type") || "none");
+            const iconValue = String(link.get("icon_value") || "");
+            const safeIcon = iconType !== "custom" || utils.isSafeCustomIconDataUrl(iconValue);
+
+            publicLinks.push({
+                id: assignment.id,
+                collectionId: assignment.collection().id,
+                collectionName: "profile_links",
+                profile_id: profile.id,
+                link_id: link.id,
+                order: Number(assignment.get("order") || 0),
+                visible: true,
+                title_override: String(assignment.get("title_override") || ""),
+                size: String(assignment.get("size") || "regular"),
+                bg_image: String(assignment.get("bg_image") || ""),
+                created: String(assignment.get("created") || ""),
+                updated: String(assignment.get("updated") || ""),
+                link: {
+                    id: link.id,
+                    slug: String(link.get("slug") || ""),
+                    destination_url: "",
+                    active: true,
+                    created: String(link.get("created") || ""),
+                    title: String(link.get("title") || ""),
+                    mode: String(link.get("mode") || ""),
+                    icon_type: safeIcon ? iconType : "none",
+                    icon_value: safeIcon ? iconValue : "",
+                    domain: String(link.get("domain") || "")
+                }
+            });
+        }
+
+        c.response.header().add("Cache-Control", "public, max-age=15, stale-while-revalidate=30");
+        c.response.header().add("X-Robots-Tag", "noindex, nofollow");
+        return c.json(200, {
+            profile: {
+                id: profile.id,
+                collectionId: profile.collection().id,
+                collectionName: "public_profiles",
+                slug: String(profile.get("slug") || ""),
+                domain: String(profile.get("domain") || ""),
+                name: String(profile.get("name") || ""),
+                bio: String(profile.get("bio") || ""),
+                theme: String(profile.get("theme") || ""),
+                card_color: String(profile.get("card_color") || ""),
+                online_counter: profile.get("online_counter") === true,
+                social_links: Array.isArray(rawSocialLinks) ? rawSocialLinks : [],
+                custom_theme_bg: String(profile.get("custom_theme_bg") || ""),
+                avatar: String(profile.get("avatar") || ""),
+                profile_template: String(profile.get("profile_template") || ""),
+                link_card_style: String(profile.get("link_card_style") || ""),
+                social_link_style: String(profile.get("social_link_style") || ""),
+                profile_background_mode: String(profile.get("profile_background_mode") || ""),
+                profile_background_image: String(profile.get("profile_background_image") || ""),
+                profile_background_position: String(profile.get("profile_background_position") || ""),
+                profile_background_overlay: String(profile.get("profile_background_overlay") || ""),
+                plan: plan
+            },
+            links: publicLinks,
+            has_more: assignments.length > 100
+        });
+    } catch (err) {
+        $app.logger().error("Public profile resolver failed: " + err);
+        return c.json(503, { message: "Profile resolution is temporarily unavailable." });
+    }
+});
+
 // Geo-IP Resolution Endpoint (client-side fallback for RedirectHandler)
 routerAdd("GET", "/api/geo", (c) => {
     const utils = require(__hooks + '/utils.js');
@@ -4724,6 +4998,18 @@ onRecordUpdateRequest((e) => {
 onRecordUpdateRequest((e) => {
     const utils = require(__hooks + '/utils.js');
     const authInfo = utils.getAuthInfo(e);
+    if (!authInfo.isAdmin) {
+        const original = e.record.original();
+        const originalOwnerId = original ? String(original.get("user_id") || "") : "";
+        const requestedOwnerId = String(e.record.get("user_id") || "");
+        if (
+            !authInfo.authUserId ||
+            originalOwnerId !== authInfo.authUserId ||
+            requestedOwnerId !== originalOwnerId
+        ) {
+            throw new ForbiddenError("Link ownership cannot be changed.");
+        }
+    }
     utils.sanitizeLinkSystemFields(e.record, authInfo.isAdmin);
     utils.validateLinkRecordForMutation($app, e.record);
     e.next();

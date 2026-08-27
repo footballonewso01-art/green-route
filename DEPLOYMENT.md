@@ -26,6 +26,13 @@ PocketBase remains a separate Fly.io service at
 `https://greenroute-pb.fly.dev`. A frontend deploy does not deploy PocketBase,
 run database migrations, or change Stripe webhooks.
 
+PocketBase must start with `--encryptionEnv=PB_ENCRYPTION_KEY`. The Fly secret
+must be exactly 32 characters and must be backed up in a password/credential manager;
+losing it makes encrypted application settings unrecoverable. The container
+fails closed when the secret is absent or malformed. Set the same policy with
+a different value on staging before deploying this image. Never commit the
+value or place it in a `VITE_*` variable.
+
 The public developer API is exposed only as
 `https://api.linktery.com/v1`. The dedicated `linktery-public-api` Worker maps
 that allowlisted surface to PocketBase's internal `/api/v1` routes. It does not
@@ -428,3 +435,64 @@ tool and must not run automatically during deploys or restarts.
 Before a production backend deploy, take or verify a current volume snapshot,
 test migrations and hooks against staging, verify `GET /api/health`, and then
 deploy the exact reviewed image/configuration to `greenroute-pb`.
+
+Before the first deployment that enables settings encryption:
+
+1. take a fresh Fly volume snapshot and verify it can be listed;
+2. generate and store separate 32-character `PB_ENCRYPTION_KEY` values for
+   staging and production;
+3. set the staging Fly secret, deploy, update one non-sensitive setting through
+   PocketBase so the settings row is persisted under encryption, restart, and
+   verify auth, OAuth and Stripe configuration still load;
+4. repeat the same sequence in production only after staging passes;
+5. keep database copies, WAL files and diagnostic exports outside the repository
+   in encrypted storage, with restricted filesystem permissions and a written
+   deletion date.
+
+On Windows, `scripts/prepare-pb-encryption.ps1 -App <Fly app>` (PowerShell 7)
+performs first-time setup only: it creates a separate random key, verifies its
+Windows Credential Manager entry `Linktery/Fly/<Fly app>/PB_ENCRYPTION_KEY` and
+an additional DPAPI-encrypted local backup, and stages the Fly secret via stdin.
+It refuses to overwrite any existing Fly encryption key. Both local recovery
+copies are tied to this Windows account; export the credential to the team's
+password manager before retiring/reinstalling this workstation. Never print it
+in terminal output. A staged secret takes effect on the subsequent deployment.
+
+### Public record hardening rollout (2026-08-27)
+
+Do not deploy the record-lockdown migration before its compatible frontend.
+Old frontend bundles still use the public `links` Records API; closing it first
+can break Public Profile cards and the React redirect fallback during rollout.
+
+1. Run `node scripts/smoke-security-local.mjs` with a local schema fixture,
+   then the frontend test/build checks. The smoke test creates only synthetic
+   accounts in a temporary schema-only database and removes it afterwards.
+2. Complete the encryption-secret preflight above. Keep the existing matching
+   `REDIRECT_ORIGIN_SECRET` on both frontend Workers and Fly; do not rotate it
+   as part of this unrelated change.
+3. Deploy the compatible backend image with build arg `PUBLIC_READ_LOCKDOWN=0`.
+   This publishes `/api/public/links`, `/api/public/profiles` and slug
+   availability without applying migration
+   `1787830000_harden_link_records_and_image_uploads.js` yet. Use this image
+   only for the short compatibility phase, not as the final security release.
+4. Deploy the frontend and its Worker to staging, then test primary/alias
+   `/slug` navigation, Geo/device targeting, deeplinks and Public Profile cards.
+   The same-origin link resolver forwards trusted country/IP and never writes
+   clicks; the existing first-party click endpoint remains responsible for that.
+5. Deploy the final backend with the default `PUBLIC_READ_LOCKDOWN=1`. Verify
+   anonymous raw Link lists are empty, direct raw reads fail, owner/admin access
+   still works, and SVG disguised as PNG is rejected. Recheck a real raster
+   image download. Repeat this exact sequence in production after approval.
+
+No account records or existing files are deleted by the migration. Legacy
+unsafe custom data-URL icons are omitted from the public DTO and can be
+replaced with PNG/JPEG/WebP; unrelated edits to those links remain possible.
+Legacy file responses are sandboxed and active formats are attachment-only.
+The security migration intentionally does not reopen access on rollback;
+roll back only to a frontend that understands the public DTO endpoints.
+
+Git cleanup removes diagnostic exports from tracking and inline credentials
+from the current source, not from old commits. Before calling this incident
+fully resolved, rotate exposed credentials and coordinate a history rewrite
+and force-push with repository collaborators. Do not force-push during a
+normal application deploy.

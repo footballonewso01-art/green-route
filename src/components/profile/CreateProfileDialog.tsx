@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { pb } from "@/lib/pocketbase";
 import { isReservedPublicSlug } from "@/lib/systemRoutes";
+import { isPublicSlugAvailable } from "@/lib/publicAssets";
 
 type SlugAvailability = "idle" | "checking" | "available" | "taken" | "reserved" | "unknown";
 
@@ -84,21 +85,9 @@ export function CreateProfileDialog({
 
     const timeout = window.setTimeout(async () => {
       try {
-        const [profileMatches, linkMatches] = await Promise.all([
-          pb.collection("public_profiles").getList(1, 1, {
-            filter: `slug = "${normalizedSlug}"`,
-            fields: "id",
-            requestKey: null,
-          }),
-          pb.collection("links").getList(1, 1, {
-            filter: `slug = "${normalizedSlug}"`,
-            fields: "id",
-            requestKey: null,
-          }),
-        ]);
-
+        const available = await isPublicSlugAvailable(normalizedSlug);
         if (active) {
-          setAvailability(profileMatches.totalItems > 0 || linkMatches.totalItems > 0 ? "taken" : "available");
+          setAvailability(available ? "available" : "taken");
         }
       } catch {
         if (active) setAvailability("unknown");

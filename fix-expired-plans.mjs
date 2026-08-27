@@ -1,4 +1,10 @@
 const pbUrl = 'https://greenroute-pb.fly.dev';
+const superuserEmail = process.env.POCKETBASE_SUPERUSER_EMAIL;
+const superuserPassword = process.env.POCKETBASE_SUPERUSER_PASSWORD;
+
+if (!superuserEmail || !superuserPassword) {
+    throw new Error("Set POCKETBASE_SUPERUSER_EMAIL and POCKETBASE_SUPERUSER_PASSWORD before running this maintenance script.");
+}
 
 async function run() {
     // Wait for PB
@@ -9,7 +15,7 @@ async function run() {
 
     const sa = await (await fetch(pbUrl + '/api/collections/_superusers/auth-with-password', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identity: 'test@mail.com', password: '123123123' })
+        body: JSON.stringify({ identity: superuserEmail, password: superuserPassword })
     })).json();
     const t = sa.token;
     const h = { Authorization: t, 'Content-Type': 'application/json' };

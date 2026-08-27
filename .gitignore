@@ -21,6 +21,14 @@ pb_data/
 err.txt
 logs.txt
 fly_logs*.txt
+/logs_latest.txt
+/final-results.txt
+/test-results.txt
+/pocketbase/diag_output*.txt
+/pocketbase/diagnostic_output.txt
+/pocketbase/users_list.txt
+/pocketbase/pb_logs*.txt
+/.local-security-artifacts/
 
 # Production debris
 full_schema_prod.json

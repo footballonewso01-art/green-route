@@ -1,5 +1,9 @@
-const email = 'test@mail.com';
-const password = '123123123';
+const email = process.env.POCKETBASE_SUPERUSER_EMAIL;
+const password = process.env.POCKETBASE_SUPERUSER_PASSWORD;
+
+if (!email || !password) {
+    throw new Error("Set POCKETBASE_SUPERUSER_EMAIL and POCKETBASE_SUPERUSER_PASSWORD before running this maintenance script.");
+}
 const pbUrl = 'https://greenroute-pb-staging.fly.dev';
 
 async function migrate() {

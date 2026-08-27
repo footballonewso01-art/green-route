@@ -30,8 +30,10 @@ describe("Geo Targeting country tier presets", () => {
   it("uses exact country rules before tier fallbacks in both redirect renderers", () => {
     const client = readWorkspaceFile("src/pages/RedirectHandler.tsx");
     const server = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
+    const utils = readWorkspaceFile("pocketbase/pb_hooks/utils.js");
 
-    expect(client).toMatch(/rules\[countryCode\][\s\S]*getCountryTierKey\(countryCode\)[\s\S]*rules\[tierKey\]/);
+    expect(client).toContain("resolvePublicLink(username, currentDomain)");
+    expect(utils).toContain("geoRules[country] || geoRules[getCountryTierKey(country)]");
     expect(server).toMatch(/rules\[country\][\s\S]*getCountryTierKey\(country\)[\s\S]*rules\[tierKey\]/);
     expect(server).toContain('utils.toPlainTargetingObject(link.getString("geo_targeting"))');
   });

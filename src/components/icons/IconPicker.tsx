@@ -262,19 +262,25 @@ export function IconPicker({ currentType, currentValue, onChange, onClose, ancho
                                     )}
                                     <div>
                                         <p className="text-sm font-medium text-white">Upload Custom Icon</p>
-                                        <p className="text-xs text-muted-foreground mt-1 px-4">PNG, JPG, SVG or WebP. Max 500KB.</p>
+                                        <p className="text-xs text-muted-foreground mt-1 px-4">PNG, JPG or WebP. Max 500KB.</p>
                                     </div>
                                     <label className="px-4 py-2 bg-accent/10 border border-accent/30 rounded-lg text-sm text-accent hover:bg-accent/20 transition-colors cursor-pointer">
                                         Choose File
                                         <input
                                             type="file"
-                                            accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                                            accept="image/png,image/jpeg,image/webp"
                                             className="hidden"
                                             onChange={(e) => {
                                                 const file = e.target.files?.[0];
                                                 if (!file) return;
+                                                if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+                                                    alert("Use a PNG, JPG, or WebP image.");
+                                                    e.target.value = "";
+                                                    return;
+                                                }
                                                 if (file.size > 500 * 1024) {
                                                     alert("File is too large. Maximum size is 500KB.");
+                                                    e.target.value = "";
                                                     return;
                                                 }
                                                 const reader = new FileReader();

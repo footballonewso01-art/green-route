@@ -21,6 +21,45 @@ afterEach(() => {
 });
 
 describe("Cloudflare public slug resolver", () => {
+  it("resolves browser fallbacks through a fixed endpoint with trusted Geo/IP", async () => {
+    const upstreamFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(
+      JSON.stringify({ destination_url: "https://example.com/us" }), {
+        status: 200,
+        headers: { "X-Linktery-Public-Resolver": "v1", "Server": "private-origin" },
+      },
+    ));
+    vi.stubGlobal("fetch", upstreamFetch);
+    const response = await worker.fetch(new Request("https://linktery.bio/api/public/links/campaign?domain=evil.example", {
+      headers: {
+        "CF-Connecting-IP": "2001:db8::10", "CF-IPCountry": "US",
+        "X-Linktery-Country": "RU", "X-Linktery-Client-IP": "spoofed",
+        "X-Linktery-Public-Host": "evil.example", "User-Agent": "Instagram iPhone",
+      },
+    }), createEnv());
+    expect(response.status).toBe(200);
+    expect(String(upstreamFetch.mock.calls[0]?.[0])).toBe("https://greenroute-pb.fly.dev/api/public/links/campaign");
+    const headers = new Headers(upstreamFetch.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("X-Linktery-Country")).toBe("US");
+    expect(headers.get("X-Linktery-Client-IP")).toBe("2001:db8::10");
+    expect(headers.get("X-Linktery-Public-Host")).toBe("linktery.bio");
+    expect(headers.get("X-Linktery-Redirect-Secret")).toBe(secret);
+    expect(response.headers.get("Cache-Control")).toContain("no-store");
+    expect(response.headers.get("Server")).toBeNull();
+    expect(response.headers.get("X-Linktery-Public-Resolver")).toBeNull();
+    expect(await response.text()).not.toContain(secret);
+  });
+
+  it("does not proxy arbitrary database routes, mutations or unattested resolver responses", async () => {
+    const upstreamFetch = vi.fn(async () => new Response("private origin error", { status: 500 }));
+    vi.stubGlobal("fetch", upstreamFetch);
+    expect((await worker.fetch(new Request("https://linktery.com/api/public/links/campaign", { method: "POST" }), createEnv())).status).toBe(405);
+    await worker.fetch(new Request("https://linktery.com/api/collections/users/records"), createEnv());
+    expect(upstreamFetch).not.toHaveBeenCalled();
+    const response = await worker.fetch(new Request("https://linktery.com/api/public/links/campaign"), createEnv());
+    expect(response.status).toBe(503);
+    expect(await response.text()).not.toContain("private origin error");
+  });
+
   it("forwards a resolved short-link response without booting the SPA", async () => {
     const upstreamFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(null, {
       status: 302,

@@ -20,6 +20,7 @@ import { maskError } from "@/lib/utils";
 import { isReservedPublicSlug } from "@/lib/systemRoutes";
 import { buildProfileLinkUpdateFormData } from "@/lib/profileLinkPersistence";
 import { CoreLinkRecord, getProfileLinkTitle, ProfileLinkItem, ProfileLinkRecord } from "@/lib/profileLinks";
+import { isPublicSlugAvailable } from "@/lib/publicAssets";
 import {
   Select,
   SelectContent,
@@ -502,18 +503,9 @@ export default function DashboardProfile() {
     setProfileLoading(true);
     try {
       // Validate uniqueness globally across all profiles and links
-      const [existingProfiles, existingLinks] = await Promise.all([
-        pb.collection('public_profiles').getList(1, 1, { filter: `slug="${cleanSlug}"` }),
-        pb.collection('links').getList(1, 1, { filter: `slug="${cleanSlug}"` })
-      ]);
-
-      if (existingProfiles.totalItems > 0) {
-        toast.error("This handle is already in use by another public profile.");
-        setProfileLoading(false);
-        return;
-      }
-      if (existingLinks.totalItems > 0) {
-        toast.error("This handle is already in use by a short link.");
+      const available = await isPublicSlugAvailable(cleanSlug);
+      if (!available) {
+        toast.error("This public address is already in use.");
         setProfileLoading(false);
         return;
       }
@@ -614,6 +606,11 @@ export default function DashboardProfile() {
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!PROFILE_BACKGROUND_MIME_TYPES.has(file.type)) {
+        toast.error("Use a JPG, PNG, or WebP image.");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
       if (file.size > 5 * 1024 * 1024) {
         toast.error("Avatar image must be less than 5MB");
         if (fileInputRef.current) fileInputRef.current.value = "";
@@ -703,18 +700,9 @@ export default function DashboardProfile() {
       // Check unique constraints if slug changed
       const currentProfile = profiles.find(p => p.id === activeProfileId);
       if (cleanSlug !== currentProfile?.slug) {
-        const [existingProfiles, existingLinks] = await Promise.all([
-          pb.collection('public_profiles').getList(1, 1, { filter: `slug="${cleanSlug}" && id != "${activeProfileId}"` }),
-          pb.collection('links').getList(1, 1, { filter: `slug="${cleanSlug}"` })
-        ]);
-
-        if (existingProfiles.totalItems > 0) {
-          toast.error("This handle is already in use by another public profile.");
-          setProfileLoading(false);
-          return;
-        }
-        if (existingLinks.totalItems > 0) {
-          toast.error("This handle is already in use by a short link.");
+        const available = await isPublicSlugAvailable(cleanSlug, { excludeProfileId: activeProfileId });
+        if (!available) {
+          toast.error("This public address is already in use.");
           setProfileLoading(false);
           return;
         }
@@ -944,7 +932,7 @@ export default function DashboardProfile() {
                     <Upload className="w-6 h-6 text-white" />
                   </div>
                 </div>
-                <input type="file" ref={fileInputRef} onChange={handleAvatarChange} className="hidden" accept="image/*" disabled={!canCustomize} />
+                <input type="file" ref={fileInputRef} onChange={handleAvatarChange} className="hidden" accept="image/jpeg,image/png,image/webp" disabled={!canCustomize} />
               </div>
               <div className="space-y-1">
                 <p className="font-medium text-white">Profile Picture</p>

@@ -26,6 +26,7 @@ import {
 import { maskError } from '@/lib/utils';
 import { isReservedPublicSlug } from "@/lib/systemRoutes";
 import { normalizeTrackingPixels } from "@/lib/trackingPixels";
+import { isPublicSlugAvailable } from "@/lib/publicAssets";
 
 const generateRandomSlug = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -283,17 +284,9 @@ export default function CreateLink() {
         return;
       }
       try {
-        const [existingLinks, existingProfiles] = await Promise.all([
-          pb.collection('links').getList(1, 1, { filter: `slug="${form.slug}" && id!="${id || ''}"` }),
-          pb.collection('public_profiles').getList(1, 1, { filter: `slug="${form.slug}"` })
-        ]);
-
-        if (existingLinks.totalItems > 0) {
-          toast.error("This slug is already in use by another link");
-          return;
-        }
-        if (existingProfiles.totalItems > 0) {
-          toast.error("This slug is already in use by a public profile");
+        const available = await isPublicSlugAvailable(form.slug, { excludeLinkId: id });
+        if (!available) {
+          toast.error("This public address is already in use");
           return;
         }
       } catch (err) {

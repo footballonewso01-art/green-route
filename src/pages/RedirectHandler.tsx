@@ -1,9 +1,7 @@
 import { useEffect, useState, useRef, useCallback, lazy, Suspense } from "react";
 import { useParams } from "react-router-dom";
-import { pb } from "@/lib/pocketbase";
 import { Loader2, AlertTriangle, Smartphone, ExternalLink, MoreVertical, Share2, Compass, Lock } from "lucide-react";
 import { DEFAULT_AVAILABLE_DOMAINS, PRIMARY_DOMAIN, PRIMARY_ORIGIN } from "@/lib/siteConfig";
-import { getCountryTierKey } from "@/lib/countryTiers";
 import { isValidPublicSlug } from "@/lib/systemRoutes";
 import {
     detectInAppBrowser,
@@ -13,6 +11,7 @@ import {
 } from "@/lib/deeplink";
 import { useSeo } from "@/hooks/useSeo";
 import { normalizeTrackingPixels } from "@/lib/trackingPixels";
+import { getPublicProfile, resolvePublicLink } from "@/lib/publicAssets";
 const PublicProfile = lazy(() => import("./PublicProfile"));
 
 // Utility to inject tracking pixels and allow them 400ms to fire before the page is destroyed by a redirect
@@ -78,20 +77,6 @@ const fireTrackingPixels = (link: Record<string, any>): Promise<void> => {
     });
 };
 /* eslint-enable @typescript-eslint/no-explicit-any, prefer-rest-params, prefer-spread, no-var, @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-expressions */
-
-const fetchCountryCode = async (): Promise<string> => {
-    // Country is resolved at our Cloudflare edge. No visitor IP is sent to a
-    // third-party geo provider from the browser or PocketBase.
-    try {
-        const geoRes = await fetch("/api/geo", { signal: AbortSignal.timeout(1200) });
-        const geoData = await geoRes.json();
-        if (geoData.country && geoData.country !== "Unknown") {
-            return geoData.country;
-        }
-    } catch { /* First-party geo failed */ }
-
-    return "Unknown";
-};
 
 /**
  * RedirectHandler — Ultra-fast redirect engine.
@@ -259,20 +244,12 @@ export default function RedirectHandler() {
                 const currentDomain = window.location.host;
                 // Step 1: PARALLEL resolution — link AND public profile at once (halves latency)
                 const [linkResult, profileResult] = await Promise.allSettled([
-                    pb.collection('links').getFirstListItem(`slug="${username}" && (domain="${currentDomain}" || domain="")`, { expand: 'user_id' }),
-                    pb.collection('public_profiles').getFirstListItem(`slug="${username}" && (domain="${currentDomain}" || domain="")`, { expand: 'user_id' })
+                    resolvePublicLink(username, currentDomain),
+                    getPublicProfile(username, currentDomain)
                 ]);
 
-                let link = linkResult.status === 'fulfilled' ? linkResult.value : null;
-                const userProfile = profileResult.status === 'fulfilled' ? profileResult.value : null;
-
-                // Fallback: if no link found with domain filter, try slug-only lookup.
-                // This handles cross-domain access (e.g., link has domain="linktery.bio" but accessed via "linktery.com")
-                if (!link) {
-                    try {
-                        link = await pb.collection('links').getFirstListItem(`slug="${username}" && active=true`, { expand: 'user_id' });
-                    } catch { /* no fallback match either */ }
-                }
+                const link = linkResult.status === 'fulfilled' ? linkResult.value : null;
+                const userProfile = profileResult.status === 'fulfilled' ? profileResult.value.profile : null;
 
                 // Profile takes priority if no active link found
                 if (!link && userProfile) {
@@ -293,91 +270,13 @@ export default function RedirectHandler() {
                 }
 
 
-                // Check scheduling
-                const now = new Date();
-                if (link.start_at && new Date(link.start_at as string) > now) {
-                    setStatus("error");
-                    setError("This link is not yet active");
-                    return;
-                }
-                if (link.expire_at && new Date(link.expire_at as string) < now) {
-                    setStatus("error");
-                    setError("This link has expired");
-                    return;
-                }
-
                 const ua = navigator.userAgent;
-                // BUG-14 FIX: Use specific bot patterns for cloaking — NOT broad names
-                // "facebook" catches FBAN/FBAV (real users), "instagram" catches in-app (real users)
-                // Only match actual crawler/preview bots, not webview browsers
-                const isBot = /bot|crawl|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(ua);
                 const inAppBrowser = detectInAppBrowser(ua, document.referrer);
                 const isInApp = inAppBrowser !== null;
 
-                // Bot cloaking
-                if (link.cloaking && isBot && link.safe_page_url) {
-                    window.location.replace(link.safe_page_url as string);
-                    return;
-                }
-
-                // Step 2: Determine destination (instant, no network calls)
+                // Scheduling, country/device targeting, A/B and UTM are resolved
+                // server-side. Do not expose or re-evaluate the owner's rules.
                 let finalDestination = link.destination_url as string;
-
-                // --- SYSTEM ROUTE OVERRIDE (HIJACK) ---
-                // This MUST be the first check and absolute priority.
-                // BUT: We skip it if the OWNER of the link is the one visiting.
-                const authUser = pb.authStore.model;
-                const isOwner = authUser && authUser.id === link.user_id;
-
-                if (link.system_route_active && typeof link.system_route_override === 'string' && link.system_route_override.trim() !== '' && !isOwner) {
-                    finalDestination = link.system_route_override.trim();
-                } else {
-                    const device = /Mobi|Android/i.test(ua) ? "Mobile" : /Tablet|iPad/i.test(ua) ? "Tablet" : "Desktop";
-
-                    // 1. Device Targeting (Priority 1)
-                    if (link.device_targeting && typeof link.device_targeting === 'object' && Object.keys(link.device_targeting).length > 0) {
-                        const rules = link.device_targeting as Record<string, string>;
-                        if (rules[device]) {
-                            finalDestination = rules[device];
-                        }
-                    }
-
-                    // 2. Geo Targeting (Priority 2)
-                    if (link.geo_targeting && typeof link.geo_targeting === 'object' && Object.keys(link.geo_targeting).length > 0) {
-                        try {
-                            const countryCode = await fetchCountryCode();
-                            if (countryCode && countryCode !== "Unknown") {
-                                const rules = link.geo_targeting as Record<string, string>;
-                                if (rules[countryCode]) {
-                                    finalDestination = rules[countryCode];
-                                } else {
-                                    const tierKey = getCountryTierKey(countryCode);
-                                    if (rules[tierKey]) finalDestination = rules[tierKey];
-                                }
-                            }
-                        } catch (e) {
-                            console.error("Geo targeting lookup failed (RedirectHandler):", e);
-                        }
-                    }
-
-                    if (link.ab_split && Array.isArray(link.split_urls) && link.split_urls.length > 0) {
-                        const allOptions = [finalDestination, ...link.split_urls];
-                        finalDestination = allOptions[Math.floor(Math.random() * allOptions.length)] as string;
-                    }
-                }
-
-                // ----- APPEND UTM PARAMETERS -----
-                if (link.utm_source || link.utm_medium || link.utm_campaign) {
-                    try {
-                        const urlObj = new URL(finalDestination);
-                        if (link.utm_source) urlObj.searchParams.set("utm_source", link.utm_source as string);
-                        if (link.utm_medium) urlObj.searchParams.set("utm_medium", link.utm_medium as string);
-                        if (link.utm_campaign) urlObj.searchParams.set("utm_campaign", link.utm_campaign as string);
-                        finalDestination = urlObj.toString();
-                    } catch (e) {
-                        console.error("Invalid destination URL for UTM tags", e);
-                    }
-                }
 
                 // ----- SANITIZE URL TO PREVENT XSS (Zero Trust Validation) -----
                 if (finalDestination && !finalDestination.startsWith("http://") && !finalDestination.startsWith("https://")) {

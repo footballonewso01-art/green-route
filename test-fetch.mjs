@@ -3,8 +3,14 @@ import * as dateFns from 'date-fns';
 import PocketBase from 'pocketbase';
 
 const pb = new PocketBase("https://greenroute-pb-staging.fly.dev");
-// I'll authenticate to bypass the admin check
-pb.admins.authWithPassword("admin@linktery.com", "linkteryadmin123").then(r => {
+const superuserEmail = process.env.POCKETBASE_SUPERUSER_EMAIL;
+const superuserPassword = process.env.POCKETBASE_SUPERUSER_PASSWORD;
+
+if (!superuserEmail || !superuserPassword) {
+    throw new Error("Set POCKETBASE_SUPERUSER_EMAIL and POCKETBASE_SUPERUSER_PASSWORD before running this diagnostic.");
+}
+
+pb.collection("_superusers").authWithPassword(superuserEmail, superuserPassword).then(r => {
     console.log("Logged in");
     fetchStats();
 }).catch(console.error);

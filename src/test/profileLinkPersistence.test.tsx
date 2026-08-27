@@ -97,10 +97,10 @@ describe("Public Profile link persistence", () => {
     expect(dashboard).toContain("getFullList<ProfileLinkRecord>");
     expect(dashboard).toContain("getFullList<CoreLinkRecord>");
     expect(linksManager).toContain("getFullList<LinkItem>");
-    expect(publicProfile).toContain("getFullList<ProfileLinkRecord>");
+    expect(publicProfile).toContain("getPublicProfile(username, currentDomain)");
     expect(dashboard).not.toContain("getList<ProfileLinkRecord>(1, 100");
     expect(linksManager).not.toContain("getList<LinkItem>(1, 100");
-    expect(publicProfile).not.toContain("getList<ProfileLinkRecord>(1, 100");
+    expect(publicProfile).not.toContain("collection('profile_links')");
   });
 
   it("enforces composition ownership and keeps a rollback-safe legacy validator", () => {

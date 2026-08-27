@@ -34,6 +34,13 @@ var PROFILE_VIEW_RATE_BY_IP_AND_PROFILE = {};
 var PROFILE_VIEW_LAST_WARNING_AT = 0;
 var PROFILE_VIEW_WARNING_INTERVAL_MS = 60 * 1000;
 
+// Safe public read endpoints expose one resolved slug or one profile
+// composition at a time. Keep their abuse budget separate from navigation and
+// telemetry so scraping pressure cannot make redirects unavailable.
+var PUBLIC_READ_RATE_WINDOW_STARTED_AT = new Date().getTime();
+var PUBLIC_READ_RATE_BY_IP = {};
+var PUBLIC_READ_RATE_BY_IP_AND_KEY = {};
+
 // Public API authentication state. Raw secrets are never stored here. The
 // database keeps a keyed digest for authentication, a non-secret lookup
 // prefix, and an AES-GCM encrypted copy for the authenticated reveal screen.
@@ -172,6 +179,28 @@ var getClientIP = function(eventOrRequest) {
     } catch (err) {}
 
     return "unknown";
+};
+
+var publicReadRateLimitAllows = function(eventOrRequest, resourceKey) {
+    var nowMs = new Date().getTime();
+    if (nowMs - PUBLIC_READ_RATE_WINDOW_STARTED_AT >= 60 * 1000) {
+        PUBLIC_READ_RATE_WINDOW_STARTED_AT = nowMs;
+        PUBLIC_READ_RATE_BY_IP = {};
+        PUBLIC_READ_RATE_BY_IP_AND_KEY = {};
+    }
+
+    var ip = getClientIP(eventOrRequest);
+    if (!ip || ip === "unknown") return true;
+
+    var normalizedKey = String(resourceKey || "public").substring(0, 160);
+    var scopedKey = ip + "|" + normalizedKey;
+    var ipCount = PUBLIC_READ_RATE_BY_IP[ip] || 0;
+    var scopedCount = PUBLIC_READ_RATE_BY_IP_AND_KEY[scopedKey] || 0;
+    if (ipCount >= 240 || scopedCount >= 60) return false;
+
+    PUBLIC_READ_RATE_BY_IP[ip] = ipCount + 1;
+    PUBLIC_READ_RATE_BY_IP_AND_KEY[scopedKey] = scopedCount + 1;
+    return true;
 };
 
 var normalizeGrowthField = function(value, maxLength, fallback) {
@@ -2066,6 +2095,57 @@ var resolveCountryFromIP = function (request) {
     return "Unknown";
 };
 
+// The SPA fallback needs a resolved destination, not the owner's complete
+// routing configuration. Keep the same precedence as the primary redirect:
+// bot-safe page, admin override, device, country/tier, A/B, then UTM tags.
+// No click is written here; the existing redirect/telemetry boundary owns it.
+var resolvePublicLinkDestination = function(record, event) {
+    var request = event.request;
+    var userAgent = String(request.header.get("User-Agent") || "");
+    var isBot = /bot|crawler|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(userAgent);
+    var botSafePage = record.get("cloaking") === true && isBot
+        ? String(record.get("safe_page_url") || "").trim()
+        : "";
+    var destination = botSafePage || String(record.get("destination_url") || "");
+    var authInfo = getAuthInfo(event);
+    var isOwner = !!authInfo.authUserId && authInfo.authUserId === record.get("user_id");
+
+    if (!botSafePage && record.get("system_route_active") === true && record.get("system_route_override") && !isOwner) {
+        destination = String(record.get("system_route_override"));
+    } else if (!botSafePage) {
+        var device = /Mobi|Android/i.test(userAgent) ? "Mobile"
+            : /Tablet|iPad/i.test(userAgent) ? "Tablet" : "Desktop";
+        var deviceRules = toPlainTargetingObject(record.getString("device_targeting"));
+        if (deviceRules && deviceRules[device]) destination = deviceRules[device];
+
+        var geoRules = toPlainTargetingObject(record.getString("geo_targeting"));
+        if (geoRules && Object.keys(geoRules).length > 0) {
+            var country = resolveCountryFromIP(request);
+            if (country && country !== "Unknown") {
+                var geoDestination = geoRules[country] || geoRules[getCountryTierKey(country)];
+                if (geoDestination) destination = geoDestination;
+            }
+        }
+
+        if (record.get("ab_split") === true) {
+            var splitUrls = toPlainStringArray(record.getString("split_urls"));
+            if (splitUrls.length > 0) {
+                var choices = [destination].concat(splitUrls);
+                destination = choices[Math.floor(Math.random() * choices.length)];
+            }
+        }
+    }
+
+    if (!botSafePage) {
+        destination = setHttpUrlQueryParams(destination, {
+            utm_source: record.get("utm_source"),
+            utm_medium: record.get("utm_medium"),
+            utm_campaign: record.get("utm_campaign")
+        });
+    }
+    return { destination: destination, botSafePage: !!botSafePage };
+};
+
 var getAuthInfo = function(e) {
     var isSuperAdmin = false;
     var isAppAdmin = false;
@@ -2385,9 +2465,59 @@ var validateLinkRecordForMutation = function(app, record) {
     var normalizedSlug = validatePublicSlug(record.get("slug"));
     record.set("slug", normalizedSlug);
     record.set("domain", normalizeLinkDomain(record.get("domain")));
+    validateCustomLinkIcon(record);
     validateLinkTrackingPixels(record);
     validateTargetingUrls(record, app || $app);
     validateLinkProfileAssignment(record, app || $app);
+};
+
+var isSafeCustomIconDataUrl = function(value) {
+    var match = /^data:image\/(png|jpeg|webp);base64,([a-z0-9+/]+={0,2})$/i.exec(String(value || "").trim());
+    if (!match) return false;
+    var encoded = match[2];
+    if (encoded.length % 4 !== 0 || encoded.length > 4 * Math.ceil(500 * 1024 / 3)) return false;
+    var padding = encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0;
+    if (encoded.length * 3 / 4 - padding > 500 * 1024) return false;
+
+    // Inspect decoded magic bytes, not just the attacker-controlled MIME.
+    // Decode only the first 16 bytes so this check stays cheap and bounded.
+    var alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    var bytes = [];
+    var buffer = 0;
+    var bits = 0;
+    for (var i = 0; i < Math.min(encoded.length, 24); i++) {
+        var digit = alphabet.indexOf(encoded.charAt(i));
+        if (digit < 0) break;
+        buffer = (buffer << 6) | digit;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            bytes.push((buffer >> bits) & 255);
+        }
+    }
+    var mime = match[1].toLowerCase();
+    if (mime === "png") return bytes.slice(0, 8).join(",") === "137,80,78,71,13,10,26,10";
+    if (mime === "jpeg") return bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+    return bytes.slice(0, 4).join(",") === "82,73,70,70"
+        && bytes.slice(8, 12).join(",") === "87,69,66,80";
+};
+
+var validateCustomLinkIcon = function(record) {
+    var iconType = String(record.get("icon_type") || "none").trim().toLowerCase();
+    var iconValue = String(record.get("icon_value") || "").trim();
+    if (iconType !== "custom") return;
+
+    // Custom icons are stored as data URLs. SVG is deliberately excluded:
+    // even when rendered through <img>, active XML is a fragile long-term
+    // boundary and can become stored XSS if a future renderer inlines it.
+    if (!isSafeCustomIconDataUrl(iconValue)) {
+        // Legacy uploads must not prevent unrelated edits to an existing link.
+        // They are retained in storage but omitted from the public DTO below.
+        var original = null;
+        try { original = record.original(); } catch (err) {}
+        if (original && original.get("icon_type") === "custom" && original.get("icon_value") === record.get("icon_value")) return;
+        throw new BadRequestError("Custom icons must be valid PNG, JPEG, or WebP images, 500 KB or smaller.");
+    }
 };
 
 var normalizeTrackingPixelId = function(value, provider) {
@@ -3105,6 +3235,7 @@ module.exports = {
     isTrustedApiGatewayRequest,
     isApiGatewayEnforcementEnabled,
     getClientIP,
+    publicReadRateLimitAllows,
     recordGrowthEvent,
     normalizeAnalyticsReferrer,
     clickRateLimitAllows,
@@ -3170,6 +3301,7 @@ module.exports = {
     fetchStripeSubscriptionState,
     FLY_REGION_MAP,
     resolveCountryFromIP,
+    resolvePublicLinkDestination,
     getAuthInfo,
     getRequestFilter,
     isSafeSlugLookupFilter,
@@ -3181,6 +3313,8 @@ module.exports = {
     enforceLinkCreateOwnershipAndEntitlements,
     sanitizeLinkSystemFields,
     validateLinkRecordForMutation,
+    validateCustomLinkIcon,
+    isSafeCustomIconDataUrl,
     parseHttpRoutingUrl,
     normalizeTrackingPixelId,
     validateLinkTrackingPixels,

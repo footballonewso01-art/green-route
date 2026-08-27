@@ -24,6 +24,7 @@ import { PLANS, PlanType } from "@/lib/plans";
 import { getAvailableDomains } from "@/lib/siteConfig";
 import { maskError } from "@/lib/utils";
 import { isReservedPublicSlug } from "@/lib/systemRoutes";
+import { isPublicSlugAvailable } from "@/lib/publicAssets";
 
 interface ProfileRecord {
   id: string;
@@ -169,20 +170,8 @@ export default function ProfileHub() {
 
     setActionLoading(true);
     try {
-      const [existingProfiles, existingLinks] = await Promise.all([
-        pb.collection("public_profiles").getList(1, 1, {
-          filter: `slug = "${cleanSlug}"`,
-          fields: "id",
-          requestKey: null,
-        }),
-        pb.collection("links").getList(1, 1, {
-          filter: `slug = "${cleanSlug}"`,
-          fields: "id",
-          requestKey: null,
-        }),
-      ]);
-
-      if (existingProfiles.totalItems > 0 || existingLinks.totalItems > 0) {
+      const available = await isPublicSlugAvailable(cleanSlug);
+      if (!available) {
         toast.error("This public URL is already in use");
         return;
       }

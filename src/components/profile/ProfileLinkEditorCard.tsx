@@ -51,6 +51,10 @@ export function ProfileLinkEditorCard({
 
   const handleFile = (file?: File) => {
     if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast.error("Use a JPG, PNG, or WebP image.");
+      return;
+    }
     if (file.size > 5 * 1024 * 1024) {
       toast.error("Background image must be less than 5MB");
       return;
@@ -225,7 +229,7 @@ export function ProfileLinkEditorCard({
             ) : (
               <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-background/25 px-4 py-5 text-xs font-semibold text-muted-foreground transition-colors hover:border-accent/35 hover:text-accent">
                 <ImagePlus className="h-4 w-4" /> Upload background
-                <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={event => handleFile(event.target.files?.[0])} />
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={event => handleFile(event.target.files?.[0])} />
               </label>
             )}
           </div>

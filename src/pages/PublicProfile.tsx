@@ -16,7 +16,8 @@ import {
   normalizeSocialLinkStyle,
 } from "@/lib/profileAppearance";
 import { useSeo } from "@/hooks/useSeo";
-import { getProfileLinkTitle, ProfileLinkItem, ProfileLinkRecord } from "@/lib/profileLinks";
+import { getProfileLinkTitle, ProfileLinkItem } from "@/lib/profileLinks";
+import { getPublicProfile } from "@/lib/publicAssets";
 
 interface ProfileData {
   id: string;
@@ -96,13 +97,8 @@ export default function PublicProfile() {
       if (!username) return;
       try {
         const currentDomain = window.location.host;
-        // Fetch profile by slug and domain
-        const profileRecord = await pb.collection('public_profiles').getFirstListItem(
-          `slug="${username}" && (domain="${currentDomain}" || domain="")`,
-          { expand: 'user_id' }
-        );
-
-        const userRecord = profileRecord.expand?.user_id || {};
+        const response = await getPublicProfile(username, currentDomain);
+        const profileRecord = response.profile;
 
         setProfile({
           id: profileRecord.id,
@@ -123,22 +119,16 @@ export default function PublicProfile() {
           card_color: profileRecord.card_color || "#000000",
           online_counter: !!profileRecord.online_counter,
           social_links: Array.isArray(profileRecord.social_links) ? profileRecord.social_links : [],
-          plan: userRecord.plan || "creator",
+          plan: profileRecord.plan || "creator",
         });
 
-        // Profile composition is public, while redirect behavior remains on the expanded core Link.
-        const assignments = await pb.collection('profile_links').getFullList<ProfileLinkRecord>({
-          filter: `profile_id="${profileRecord.id}" && visible=true`,
-          sort: 'order,created',
-          expand: 'link_id',
-          requestKey: null,
-        });
-        setLinks(assignments.flatMap<ProfileLinkItem>((assignment) => {
-          const link = assignment.expand?.link_id;
-          if (!link?.active) return [];
+        setLinks(response.links.flatMap<ProfileLinkItem>((assignment) => {
+          if (!assignment.link?.active) return [];
           return [{
             ...assignment,
-            link,
+            user_id: "",
+            expand: { link_id: assignment.link },
+            link: assignment.link,
             backgroundUrl: assignment.bg_image ? pb.files.getUrl(assignment, assignment.bg_image) : null,
           }];
         }));
