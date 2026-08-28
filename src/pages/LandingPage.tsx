@@ -11,6 +11,7 @@ import { SEO_PAGES } from "@/lib/seo-config";
 import Footer from "@/components/Footer";
 import MarketingHeader from "@/components/MarketingHeader";
 import { reserveStarterProfile } from "@/lib/profileOnboarding";
+import classicCoverPhone from "@/assets/mobila-classic-cover.webp";
 
 const features = [
   {
@@ -386,17 +387,18 @@ export default function LandingPage() {
           </div>
 
           {/* Desktop-only product visual. Mobile keeps the primary action above the fold. */}
-          <div className="relative hidden w-full justify-center lg:col-span-6 lg:flex lg:translate-y-[6%]">
-            <div className="relative animate-float w-full max-w-none flex justify-center">
-              <picture>
-                <source srcSet="/mobila.webp" type="image/webp" />
+          <div data-landing-product-visual className="relative hidden w-full lg:col-span-6 lg:flex lg:min-w-0 lg:justify-end lg:pr-6 xl:pr-12">
+            <div className="relative flex w-full max-w-[352px] justify-center motion-safe:animate-float xl:max-w-[384px] 2xl:max-w-[408px]">
+              <picture className="block w-full">
+                <source media="(min-width: 1024px)" srcSet={classicCoverPhone} type="image/webp" />
                 <img
-                  src="/mobila.webp"
-                  alt="Linktery mobile preview"
-                  width="1200"
-                  height="670"
-                  className="transform rotate-3 scale-[1.75] lg:scale-[2.31] lg:translate-x-[17%] w-full h-auto select-none pointer-events-none origin-center z-10"
+                  src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E"
+                  alt="Example Linktery Classic Cover profile with a creator course, Lightroom presets, and a one-to-one session"
+                  width="941"
+                  height="1672"
+                  className="block h-auto w-full select-none pointer-events-none"
                   loading="eager"
+                  decoding="async"
                 />
               </picture>
             </div>

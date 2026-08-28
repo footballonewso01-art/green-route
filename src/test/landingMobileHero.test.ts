@@ -18,9 +18,30 @@ const footer = fs.readFileSync(
 describe("landing mobile hero", () => {
   it("keeps the desktop product visual out of the mobile layout", () => {
     expect(landing).toContain("Desktop-only product visual");
-    expect(landing).toContain('className="relative hidden w-full justify-center lg:col-span-6 lg:flex');
-    expect(landing).toContain('src="/mobila.webp"');
+    expect(landing).toContain('className="relative hidden w-full lg:col-span-6 lg:flex');
+    expect(landing).toContain('import classicCoverPhone from "@/assets/mobila-classic-cover.webp"');
+    expect(landing).toContain('media="(min-width: 1024px)" srcSet={classicCoverPhone}');
+    expect(landing).toContain('src="data:image/svg+xml,');
     expect(landing).not.toContain('className="lg:col-span-6 flex justify-center');
+  });
+
+  it("uses the portrait asset at its natural ratio without the old oversized transforms", () => {
+    expect(landing).toContain('data-landing-product-visual');
+    expect(landing).toContain('width="941"');
+    expect(landing).toContain('height="1672"');
+    expect(landing).toContain('max-w-[352px]');
+    expect(landing).toContain('xl:max-w-[384px]');
+    expect(landing).toContain('2xl:max-w-[408px]');
+    expect(landing).toContain('motion-safe:animate-float');
+    expect(landing).not.toContain('lg:scale-[2.31]');
+    expect(landing).not.toContain('lg:translate-x-[17%]');
+  });
+
+  it("aligns the desktop phone toward the outside of its column with a safe edge inset", () => {
+    const visualClasses = landing.match(/data-landing-product-visual className="([^"]+)"/)?.[1];
+    expect(visualClasses).toContain("lg:justify-end");
+    expect(visualClasses).toContain("lg:pr-6 xl:pr-12");
+    expect(visualClasses).not.toMatch(/(?:translate-x|scale)-/);
   });
 
   it("uses mobile-safe viewport, spacing, type, and form controls", () => {
