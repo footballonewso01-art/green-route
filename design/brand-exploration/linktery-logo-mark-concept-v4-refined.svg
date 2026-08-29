@@ -1,0 +1,24 @@
+<!-- Hallmark · pre-emit critique: P5 H4 E5 S5 R5 V4 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc" shape-rendering="geometricPrecision">
+  <title id="title">Linktery logo mark concept v4 refined</title>
+  <desc id="desc">A gently bowed L turns into a restrained rising arrow, while two staggered dots create a subtle friendly expression.</desc>
+  <g fill="#12C77A">
+    <circle cx="286" cy="170" r="56" />
+    <path
+      d="M286 170C272 304 270 466 278 558C287 662 326 736 394 786C472 843 568 856 652 823C749 784 805 671 853 609"
+      fill="none"
+      stroke="#12C77A"
+      stroke-width="112"
+      stroke-linecap="butt"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M948 486 897.3 643.3 808.7 574.7Z"
+      stroke="#12C77A"
+      stroke-width="2"
+      stroke-linejoin="round"
+    />
+    <circle cx="508" cy="570" r="38" />
+    <circle cx="620" cy="494" r="38" />
+  </g>
+</svg>
