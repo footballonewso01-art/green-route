@@ -30,6 +30,21 @@ export function isRedirectAliasDomain(hostname: string): boolean {
   );
 }
 
+export function isCustomPublicHostname(hostname: string): boolean {
+  const normalizedHostname = hostname.trim().toLowerCase().replace(/\.$/, "");
+  if (!normalizedHostname || normalizedHostname === "localhost" || normalizedHostname.endsWith(".localhost")) {
+    return false;
+  }
+  if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(normalizedHostname)) return false;
+  if (
+    normalizedHostname.endsWith(".workers.dev") ||
+    normalizedHostname.endsWith(".pages.dev") ||
+    normalizedHostname.endsWith(".vercel.app")
+  ) return false;
+  if (normalizedHostname === PRIMARY_DOMAIN || isRedirectAliasDomain(normalizedHostname)) return false;
+  return /^[a-z0-9](?:[a-z0-9.-]{2,251}[a-z0-9])$/.test(normalizedHostname);
+}
+
 export function getAvailableDomains(configuredDomains?: string): string[] {
   const configured = (configuredDomains || "")
     .split(",")

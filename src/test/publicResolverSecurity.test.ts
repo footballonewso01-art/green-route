@@ -83,7 +83,7 @@ describe("private routing rules / public resolved result", () => {
     expect(result.status).toBe(200);
     expect(result.body.destination_url).toBe("https://example.com/us?utm_source=instagram");
     expect(Object.keys(result.body).sort()).toEqual([
-      "active", "destination_url", "domain", "fb_pixel", "google_pixel", "id",
+      "active", "destination_managed", "destination_url", "domain", "fb_pixel", "google_pixel", "id",
       "interstitial_enabled", "mode", "slug", "tiktok_pixel", "title",
     ].sort());
     expect(result.responseHeaders.get("Cache-Control")).toContain("no-store");

@@ -202,6 +202,10 @@ describe("Cloudflare edge routing contract", () => {
     expect(packageJson.scripts["cf:seo:audit:production"]).toContain(
       "scripts/audit-live-seo.mjs",
     );
+
+    const liveSeoAudit = readWorkspaceFile("scripts/audit-live-seo.mjs");
+    expect(liveSeoAudit).toContain('response.headers.get("cf-cache-status")');
+    expect(liveSeoAudit).toContain("Cloudflare Crawler Hints cannot observe cache changes");
   });
 
   it("bootstraps the candidate Worker only when production traffic is disabled", () => {

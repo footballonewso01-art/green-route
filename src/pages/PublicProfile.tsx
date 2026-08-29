@@ -17,7 +17,7 @@ import {
 } from "@/lib/profileAppearance";
 import { useSeo } from "@/hooks/useSeo";
 import { getProfileLinkTitle, ProfileLinkItem } from "@/lib/profileLinks";
-import { getPublicProfile } from "@/lib/publicAssets";
+import { getPublicProfile, getPublicProfileCardHref } from "@/lib/publicAssets";
 
 interface ProfileData {
   id: string;
@@ -71,8 +71,14 @@ function OnlineCounter({ cardColor, forceDark = false }: { cardColor: string; fo
   );
 }
 
-export default function PublicProfile() {
-  const { username } = useParams();
+interface PublicProfileProps {
+  slugOverride?: string;
+  customDomainRoot?: boolean;
+}
+
+export default function PublicProfile({ slugOverride, customDomainRoot = false }: PublicProfileProps = {}) {
+  const { username: routeUsername } = useParams();
+  const username = slugOverride || routeUsername;
   const [profile, setProfile] = useState<(ProfileData & { plan?: string }) | null>(null);
   const [links, setLinks] = useState<ProfileLinkItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +94,7 @@ export default function PublicProfile() {
     description: profile?.bio
       ? `${profile.bio.slice(0, 155)}${profile.bio.length > 155 ? "…" : ""}`
       : `Check out @${username || ""} on Linktery for smart links, a bio page, and more.`,
-    canonical: `/${username || ""}`,
+    canonical: customDomainRoot && typeof window !== "undefined" ? `${window.location.origin}/` : `/${username || ""}`,
     noIndex: !isProfileSeoIndexed,
   });
 
@@ -240,7 +246,7 @@ export default function PublicProfile() {
           links={links.map((item) => ({
             id: item.id,
             title: getProfileLinkTitle(item),
-            href: `/${item.link.slug}?ref=profile&profile_id=${encodeURIComponent(profile.id)}&profile_link_id=${encodeURIComponent(item.id)}`,
+            href: getPublicProfileCardHref(item.link, profile.id, item.id, customDomainRoot),
             destinationUrl: item.link.destination_url,
             iconType: item.link.icon_type,
             iconValue: item.link.icon_value,

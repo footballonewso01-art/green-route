@@ -124,7 +124,7 @@ export default function UgcPortfolio() {
     },
     {
       question: "Can I connect a custom domain like portfolio.myname.com?",
-      answer: "Absolutely. Having a professional custom domain makes you stand out to brands. You can link your own subdomain or domain to your portfolio page on all premium plans."
+      answer: "Absolutely. Creator Pro lets you connect 2 custom domains and Agency lets you connect 10 domains or subdomains to Links and Public Profiles."
     },
     {
       question: "Can I track which brands are clicking on my portfolio links?",

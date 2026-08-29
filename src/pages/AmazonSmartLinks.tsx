@@ -651,7 +651,7 @@ export default function AmazonSmartLinks() {
               </tr>
               <tr className="hover:bg-surface-hover/40 transition-colors">
                 <td className="p-4 md:p-6 font-semibold text-white font-sans">Custom Domain Routing</td>
-                <td className="p-4 md:p-6 text-green-400">✅ Unlimited Custom Domains</td>
+                <td className="p-4 md:p-6 text-green-400">✅ 2 on Pro · 10 on Agency</td>
                 <td className="p-4 md:p-6 text-yellow-500">⚠️ Paid upgrade limit</td>
                 <td className="p-4 md:p-6 text-red-500">❌ Limited support</td>
               </tr>

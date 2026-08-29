@@ -10,6 +10,7 @@ import { maskError } from "@/lib/utils";
 import { BillingRecord, formatBillingDate } from "@/lib/billing";
 import { CancelRenewalButton } from "@/components/billing/CancelRenewalButton";
 import { ApiAccessSettings } from "@/components/settings/ApiAccessSettings";
+import { CustomDomainsSettings } from "@/components/settings/CustomDomainsSettings";
 
 interface SettingsSection {
   id: string;
@@ -23,7 +24,7 @@ const sections: SettingsSection[] = [
   { id: "security", label: "Security", icon: Lock },
   { id: "api", label: "API Access", icon: KeyRound },
   { id: "billing", label: "Plan & Billing", icon: Receipt },
-  { id: "domains", label: "Custom Domain", icon: Globe, comingSoon: true },
+  { id: "domains", label: "Custom Domains", icon: Globe },
 ];
 
 const SETTINGS_SECTION_PARAM = "section";
@@ -815,21 +816,9 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* ============ CUSTOM DOMAIN (Coming Soon placeholder) ============ */}
+            {/* ============ CUSTOM DOMAINS ============ */}
             {active === "domains" && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-xl font-semibold text-foreground">Custom Domain</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Connect your own domain for fully branded short links.</p>
-                </div>
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-surface/60 border border-border/40 flex items-center justify-center mb-4">
-                    <Globe className="w-7 h-7 text-muted-foreground/30" />
-                  </div>
-                  <p className="text-muted-foreground text-sm font-medium">Custom Domains are coming soon</p>
-                  <p className="text-muted-foreground/60 text-xs mt-1.5 max-w-xs">Use your own domain to create fully branded short links.</p>
-                </div>
-              </div>
+              <CustomDomainsSettings />
             )}
 
           </div>

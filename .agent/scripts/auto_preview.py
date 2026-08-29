@@ -19,6 +19,13 @@ import argparse
 import subprocess
 from pathlib import Path
 
+# Prevent unicode encode errors with emojis in Windows consoles
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+except AttributeError:
+    pass
+
 AGENT_DIR = Path(".agent")
 PID_FILE = AGENT_DIR / "preview.pid"
 LOG_FILE = AGENT_DIR / "preview.log"
@@ -27,17 +34,29 @@ def get_project_root():
     return Path(".").resolve()
 
 def is_running(pid):
-    try:
-        os.kill(pid, 0)
-        return True
-    except OSError:
-        return False
+    if sys.platform == 'win32':
+        try:
+            import ctypes
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            h = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+            if h:
+                ctypes.windll.kernel32.CloseHandle(h)
+                return True
+            return False
+        except Exception:
+            return False
+    else:
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
 
 def get_start_command(root):
     pkg_file = root / "package.json"
     if not pkg_file.exists():
         return None
-    
+
     with open(pkg_file, 'r') as f:
         data = json.load(f)
     
@@ -68,18 +87,20 @@ def start_server(port=3000):
     # Add port env var if needed (simple heuristic)
     env = os.environ.copy()
     env["PORT"] = str(port)
-    
+
     print(f"🚀 Starting preview on port {port}...")
-    
-    with open(LOG_FILE, "w") as log:
-        process = subprocess.Popen(
-            cmd,
-            cwd=str(root),
-            stdout=log,
-            stderr=log,
-            env=env,
-            shell=True # Required for npm on windows often, or consistent path handling
-        )
+
+    cmd_str = " ".join(cmd) if isinstance(cmd, list) else cmd
+
+    log = open(LOG_FILE, "w", encoding="utf-8")
+    process = subprocess.Popen(
+        cmd_str,
+        cwd=str(root),
+        stdout=log,
+        stderr=log,
+        env=env,
+        shell=True # Required for npm on windows often, or consistent path handling
+    )
     
     PID_FILE.write_text(str(process.pid))
     print(f"✅ Preview started! (PID: {process.pid})")

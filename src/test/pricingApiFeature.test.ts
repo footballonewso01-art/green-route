@@ -35,6 +35,35 @@ describe("pricing API feature visibility", () => {
   });
 });
 
+describe("pricing Custom Domain allowances", () => {
+  it.each([
+    "src/lib/plans.ts",
+    "src/pages/LandingPage.tsx",
+    "src/pages/PricingPage.tsx",
+    "src/pages/DashboardPricing.tsx",
+  ])("keeps Free at zero, Pro at two and Agency at ten in %s", (path) => {
+    const source = readWorkspaceFile(path);
+    const creatorStart = source.indexOf('id: "creator"');
+    const proStart = source.indexOf('id: "pro"');
+    const agencyStart = source.indexOf('id: "agency"');
+
+    expect(creatorStart).toBeGreaterThanOrEqual(0);
+    expect(proStart).toBeGreaterThan(creatorStart);
+    expect(agencyStart).toBeGreaterThan(proStart);
+    expect(source.slice(creatorStart, proStart)).not.toMatch(/Custom Domains?/);
+    expect(source.slice(proStart, agencyStart)).toContain("2 Custom Domains");
+    expect(source.slice(agencyStart)).toContain("10 Custom Domains");
+  });
+
+  it("keeps plan metadata and Help Center comparison aligned", () => {
+    expect(PLANS.creator.limits.custom_domain).toBe(0);
+    expect(PLANS.pro.limits.custom_domain).toBe(2);
+    expect(PLANS.agency.limits.custom_domain).toBe(10);
+    const help = readWorkspaceFile("src/pages/HelpCenter.tsx");
+    expect(help).toContain('Custom Domains</td><td className="text-center">—</td><td className="text-center text-accent">2</td><td className="text-center text-accent">10</td>');
+  });
+});
+
 describe("pricing Public Profile terminology", () => {
   it("uses one product name for every profile allowance", () => {
     expect(getPublicProfileFeatureCopy(1).text).toBe("1 Public Profile");

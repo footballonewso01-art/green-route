@@ -52,4 +52,14 @@ describe("public /slug routing contract", () => {
     expect(handlerSource).toContain("if (!link && userProfile)");
     expect(handlerSource).toContain("if (!link && !userProfile)");
   });
+
+  it("keeps browser public resolvers on the current Cloudflare origin", () => {
+    const publicAssets = readWorkspaceFile("src/lib/publicAssets.ts");
+    const handlerSource = readWorkspaceFile("src/pages/RedirectHandler.tsx");
+
+    expect(publicAssets).toContain("await fetch(url");
+    expect(publicAssets).toContain('credentials: "omit"');
+    expect(publicAssets).not.toContain("pb.send(url");
+    expect(handlerSource).toContain("LINK_TEMPORARILY_UNAVAILABLE");
+  });
 });

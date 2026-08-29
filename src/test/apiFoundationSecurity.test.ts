@@ -71,7 +71,7 @@ describe("public API foundation hardening", () => {
     expect(utils).toContain("$security.encrypt");
     expect(utils).toContain("$security.decrypt");
     expect(utils).toContain("API_KEY_ENCRYPTION_KEY");
-    expect(utils).toContain('"agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29, "analytics": true, "customSlug": true, "apiKeys": 1');
+    expect(utils).toContain('"agency": { "links": -1, "publicProfiles": 25, "customDomains": 10, "monthlyPrice": 29, "analytics": true, "customSlug": true, "apiKeys": 1');
   });
 
   it("authenticates v1 exclusively with scoped Bearer keys", () => {

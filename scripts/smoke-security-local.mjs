@@ -110,6 +110,12 @@ try {
     assert(!(field in resolved), `Public response must not contain ${field}`);
   }
   assert.equal(sql(db, "SELECT count(*) FROM clicks;").trim(), "0", "DTO reads must not write clicks");
+  const wrongHostHeaders = { ...edgeHeaders, "X-Linktery-Public-Host": "linktery.bio" };
+  const wrongHostDto = await fetch(`${origin}/api/public/links/${link.slug}`, { headers: wrongHostHeaders });
+  assert.equal(wrongHostDto.status, 404, "A host-bound link must not resolve on another domain");
+  const wrongHostRedirect = await fetch(`${origin}/${link.slug}`, { headers: wrongHostHeaders, redirect: "manual" });
+  assert.equal(wrongHostRedirect.status, 404, "The redirect hot path must enforce the selected domain");
+  assert.equal(sql(db, "SELECT count(*) FROM clicks;").trim(), "0", "Wrong-host probes must not write analytics");
   const redirect = await fetch(`${origin}/${link.slug}`, { headers: edgeHeaders, redirect: "manual" });
   assert.equal(redirect.status, 302);
   assert.equal(redirect.headers.get("location"), resolved.destination_url);

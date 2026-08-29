@@ -72,7 +72,7 @@ export default function PodcastSmartLinks() {
     },
     {
       question: "Can I use custom domains for my podcast smart links?",
-      answer: "Yes. Linktery permits free custom subdomain mapping (e.g. listen.myweeklyshow.com). Using custom domains keeps your branding intact, increases link trust, and protects your links from shared domain blacklist flags."
+      answer: "Yes. Creator Pro includes 2 custom domains and Agency includes 10 domains or subdomains (for example, listen.myweeklyshow.com) for branded Links and Public Profiles."
     },
     {
       question: "What major podcast directories are supported?",
@@ -501,7 +501,7 @@ export default function PodcastSmartLinks() {
               </tr>
               <tr className="hover:bg-surface-hover/40 transition-colors">
                 <td className="p-4 md:p-6 font-semibold text-white">Subdomain Mapping</td>
-                <td className="p-4 md:p-6 text-green-400 font-medium">✅ Yes (Free mapping)</td>
+                <td className="p-4 md:p-6 text-green-400 font-medium">✅ Up to 25 on Agency</td>
                 <td className="p-4 md:p-6">Only premium plans</td>
                 <td className="p-4 md:p-6">Only premium plans</td>
               </tr>

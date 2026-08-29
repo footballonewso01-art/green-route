@@ -17,6 +17,7 @@ not the normal production deployment target anymore.
 | `hotme.online/*` | `linktery-frontend-alias` |
 | `hotmylinks.cc/*` | `linktery-frontend-alias` |
 | `api.linktery.com/v1/*` | `linktery-public-api` |
+| approved customer hostname `/` | `linktery-frontend` via Cloudflare for SaaS |
 
 `www.linktery.com` redirects to the apex domain. Alias domains continue to
 serve customer `/{slug}` URLs, but product, account, and SEO routes redirect to
@@ -97,6 +98,165 @@ cannot turn a Public Profile into PocketBase's empty `200` response.
 `DEEPLINK_META_ESCAPE_ENABLED=false` on PocketBase is the emergency kill
 switch for automatic Instagram/Threads iOS handoff. It leaves ordinary HTTPS
 redirects and the manual fallback available.
+
+### Custom Domains (Cloudflare for SaaS)
+
+User-owned domains are provisioned through **Cloudflare for SaaS Custom
+Hostnames**. They are not added to `wrangler.jsonc` one by one. One indexed
+PocketBase mapping binds an exact hostname to exactly one owned Link or Public
+Profile. A customer hostname serves only `/`; it never guesses a target by
+slug and never exposes `/slug` in the browser address.
+
+Creating a domain first reserves a unique hostname locally and produces a
+per-account TXT proof at `_linktery-verification.<hostname>`. No Cloudflare
+hostname is allocated until that proof is found through the fixed DNS-over-HTTPS
+resolver. Cloudflare's own hostname/SSL validation is additional, not a
+replacement for tenant ownership. Keep the Linktery TXT record permanently.
+
+Control-plane calls happen only during verified provisioning, verification,
+disconnection and a bounded backend reconciliation job. Per-domain leases
+serialize mutations; uncertain creates recover by exact hostname instead of
+creating duplicates. A persisted `provisioning_started_at` marker preserves
+cleanup after an uncertain create even if the user removes their TXT proof.
+Accounts outside the rollout or without active Creator Pro or Agency entitlement do not
+allocate new provider hostnames; their configuration is retained for renewal.
+Public visits perform indexed PocketBase lookups and do
+not call the Cloudflare API. Root profile card clicks retain their original
+Linktery Link hostnames and profile attribution, including when an ordinary
+first-party profile attaches a Link on a different alias. Legal/branding links use the main
+Linktery website, not missing paths on the customer hostname.
+
+Management lists paginate at 50 domains; destination search fetches at most 30
+matches per target type. Creator Pro can keep 2 simultaneous custom domains;
+Agency can keep 10; Creator has no entitlement. These limits count pending and
+active records and are re-checked transactionally before a reservation is
+saved. The older 20-pending guard remains as defense in depth but is above both
+product limits.
+
+A private `custom_domain_provisioning_events` ledger survives domain deletion.
+Only a successful tenant-specific TXT ownership proof can reach provider
+provisioning. Creator Pro may start 6 and Agency 30 provider provisioning
+attempts in a rolling 30-day window. A platform-wide reservation allows at most
+10 new attempts per minute, below Cloudflare's default 15 successful
+certificate submissions/minute, and an ambiguous attempt cannot be repeated
+for 15 minutes. Reassigning an existing hostname to another owned Link/Profile
+does not consume the provisioning allowance.
+The minute reconciliation job handles at most 200 due records / 45 seconds:
+recent pending records retry after 5 minutes, stale unverified and active
+records after 24 hours, transport failures after 15 minutes. Monitor oldest
+`next_check_at` lag and Cloudflare quota/cost before widening access.
+
+Required Fly secrets/settings for each environment:
+
+- `CLOUDFLARE_SAAS_API_TOKEN`: least-privilege token for Custom Hostnames
+  (SSL and Certificates read/write for the Linktery zone only);
+- `CLOUDFLARE_SAAS_ZONE_ID`: the Linktery zone id;
+- `CLOUDFLARE_SAAS_CNAME_TARGET`: the dedicated proxied fallback hostname,
+  for example `domains.linktery.com`;
+- `CUSTOM_DOMAINS_ENABLED`: explicit `true` only after the whole environment
+  passes the staged checks below.
+- `CUSTOM_DOMAINS_ALLOWED_USER_IDS`: optional comma-separated account IDs for
+  a controlled pilot. With a non-empty value only these accounts can create,
+  update, verify or serve custom domains. An empty value enables all entitled
+  Creator Pro and Agency accounts when the feature switch is true. Disconnect
+  remains allowed even after downgrade so users can clean up safely.
+
+Never expose the Cloudflare token in a browser response, `VITE_*`, Wrangler
+vars, repository files, or logs. The management API deliberately returns DNS
+instructions but not the Cloudflare custom-hostname id or provider errors.
+
+One-time Cloudflare setup:
+
+1. enable Cloudflare for SaaS on the production zone;
+2. create the dedicated proxied fallback hostname and configure it as the
+   Cloudflare for SaaS fallback origin;
+3. ensure custom-hostname traffic reaches `linktery-frontend`; if a catch-all
+   Worker route is used, keep the more-specific `api.linktery.com/*` route on
+   `linktery-public-api` and verify it still wins. Deploy the compatible
+   hostname-aware Worker before attaching the catch-all. Immediately verify
+   an unmapped hostname does not serve the marketing homepage, dashboard,
+   or marketing sitemap; remove only the new route if this check fails;
+4. keep `api.linktery.com`, first-party Linktery hosts, and platform preview
+   hosts reserved so users cannot attach them;
+5. confirm Cloudflare's current Custom Hostnames quota and billing before
+   broad rollout; application code must not silently invent a lower limit than
+   the advertised paid-plan entitlements.
+
+Staged rollout order:
+
+1. deploy the migration and backend hooks with `CUSTOM_DOMAINS_ENABLED=false`;
+2. configure an isolated staging SaaS zone, fallback origin, token and CNAME
+   target, with the existing staging `REDIRECT_ORIGIN_SECRET` pair. A zone has
+   one fallback origin: do not point the production zone fallback at staging;
+3. deploy the staging Worker and verify an unconnected hostname and every
+   non-root path return a real `404`;
+4. enable staging, connect one subdomain and one apex test domain, then verify
+   Link redirect, deeplink, geo routing, click analytics, Public Profile view
+   analytics, social preview, SSL issuance, target reassignment, and removal;
+5. deploy the production backend first while the production switch remains
+   false, then deploy both production frontend Workers from one artifact;
+6. set `CUSTOM_DOMAINS_ALLOWED_USER_IDS` to the pilot account, then enable
+   `CUSTOM_DOMAINS_ENABLED=true`; connect a controlled production pilot domain
+   and repeat the smoke tests;
+7. after the full Link → Profile → Link lifecycle, analytics, HTTPS and removal
+   checks pass, remove `CUSTOM_DOMAINS_ALLOWED_USER_IDS` to make the feature
+   available to every active Creator Pro and Agency account. Keep the
+   server-side 2/10 limits, persistent provisioning ledger and global issuance
+   guard enabled.
+
+Production rollout completed on 2026-08-29 from commit `59530f0`. Fly backend
+machine version `280`, primary Worker `59cb760b-b920-4c4b-b620-991c618c6464`
+and alias Worker `707286d5-4506-4c12-8a9f-67ae7e39b3c3` passed health, routing,
+alias, runtime and 109-URL SEO smoke checks. The pilot allowlist was removed.
+At that checkpoint Creator and Pro were ineligible. The subsequent entitlement
+hardening release changes this to Creator 0, Creator Pro 2 and Agency 10 and
+must be deployed backend-first because it adds the private provisioning ledger.
+
+The settings UI intentionally reveals one DNS phase at a time: Linktery
+ownership TXT, Cloudflare HTTPS validation, then the final traffic CNAME. Never
+ask customers to move traffic before Step 3. Positive hostname mappings are
+cached at the edge for 30 seconds; missing and unavailable mappings are never
+cached, and the final target resolver still revalidates the exact tenant-owned
+mapping before redirecting or rendering a profile.
+
+Cloudflare for SaaS currently includes 100 custom hostnames account-wide on
+Free/Pro/Business, supports up to 50,000, and bills additional hostnames at
+$0.10/month. Linktery's 2-domain Creator Pro and 10-domain Agency caps are
+product and abuse-control limits; update backend enforcement, provisioning
+budgets and all pricing copy together if they change.
+
+An active hostname and active SSL indicate verification/certificate readiness;
+the customer must also point traffic DNS at the shown CNAME target. Apex
+domains require provider flattening/ALIAS/ANAME. Do not advertise arbitrary
+apex A-record support: Cloudflare Apex Proxying is a separate provider feature.
+Keep `/robots.txt` and `/sitemap.xml` Worker-first: customer hosts must never
+serve the marketing sitemap or inherit primary-host indexability. Static
+JS/CSS/image assets remain asset-first.
+
+Local checks (no real provider credentials or production mutations):
+
+```powershell
+npm run typecheck
+npm test
+node scripts/test-custom-domains-runtime.mjs pb_test/custom_domains_review_20260828
+npm run build:staging
+npm run cf:dry-run:staging
+```
+
+The runtime check requires a migrated disposable `pb_test` database and uses
+synthetic accounts only. The live DNS / certificate lifecycle still requires
+the staged pilot above. Account/Link/Profile deletion is blocked while any
+domain remains attached, including model-level deletes; disconnect first.
+
+Provider references: [Worker fallback origin](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/start/advanced-settings/worker-as-origin/),
+[hostname/SSL readiness](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/start/common-api-calls/),
+[domain support](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/).
+
+Emergency rollback starts by setting `CUSTOM_DOMAINS_ENABLED=false` on Fly.
+That fails custom-domain roots closed without deleting mappings, Cloudflare
+hostnames, Links, Public Profiles, or analytics. Deletion remains available so
+owners can safely disconnect a domain. Do not delete the fallback origin or
+bulk-delete custom hostnames during a code rollback.
 
 ### Automatic social preview infrastructure
 
@@ -356,6 +516,10 @@ Re-verify it after a zone transfer, account migration, DNS cutover, or accidenta
 Cloudflare configuration reset. Non-indexable app routes and redirect utility
 URLs must continue to emit `X-Robots-Tag: noindex`; this keeps global crawler
 hints from turning private dashboard routes or short-link hops into SEO pages.
+The production SEO audit also requires `CF-Cache-Status` on the sitemap and every
+canonical sitemap URL. This verifies that Cloudflare can observe the cache change
+signals used by Crawler Hints; it does not attempt to duplicate those signals by
+submitting the full sitemap through a second IndexNow client.
 
 ## DNS invariants
 

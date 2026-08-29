@@ -601,7 +601,7 @@
     "faqs": [
       {
         "question": "Can I connect multiple custom domains to a single agency account?",
-        "answer": "Yes. With the Linktery Agency plan, you can connect unlimited custom domains and assign unique brand profiles to each domain."
+        "answer": "Yes. Creator Pro supports 2 custom domains and Agency supports 10. Each domain can open one Link or Public Profile at its root."
       },
       {
         "question": "How does the geo-targeted link rotator work?",

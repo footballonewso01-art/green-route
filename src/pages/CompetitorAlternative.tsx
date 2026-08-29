@@ -92,7 +92,7 @@ export default function CompetitorAlternative() {
     },
     {
       question: `Can I connect my own custom domain to a bio link profile?`,
-      answer: `Yes. Linktery supports mapping custom subdomains or root domains on the Agency plan ($29/mo), enabling you to host separate client profiles under different domains. ${competitor.name} custom domain price: ${competitor.pricing.customDomains}.`
+      answer: `Yes. Creator Pro supports up to 2 custom subdomains or root domains, while Agency supports up to 10 for multi-brand and client setups. ${competitor.name} custom domain price: ${competitor.pricing.customDomains}.`
     },
     {
       question: `Does Linktery charge commission fees on digital store sales?`,
@@ -260,7 +260,7 @@ export default function CompetitorAlternative() {
               Link-in-bio products place branding, custom domains, analytics, and profile limits on different plans. Compare the restrictions that affect your workflow instead of choosing from the headline price alone.
             </p>
             <p className="text-xs md:text-sm text-slate-300 leading-relaxed mt-2.5 font-medium">
-              With Linktery, we believe your social landing page belongs to you. We provide full theme customization for free on the Creator plan, with custom domain configurations (Agency plan) and watermark removal (Pro plan) transparently priced.
+              With Linktery, we believe your social landing page belongs to you. We provide full theme customization for free on the Creator plan, up to 2 custom domains on Creator Pro, up to 10 on Agency, and watermark removal on paid plans.
             </p>
           </div>
 
@@ -363,7 +363,7 @@ export default function CompetitorAlternative() {
                     A media buyer runs campaigns to a legacy root domain. Because they don't own the domain, they cannot verify it in Facebook Business Manager, breaking pixel conversion attribution.
                   </p>
                   <p className="text-xs md:text-sm text-accent/90 bg-accent/5 border border-accent/20 p-3 rounded-xl mt-2 italic font-mono">
-                    Linktery approach: connect an eligible custom domain on the Agency plan and configure supported tracking integrations. Attribution still depends on the destination and advertising platform setup.
+                    Linktery approach: connect an eligible custom domain on Creator Pro or Agency and configure supported tracking integrations. Attribution still depends on the destination and advertising platform setup.
                   </p>
                 </div>
               )}
@@ -453,7 +453,7 @@ export default function CompetitorAlternative() {
               <ul className="space-y-2 text-xs md:text-sm text-slate-400 font-sans">
                 <li>• Optimized loading: lightweight public pages and cached assets.</li>
                 <li>• App-aware links: supported handoff attempts with web fallbacks.</li>
-                <li>• Domain mapping: connect eligible custom domains on Agency.</li>
+                <li>• Domain mapping: connect up to 2 custom domains on Creator Pro or 10 on Agency.</li>
                 <li>• External checkout: Linktery does not process destination sales.</li>
               </ul>
             </div>

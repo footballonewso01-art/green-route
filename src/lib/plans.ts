@@ -4,7 +4,7 @@ export interface PlanLimits {
     links: number;
     analytics: boolean;
     cloaking: boolean;
-    custom_domain: boolean;
+    custom_domain: number;
     priority_support: boolean;
     team_access: boolean;
     profile_customization: boolean;
@@ -76,7 +76,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             links: 3,
             analytics: false,
             cloaking: false,
-            custom_domain: false,
+            custom_domain: 0,
             priority_support: false,
             team_access: false,
             profile_customization: true,
@@ -104,6 +104,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             { text: "Remove Linktery Branding", icon: "✨", tooltip: "Clean links without our branding badge." },
             { text: "Deeplink", icon: "⚡", tooltip: "Smart route optimization for social app traffic." },
             { text: "Advanced Analytics", icon: "📊" },
+            { text: "2 Custom Domains", icon: "🌐", tooltip: "Connect up to 2 domains to a Link or Public Profile." },
             { text: "Public API Access", icon: "🔌", tooltip: "Create and update Links, read Public Profiles, and pull aggregate analytics through API v1." },
             { text: "Link Optimization", icon: "🛡️" },
             { text: "Geo Targeting", icon: "🌍" }
@@ -112,7 +113,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             links: 15,
             analytics: true,
             cloaking: true,
-            custom_domain: false,
+            custom_domain: 2,
             priority_support: false,
             team_access: false,
             profile_customization: true,
@@ -137,7 +138,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             { text: "Unlimited Links", icon: "🚀" },
             { ...getPublicProfileFeatureCopy(25), icon: "👥" },
             { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
-            { text: "Custom Domains (Unlimited)", icon: "🌐", tooltip: "Run Linktery on your own domains." },
+            { text: "10 Custom Domains", icon: "🌐", tooltip: "Connect up to 10 domains to a Link or Public Profile." },
             { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
             { text: "Public API Access", icon: "🔌", tooltip: "API v1 access with higher rate and daily usage limits." },
             { text: "Everything in Pro", icon: "✅" }
@@ -146,7 +147,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             links: -1,
             analytics: true,
             cloaking: true,
-            custom_domain: true,
+            custom_domain: 10,
             priority_support: true,
             // Reserved for a future seats/roles product. Do not market an
             // entitlement until collaborative workspaces actually exist.

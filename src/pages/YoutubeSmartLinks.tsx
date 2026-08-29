@@ -521,7 +521,7 @@ export default function YoutubeSmartLinks() {
               </tr>
               <tr className="hover:bg-surface-hover/40 transition-colors">
                 <td className="p-4 md:p-6 font-semibold text-white">Support Custom domains</td>
-                <td className="p-4 md:p-6 text-green-400 font-medium">✅ Yes (Free mapping)</td>
+                <td className="p-4 md:p-6 text-green-400 font-medium">✅ Up to 25 on Agency</td>
                 <td className="p-4 md:p-6">Only premium plans</td>
                 <td className="p-4 md:p-6">Only premium plans</td>
               </tr>

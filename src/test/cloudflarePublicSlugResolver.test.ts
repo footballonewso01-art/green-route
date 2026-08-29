@@ -21,6 +21,46 @@ afterEach(() => {
 });
 
 describe("Cloudflare public slug resolver", () => {
+  it("preserves profile pagination while rejecting client host and internal-header overrides", async () => {
+    const upstreamFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('{"links":[]}', {
+      headers: { "Content-Type": "application/json", "X-Linktery-Public-Resolver": "v1" },
+    }));
+    vi.stubGlobal("fetch", upstreamFetch);
+    const response = await worker.fetch(new Request("https://www.brand.example/api/public/profiles/creator?page=2&domain=victim.example", {
+      headers: { "X-Linktery-Public-Host": "victim.example", "X-Linktery-Custom-Domain-Root": "0" },
+    }), createEnv());
+    expect(response.status).toBe(200);
+    expect(String(upstreamFetch.mock.calls[0][0])).toBe("https://greenroute-pb.fly.dev/api/public/profiles/creator?page=2&domain=www.brand.example");
+    const headers = new Headers(upstreamFetch.mock.calls[0][1]?.headers);
+    expect(headers.get("X-Linktery-Public-Host")).toBe("www.brand.example");
+    expect(headers.get("X-Linktery-Custom-Domain-Root")).toBe("1");
+    const invalid = await worker.fetch(new Request("https://www.brand.example/api/public/profiles/creator?page=-1"), createEnv());
+    expect(invalid.status).toBe(400);
+    expect(upstreamFetch).toHaveBeenCalledOnce();
+  });
+
+  it("never publishes the marketing sitemap on a customer hostname", async () => {
+    const upstream = vi.fn();
+    vi.stubGlobal("fetch", upstream);
+    const sitemap = await worker.fetch(new Request("https://brand.example/sitemap.xml"), createEnv());
+    const robots = await worker.fetch(new Request("https://brand.example/robots.txt"), createEnv());
+    expect(sitemap.status).toBe(404);
+    expect(await robots.text()).toBe("User-agent: *\nDisallow: /\n");
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["linktery.com", 200],
+    ["linktery.bio", 200],
+    ["www.brand.example", 503],
+  ])("limits legacy profile compatibility on %s to the existing first-party hosts", async (host, status) => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ profile: { id: "legacy-profile" }, links: [] }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    })));
+    const response = await worker.fetch(new Request(`https://${host}/api/public/profiles/creator`), createEnv());
+    expect(response.status).toBe(status);
+    expect((await response.text()).includes("legacy-profile")).toBe(status === 200);
+  });
   it("resolves browser fallbacks through a fixed endpoint with trusted Geo/IP", async () => {
     const upstreamFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(
       JSON.stringify({ destination_url: "https://example.com/us" }), {
@@ -230,5 +270,123 @@ describe("Cloudflare public slug resolver", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("");
     expect(upstreamFetch).not.toHaveBeenCalled();
+  });
+
+  it("routes a custom hostname root to its exact Link target without exposing the slug", async () => {
+    const upstreamFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/public/custom-domain")) {
+        return new Response(JSON.stringify({ type: "link", id: "abcde12345abcde", slug: "campaign" }), {
+          status: 200,
+          headers: { "X-Linktery-Custom-Domain-Origin": "v1" },
+        });
+      }
+      return new Response(null, {
+        status: 302,
+        headers: { Location: "https://example.com/final", "X-Linktery-Redirect-Origin": "v1" },
+      });
+    });
+    vi.stubGlobal("fetch", upstreamFetch);
+
+    const response = await worker.fetch(new Request("https://brand.example/", {
+      headers: { "CF-Connecting-IP": "2001:db8::20", "CF-IPCountry": "DE" },
+    }), createEnv());
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("https://example.com/final");
+    expect(upstreamFetch).toHaveBeenCalledTimes(2);
+    expect(String(upstreamFetch.mock.calls[1]?.[0])).toBe("https://greenroute-pb.fly.dev/campaign");
+    const mappingHeaders = new Headers(upstreamFetch.mock.calls[0]?.[1]?.headers);
+    const resolverHeaders = new Headers(upstreamFetch.mock.calls[1]?.[1]?.headers);
+    expect(mappingHeaders.get("X-Linktery-Public-Host")).toBe("brand.example");
+    expect(resolverHeaders.get("X-Linktery-Custom-Domain-Root")).toBe("1");
+    expect(resolverHeaders.get("X-Linktery-Public-Host")).toBe("brand.example");
+  });
+
+  it("caches only a valid positive hostname mapping for 30 seconds", async () => {
+    let stored: Response | undefined;
+    const edgeCache = {
+      match: vi.fn(async () => stored?.clone()),
+      put: vi.fn(async (_key: Request, response: Response) => { stored = response.clone(); }),
+    };
+    vi.stubGlobal("caches", { default: edgeCache });
+    const upstreamFetch = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/api/public/custom-domain")) {
+        return new Response(JSON.stringify({ type: "link", id: "abcde12345abcde", slug: "campaign" }), {
+          status: 200,
+          headers: { "X-Linktery-Custom-Domain-Origin": "v1" },
+        });
+      }
+      return new Response(null, {
+        status: 302,
+        headers: { Location: "https://example.com/final", "X-Linktery-Redirect-Origin": "v1" },
+      });
+    });
+    vi.stubGlobal("fetch", upstreamFetch);
+    const pending: Promise<unknown>[] = [];
+    const context = { waitUntil: (promise: Promise<unknown>) => pending.push(promise) };
+
+    await worker.fetch(new Request("https://brand.example/"), createEnv(), context);
+    await Promise.all(pending);
+    await worker.fetch(new Request("https://brand.example/"), createEnv(), context);
+
+    const mappingCalls = upstreamFetch.mock.calls.filter(([input]) => String(input).endsWith("/api/public/custom-domain"));
+    expect(mappingCalls).toHaveLength(1);
+    expect(edgeCache.put).toHaveBeenCalledOnce();
+    expect(new Headers((edgeCache.put.mock.calls[0]?.[1] as Response).headers).get("Cache-Control")).toBe("public, max-age=30");
+  });
+
+  it("keeps a custom-domain Public Profile at the hostname root", async () => {
+    const upstreamFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/public/custom-domain")) {
+        return new Response(JSON.stringify({ type: "profile", id: "abcde12345abcde", slug: "creator" }), {
+          status: 200,
+          headers: { "X-Linktery-Custom-Domain-Origin": "v1" },
+        });
+      }
+      return new Response(JSON.stringify({ message: "Public frontend route required" }), {
+        status: 404,
+        headers: { "X-Linktery-Redirect-Origin": "v1" },
+      });
+    });
+    vi.stubGlobal("fetch", upstreamFetch);
+    const env = createEnv();
+
+    const response = await worker.fetch(new Request("https://creator.example/"), env);
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("public-spa-shell");
+    expect(response.headers.get("x-robots-tag")).toContain("noindex");
+    expect(String(upstreamFetch.mock.calls[1]?.[0])).toBe("https://greenroute-pb.fly.dev/creator");
+  });
+
+  it("returns a real 404 for unknown custom hostnames and their system paths", async () => {
+    const edgeCache = { match: vi.fn(async () => undefined), put: vi.fn(async () => undefined) };
+    vi.stubGlobal("caches", { default: edgeCache });
+    const upstreamFetch = vi.fn(async () => new Response(JSON.stringify({ message: "Not found" }), {
+      status: 404,
+      headers: { "X-Linktery-Custom-Domain-Origin": "v1" },
+    }));
+    vi.stubGlobal("fetch", upstreamFetch);
+    const env = createEnv("<html>branded-not-found</html>");
+
+    const root = await worker.fetch(new Request("https://unknown.example/"), env);
+    const dashboard = await worker.fetch(new Request("https://unknown.example/dashboard"), env);
+
+    expect(root.status).toBe(404);
+    expect(dashboard.status).toBe(404);
+    expect(upstreamFetch).toHaveBeenCalledOnce();
+    expect(edgeCache.put).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when a custom-domain mapping is not attested", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      JSON.stringify({ type: "link", id: "abcde12345abcde", slug: "stolen" }),
+      { status: 200 },
+    )));
+    const response = await worker.fetch(new Request("https://brand.example/"), createEnv());
+    expect(response.status).toBe(503);
+    expect(await response.text()).not.toContain("stolen");
   });
 });

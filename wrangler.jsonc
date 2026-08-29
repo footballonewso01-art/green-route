@@ -39,9 +39,7 @@
       "!/stitch-image2.png",
       "!/*.webp",
       "!/*.mp4",
-      "!/*.svg",
-      "!/robots.txt",
-      "!/sitemap.xml"
+      "!/*.svg"
     ]
   },
   "browser": {

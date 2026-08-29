@@ -75,7 +75,7 @@ export default function MusicSmartLinks() {
     },
     {
       question: "Can I use my own custom domain for music links?",
-      answer: "Yes. With Linktery, you can map your own domain or subdomain (e.g., links.myband.com) to your release pages. This keeps your brand consistent, increases trust, and improves click-through rates compared to generic sharing domains."
+      answer: "Yes. Creator Pro includes 2 custom domains and Agency includes 10 domains or subdomains (for example, links.myband.com) for branded Links and Public Profiles."
     },
     {
       question: "Does Linktery support pre-saves for unreleased tracks?",
@@ -540,7 +540,7 @@ export default function MusicSmartLinks() {
               </tr>
               <tr className="hover:bg-surface-hover/40 transition-colors">
                 <td className="p-4 md:p-6 font-semibold text-white">Support Custom domains</td>
-                <td className="p-4 md:p-6 text-green-400 font-medium">✅ Yes (Free mapping)</td>
+                <td className="p-4 md:p-6 text-green-400 font-medium">✅ Up to 25 on Agency</td>
                 <td className="p-4 md:p-6">Only premium plans</td>
                 <td className="p-4 md:p-6">Only premium plans</td>
               </tr>

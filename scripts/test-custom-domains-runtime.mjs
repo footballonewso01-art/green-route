@@ -1,0 +1,210 @@
+// Explicit local fixture only. Never accepts a remote origin or production DB.
+import { spawn, spawnSync, execFileSync } from "node:child_process";
+import { resolve, sep } from "node:path";
+import { randomBytes } from "node:crypto";
+import assert from "node:assert/strict";
+
+const root = resolve(process.cwd());
+const dir = resolve(process.argv[2] || "pb_test/custom_domains_review_20260828");
+assert(dir.startsWith(resolve(root, "pb_test") + sep), "Only pb_test fixtures are allowed");
+const db = resolve(dir, "data.db");
+const origin = "http://127.0.0.1:8098";
+const edgeSecret = randomBytes(32).toString("hex");
+const sql = (query) => execFileSync("sqlite3", [db, query], { encoding: "utf8", windowsHide: true }).trim();
+const env = {
+  ...process.env, CUSTOM_DOMAINS_ENABLED: "true", REDIRECT_ORIGIN_SECRET: edgeSecret,
+  CLOUDFLARE_SAAS_API_TOKEN: "local-fixture-not-a-real-token", CLOUDFLARE_SAAS_ZONE_ID: "a".repeat(32),
+  CLOUDFLARE_SAAS_CNAME_TARGET: "domains.linktery.com", STRIPE_SECRET_KEY: "", STRIPE_WEBHOOK_SECRET: "",
+  API_ORIGIN_ENFORCEMENT: "off", CLICK_IP_SALT: randomBytes(32).toString("hex"),
+  SOCIAL_PREVIEW_ENABLED: "true", CUSTOM_DOMAINS_ALLOWED_USER_IDS: "",
+};
+const server = spawn(resolve("pocketbase/pocketbase-0.24.exe"), ["serve", "--http=127.0.0.1:8098", `--dir=${dir}`, `--hooksDir=${resolve("pocketbase/pb_hooks")}`, `--migrationsDir=${resolve("pocketbase/pb_migrations")}`], { env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+let logs = "";
+server.stdout.on("data", (data) => { logs = (logs + data).slice(-20000); });
+server.stderr.on("data", (data) => { logs = (logs + data).slice(-20000); });
+
+async function request(path, token = "", method = "GET", data, extraHeaders = {}) {
+  const response = await fetch(origin + path, {
+    method, redirect: "manual", signal: AbortSignal.timeout(10000),
+    headers: { ...(token ? { Authorization: token } : {}), ...(data ? { "Content-Type": "application/json" } : {}), ...extraHeaders },
+    body: data ? JSON.stringify(data) : undefined,
+  });
+  const body = await response.text();
+  let parsed;
+  try { parsed = JSON.parse(body); } catch { parsed = body; }
+  return { status: response.status, body: parsed, headers: response.headers };
+}
+
+try {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    try { if ((await fetch(origin + "/api/health")).ok) break; } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  assert.equal((await request("/api/domains")).status, 401);
+  assert.equal((await request("/api/public/custom-domain")).status, 404);
+  const suffix = randomBytes(5).toString("hex");
+  const password = randomBytes(24).toString("hex");
+  const email = `domains-${suffix}@local.test`;
+  // Repeated tests must not consume the local fixture's signup IP allowance.
+  // This is restricted above to pb_test and touches only synthetic test users.
+  sql("UPDATE users SET created_ip='fixture-' || id WHERE created_ip='127.0.0.1' OR email GLOB 'domains-*@local.test';");
+  const userResult = await request("/api/collections/users/records", "", "POST", { username: `domains${suffix}`, email, password, passwordConfirm: password });
+  assert.equal(userResult.status, 200, JSON.stringify(userResult.body));
+  const userId = userResult.body.id;
+  sql(`UPDATE users SET plan='agency', plan_status='active', plan_expires_at='2030-01-01 00:00:00.000Z' WHERE id='${userId}';`);
+  const auth = await request("/api/collections/users/auth-with-password", "", "POST", { identity: email, password });
+  assert.equal(auth.status, 200);
+  const token = auth.body.token;
+  const profiles = await request(`/api/collections/public_profiles/records?filter=user_id%3D%22${userId}%22`, token);
+  assert.equal(profiles.status, 200);
+  let profile = profiles.body.items[0];
+  if (!profile) {
+    const madeProfile = await request("/api/collections/public_profiles/records", token, "POST", { user_id: userId, slug: `cdtest${suffix}`, name: "Local domain profile", domain: "linktery.com" });
+    assert.equal(madeProfile.status, 200, JSON.stringify(madeProfile.body));
+    profile = madeProfile.body;
+  }
+  // Keep the www label to catch accidental first-party canonicalization of a
+  // customer-owned hostname in either the Link or Public Profile fallback.
+  const hostname = `www.test-${suffix}.example`;
+  const created = await request("/api/domains", token, "POST", { hostname, target_type: "profile", target_id: profile.id });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  const domain = created.body.domain;
+  assert.equal(domain.ownership.name, `_linktery-verification.${hostname}`);
+  assert(domain.ownership.value.startsWith("linktery-domain-"));
+  assert.equal(domain.status, "pending");
+  assert(!JSON.stringify(domain).includes("cloudflare_hostname_id"));
+  assert.equal((await request("/api/domains", token)).body.domains.length, 1);
+  const duplicate = await request("/api/domains", token, "POST", { hostname, target_type: "profile", target_id: profile.id });
+  assert.equal(duplicate.status, 409);
+
+  // A pending claim is not ownership. Another paid account must be able to
+  // start its own account-specific TXT challenge for the same hostname, while
+  // the partial unique index guarantees that only the first verified claim
+  // can become routable/provisioned.
+  const challengerSuffix = randomBytes(5).toString("hex");
+  const challengerPassword = randomBytes(24).toString("hex");
+  const challengerEmail = `domains-${challengerSuffix}@local.test`;
+  const challengerResult = await request("/api/collections/users/records", "", "POST", {
+    username: `domains${challengerSuffix}`,
+    email: challengerEmail,
+    password: challengerPassword,
+    passwordConfirm: challengerPassword,
+  });
+  assert.equal(challengerResult.status, 200, JSON.stringify(challengerResult.body));
+  const challengerId = challengerResult.body.id;
+  sql(`UPDATE users SET plan='pro', plan_status='active', plan_expires_at='2030-01-01 00:00:00.000Z', created_ip='fixture-${challengerId}' WHERE id='${challengerId}';`);
+  const challengerAuth = await request("/api/collections/users/auth-with-password", "", "POST", { identity: challengerEmail, password: challengerPassword });
+  assert.equal(challengerAuth.status, 200);
+  const challengerProfiles = await request(`/api/collections/public_profiles/records?filter=user_id%3D%22${challengerId}%22`, challengerAuth.body.token);
+  assert.equal(challengerProfiles.status, 200);
+  let challengerProfile = challengerProfiles.body.items[0];
+  if (!challengerProfile) {
+    const madeChallengerProfile = await request("/api/collections/public_profiles/records", challengerAuth.body.token, "POST", {
+      user_id: challengerId,
+      slug: `cdtest${challengerSuffix}`,
+      name: "Local domain challenger",
+      domain: "linktery.com",
+    });
+    assert.equal(madeChallengerProfile.status, 200, JSON.stringify(madeChallengerProfile.body));
+    challengerProfile = madeChallengerProfile.body;
+  }
+  const challengerClaim = await request("/api/domains", challengerAuth.body.token, "POST", { hostname, target_type: "profile", target_id: challengerProfile.id });
+  assert.equal(challengerClaim.status, 201, JSON.stringify(challengerClaim.body));
+  assert.notEqual(challengerClaim.body.domain.ownership.value, domain.ownership.value, "Each account must receive an independent ownership token");
+  const challengerSecond = await request("/api/domains", challengerAuth.body.token, "POST", {
+    hostname: `second-${challengerSuffix}.example`,
+    target_type: "profile",
+    target_id: challengerProfile.id,
+  });
+  assert.equal(challengerSecond.status, 201, JSON.stringify(challengerSecond.body));
+  const challengerOverLimit = await request("/api/domains", challengerAuth.body.token, "POST", {
+    hostname: `third-${challengerSuffix}.example`,
+    target_type: "profile",
+    target_id: challengerProfile.id,
+  });
+  assert.equal(challengerOverLimit.status, 409, "Creator Pro must be capped at two simultaneous domains server-side");
+  const challengerOverview = await request("/api/domains", challengerAuth.body.token);
+  assert.equal(challengerOverview.status, 200);
+  assert.equal(challengerOverview.body.limit, 2);
+  assert.equal(challengerOverview.body.total, 2);
+  sql(`UPDATE users SET plan='creator', plan_status='', plan_expires_at='' WHERE id='${challengerId}';`);
+  const freeAttempt = await request("/api/domains", challengerAuth.body.token, "POST", {
+    hostname: `free-${challengerSuffix}.example`,
+    target_type: "profile",
+    target_id: challengerProfile.id,
+  });
+  assert.equal(freeAttempt.status, 403, "Free accounts must not create Custom Domains");
+
+  assert.equal((await request(`/api/collections/public_profiles/records/${profile.id}`, token, "DELETE")).status, 400);
+  const foreign = sql(`SELECT id FROM public_profiles WHERE user_id != '${userId}' LIMIT 1;`);
+  assert.equal((await request(`/api/domains/${domain.id}`, token, "PATCH", { target_type: "profile", target_id: foreign })).status, 403);
+  assert.equal((await request("/api/domains", token, "POST", { hostname: "api.linktery.com", target_type: "profile", target_id: profile.id })).status, 400);
+  const trusted = { "X-Linktery-Redirect-Secret": edgeSecret, "X-Linktery-Public-Host": hostname, "X-Linktery-Custom-Domain-Root": "1", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36", "X-Linktery-Request-Id": `custom-domain-${suffix}`, "X-Linktery-Client-IP": "198.51.100.42" };
+  assert.equal((await request("/api/public/custom-domain", "", "GET", undefined, trusted)).status, 404);
+  sql(`UPDATE custom_domains SET status='active', dns_verified_at='2026-08-28T00:00:00Z', next_check_at='2030-01-01T00:00:00Z' WHERE id='${domain.id}';`);
+  const ownershipCollision = spawnSync("sqlite3", [db, `UPDATE custom_domains SET dns_verified_at='2026-08-28T00:00:01Z' WHERE id='${challengerClaim.body.domain.id}';`], {
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  assert.notEqual(ownershipCollision.status, 0, "Only one account may win ownership of a hostname");
+  assert.match(String(ownershipCollision.stderr || ""), /UNIQUE constraint failed/i);
+  const mapping = await request("/api/public/custom-domain", "", "GET", undefined, trusted);
+  assert.equal(mapping.status, 200);
+  assert.equal(mapping.body.id, profile.id);
+  const rendered = await request(`/api/public/profiles/${profile.slug}?page=1&domain=evil.example`, "", "GET", undefined, trusted);
+  assert.equal(rendered.status, 200, JSON.stringify(rendered.body));
+  assert.equal(rendered.body.profile.id, profile.id);
+  const stagingProfile = await request(`/api/public/profiles/${profile.slug}?page=1`, "", "GET", undefined, { ...trusted, "X-Linktery-Public-Host": "linktery-frontend-staging.footballonewso01.workers.dev", "X-Linktery-Custom-Domain-Root": "" });
+  assert.equal(stagingProfile.status, 200, "Staging card destinations must stay on the staging backend");
+  assert.equal((await request(`/api/public/profiles/${profile.slug}`, "", "GET", undefined, { ...trusted, "X-Linktery-Public-Host": "unknown.example" })).status, 404);
+  await request(`/${profile.slug}`, "", "GET", undefined, trusted);
+  assert.equal(Number(sql(`SELECT COUNT(*) FROM profile_view_events WHERE profile_id='${profile.id}';`)), 1, "Custom root must use the existing profile view pipeline");
+  // A retry with the same edge request id is not a second profile view.
+  await request(`/${profile.slug}`, "", "GET", undefined, trusted);
+  assert.equal(Number(sql(`SELECT COUNT(*) FROM profile_view_events WHERE profile_id='${profile.id}';`)), 1);
+  const aliasLink = await request("/api/collections/links/records", token, "POST", { user_id: userId, slug: `cdalias${suffix}`, domain: "linktery.bio", title: "Test product", destination_url: "https://example.com/product", active: true });
+  assert.equal(aliasLink.status, 200, JSON.stringify(aliasLink.body));
+  const card = await request("/api/collections/profile_links/records", token, "POST", { user_id: userId, profile_id: profile.id, link_id: aliasLink.body.id, visible: true });
+  assert.equal(card.status, 200, JSON.stringify(card.body));
+  const profileWithCard = await request(`/api/public/profiles/${profile.slug}`, "", "GET", undefined, trusted);
+  assert.equal(profileWithCard.status, 200);
+  assert.equal(profileWithCard.body.links.find((item) => item.id === card.body.id).link.domain, "linktery.bio");
+  const cardPath = `/${aliasLink.body.slug}?ref=profile&profile_id=${profile.id}&profile_link_id=${card.body.id}`;
+  const aliasHeaders = { ...trusted, "X-Linktery-Public-Host": "linktery.bio", "X-Linktery-Custom-Domain-Root": "", "X-Linktery-Request-Id": `custom-card-${suffix}`, "X-Linktery-Country": "DE" };
+  const cardClick = await request(cardPath, "", "GET", undefined, aliasHeaders);
+  assert.equal(cardClick.status, 302);
+  assert.equal(cardClick.headers.get("Location"), "https://example.com/product");
+  assert.equal(Number(sql(`SELECT COUNT(*) FROM clicks WHERE source_profile_id='${profile.id}' AND profile_link_id='${card.body.id}' AND country='DE';`)), 1);
+  assert.equal(Number(sql(`SELECT SUM(total) FROM profile_click_hourly_rollup WHERE profile_id='${profile.id}' AND profile_link_id='${card.body.id}';`)), 1);
+  const wrongHost = await request(cardPath, "", "GET", undefined, { ...aliasHeaders, "X-Linktery-Public-Host": "linktery.com", "X-Linktery-Request-Id": `wrong-host-${suffix}` });
+  assert.equal(wrongHost.status, 404, "A primary-domain request must not resolve an alias-domain Link");
+  assert.equal(Number(sql(`SELECT COUNT(*) FROM clicks WHERE source_profile_id='${profile.id}' AND profile_link_id='${card.body.id}';`)), 1);
+  const goodLink = await request("/api/collections/links/records", token, "POST", { user_id: userId, slug: `cdlink${suffix}`, domain: "linktery.com", title: "Test course", destination_url: "https://example.com/course", active: true });
+  assert.equal(goodLink.status, 200, JSON.stringify(goodLink.body));
+  const switched = await request(`/api/domains/${domain.id}`, token, "PATCH", { target_type: "link", target_id: goodLink.body.id });
+  assert.equal(switched.status, 200, JSON.stringify(switched.body));
+  assert.equal((await request(`/api/public/profiles/${profile.slug}`, "", "GET", undefined, trusted)).status, 404);
+  const redirect = await request(`/${goodLink.body.slug}`, "", "GET", undefined, { ...trusted, "X-Linktery-Request-Id": `custom-link-${suffix}` });
+  assert.equal(redirect.status, 302);
+  assert.equal(redirect.headers.get("Location"), "https://example.com/course");
+  const socialPreview = await request(`/${goodLink.body.slug}`, "", "GET", undefined, { ...trusted, "User-Agent": "TelegramBot (like TwitterBot)" });
+  assert.equal(socialPreview.status, 200);
+  assert(String(socialPreview.body).includes(`https://${hostname}/`));
+  assert(!String(socialPreview.body).includes(`https://${hostname}/${goodLink.body.slug}`));
+  sql(`UPDATE users SET plan_expires_at='2020-01-01 00:00:00.000Z' WHERE id='${userId}';`);
+  assert.equal((await request("/api/public/custom-domain", "", "GET", undefined, trusted)).status, 404);
+  sql(`UPDATE users SET plan_expires_at='2030-01-01 00:00:00.000Z' WHERE id='${userId}';`);
+  // Disable synthetic verification before disconnect: no provider object was created.
+  sql(`UPDATE custom_domains SET dns_verified_at='' WHERE id='${domain.id}';`);
+  assert.equal((await request(`/api/domains/${domain.id}`, token, "DELETE")).status, 200);
+  assert.equal((await request(`/api/collections/public_profiles/records/${profile.id}`, token)).status, 200);
+  console.log("PASS: local auth/tenant isolation, Free denial, Pro two-domain limit, anti-squatting ownership race, pending fail-closed, profile root/view dedup, cross-domain profile cards and atomic click analytics, wrong-host isolation, profile-to-Link reassignment, HTTP redirect, root OG URL, expired entitlement, target deletion guard and safe disconnect.");
+} catch (error) {
+  console.error(error && error.stack ? error.stack : String(error));
+  const relevant = logs.split(/\r?\n/).filter((line) => /custom domain|JSVM|ReferenceError|TypeError|panic/i.test(line));
+  console.error(relevant.join("\n"));
+  if (relevant.length === 0) console.error(logs);
+  process.exitCode = 1;
+} finally {
+  server.kill();
+}

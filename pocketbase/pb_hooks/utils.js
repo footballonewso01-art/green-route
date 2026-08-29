@@ -119,6 +119,55 @@ var isTrustedRedirectEdgeRequest = function(eventOrRequest) {
     }
 };
 
+var CUSTOM_DOMAIN_PLAN_LIMITS = { pro: 2, agency: 10 };
+
+var getCustomDomainLimitForPlan = function(planName) {
+    return Number(CUSTOM_DOMAIN_PLAN_LIMITS[String(planName || "").trim().toLowerCase()] || 0);
+};
+
+var isCustomDomainRecordWithinPlanLimit = function(app, owner, mapping) {
+    var limit = getCustomDomainLimitForPlan(getEffectivePlanNameForUser(owner));
+    if (limit <= 0 || !mapping) return false;
+    var allowed = app.findRecordsByFilter(
+        "custom_domains", "user_id = {:userId}", "created,id", limit, 0, { userId: owner.id }
+    );
+    return allowed.some(function(record) { return record.id === mapping.id; });
+};
+
+// Resolve a root custom hostname only when the request is authenticated by the
+// frontend Worker. This lookup is deliberately host + stored target id based;
+// it never falls back to a same-slug record owned by another account/domain.
+var resolveActiveCustomDomainTarget = function(app, eventOrRequest, targetType) {
+    if (String($os.getenv("CUSTOM_DOMAINS_ENABLED") || "").trim().toLowerCase() !== "true") return null;
+    if (!isTrustedRedirectEdgeRequest(eventOrRequest)) return null;
+    var event = eventOrRequest || null;
+    var request = event && event.request ? event.request : event;
+    try {
+        if (String(request.header.get("X-Linktery-Custom-Domain-Root") || "") !== "1") return null;
+        var hostname = String(request.header.get("X-Linktery-Public-Host") || "")
+            .trim().toLowerCase().replace(/\.$/, "");
+        if (!/^[a-z0-9](?:[a-z0-9.-]{2,251}[a-z0-9])$/.test(hostname)) return null;
+        var mapping = app.findFirstRecordByFilter(
+            "custom_domains",
+            "hostname = {:hostname} && status = 'active' && target_type = {:targetType}",
+            { hostname: hostname, targetType: targetType }
+        );
+        var owner = app.findRecordById("users", String(mapping.get("user_id") || ""));
+        if (!mapping.get("dns_verified_at")) return null;
+        var pilotUsers = String($os.getenv("CUSTOM_DOMAINS_ALLOWED_USER_IDS") || "").trim();
+        if (pilotUsers && !pilotUsers.split(",").some(function(id) { return id.trim() === owner.id; })) return null;
+        if (!isCustomDomainRecordWithinPlanLimit(app, owner, mapping)) return null;
+        var field = targetType === "link" ? "link_id" : "profile_id";
+        var collection = targetType === "link" ? "links" : "public_profiles";
+        var target = app.findRecordById(collection, String(mapping.get(field) || ""));
+        if (String(target.get("user_id") || "") !== owner.id) return null;
+        if (targetType === "link" && target.get("active") !== true) return null;
+        return { mapping: mapping, target: target };
+    } catch (err) {
+        return null;
+    }
+};
+
 var isTrustedApiGatewayRequest = function(eventOrRequest) {
     var event = eventOrRequest || null;
     var request = event && event.request ? event.request : event;
@@ -1854,9 +1903,9 @@ var requireKnownStripeLineItemPrice = function(lineItems) {
 };
 
 var PLAN_CATALOG = {
-    "creator": { "links": 3, "publicProfiles": 1, "monthlyPrice": 0, "analytics": false, "customSlug": false, "apiKeys": 0, "apiRatePerMinute": 0, "apiWriteRatePerMinute": 0, "apiAnalyticsRatePerMinute": 0, "apiWriteDailyLimit": 0, "apiCreateDailyLimit": 0 },
-    "pro": { "links": 15, "publicProfiles": 3, "monthlyPrice": 11, "analytics": true, "customSlug": false, "apiKeys": 1, "apiRatePerMinute": 60, "apiWriteRatePerMinute": 15, "apiAnalyticsRatePerMinute": 20, "apiWriteDailyLimit": 1000, "apiCreateDailyLimit": 100 },
-    "agency": { "links": -1, "publicProfiles": 25, "monthlyPrice": 29, "analytics": true, "customSlug": true, "apiKeys": 1, "apiRatePerMinute": 300, "apiWriteRatePerMinute": 60, "apiAnalyticsRatePerMinute": 60, "apiWriteDailyLimit": 10000, "apiCreateDailyLimit": 2000 }
+    "creator": { "links": 3, "publicProfiles": 1, "customDomains": 0, "monthlyPrice": 0, "analytics": false, "customSlug": false, "apiKeys": 0, "apiRatePerMinute": 0, "apiWriteRatePerMinute": 0, "apiAnalyticsRatePerMinute": 0, "apiWriteDailyLimit": 0, "apiCreateDailyLimit": 0 },
+    "pro": { "links": 15, "publicProfiles": 3, "customDomains": 2, "monthlyPrice": 11, "analytics": true, "customSlug": false, "apiKeys": 1, "apiRatePerMinute": 60, "apiWriteRatePerMinute": 15, "apiAnalyticsRatePerMinute": 20, "apiWriteDailyLimit": 1000, "apiCreateDailyLimit": 100 },
+    "agency": { "links": -1, "publicProfiles": 25, "customDomains": 10, "monthlyPrice": 29, "analytics": true, "customSlug": true, "apiKeys": 1, "apiRatePerMinute": 300, "apiWriteRatePerMinute": 60, "apiAnalyticsRatePerMinute": 60, "apiWriteDailyLimit": 10000, "apiCreateDailyLimit": 2000 }
 };
 
 var PROFILE_TEMPLATES = {
@@ -2250,7 +2299,7 @@ var assertSafePublicListFilter = function(e, collectionName, authInfo) {
     );
 };
 
-var normalizeLinkHost = function(value) {
+var normalizeLinkHost = function(value, preserveWww) {
     var raw = String(value || "").trim().replace(/\\/g, "/");
     var scheme = "";
     var schemeMatch = raw.match(/^(https?):\/\//i);
@@ -2295,7 +2344,8 @@ var normalizeLinkHost = function(value) {
             return "";
         }
     }
-    host = host.trim().toLowerCase().replace(/\.+$/, "").replace(/^www\./, "");
+    host = host.trim().toLowerCase().replace(/\.+$/, "");
+    if (!preserveWww) host = host.replace(/^www\./, "");
     if (!host) return "";
     if (port) {
         var numericPort = parseInt(port, 10);
@@ -2356,6 +2406,7 @@ var parseHttpRoutingUrl = function(value) {
     return {
         scheme: String(match[1] || "").toLowerCase(),
         host: host,
+        exactHost: normalizeLinkHost(match[1] + "://" + authority, true),
         path: path,
         hasCredentials: hasCredentials
     };
@@ -2576,6 +2627,17 @@ var findManagedShortLinkTarget = function(url, app) {
     // must still resolve x@linktery.com as a managed host so the loop trace
     // cannot be bypassed by browser userinfo syntax.
     if (!parsedUrl) return null;
+    if (parsedUrl.path === "/") {
+        try {
+            var mapping = (app || $app).findFirstRecordByFilter(
+                "custom_domains",
+                "hostname = {:hostname} && target_type = 'link' && status = 'active' && dns_verified_at != ''",
+                { hostname: parsedUrl.exactHost }
+            );
+            var customLink = (app || $app).findRecordById("links", String(mapping.get("link_id") || ""));
+            return String(customLink.get("user_id") || "") === String(mapping.get("user_id") || "") ? customLink : null;
+        } catch (customLookupError) { return null; }
+    }
     var pathMatch = parsedUrl.path.match(/^\/([a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)$/i);
     if (!pathMatch) return null;
 
@@ -2598,7 +2660,16 @@ var findManagedShortLinkTarget = function(url, app) {
 var isPlatformPublicUrl = function(url) {
     var parsedUrl = parseHttpRoutingUrl(url);
     if (!parsedUrl || parsedUrl.hasCredentials) return false;
-    return getPlatformLinkHosts()[parsedUrl.host] === true;
+    if (getPlatformLinkHosts()[parsedUrl.host] === true) return true;
+    if (parsedUrl.path === "/") {
+        try {
+            return Boolean($app.findFirstRecordByFilter(
+                "custom_domains", "hostname = {:hostname} && status = 'active' && dns_verified_at != ''", { hostname: parsedUrl.exactHost }
+            ));
+        }
+        catch (customLookupError) {}
+    }
+    return false;
 };
 
 // URLSearchParams.set parity for the PocketBase runtime: replace existing
@@ -2737,7 +2808,7 @@ var toPlainStringArray = function(raw) {
     });
 };
 
-var validateTargetingUrls = function(record, app) {
+var validateTargetingUrls = function(record, app, connectingHostname) {
     var checkUrl = function (url, fieldName) {
         // Skip nulls, undefined, empty strings, numbers, booleans
         if (!url || typeof url !== "string") return;
@@ -2752,6 +2823,9 @@ var validateTargetingUrls = function(record, app) {
         }
         if (parsedUrl.hasCredentials) {
             throw new BadRequestError("Destination and targeting URLs cannot contain embedded credentials.");
+        }
+        if (connectingHostname && parsedUrl.exactHost === connectingHostname && parsedUrl.path === "/") {
+            throw new BadRequestError("This Link points back to the domain you are connecting. Choose its final destination first.");
         }
         if (findManagedShortLinkTarget(urlStr, app || $app)) {
             throw new BadRequestError("Use the final destination URL instead of another Linktery short URL. This prevents slow redirects and redirect loops.");
@@ -3232,6 +3306,7 @@ module.exports = {
     isReservedPublicSlug,
     validatePublicSlug,
     isTrustedRedirectEdgeRequest,
+    resolveActiveCustomDomainTarget,
     isTrustedApiGatewayRequest,
     isApiGatewayEnforcementEnabled,
     getClientIP,
@@ -3293,6 +3368,8 @@ module.exports = {
     PROFILE_SOCIAL_LINK_STYLES,
     getPlanCatalogEntry,
     getEffectivePlanNameForUser,
+    getCustomDomainLimitForPlan,
+    isCustomDomainRecordWithinPlanLimit,
     getApiPlanCatalogEntryForUser,
     revokeActiveApiKeysForUser,
     getStripePeriodFromSubscription,

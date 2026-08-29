@@ -102,8 +102,10 @@ describe("Public Profile analytics contract", () => {
     const utils = readWorkspaceFile("pocketbase/pb_hooks/utils.js");
     const hook = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
 
-    expect(publicProfile).toContain("profile_id=${encodeURIComponent(profile.id)}");
-    expect(publicProfile).toContain("profile_link_id=${encodeURIComponent(item.id)}");
+    expect(publicProfile).toContain("getPublicProfileCardHref(item.link, profile.id, item.id, customDomainRoot)");
+    const cardUrls = readWorkspaceFile("src/lib/publicAssets.ts");
+    expect(cardUrls).toContain("profile_id=${encodeURIComponent(profileId)}");
+    expect(cardUrls).toContain("profile_link_id=${encodeURIComponent(profileLinkId)}");
     expect(redirectHandler).toContain('urlParams.get("profile_id")');
     expect(redirectHandler).toContain('payload.set("profile_link_id", profileLinkId)');
     expect(utils).toContain("id = {:profileLinkId} && profile_id = {:profileId} && link_id = {:linkId} && visible = true");

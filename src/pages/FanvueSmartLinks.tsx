@@ -129,7 +129,7 @@ export default function FanvueSmartLinks() {
     },
     {
       question: "Do I need to pay extra for custom domains?",
-      answer: "No. Linktery allows you to bind your own custom domains (e.g. bio.myaiinfluencer.com) completely free on all creator accounts. Bind multiple domains to rotate links and spread ban risks."
+      answer: "Custom Domains are included with Creator Pro and Agency. Pro supports 2 domains and Agency supports 10, each assigned to a Link or Public Profile."
     }
   ];
 
@@ -658,7 +658,7 @@ export default function FanvueSmartLinks() {
               </tr>
               <tr className="hover:bg-surface-hover/40 transition-colors">
                 <td className="p-4 md:p-6 font-semibold text-white">Custom Subdomain Rotations</td>
-                <td className="p-4 md:p-6 text-green-400">✅ Yes (Free domain binding)</td>
+                <td className="p-4 md:p-6 text-green-400">✅ Up to 25 on Agency</td>
                 <td className="p-4 md:p-6">Only premium plans</td>
                 <td className="p-4 md:p-6">Only premium plans</td>
               </tr>

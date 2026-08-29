@@ -5,7 +5,20 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "dist-server", "pb_data", "pb_test", "pocketbase"] },
+  {
+    ignores: [
+      "dist",
+      "dist-cloudflare",
+      "dist-server",
+      ".local-security-artifacts",
+      ".npm-cache",
+      ".wrangler",
+      "output",
+      "pb_data",
+      "pb_test",
+      "pocketbase",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

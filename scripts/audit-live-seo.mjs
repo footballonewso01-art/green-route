@@ -3,6 +3,12 @@ const origin = baseUrl.origin;
 const userAgent = "Linktery-SEO-Audit/1.0 (+https://linktery.com)";
 const failures = [];
 
+const assertCrawlerHintsSignal = (response, label) => {
+  if (!response.headers.get("cf-cache-status")) {
+    failures.push(`${label}: CF-Cache-Status is missing; Cloudflare Crawler Hints cannot observe cache changes`);
+  }
+};
+
 const normalizeUrl = (value) => {
   const url = new URL(value);
   url.hash = "";
@@ -43,6 +49,7 @@ try {
   const { response, body } = await fetchDocument(sitemapUrl);
   sitemapBody = body;
   if (response.status !== 200) failures.push(`/sitemap.xml returned ${response.status}`);
+  assertCrawlerHintsSignal(response, "/sitemap.xml");
 } catch (error) {
   failures.push(`/sitemap.xml request failed: ${error instanceof Error ? error.message : String(error)}`);
 }
@@ -70,6 +77,7 @@ const auditNext = async () => {
       const { response, body } = await fetchDocument(url);
       if (response.status !== 200) failures.push(`${url}: returned ${response.status}`);
       if (response.headers.get("location")) failures.push(`${url}: unexpectedly redirects`);
+      assertCrawlerHintsSignal(response, url);
 
       const headerRobots = response.headers.get("x-robots-tag") || "";
       if (/noindex/i.test(headerRobots)) failures.push(`${url}: X-Robots-Tag contains noindex`);

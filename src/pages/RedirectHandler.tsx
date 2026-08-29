@@ -11,7 +11,11 @@ import {
 } from "@/lib/deeplink";
 import { useSeo } from "@/hooks/useSeo";
 import { normalizeTrackingPixels } from "@/lib/trackingPixels";
-import { getPublicProfile, resolvePublicLink } from "@/lib/publicAssets";
+import {
+    getPublicAssetRequestStatus,
+    getPublicProfile,
+    resolvePublicLink,
+} from "@/lib/publicAssets";
 const PublicProfile = lazy(() => import("./PublicProfile"));
 
 // Utility to inject tracking pixels and allow them 400ms to fire before the page is destroyed by a redirect
@@ -87,11 +91,15 @@ const fireTrackingPixels = (link: Record<string, any>): Promise<void> => {
  * 3. BFCACHE AWARE — Handle browser Back/Forward cache restoration.
  * 4. HISTORY CLEAN — Use `window.location.replace()` to keep history stack clean.
  */
-export default function RedirectHandler() {
+interface RedirectHandlerProps {
+    slugOverride?: string;
+    customDomainRoot?: boolean;
+}
+
+export default function RedirectHandler({ slugOverride, customDomainRoot = false }: RedirectHandlerProps = {}) {
     const { username: rawUsername } = useParams();
-    const username = rawUsername && isValidPublicSlug(rawUsername)
-        ? rawUsername
-        : undefined;
+    const routeUsername = rawUsername && isValidPublicSlug(rawUsername) ? rawUsername : undefined;
+    const username = slugOverride && isValidPublicSlug(slugOverride) ? slugOverride : routeUsername;
     const [status, setStatus] = useState<"loading" | "verifying" | "error" | "deeplink" | "profile">("loading");
     const [error, setError] = useState<string | null>(null);
     const [destination, setDestination] = useState<string>("");
@@ -102,7 +110,7 @@ export default function RedirectHandler() {
     useSeo({
         title: "Link Redirect | Linktery",
         description: "Resolving a Linktery smart link.",
-        canonical: `/${username || ""}`,
+        canonical: customDomainRoot && typeof window !== "undefined" ? `${window.location.origin}/` : `/${username || ""}`,
         noIndex: true,
     });
 
@@ -250,6 +258,14 @@ export default function RedirectHandler() {
 
                 const link = linkResult.status === 'fulfilled' ? linkResult.value : null;
                 const userProfile = profileResult.status === 'fulfilled' ? profileResult.value.profile : null;
+                const linkFailureStatus = linkResult.status === 'rejected'
+                    ? getPublicAssetRequestStatus(linkResult.reason)
+                    : null;
+                const profileFailureStatus = profileResult.status === 'rejected'
+                    ? getPublicAssetRequestStatus(profileResult.reason)
+                    : null;
+                const hasTransientResolverFailure = [linkFailureStatus, profileFailureStatus]
+                    .some((responseStatus) => responseStatus === 0 || responseStatus === 429 || (responseStatus !== null && responseStatus >= 500));
 
                 // Profile takes priority if no active link found
                 if (!link && userProfile) {
@@ -259,7 +275,9 @@ export default function RedirectHandler() {
 
                 if (!link && !userProfile) {
                     setStatus("error");
-                    setError("Link not found or inactive");
+                    setError(hasTransientResolverFailure
+                        ? "LINK_TEMPORARILY_UNAVAILABLE"
+                        : "Link not found or inactive");
                     return;
                 }
 
@@ -317,12 +335,15 @@ export default function RedirectHandler() {
 
                     const destUrlObj = new URL(finalDestination, window.location.href);
                     const normalizedHost = destUrlObj.hostname.toLowerCase().replace(/^www\./, "");
-                    isManagedDestination = DEFAULT_AVAILABLE_DOMAINS.includes(normalizedHost as typeof DEFAULT_AVAILABLE_DOMAINS[number]);
-                    const isOurDomain = isManagedDestination || normalizedHost === window.location.hostname.toLowerCase().replace(/^www\./, "");
+                    isManagedDestination = link.destination_managed === true || DEFAULT_AVAILABLE_DOMAINS.includes(normalizedHost as typeof DEFAULT_AVAILABLE_DOMAINS[number]);
+                    const currentHost = window.location.hostname.toLowerCase();
+                    const isOurDomain = destUrlObj.hostname.toLowerCase() === currentHost ||
+                        (DEFAULT_AVAILABLE_DOMAINS.includes(normalizedHost as typeof DEFAULT_AVAILABLE_DOMAINS[number]) &&
+                         DEFAULT_AVAILABLE_DOMAINS.includes(currentHost.replace(/^www\./, "") as typeof DEFAULT_AVAILABLE_DOMAINS[number]));
                     
                     isSamePage = isOurDomain && destUrlObj.pathname.toLowerCase().replace(/\/$/, "") === window.location.pathname.toLowerCase().replace(/\/$/, "");
 
-                    if (isManagedDestination && /^\/[a-z0-9_-]+\/?$/i.test(destUrlObj.pathname)) {
+                    if (isManagedDestination && (destUrlObj.pathname === "/" || /^\/[a-z0-9_-]+\/?$/i.test(destUrlObj.pathname))) {
                         if (trace.length >= 8) {
                             setStatus("error");
                             setError("This redirect chain exceeded the safe hop limit and was stopped.");
@@ -344,7 +365,7 @@ export default function RedirectHandler() {
                 }
 
                 // Step 3: Track click, then redirect
-                if (link.mode === 'direct' && isInApp && !isLocalDestination) {
+                if (link.mode === 'direct' && isInApp && !isLocalDestination && !isManagedDestination) {
                     setStatus("deeplink");
                     trackClick(link);
                     await fireTrackingPixels(link);
@@ -394,7 +415,7 @@ export default function RedirectHandler() {
                     <Loader2 className="w-12 h-12 text-accent animate-spin mb-4" />
                 </div>
             }>
-                <PublicProfile />
+                <PublicProfile slugOverride={username} customDomainRoot={customDomainRoot} />
             </Suspense>
         );
     }
@@ -506,6 +527,7 @@ export default function RedirectHandler() {
 
     if (status === "error") {
         const isFrozen = error === "LINK_FROZEN";
+        const isTemporarilyUnavailable = error === "LINK_TEMPORARILY_UNAVAILABLE";
         return (
             <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center animate-fade-in">
                 <div className="relative mb-8">
@@ -519,12 +541,18 @@ export default function RedirectHandler() {
                     </div>
                 </div>
                 <h1 className="text-2xl font-bold text-foreground mb-3">
-                    {isFrozen ? "Link Suspended" : "Link Not Found"}
+                    {isFrozen
+                        ? "Link Suspended"
+                        : isTemporarilyUnavailable
+                            ? "Link Temporarily Unavailable"
+                            : "Link Not Found"}
                 </h1>
                 <p className="text-muted-foreground mb-8 max-w-xs mx-auto">
                     {isFrozen 
                         ? "This link is temporarily frozen because the owner has exceeded their plan limits." 
-                        : (error || "The link you're looking for doesn't exist or is no longer active.")}
+                        : isTemporarilyUnavailable
+                            ? "We couldn't reach the redirect service. Please try again in a moment."
+                            : (error || "The link you're looking for doesn't exist or is no longer active.")}
                 </p>
                 <a
                     href="/"

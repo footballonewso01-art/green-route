@@ -62,3 +62,22 @@ dist-server
 !.env.example
 !.env.production
 !.env.staging
+
+# Local development and audit artifacts
+.agent/preview.pid
+.hallmark/
+.npm-cache/
+**/__pycache__/
+output/
+pb_test/
+eslint_output.txt
+clear_dedup_and_test.mjs
+curl_test_c.py
+test_api.py
+test_diag.py
+test_local.py
+pocketbase/billing_diag.py
+pocketbase/check_rules.sh
+pocketbase/check_schema.py
+pocketbase/schema_diag.py
+pocketbase/test_verify.py

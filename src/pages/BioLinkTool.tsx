@@ -85,7 +85,7 @@ export default function BioLinkTool() {
     },
     {
       question: "Can I map my own custom subdomain to my Link-in-Bio profile?",
-      answer: "Yes. Mapping your own custom domain (e.g., links.yourname.com) is supported on our Agency plan ($29/mo). It requires setting up a CNAME record in your DNS settings. Custom domains build immediate credibility, increase user trust, and protect your profile links from shared platform bans."
+      answer: "Yes. Creator Pro supports 2 custom domains and Agency supports 10. Connecting one requires DNS ownership and HTTPS validation records, followed by a CNAME to Linktery. Custom domains build credibility and keep your public address on your own brand."
     },
     {
       question: "What monetization checkouts are compatible with Linktery?",

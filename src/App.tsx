@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AdminRoute } from "./components/AdminRoute";
 import {
+  isCustomPublicHostname,
   isPrimaryWwwDomain,
   isRedirectAliasDomain,
   PRIMARY_DOMAIN,
@@ -64,6 +65,7 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const HelpCenter = lazy(() => import("./pages/HelpCenter"));
 const InterstitialPage = lazy(() => import("./pages/InterstitialPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const CustomDomainRoot = lazy(() => import("./pages/CustomDomainRoot"));
 const BillingPage = lazy(() => import("./pages/Billing"));
 const DashboardPricing = lazy(() => import("./pages/DashboardPricing"));
 const PartnerOverview = lazy(() => import("./pages/PartnerOverview"));
@@ -140,9 +142,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+const RootRoute = () => typeof window !== "undefined" && isCustomPublicHostname(window.location.hostname)
+  ? <CustomDomainRoot />
+  : <LandingPage />;
+
 const AppRoutes = () => (
   <Routes>
-    <Route path="/" element={<LandingPage />} />
+    <Route path="/" element={<RootRoute />} />
     <Route path="/documentation" element={<DocumentationPage />} />
     <Route path="/login" element={<LoginPage />} />
     <Route path="/register" element={<RegisterPage />} />

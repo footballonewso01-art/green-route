@@ -1,10 +1,10 @@
 import subprocess
 
-sql = "SELECT date(c.created) as date, count(c.id) as clicks FROM clicks c WHERE c.created >= datetime('now', '-7 days') GROUP BY date ORDER BY date ASC LIMIT 5;"
+sql = "select method, path, status, errorMessage from requests order by created desc limit 20;"
 cmd = [
     "fly", "ssh", "console", 
     "-a", "greenroute-pb", 
-    "-C", f"sqlite3 /pb/pb_data/data.db \"{sql}\""
+    "-C", f"sqlite3 /pb/pb_data/logs.db \"{sql}\""
 ]
 
 print("Running command:", cmd)

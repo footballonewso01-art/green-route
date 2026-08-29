@@ -119,7 +119,7 @@ export default function CompetitorComparison() {
             "name": `Does ${competitorA.name} or ${competitorB.name} support custom domain mapping?`,
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": `${competitorA.name} custom domain requirement: ${competitorA.pricing.customDomains}. ${competitorB.name} custom domain requirement: ${competitorB.pricing.customDomains}. Linktery supports custom subdomains and root domains on the Agency plan ($29/mo) with unlimited landing pages.`
+              "text": `${competitorA.name} custom domain requirement: ${competitorA.pricing.customDomains}. ${competitorB.name} custom domain requirement: ${competitorB.pricing.customDomains}. Linktery supports up to 2 custom subdomains or root domains on Creator Pro and up to 10 on Agency.`
             }
           },
           {
@@ -169,7 +169,7 @@ export default function CompetitorComparison() {
     },
     {
       question: `How do custom domains compare between ${competitorA.name} and ${competitorB.name}?`,
-      answer: `${competitorA.name} custom domain mapping: ${competitorA.pricing.customDomains}. ${competitorB.name} custom domain mapping: ${competitorB.pricing.customDomains}. Linktery supports full custom domain mapping on our Agency plan, allowing you to run separate brands under one account.`
+      answer: `${competitorA.name} custom domain mapping: ${competitorA.pricing.customDomains}. ${competitorB.name} custom domain mapping: ${competitorB.pricing.customDomains}. Linktery supports up to 2 custom domains on Creator Pro and up to 10 on Agency for separate brands under one account.`
     }
   ];
 

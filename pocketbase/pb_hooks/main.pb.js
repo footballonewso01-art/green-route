@@ -1094,7 +1094,10 @@ routerAdd("GET", "/{slug}", (c) => {
     let requestedHost = "";
     if (trustedEdgeRequest) {
         requestedHost = String(request.header.get("X-Linktery-Public-Host") || "")
-            .trim().toLowerCase().replace(/^www\./, "");
+            .trim().toLowerCase().replace(/\.$/, "");
+        if (String(request.header.get("X-Linktery-Custom-Domain-Root") || "") !== "1") {
+            requestedHost = requestedHost.replace(/^www\./, "");
+        }
         if (!/^[a-z0-9.-]{1,253}$/.test(requestedHost)) requestedHost = "";
     }
 
@@ -1120,8 +1123,13 @@ routerAdd("GET", "/{slug}", (c) => {
     }
 
     try {
+        const customDomainRoot = trustedEdgeRequest &&
+            String(request.header.get("X-Linktery-Custom-Domain-Root") || "") === "1";
         let link = null;
-        if (requestedHost) {
+        if (customDomainRoot) {
+            const customTarget = utils.resolveActiveCustomDomainTarget($app, c, "link");
+            link = customTarget ? customTarget.target : null;
+        } else if (requestedHost) {
             try {
                 link = $app.findFirstRecordByFilter(
                     "links",
@@ -1133,7 +1141,7 @@ routerAdd("GET", "/{slug}", (c) => {
                 // created before domain-aware routing was enforced.
             }
         }
-        if (!link) {
+        if (!link && !customDomainRoot && !requestedHost) {
             try {
                 link = $app.findFirstRecordByFilter("links", "slug = {:slug} && active = true", { slug: slug });
             } catch (e) {
@@ -1148,11 +1156,19 @@ routerAdd("GET", "/{slug}", (c) => {
             // same attested 404 that tells Cloudflare to serve the app shell.
             if (trustedEdgeRequest && requestedHost) {
                 try {
-                    const publicProfile = $app.findFirstRecordByFilter(
-                        "public_profiles",
-                        "slug = {:slug} && (domain = {:domain} || domain = '')",
-                        { slug: slug, domain: requestedHost }
-                    );
+                    const customProfileTarget = customDomainRoot
+                        ? utils.resolveActiveCustomDomainTarget($app, c, "profile")
+                        : null;
+                    const publicProfile = customDomainRoot
+                        ? (customProfileTarget ? customProfileTarget.target : null)
+                        : $app.findFirstRecordByFilter(
+                            "public_profiles",
+                            /\.workers\.dev$/.test(requestedHost)
+                                ? "slug = {:slug}"
+                                : "slug = {:slug} && (domain = {:domain} || domain = '')",
+                            { slug: slug, domain: requestedHost }
+                        );
+                    if (!publicProfile) throw new Error("Profile not found");
                     if (socialPreviewCrawler) {
                         const profileName = utils.sanitizeSocialPreviewText(
                             publicProfile.get("name"),
@@ -1163,7 +1179,9 @@ routerAdd("GET", "/{slug}", (c) => {
                             220
                         );
                         const previewVersion = utils.getProfileSocialPreviewVersion(publicProfile);
-                        const canonicalUrl = "https://" + requestedHost + "/" + slug;
+                        const canonicalUrl = customDomainRoot
+                            ? "https://" + requestedHost + "/"
+                            : "https://" + requestedHost + "/" + slug;
                         // Production cards always use the primary host so all
                         // alias domains share one R2 object and one global
                         // generation lock. Staging keeps its isolated Worker.
@@ -1292,7 +1310,7 @@ routerAdd("GET", "/{slug}", (c) => {
                 title: linkTitle + " | Linktery",
                 description: description,
                 type: "website",
-                url: "https://" + requestedHost + "/" + slug,
+                url: "https://" + requestedHost + "/" + (customDomainRoot ? "" : slug),
                 imageUrl: imageUrl,
                 imageAlt: imageAlt
             }));
@@ -1708,14 +1726,22 @@ routerAdd("GET", "/api/public/links/{slug}", (c) => {
             return c.json(429, { message: "Please try again shortly." });
         }
 
+        const customDomainRoot = trustedEdge &&
+            String(c.request.header.get("X-Linktery-Custom-Domain-Root") || "") === "1";
         let requestedHost = String((trustedEdge
             ? c.request.header.get("X-Linktery-Public-Host")
             : c.request.url.query().get("domain")) || "")
-            .trim().toLowerCase().replace(/^www\./, "");
+            .trim().toLowerCase().replace(/\.$/, "");
+        // `www.customer.com` is a distinct customer hostname. Only legacy
+        // first-party lookups canonicalize www.linktery.com to linktery.com.
+        if (!customDomainRoot) requestedHost = requestedHost.replace(/^www\./, "");
         if (!/^[a-z0-9.-]{1,253}$/.test(requestedHost)) requestedHost = "";
 
         let link = null;
-        if (requestedHost) {
+        if (customDomainRoot) {
+            const customTarget = utils.resolveActiveCustomDomainTarget($app, c, "link");
+            link = customTarget ? customTarget.target : null;
+        } else if (requestedHost) {
             try {
                 link = $app.findFirstRecordByFilter(
                     "links",
@@ -1724,7 +1750,7 @@ routerAdd("GET", "/api/public/links/{slug}", (c) => {
                 );
             } catch (domainLookupError) {}
         }
-        if (!link) {
+        if (!link && !customDomainRoot && !requestedHost) {
             try {
                 link = $app.findFirstRecordByFilter(
                     "links",
@@ -1755,6 +1781,7 @@ routerAdd("GET", "/api/public/links/{slug}", (c) => {
             domain: String(link.get("domain") || ""),
             active: true,
             destination_url: resolved.destination,
+            destination_managed: utils.isPlatformPublicUrl(resolved.destination),
             mode: resolved.botSafePage ? "redirect" : String(link.get("mode") || ""),
             interstitial_enabled: !resolved.botSafePage && link.get("interstitial_enabled") === true,
             fb_pixel: resolved.botSafePage ? "" : trackingPixels.meta,
@@ -1772,6 +1799,10 @@ routerAdd("GET", "/api/public/links/{slug}", (c) => {
 routerAdd("GET", "/api/public/profiles/{slug}", (c) => {
     try {
         const utils = require(__hooks + '/utils.js');
+        const providedSecret = String(c.request.header.get("X-Linktery-Redirect-Secret") || "");
+        const trustedEdge = utils.isTrustedRedirectEdgeRequest(c);
+        if (providedSecret && !trustedEdge) return c.json(401, { message: "Request unavailable." });
+        if (trustedEdge) c.response.header().add("X-Linktery-Public-Resolver", "v1");
         const slug = String(c.request.pathValue("slug") || "").trim().toLowerCase();
         if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug)) {
             return c.json(404, { message: "Not found" });
@@ -1780,16 +1811,26 @@ routerAdd("GET", "/api/public/profiles/{slug}", (c) => {
             return c.json(429, { message: "Please try again shortly." });
         }
 
-        let requestedHost = String(c.request.url.query().get("domain") || "")
-            .trim().toLowerCase().replace(/^www\./, "");
+        const customDomainRoot = trustedEdge &&
+            String(c.request.header.get("X-Linktery-Custom-Domain-Root") || "") === "1";
+        let requestedHost = String((trustedEdge
+            ? c.request.header.get("X-Linktery-Public-Host")
+            : c.request.url.query().get("domain")) || "")
+            .trim().toLowerCase().replace(/\.$/, "");
+        if (!customDomainRoot) requestedHost = requestedHost.replace(/^www\./, "");
         if (!/^[a-z0-9.-]{1,253}$/.test(requestedHost)) requestedHost = "";
 
         let profile = null;
-        if (requestedHost) {
+        if (customDomainRoot) {
+            const customTarget = utils.resolveActiveCustomDomainTarget($app, c, "profile");
+            profile = customTarget ? customTarget.target : null;
+        } else if (requestedHost) {
             try {
                 profile = $app.findFirstRecordByFilter(
                     "public_profiles",
-                    "slug = {:slug} && (domain = {:domain} || domain = '')",
+                    trustedEdge && /\.workers\.dev$/.test(requestedHost)
+                        ? "slug = {:slug}"
+                        : "slug = {:slug} && (domain = {:domain} || domain = '')",
                     { slug: slug, domain: requestedHost }
                 );
             } catch (domainLookupError) {}
@@ -4369,7 +4410,11 @@ onRecordDeleteRequest((e) => {
         );
     }
 
-    e.next();
+    // Cloudflare for SaaS objects live outside the database and cannot be
+    // cleaned up by the user relation's cascade. Run this only after every
+    // financial-history blocker above has passed so a rejected account delete
+    // cannot detach an otherwise active custom domain.
+    require(__hooks + "/custom_domains.js").cleanupUserHostnamesBeforeDelete(e);
 }, "users");
 
 // Username change cooldown

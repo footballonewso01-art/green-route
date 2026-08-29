@@ -39,8 +39,7 @@ describe("public profile appearance settings", () => {
     expect(utils).not.toContain('"labeled-rows": true');
     expect(migration).toContain('name: "link_card_style"');
     expect(migration).toContain('name: "social_link_style"');
-    expect(publicProfile).toContain('profile_id=${encodeURIComponent(profile.id)}');
-    expect(publicProfile).toContain('profile_link_id=${encodeURIComponent(item.id)}');
+    expect(publicProfile).toContain('getPublicProfileCardHref(item.link, profile.id, item.id, customDomainRoot)');
   });
 
   it("keeps the phone viewport flush and the classic image fade continuous", () => {

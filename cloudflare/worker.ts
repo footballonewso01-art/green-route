@@ -8,6 +8,7 @@ import {
   createPrimaryRedirectUrl,
   decideEdgeRoute,
   isLikelyStaticAssetPath,
+  PUBLIC_SLUG_PATTERN,
 } from "./router";
 import {
   createSocialPreviewCardHtml,
@@ -278,12 +279,28 @@ function getEdgeClientIp(request: Request): string {
   return value && value.length <= 128 && /^[0-9a-f:.]+$/i.test(value) ? value : "unknown";
 }
 
+function isCustomDomainHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase().replace(/\.$/, "");
+  if (!normalized || normalized === "localhost" || normalized.endsWith(".localhost")) return false;
+  if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(normalized)) return false;
+  if (
+    normalized.endsWith(".workers.dev") ||
+    normalized.endsWith(".pages.dev") ||
+    normalized.endsWith(".vercel.app")
+  ) return false;
+  if (normalized === "linktery.com" || isPrimaryWwwDomain(normalized) || isRedirectAliasDomain(normalized)) return false;
+  return /^[a-z0-9](?:[a-z0-9.-]{2,251}[a-z0-9])$/.test(normalized);
+}
+
 async function handleFirstPartyServiceRequest(
   request: Request,
   env: Env,
 ): Promise<Response | null> {
   const url = new URL(request.url);
-  if (/^\/api\/public\/links\/[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(url.pathname)) {
+  if (
+    url.pathname === "/api/public/custom-domain" ||
+    /^\/api\/public\/(?:links|profiles)\/[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(url.pathname)
+  ) {
     return resolvePublicLinkForBrowser(request, env);
   }
   if (url.pathname === "/api/geo") {
@@ -427,6 +444,15 @@ async function resolvePublicLinkForBrowser(request: Request, env: Env): Promise<
   // Ignore incoming domain/query overrides and all client-supplied internal
   // headers. Only edge-provided country/IP and the actual hostname are trusted.
   const upstreamUrl = new URL(url.pathname, origin);
+  const isPublicProfileResolver = url.pathname.startsWith("/api/public/profiles/");
+  if (isPublicProfileResolver) {
+    const page = url.searchParams.get("page") || "1";
+    if (!/^[1-9][0-9]{0,4}$/.test(page)) return jsonResponse(400, '{"message":"Invalid page."}');
+    upstreamUrl.searchParams.set("page", page);
+    // The legacy production profile hook reads domain from query parameters.
+    // Only forward the actual request hostname, never the client's override.
+    upstreamUrl.searchParams.set("domain", url.hostname.toLowerCase());
+  }
   const headers = new Headers({
     Accept: "application/json",
     "X-Linktery-Redirect-Secret": secret,
@@ -434,6 +460,9 @@ async function resolvePublicLinkForBrowser(request: Request, env: Env): Promise<
     "X-Linktery-Client-IP": getEdgeClientIp(request),
     "X-Linktery-Request-Id": (request.headers.get("CF-Ray") || crypto.randomUUID()).slice(0, 128),
   });
+  if (isCustomDomainHostname(url.hostname)) {
+    headers.set("X-Linktery-Custom-Domain-Root", "1");
+  }
   const country = getEdgeCountry(request);
   if (country) headers.set("X-Linktery-Country", country);
   for (const name of ["Authorization", "User-Agent", "Referer"]) {
@@ -445,7 +474,19 @@ async function resolvePublicLinkForBrowser(request: Request, env: Env): Promise<
       method: "GET", headers, redirect: "manual",
       signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(5_000) : undefined,
     });
-    if (upstream.headers.get("X-Linktery-Public-Resolver") !== "v1"
+    const expectedAttestation = url.pathname === "/api/public/custom-domain"
+      ? "X-Linktery-Custom-Domain-Origin"
+      : "X-Linktery-Public-Resolver";
+    const resolverAttested = upstream.headers.get(expectedAttestation) === "v1";
+    // Temporary compatibility for the current first-party production profile
+    // resolver. Never extend that legacy contract to customer hostnames: the
+    // custom-domain path must be attested and resolved by its exact stored
+    // hostname mapping, including during a staggered backend/edge rollout.
+    const legacyProfileResponse = isPublicProfileResolver
+      && !isCustomDomainHostname(url.hostname)
+      && !upstream.headers.has("X-Linktery-Public-Resolver")
+      && String(upstream.headers.get("Content-Type") || "").toLowerCase().startsWith("application/json");
+    if ((!resolverAttested && !legacyProfileResponse)
         || ![200, 404, 410, 429].includes(upstream.status)) {
       return jsonResponse(503, '{"message":"Link resolution is temporarily unavailable."}');
     }
@@ -843,6 +884,156 @@ async function serveSocialPreviewImage(
   }
 }
 
+type CustomDomainLookup =
+  | { kind: "resolved"; targetType: "link" | "profile"; targetId: string; slug: string }
+  | { kind: "not-found" }
+  | { kind: "unavailable" };
+type ResolvedCustomDomainLookup = Extract<CustomDomainLookup, { kind: "resolved" }>;
+
+function parseCustomDomainLookup(payload: unknown): ResolvedCustomDomainLookup | null {
+  if (!payload || typeof payload !== "object") return null;
+  const value = payload as { type?: unknown; id?: unknown; slug?: unknown };
+  const targetType = value.type === "link" || value.type === "profile" ? value.type : null;
+  const targetId = String(value.id || "");
+  const slug = String(value.slug || "");
+  if (!targetType || !/^[a-z0-9]{15}$/.test(targetId) || !PUBLIC_SLUG_PATTERN.test(slug)) return null;
+  return { kind: "resolved", targetType, targetId, slug };
+}
+
+async function lookupCustomDomainAtOrigin(
+  request: Request,
+  env: Env,
+  context: WorkerExecutionContext,
+): Promise<CustomDomainLookup> {
+  const secret = String(env.REDIRECT_ORIGIN_SECRET || "");
+  if (secret.length < 32) return { kind: "unavailable" };
+  let origin: URL;
+  try {
+    origin = new URL(env.POCKETBASE_ORIGIN);
+    if (origin.protocol !== "https:") return { kind: "unavailable" };
+  } catch {
+    return { kind: "unavailable" };
+  }
+
+  const incomingUrl = new URL(request.url);
+  const hostname = incomingUrl.hostname.toLowerCase();
+  const cache = typeof caches !== "undefined"
+    ? (caches as unknown as { default: Cache }).default
+    : null;
+  const cacheKey = new Request(`https://custom-domain-mapping.linktery.internal/${encodeURIComponent(hostname)}`);
+  if (cache) {
+    try {
+      const cached = await cache.match(cacheKey);
+      if (cached) {
+        const parsed = parseCustomDomainLookup(await cached.json());
+        if (parsed) return parsed;
+      }
+    } catch {
+      // Cache failures never change routing correctness; use the origin.
+    }
+  }
+  const headers = new Headers({
+    Accept: "application/json",
+    "X-Linktery-Redirect-Secret": secret,
+    "X-Linktery-Public-Host": hostname,
+    "X-Linktery-Custom-Domain-Root": "1",
+    "X-Linktery-Request-Id": (request.headers.get("CF-Ray") || crypto.randomUUID()).slice(0, 128),
+    "X-Linktery-Client-IP": getEdgeClientIp(request),
+  });
+
+  try {
+    const upstream = await fetch(new URL("/api/public/custom-domain", origin), {
+      method: "GET",
+      headers,
+      redirect: "manual",
+      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(5_000) : undefined,
+    });
+    if (upstream.headers.get("X-Linktery-Custom-Domain-Origin") !== "v1") {
+      return { kind: "unavailable" };
+    }
+    if (upstream.status === 404) return { kind: "not-found" };
+    if (upstream.status !== 200) return { kind: "unavailable" };
+    const parsed = parseCustomDomainLookup(await upstream.json());
+    if (!parsed) return { kind: "unavailable" };
+    if (cache) {
+      const cachedResponse = new Response(JSON.stringify({
+        type: parsed.targetType,
+        id: parsed.targetId,
+        slug: parsed.slug,
+      }), {
+        headers: {
+          "Cache-Control": "public, max-age=30",
+          "Content-Type": "application/json; charset=utf-8",
+        },
+      });
+      context.waitUntil(cache.put(cacheKey, cachedResponse).catch(() => undefined));
+    }
+    return parsed;
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+
+async function handleCustomDomainRequest(
+  request: Request,
+  env: Env,
+  context: WorkerExecutionContext,
+): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (!isCustomDomainHostname(url.hostname)) return null;
+
+  if (url.pathname === "/robots.txt") {
+    return applyResponseHeaders(request, env, new Response("User-agent: *\nDisallow: /\n", {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    }), { noIndex: true });
+  }
+  if (url.pathname === "/sitemap.xml") {
+    return applyResponseHeaders(request, env, new Response("Not found", { status: 404 }), { noIndex: true });
+  }
+
+  if (isLikelyStaticAssetPath(url.pathname)) {
+    const assetResponse = await env.ASSETS.fetch(request);
+    if (assetResponse.status !== 404) {
+      return applyResponseHeaders(request, env, assetResponse, { noIndex: true });
+    }
+  }
+  if (url.pathname !== "/") {
+    return serveInternalHtml(request, env, INTERNAL_ASSETS.notFound, {
+      status: 404,
+      noIndex: true,
+    });
+  }
+
+  const lookup = await lookupCustomDomainAtOrigin(request, env, context);
+  if (lookup.kind === "not-found") {
+    return serveInternalHtml(request, env, INTERNAL_ASSETS.notFound, {
+      status: 404,
+      noIndex: true,
+    });
+  }
+  if (lookup.kind === "unavailable") {
+    return applyResponseHeaders(request, env, new Response(
+      "This custom domain is temporarily unavailable.",
+      { status: 503 },
+    ), { noIndex: true, cacheControl: "private, no-store" });
+  }
+
+  const internalUrl = new URL(request.url);
+  internalUrl.pathname = `/${lookup.slug}`;
+  const internalRequest = new Request(internalUrl.toString(), {
+    method: request.method,
+    headers: request.headers,
+    redirect: "manual",
+  });
+  const resolved = await resolvePublicSlugAtOrigin(internalRequest, env, true);
+  if (resolved) return resolved;
+
+  // Profiles and Link modes that deliberately use the React experience keep
+  // the public URL at the hostname root. The client independently obtains the
+  // same strict mapping through /api/public/custom-domain.
+  return serveInternalHtml(request, env, INTERNAL_ASSETS.spa, { noIndex: true });
+}
+
 /**
  * Resolve short links before booting the SPA. This preserves the original
  * social-app navigation context for deeplink handoffs and removes the React +
@@ -853,6 +1044,7 @@ async function serveSocialPreviewImage(
 async function resolvePublicSlugAtOrigin(
   request: Request,
   env: Env,
+  customDomainRoot = false,
 ): Promise<Response | null> {
   if (
     request.method !== "GET" &&
@@ -889,6 +1081,7 @@ async function resolvePublicSlugAtOrigin(
 
   headers.set("X-Linktery-Redirect-Secret", secret);
   headers.set("X-Linktery-Public-Host", incomingUrl.hostname.toLowerCase());
+  if (customDomainRoot) headers.set("X-Linktery-Custom-Domain-Root", "1");
   const requestId = request.headers.get("CF-Ray") || crypto.randomUUID();
   headers.set("X-Linktery-Request-Id", requestId.slice(0, 128));
 
@@ -1062,6 +1255,8 @@ async function handleRequest(
   }
 
   const url = new URL(request.url);
+  const customDomainResponse = await handleCustomDomainRequest(request, env, context);
+  if (customDomainResponse) return customDomainResponse;
   const socialPreviewAsset = parseSocialPreviewImagePath(url.pathname);
   if (socialPreviewAsset) {
     if (isAliasRequest(request, env)) {

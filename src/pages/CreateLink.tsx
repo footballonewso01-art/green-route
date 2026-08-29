@@ -27,6 +27,7 @@ import { maskError } from '@/lib/utils';
 import { isReservedPublicSlug } from "@/lib/systemRoutes";
 import { normalizeTrackingPixels } from "@/lib/trackingPixels";
 import { isPublicSlugAvailable } from "@/lib/publicAssets";
+import { CustomDomainAttachments } from "@/components/CustomDomainAttachments";
 
 const generateRandomSlug = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -433,8 +434,8 @@ export default function CreateLink() {
           <div>
             <div className="flex items-end justify-between gap-3 mb-2.5">
               <div>
-                <label className="text-sm font-medium text-foreground block">Choose Domain</label>
-                <p className="text-xs text-muted-foreground mt-0.5">Select the public address for this link.</p>
+                <label className="text-sm font-medium text-foreground block">Choose Linktery Domain</label>
+                <p className="text-xs text-muted-foreground mt-0.5">Select the primary or alias address used with /{form.slug || "slug"}.</p>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-accent/80">{availableDomains.length} available</span>
             </div>
@@ -477,6 +478,14 @@ export default function CreateLink() {
                 );
               })}
             </div>
+
+            {id && (
+              <CustomDomainAttachments
+                targetType="link"
+                targetId={id}
+                className="mb-4"
+              />
+            )}
             
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-sm font-medium text-foreground block">Custom Slug</label>

@@ -3,6 +3,7 @@ import {
   DEFAULT_AVAILABLE_DOMAINS,
   PRIMARY_DOMAIN,
   getAvailableDomains,
+  isCustomPublicHostname,
   isPrimaryWwwDomain,
   isRedirectAliasDomain,
 } from "@/lib/siteConfig";
@@ -33,5 +34,17 @@ describe("site domain configuration", () => {
     expect(isRedirectAliasDomain("preview.vercel.app")).toBe(false);
     expect(isPrimaryWwwDomain("www.linktery.com")).toBe(true);
     expect(isPrimaryWwwDomain("linktery.bio")).toBe(false);
+  });
+
+  it("recognizes customer hostnames without treating platform or preview hosts as custom", () => {
+    expect(isCustomPublicHostname("brand.example")).toBe(true);
+    expect(isCustomPublicHostname("links.brand.example")).toBe(true);
+    expect(isCustomPublicHostname("linktery.com")).toBe(false);
+    expect(isCustomPublicHostname("www.linktery.com")).toBe(false);
+    expect(isCustomPublicHostname("linktery.bio")).toBe(false);
+    expect(isCustomPublicHostname("preview.workers.dev")).toBe(false);
+    expect(isCustomPublicHostname("preview.vercel.app")).toBe(false);
+    expect(isCustomPublicHostname("localhost")).toBe(false);
+    expect(isCustomPublicHostname("127.0.0.1")).toBe(false);
   });
 });

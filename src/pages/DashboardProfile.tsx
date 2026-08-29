@@ -21,6 +21,7 @@ import { isReservedPublicSlug } from "@/lib/systemRoutes";
 import { buildProfileLinkUpdateFormData } from "@/lib/profileLinkPersistence";
 import { CoreLinkRecord, getProfileLinkTitle, ProfileLinkItem, ProfileLinkRecord } from "@/lib/profileLinks";
 import { isPublicSlugAvailable } from "@/lib/publicAssets";
+import { CustomDomainAttachments } from "@/components/CustomDomainAttachments";
 import {
   Select,
   SelectContent,
@@ -1357,7 +1358,7 @@ export default function DashboardProfile() {
                 <input value={name} onChange={(e) => setName(e.target.value)} disabled={!canCustomize} placeholder="Your Name" className="w-full px-4 py-2 rounded-xl bg-surface border border-border focus:outline-none input-glow focus:border-accent/50 transition-colors disabled:opacity-50 text-white" />
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground mb-1 block">Choose Domain</label>
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Choose Linktery Domain</label>
                 <Select
                   value={domain}
                   onValueChange={setDomain}
@@ -1412,6 +1413,10 @@ export default function DashboardProfile() {
                 />
               </div>
             </div>
+            <CustomDomainAttachments
+              targetType="profile"
+              targetId={activeProfileId}
+            />
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-1 block">Bio</label>
               <textarea value={bio} onChange={(e) => { const v = e.target.value; const lines = v.split('\n'); if (lines.length > 3) return; setBio(v); }} onInput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }} ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }} disabled={!canCustomize} placeholder="Write a short bio..." rows={1} className="w-full px-4 py-2 rounded-xl bg-surface border border-border focus:outline-none input-glow focus:border-accent/50 transition-colors resize-none disabled:opacity-50 overflow-hidden" />

@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Globe } from "lucide-react";
 import { checkPlan } from "@/lib/plans";
+import { PRIMARY_ORIGIN } from "@/lib/siteConfig";
 import {
   isLightProfileColor,
   ProfileBackgroundMode,
@@ -213,7 +214,7 @@ export function ProfileCanvas({
           {!checkPlan(plan, "remove_branding") && (
             <div className="mt-auto text-center">
               <a
-                href="/"
+                href={PRIMARY_ORIGIN}
                 tabIndex={preview ? -1 : undefined}
                 className={`group inline-flex items-center gap-1.5 text-[10px] transition-colors ${
                   lightCard ? "text-black/40 hover:text-black" : "text-white/38 hover:text-white"
@@ -238,7 +239,7 @@ export function ProfileCanvas({
 
           <div className={`relative flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest ${lightCard ? "text-black/25" : "text-white/25"}`}>
             <a
-              href="/privacy"
+              href={`${PRIMARY_ORIGIN}/privacy`}
               tabIndex={preview ? -1 : undefined}
               className={`transition-colors ${lightCard ? "hover:text-black/60" : "hover:text-white/60"}`}
             >
@@ -246,7 +247,7 @@ export function ProfileCanvas({
             </a>
             <span aria-hidden="true">|</span>
             <a
-              href="/terms"
+              href={`${PRIMARY_ORIGIN}/terms`}
               tabIndex={preview ? -1 : undefined}
               className={`transition-colors ${lightCard ? "hover:text-black/60" : "hover:text-white/60"}`}
             >

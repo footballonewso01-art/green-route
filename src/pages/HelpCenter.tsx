@@ -167,6 +167,31 @@ const helpCategories: Category[] = [
                 ),
             },
             {
+                id: "custom-domains",
+                title: "Connecting a Custom Domain",
+                icon: Globe,
+                tags: ["domain", "custom", "dns", "brand", "cname", "ssl", "agency"],
+                content: (
+                    <div className="space-y-4">
+                        <p>Creator Pro accounts can connect up to 2 domains and Agency accounts can connect up to 10. Each domain opens one Link or Public Profile directly at its root — with no /slug.</p>
+                        <ol className="list-decimal list-inside space-y-3 text-muted-foreground">
+                            <li>Open <strong className="text-foreground">Settings → Custom Domains</strong></li>
+                            <li>Enter the domain and choose the Link or Public Profile it should open</li>
+                            <li>Add the ownership TXT record, then return and click <strong className="text-foreground">Check</strong></li>
+                            <li>Add the HTTPS verification record shown in Step 2 and check again</li>
+                            <li>When HTTPS is ready, add the final Traffic CNAME from Step 3</li>
+                        </ol>
+                        <div className="p-4 rounded-xl bg-accent/5 border border-accent/20">
+                            <p className="text-sm text-muted-foreground"><strong className="text-foreground">No manual SSL setup:</strong> Linktery requests and renews HTTPS automatically after DNS is verified. DNS usually updates within minutes, but some providers can take up to 24 hours.</p>
+                            <p className="mt-2 text-sm text-muted-foreground">Keep all TXT verification records in DNS after connecting so ownership and certificate renewals remain valid.</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-surface border border-border">
+                            <p className="text-sm text-muted-foreground"><strong className="text-foreground">Using brand.com:</strong> your DNS provider must support CNAME flattening, ALIAS, or ANAME at the root. Otherwise use a subdomain such as <strong className="text-foreground">links.brand.com</strong>.</p>
+                        </div>
+                    </div>
+                ),
+            },
+            {
                 id: "link-scheduling",
                 title: "Link Scheduling",
                 icon: Clock,
@@ -462,7 +487,7 @@ const helpCategories: Category[] = [
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Remove Branding</td><td className="text-center">—</td><td className="text-center text-accent">✓</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">Custom Slugs</td><td className="text-center">—</td><td className="text-center">—</td><td className="text-center text-accent">✓</td></tr>
                                     <tr className="border-b border-border/50"><td className="py-2.5 px-4">A/B Testing</td><td className="text-center">—</td><td className="text-center">—</td><td className="text-center text-accent">✓</td></tr>
-                                    <tr><td className="py-2.5 px-4">Custom Domains</td><td className="text-center">—</td><td className="text-center">—</td><td className="text-center text-accent">✓</td></tr>
+                                    <tr><td className="py-2.5 px-4">Custom Domains</td><td className="text-center">—</td><td className="text-center text-accent">2</td><td className="text-center text-accent">10</td></tr>
                                 </tbody>
                             </table>
                         </div>
