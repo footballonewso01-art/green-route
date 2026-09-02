@@ -518,8 +518,17 @@ var profileViewRateLimitAllows = function(eventOrRequest, profileId) {
 };
 
 var isTrackedAutomation = function(userAgent) {
-    return /bot|crawler|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot|HeadlessChrome|Lighthouse/i
+    return /bot|crawler|spider|criteo|facebookexternalhit|facebot|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot|HeadlessChrome|Lighthouse|PhantomJS|Selenium|Playwright|Puppeteer|Cypress|curl(?:\/|\s)|wget(?:\/|\s)|python-requests|python-urllib|aiohttp|httpx(?:\/|\s)|Scrapy|Go-http-client|libwww-perl|okhttp|PostmanRuntime|HTTPie|PowerShell|node-fetch|undici|axios(?:\/|\s)|zgrab|masscan|Nmap Scripting Engine|Nikto|sqlmap|gobuster|dirbuster|ffuf/i
         .test(String(userAgent || ""));
+};
+
+var isTrustedAutomatedTraffic = function(eventOrRequest) {
+    if (!isTrustedRedirectEdgeRequest(eventOrRequest)) return false;
+    var event = eventOrRequest || null;
+    var request = event && event.request ? event.request : event;
+    return String(request.header.get("X-Linktery-Traffic-Quality") || "")
+        .trim()
+        .toLowerCase() === "automated";
 };
 
 // Link unfurlers need a small server-rendered HTML document with Open Graph
@@ -599,6 +608,7 @@ var resolveProfileClickAttribution = function(app, linkId, profileId, profileLin
 
 var recordProfileView = function(app, eventOrRequest, profile) {
     if (!isTrustedRedirectEdgeRequest(eventOrRequest) || !profile) return false;
+    if (isTrustedAutomatedTraffic(eventOrRequest)) return false;
 
     var event = eventOrRequest || null;
     var request = event && event.request ? event.request : event;
@@ -610,7 +620,12 @@ var recordProfileView = function(app, eventOrRequest, profile) {
     // Older/privacy-focused WebViews may omit Sec-Fetch-Dest, so an absent
     // value remains allowed while explicit non-document destinations do not.
     var fetchDest = String(request.header.get("Sec-Fetch-Dest") || "").trim().toLowerCase();
-    if (fetchDest && fetchDest !== "document" && fetchDest !== "iframe") return false;
+    if (fetchDest && fetchDest !== "document") return false;
+
+    // Fetch Metadata is optional for compatibility, but an explicitly
+    // non-navigation request cannot represent a top-level profile visit.
+    var fetchMode = String(request.header.get("Sec-Fetch-Mode") || "").trim().toLowerCase();
+    if (fetchMode && fetchMode !== "navigate") return false;
 
     var purpose = String(request.header.get("Sec-Purpose") || request.header.get("Purpose") || "").toLowerCase();
     if (purpose.indexOf("prefetch") !== -1 || purpose.indexOf("prerender") !== -1) return false;
@@ -2503,6 +2518,21 @@ var hasLinkEntitlementValue = function(record, field) {
     return Boolean(value);
 };
 
+// PocketBase exposes JSON fields from Records as types.JSONRaw (a byte-array
+// wrapper). Checking Object.keys(record.get(...)) therefore mistakes the bytes
+// of JSON literals such as `null` for an enabled paid feature. Always inspect
+// the decoded JSON value for structured entitlement fields.
+var hasLinkJsonObjectEntitlementValue = function(record, field) {
+    var parsed = null;
+    try { parsed = toPlainTargetingObject(record.getString(field)); } catch (err) {}
+    return !!parsed && Object.keys(parsed).length > 0;
+};
+
+var hasLinkJsonArrayEntitlementValue = function(record, field) {
+    try { return toPlainStringArray(record.getString(field)).length > 0; } catch (err) {}
+    return false;
+};
+
 var linkEntitlementFieldsChanged = function(record, fields) {
     var original = null;
     try { original = record.original(); } catch (err) {}
@@ -2563,21 +2593,21 @@ var enforceLinkFeatureEntitlements = function(app, record, user, isAdmin, isCrea
     assertFeature(
         plan.geoTargeting === true,
         ["geo_targeting"],
-        hasLinkEntitlementValue(record, "geo_targeting"),
+        hasLinkJsonObjectEntitlementValue(record, "geo_targeting"),
         "Geo Targeting",
         "Creator Pro"
     );
     assertFeature(
         plan.deviceTargeting === true,
         ["device_targeting"],
-        hasLinkEntitlementValue(record, "device_targeting"),
+        hasLinkJsonObjectEntitlementValue(record, "device_targeting"),
         "Device Targeting",
         "Creator Pro"
     );
     assertFeature(
         plan.abTesting === true,
         ["ab_split", "split_urls"],
-        record.get("ab_split") === true || hasLinkEntitlementValue(record, "split_urls"),
+        record.get("ab_split") === true || hasLinkJsonArrayEntitlementValue(record, "split_urls"),
         "A/B Traffic Splitter",
         "Agency"
     );
@@ -3472,6 +3502,7 @@ module.exports = {
     isUniqueTrackedClick,
     profileViewRateLimitAllows,
     isTrackedAutomation,
+    isTrustedAutomatedTraffic,
     isSocialPreviewCrawler,
     getTrackingDimensions,
     resolveProfileClickAttribution,

@@ -32,7 +32,9 @@ describe("Public Profile analytics contract", () => {
     expect(worker).toContain('headers.set("X-Linktery-Request-Id"');
     expect(worker).toContain('"Purpose"');
     expect(worker).toContain('"Sec-Fetch-Dest"');
+    expect(worker).toContain('"Sec-Fetch-Mode"');
     expect(worker).toContain('"Sec-Purpose"');
+    expect(worker).toContain('headers.set("X-Linktery-Traffic-Quality", "automated")');
     expect(hook).toContain('utils.recordProfileView($app, c, publicProfile)');
     expect(utils).toContain("isTrustedRedirectEdgeRequest(eventOrRequest)");
     expect(utils).toContain('request.header.get("X-Linktery-Request-Id")');
@@ -40,11 +42,27 @@ describe("Public Profile analytics contract", () => {
     expect(utils).toContain('request.header.get("Purpose")');
     expect(utils).toContain('request.header.get("Accept")');
     expect(utils).toContain('request.header.get("Sec-Fetch-Dest")');
-    expect(utils).toContain('fetchDest !== "document" && fetchDest !== "iframe"');
+    expect(utils).toContain('fetchDest !== "document"');
+    expect(utils).toContain('request.header.get("Sec-Fetch-Mode")');
+    expect(utils).toContain('fetchMode !== "navigate"');
+    expect(utils).toContain('request.header.get("X-Linktery-Traffic-Quality")');
+    expect(utils).toContain("isTrustedAutomatedTraffic(eventOrRequest)");
     expect(utils).toContain('isTrackedAutomation(dimensions.userAgent)');
     expect(utils).toContain('$os.getenv("PROFILE_ANALYTICS_SALT")');
     expect(utils).toContain('$os.getenv("REDIRECT_ORIGIN_SECRET")');
     expect(utils).not.toContain('profile_views", profile');
+  });
+
+  it("suppresses high-confidence automation across profile views and link clicks", () => {
+    const hook = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
+    const utils = readWorkspaceFile("pocketbase/pb_hooks/utils.js");
+
+    expect(utils).toContain("HeadlessChrome");
+    expect(utils).toContain("python-requests");
+    expect(utils).toContain("Go-http-client");
+    expect(hook).toContain("const suppressAnalytics = isBot || utils.isTrustedAutomatedTraffic(c)");
+    expect(hook).toContain("if (!suppressAnalytics && utils.clickRateLimitAllows(c, link.id))");
+    expect(hook).toContain("const isAutomated = utils.isTrackedAutomation(uaStr) || utils.isTrustedAutomatedTraffic(c)");
   });
 
   it("deduplicates retries and daily visitors without storing raw IP or UA", () => {

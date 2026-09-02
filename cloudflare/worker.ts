@@ -18,6 +18,7 @@ import {
   type SocialPreviewProfile,
 } from "./socialPreview";
 import { readBoundedBody } from "./requestBody";
+import { classifyAnalyticsTraffic } from "./analyticsTraffic";
 
 interface AssetBinding {
   fetch(request: Request): Promise<Response>;
@@ -279,6 +280,25 @@ function getEdgeClientIp(request: Request): string {
   return value && value.length <= 128 && /^[0-9a-f:.]+$/i.test(value) ? value : "unknown";
 }
 
+function attachAnalyticsTrafficQuality(
+  headers: Headers,
+  request: Request,
+  expectNavigation: boolean,
+): void {
+  const decision = classifyAnalyticsTraffic(
+    request as Request & {
+      cf?: { botManagement?: { score?: number; verifiedBot?: boolean } };
+    },
+    { expectNavigation },
+  );
+  if (!decision.automated) return;
+
+  // PocketBase accepts these headers only alongside the private edge-origin
+  // secret. Never forward a client-supplied quality override.
+  headers.set("X-Linktery-Traffic-Quality", "automated");
+  if (decision.reason) headers.set("X-Linktery-Traffic-Reason", decision.reason);
+}
+
 function isCustomDomainHostname(hostname: string): boolean {
   const normalized = hostname.trim().toLowerCase().replace(/\.$/, "");
   if (!normalized || normalized === "localhost" || normalized.endsWith(".localhost")) return false;
@@ -385,10 +405,19 @@ async function handleFirstPartyServiceRequest(
   });
   const country = getEdgeCountry(request);
   if (country) headers.set("X-Linktery-Country", country);
-  for (const name of ["Authorization", "Referer", "Sec-Fetch-Dest", "User-Agent"]) {
+  for (const name of [
+    "Authorization",
+    "Purpose",
+    "Referer",
+    "Sec-Fetch-Dest",
+    "Sec-Fetch-Mode",
+    "Sec-Purpose",
+    "User-Agent",
+  ]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
+  if (isClick) attachAnalyticsTrafficQuality(headers, request, false);
 
   try {
     const upstream = await fetch(upstreamUrl, {
@@ -1025,7 +1054,7 @@ async function handleCustomDomainRequest(
     headers: request.headers,
     redirect: "manual",
   });
-  const resolved = await resolvePublicSlugAtOrigin(internalRequest, env, true);
+  const resolved = await resolvePublicSlugAtOrigin(internalRequest, env, true, request);
   if (resolved) return resolved;
 
   // Profiles and Link modes that deliberately use the React experience keep
@@ -1088,6 +1117,7 @@ async function resolvePublicSlugAtOrigin(
   request: Request,
   env: Env,
   customDomainRoot = false,
+  analyticsSignalRequest: Request = request,
 ): Promise<Response | null> {
   if (request.method !== "GET" && request.method !== "HEAD") return null;
 
@@ -1112,12 +1142,16 @@ async function resolvePublicSlugAtOrigin(
     "Purpose",
     "Referer",
     "Sec-Fetch-Dest",
+    "Sec-Fetch-Mode",
+    "Sec-Fetch-Site",
+    "Sec-Fetch-User",
     "Sec-Purpose",
     "User-Agent",
   ]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
+  attachAnalyticsTrafficQuality(headers, analyticsSignalRequest, true);
 
   headers.set("X-Linktery-Redirect-Secret", secret);
   headers.set("X-Linktery-Public-Host", incomingUrl.hostname.toLowerCase());

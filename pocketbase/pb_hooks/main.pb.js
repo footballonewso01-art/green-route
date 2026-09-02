@@ -1321,7 +1321,8 @@ routerAdd("GET", "/{slug}", (c) => {
         if (redirectTrace.indexOf(String(link.id)) !== -1) {
             return c.html(508, utils.getRedirectLoopHtml());
         }
-        const isBot = /bot|crawler|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(uaStr);
+        const isBot = utils.isTrackedAutomation(uaStr);
+        const suppressAnalytics = isBot || utils.isTrustedAutomatedTraffic(c);
 
         // Bot-safe destinations follow the same scheme and managed-Link loop
         // checks as every other destination; never early-return around them.
@@ -1415,7 +1416,7 @@ routerAdd("GET", "/{slug}", (c) => {
         }
 
         // 4. CLICK LOGGING
-        if (!isBot && utils.clickRateLimitAllows(c, link.id)) {
+        if (!suppressAnalytics && utils.clickRateLimitAllows(c, link.id)) {
             try {
                 let country = utils.resolveCountryFromIP(request);
                 let device = "Desktop";
@@ -2312,14 +2313,14 @@ routerAdd("POST", "/api/track-click", (c) => {
             return c.json(400, { message: "Invalid link id" });
         }
 
+        const request = c.request;
+        const uaStr = String(request.header.get("User-Agent") || "");
+        const isAutomated = utils.isTrackedAutomation(uaStr) || utils.isTrustedAutomatedTraffic(c);
+        if (isAutomated) return c.json(202, { accepted: false });
+
         if (!utils.clickRateLimitAllows(c, linkId)) {
             return c.json(202, { accepted: false });
         }
-
-        const request = c.request;
-        const uaStr = String(request.header.get("User-Agent") || "");
-        const isBot = /bot|crawler|spider|criteo|facebookexternalhit|Googlebot|Bingbot|Twitterbot|LinkedInBot|Pinterestbot|Slurp|DuckDuckBot|Baiduspider|YandexBot/i.test(uaStr);
-        if (isBot) return c.json(202, { accepted: false });
 
         const link = $app.findRecordById("links", linkId);
         if (!link || link.get("active") !== true) {

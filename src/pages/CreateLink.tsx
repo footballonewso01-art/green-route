@@ -332,9 +332,15 @@ export default function CreateLink() {
       
       Object.entries(data).forEach(([key, value]) => {
         if (value === null || value === undefined) {
-          // For JSON fields, send "null" so PocketBase clears the field properly
-          // instead of storing empty string which causes validation issues
-          formData.append(key, jsonFields.has(key) ? 'null' : '');
+          if (jsonFields.has(key)) {
+            // A new record already receives PocketBase's empty JSON value. Do
+            // not serialize `null` through multipart: PocketBase represents it
+            // as JSONRaw bytes before request hooks run. Updates still need an
+            // explicit null so a previously configured rule can be cleared.
+            if (id) formData.append(key, 'null');
+            return;
+          }
+          formData.append(key, '');
           return;
         }
 

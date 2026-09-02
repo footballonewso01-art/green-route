@@ -136,6 +136,58 @@ describe("Cloudflare public slug resolver", () => {
     expect(upstreamHeaders.get("X-Linktery-Client-IP")).toBe("2001:db8::10");
     expect(upstreamHeaders.get("X-Linktery-Country")).toBe("US");
     expect(upstreamHeaders.get("User-Agent")).toContain("Instagram");
+    expect(upstreamHeaders.get("X-Linktery-Traffic-Quality")).toBeNull();
+  });
+
+  it("attests high-confidence automated navigation without trusting client overrides", async () => {
+    const upstreamFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(null, {
+      status: 302,
+      headers: {
+        Location: "https://example.com/final",
+        "X-Linktery-Redirect-Origin": "v1",
+      },
+    }));
+    vi.stubGlobal("fetch", upstreamFetch);
+
+    await worker.fetch(new Request("https://linktery.com/campaign", {
+      headers: {
+        "User-Agent": "curl/8.12.1",
+        "X-Linktery-Traffic-Quality": "human",
+        "X-Linktery-Traffic-Reason": "client-spoof",
+      },
+    }), createEnv());
+
+    const headers = new Headers(upstreamFetch.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("X-Linktery-Traffic-Quality")).toBe("automated");
+    expect(headers.get("X-Linktery-Traffic-Reason")).toBe("automation_user_agent");
+  });
+
+  it("keeps sparse Safari and in-app browser navigations eligible", async () => {
+    const upstreamFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(null, {
+      status: 302,
+      headers: {
+        Location: "https://example.com/final",
+        "X-Linktery-Redirect-Origin": "v1",
+      },
+    }));
+    vi.stubGlobal("fetch", upstreamFetch);
+
+    await worker.fetch(new Request("https://linktery.com/safari", {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1",
+      },
+    }), createEnv());
+    await worker.fetch(new Request("https://linktery.com/instagram", {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Mobile Instagram 390.0.0",
+      },
+    }), createEnv());
+
+    for (const [, init] of upstreamFetch.mock.calls) {
+      const headers = new Headers(init?.headers);
+      expect(headers.get("X-Linktery-Traffic-Quality")).toBeNull();
+      expect(headers.get("X-Linktery-Traffic-Reason")).toBeNull();
+    }
   });
 
   it("passes the server-rendered deeplink handoff through with edge security headers", async () => {
@@ -384,6 +436,34 @@ describe("Cloudflare public slug resolver", () => {
     expect(mappingHeaders.get("X-Linktery-Public-Host")).toBe("brand.example");
     expect(resolverHeaders.get("X-Linktery-Custom-Domain-Root")).toBe("1");
     expect(resolverHeaders.get("X-Linktery-Public-Host")).toBe("brand.example");
+  });
+
+  it("preserves Cloudflare bot classification across a custom-domain rewrite", async () => {
+    const upstreamFetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      if (String(input).endsWith("/api/public/custom-domain")) {
+        return new Response(JSON.stringify({ type: "profile", id: "abcde12345abcde", slug: "creator" }), {
+          status: 200,
+          headers: { "X-Linktery-Custom-Domain-Origin": "v1" },
+        });
+      }
+      return new Response("frontend required", {
+        status: 404,
+        headers: { "X-Linktery-Redirect-Origin": "v1" },
+      });
+    });
+    vi.stubGlobal("fetch", upstreamFetch);
+    const request = new Request("https://creator.example/", {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    Object.defineProperty(request, "cf", {
+      value: { botManagement: { score: 2, verifiedBot: false } },
+    });
+
+    await worker.fetch(request, createEnv());
+
+    const resolverHeaders = new Headers(upstreamFetch.mock.calls[1]?.[1]?.headers);
+    expect(resolverHeaders.get("X-Linktery-Traffic-Quality")).toBe("automated");
+    expect(resolverHeaders.get("X-Linktery-Traffic-Reason")).toBe("very_low_bot_score");
   });
 
   it("caches only a valid positive hostname mapping for 30 seconds", async () => {

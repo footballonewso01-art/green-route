@@ -149,6 +149,7 @@ describe("Redirect Loop Detection", () => {
 
   it("serves social preview metadata before redirect targeting or pixel execution", () => {
     const server = readWorkspaceFile("pocketbase/pb_hooks/main.pb.js");
+    const utils = readWorkspaceFile("pocketbase/pb_hooks/utils.js");
 
     expect(server).toContain("socialPreviewCrawler");
     expect(server).toContain('c.response.header().add("X-Linktery-Social-Preview", "v1")');
@@ -156,7 +157,8 @@ describe("Redirect Loop Detection", () => {
     expect(server.indexOf("if (trustedEdgeRequest && requestedHost && socialPreviewCrawler)"))
       .toBeLessThan(server.indexOf("const redirectTraceValue"));
     expect(server).toContain("hasPixels && !isBot");
-    expect(server).toContain("facebookexternalhit");
+    expect(server).toContain("utils.isTrackedAutomation(uaStr)");
+    expect(utils).toContain("facebookexternalhit");
     expect(server).toContain("ttq.load(${utils.safeJsonForHtml(tiktokPixel)})");
     expect(server).not.toContain("ttq.initialize(${utils.safeJsonForHtml(tiktokPixel)})");
     expect(server).toContain("window.location.replace(dest); }, 450)");

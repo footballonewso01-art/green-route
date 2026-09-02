@@ -22,6 +22,15 @@ const createRecord = (values: Values, originalValues?: Values) => {
 
   return {
     get: (field: string) => current[field],
+    getString: (field: string) => {
+      const value = current[field];
+      if (value === null || value === undefined) return "";
+      if (typeof value === "string") return value;
+      if (Array.isArray(value) && value.every((item) => Number.isInteger(item))) {
+        return Buffer.from(value as number[]).toString("utf8");
+      }
+      return JSON.stringify(value);
+    },
     set: (field: string, value: unknown) => {
       current[field] = value;
     },
@@ -125,6 +134,45 @@ describe("server-side Link feature entitlements", () => {
       utils.enforceLinkCreateOwnershipAndEntitlements(
         app,
         record,
+        "user00000000001",
+        false,
+      ),
+    ).toThrow("Geo Targeting requires the Creator Pro plan.");
+  });
+
+  it("treats PocketBase JSONRaw nulls as empty without weakening paid-field checks", () => {
+    const utils = loadUtils();
+    const user = createUser("creator");
+    const app = createApp(user);
+    const jsonRaw = (value: unknown) => Array.from(Buffer.from(JSON.stringify(value)));
+    const emptyRecord = createRecord({
+      user_id: "user00000000001",
+      slug: "generated1",
+      mode: "redirect",
+      geo_targeting: jsonRaw(null),
+      split_urls: jsonRaw(null),
+      ab_split: false,
+    });
+
+    expect(() =>
+      utils.enforceLinkCreateOwnershipAndEntitlements(
+        app,
+        emptyRecord,
+        "user00000000001",
+        false,
+      ),
+    ).not.toThrow();
+
+    const paidRecord = createRecord({
+      user_id: "user00000000001",
+      slug: "generated2",
+      mode: "redirect",
+      geo_targeting: jsonRaw({ US: "https://example.com/us" }),
+    });
+    expect(() =>
+      utils.enforceLinkCreateOwnershipAndEntitlements(
+        app,
+        paidRecord,
         "user00000000001",
         false,
       ),

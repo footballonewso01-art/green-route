@@ -3,6 +3,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { get as httpGet } from "node:http";
 import net from "node:net";
 import path from "node:path";
 import PocketBase from "pocketbase";
@@ -18,6 +19,16 @@ const temporary = mkdtempSync(path.join(artifacts, "security-smoke-"));
 const db = path.join(temporary, "data.db");
 const sql = (file, query) => execFileSync("sqlite3", [file, query], { encoding: "utf8", windowsHide: true, maxBuffer: 8 * 1024 * 1024 });
 const quote = value => "'" + value.replaceAll("'", "''") + "'";
+const rawGet = (url, headers) => new Promise((resolve, reject) => {
+  const request = httpGet(url, { headers }, response => {
+    response.resume();
+    response.on("end", () => resolve({
+      status: response.statusCode,
+      headers: { get: name => response.headers[String(name).toLowerCase()] || null },
+    }));
+  });
+  request.on("error", reject);
+});
 const password = randomBytes(24).toString("hex");
 const redirectSecret = randomBytes(32).toString("hex");
 const encryptionKey = randomBytes(16).toString("hex");
@@ -104,6 +115,15 @@ try {
     destination_url: "https://example.com", domain: "linktery.com", mode: "redirect",
     geo_targeting: { US: "https://example.com/us" }, active: true,
   }), error => error.status === 400 && /Creator Pro plan/.test(String(error.message)));
+  const browserPayload = new FormData();
+  Object.entries({
+    user_id: other.id, slug: "browser-generated-slug", title: "Browser form payload",
+    destination_url: "https://example.com/browser", domain: "linktery.com", mode: "redirect",
+    geo_targeting: "null", device_targeting: "null", split_urls: "null",
+    ab_split: "false", active: "true",
+  }).forEach(([key, value]) => browserPayload.append(key, value));
+  const browserCreatedLink = await creatorClient.collection("links").create(browserPayload);
+  assert.match(browserCreatedLink.slug, /^[a-z0-9]{8,10}$/);
   const creatorLink = await creatorClient.collection("links").create({
     user_id: other.id, slug: "creator-chosen-slug", title: "Server slug",
     destination_url: "https://example.com", domain: "linktery.com", mode: "redirect", active: true,
@@ -189,7 +209,13 @@ try {
   const initialStats = await customer.send(profileStatsPath, { method: "GET" });
   assert.equal(initialStats.views, 0);
   assert.equal((await customer.send(allProfileStatsPath, { method: "GET" })).cardClicks, 0);
-  const profileDocument = await fetch(`${origin}/${profile.slug}`, { headers: edgeHeaders });
+  const profileDocument = await rawGet(`${origin}/${profile.slug}`, {
+    ...edgeHeaders,
+    "Accept": "text/html",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "X-Linktery-Request-Id": "security-smoke-profile-view",
+  });
   assert.equal(profileDocument.status, 404, "The attested profile signal must still request the SPA");
   assert.equal(profileDocument.headers.get("X-Linktery-Redirect-Origin"), "v1");
   assert.equal(sql(db, "SELECT country FROM profile_view_events;").trim(), "US");
