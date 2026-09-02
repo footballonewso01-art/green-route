@@ -1,0 +1,68 @@
+.page {
+  width: min(100%, 92rem);
+  margin-inline: auto;
+  padding-bottom: var(--app-space-xl);
+  overflow: visible;
+}
+
+.back {
+  color: var(--app-accent);
+  font-size: var(--app-text-xs);
+  font-weight: 650;
+}
+
+.deleteAction {
+  display: inline-flex;
+  min-height: var(--app-control-height);
+  align-items: center;
+  gap: var(--app-space-xs);
+  padding-inline: var(--app-space-md);
+  border: var(--app-rule-hair) solid color-mix(in oklch, var(--app-error) 35%, var(--app-rule));
+  border-radius: var(--app-radius-control);
+  background: var(--app-error-soft);
+  color: var(--app-error);
+  font-size: var(--app-text-sm);
+  font-weight: 650;
+}
+
+.publicAddress {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--app-space-sm);
+  padding: var(--app-space-sm) var(--app-space-md);
+  border: var(--app-rule-hair) solid var(--app-rule);
+  border-radius: var(--app-radius-control);
+  background: var(--app-panel-sunken);
+}
+
+.publicAddress > span { color: var(--app-muted); font-size: var(--app-text-xs); }
+.publicAddress code { min-width: 0; overflow: hidden; color: var(--app-accent); font-size: var(--app-text-xs); text-overflow: ellipsis; white-space: nowrap; }
+.publicAddress button { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: .55rem; color: var(--app-muted); }
+.publicAddress svg { width: .9rem; height: .9rem; }
+
+.editorPanel {
+  min-width: 0;
+  padding: clamp(1rem, 2.4vw, 1.5rem);
+  border: var(--app-rule-hair) solid var(--app-rule);
+  border-radius: var(--app-radius-card);
+  background: var(--app-panel);
+  color: var(--app-ink);
+}
+
+.modalPanel {
+  position: relative;
+  width: min(100%, 28rem);
+  overflow: hidden;
+  padding: 1.75rem;
+  border: var(--app-rule-hair) solid var(--app-rule);
+  border-radius: var(--app-radius-card);
+  background: var(--app-panel-strong);
+  color: var(--app-ink);
+  box-shadow: 0 1.5rem 4rem color-mix(in oklch, black 48%, transparent);
+}
+
+@media (max-width: 39.99rem) {
+  .publicAddress { grid-template-columns: minmax(0, 1fr) auto; }
+  .publicAddress > span { grid-column: 1 / -1; }
+}

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 
 export const DOMAIN = "https://linktery.com";
 
@@ -14,25 +15,55 @@ const getStaticConfigs = () => {
   if (!fs.existsSync(configPath)) throw new Error(`SEO config is missing: ${configPath}`);
 
   const source = fs.readFileSync(configPath, "utf8");
-  const configs = [];
-  const blockRegex = /(\w+)\s*:\s*\{([^}]+)\}/g;
-  let match;
+  const sourceFile = ts.createSourceFile(
+    configPath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
 
-  while ((match = blockRegex.exec(source)) !== null) {
-    const content = match[2];
-    const canonical = content.match(/canonical\s*:\s*["']([^"']+)["']/)?.[1];
-    if (!canonical) continue;
-
-    configs.push({
-      key: match[1],
-      route: canonical,
-      title: content.match(/title\s*:\s*["']([^"']+)["']/)?.[1] || "",
-      description: content.match(/description\s*:\s*["']([^"']+)["']/)?.[1] || "",
-      noIndex: /noIndex\s*:\s*true/.test(content),
-    });
+  const declaration = sourceFile.statements
+    .filter(ts.isVariableStatement)
+    .flatMap((statement) => [...statement.declarationList.declarations])
+    .find((item) => ts.isIdentifier(item.name) && item.name.text === "SEO_PAGES");
+  if (!declaration?.initializer || !ts.isObjectLiteralExpression(declaration.initializer)) {
+    throw new Error("SEO_PAGES must be an object literal so release metadata can be validated.");
   }
 
-  return configs;
+  const readProperty = (object, propertyName) => {
+    const property = object.properties.find((item) => (
+      ts.isPropertyAssignment(item) &&
+      ((ts.isIdentifier(item.name) && item.name.text === propertyName) ||
+        (ts.isStringLiteral(item.name) && item.name.text === propertyName))
+    ));
+    if (!property || !ts.isPropertyAssignment(property)) return undefined;
+    if (ts.isStringLiteralLike(property.initializer)) return property.initializer.text;
+    if (property.initializer.kind === ts.SyntaxKind.TrueKeyword) return true;
+    if (property.initializer.kind === ts.SyntaxKind.FalseKeyword) return false;
+    return undefined;
+  };
+
+  return declaration.initializer.properties.flatMap((item) => {
+    if (!ts.isPropertyAssignment(item) || !ts.isObjectLiteralExpression(item.initializer)) return [];
+    const key = ts.isIdentifier(item.name) || ts.isStringLiteral(item.name)
+      ? item.name.text
+      : "";
+    const canonical = readProperty(item.initializer, "canonical");
+    if (!key || typeof canonical !== "string") return [];
+    const title = readProperty(item.initializer, "title");
+    const description = readProperty(item.initializer, "description");
+    if (typeof title !== "string" || typeof description !== "string") {
+      throw new Error(`SEO_PAGES.${key} must define literal title and description strings.`);
+    }
+    return [{
+      key,
+      route: canonical,
+      title,
+      description,
+      noIndex: readProperty(item.initializer, "noIndex") === true,
+    }];
+  });
 };
 
 export const getSeoPageConfigs = () => {

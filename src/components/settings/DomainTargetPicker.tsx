@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { Check, ChevronsUpDown, Loader2, Search } from "lucide-react";
-import { pb } from "@/lib/pocketbase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { CustomDomainTargetType } from "@/lib/customDomains";
+import { listCustomDomainTargets, type CustomDomainTargetType } from "@/lib/customDomains";
 
 export interface DomainTargetOption {
   id: string;
@@ -24,6 +23,7 @@ export function DomainTargetPicker({ value, type, disabled, onChange }: {
   const [options, setOptions] = useState<DomainTargetOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -31,18 +31,12 @@ export function DomainTargetPicker({ value, type, disabled, onChange }: {
     setLoading(true);
     const timer = window.setTimeout(async () => {
       try {
-        const userId = pb.authStore.model?.id;
-        if (!userId) throw new Error("Sign in required");
-        const types: CustomDomainTargetType[] = type ? [type] : ["profile", "link"];
-        const lists = await Promise.all(types.map(async (kind) => {
-          const nameField = kind === "link" ? "title" : "name";
-          const filter = pb.filter(`user_id = {:userId}${kind === "link" ? " && active = true" : ""}${query.trim() ? ` && (${nameField} ~ {:query} || slug ~ {:query})` : ""}`, { userId, query: query.trim().slice(0, 100) });
-          const result = await pb.collection(kind === "link" ? "links" : "public_profiles").getList(1, 30, {
-            filter, sort: "-created", fields: `id,${nameField},slug`, skipTotal: true, requestKey: null,
-          });
-          return result.items.map((item) => ({ id: item.id, type: kind, name: String(item[nameField] || item.slug), slug: String(item.slug) }));
-        }));
-        if (!canceled) { setOptions(lists.flat()); setFailed(false); }
+        const result = await listCustomDomainTargets({ type, query, perPage: 30 });
+        if (!canceled) {
+          setOptions(result.items);
+          setHasMore(result.has_more);
+          setFailed(false);
+        }
       } catch { if (!canceled) setFailed(true); }
       finally { if (!canceled) setLoading(false); }
     }, query ? 200 : 0);
@@ -76,7 +70,7 @@ export function DomainTargetPicker({ value, type, disabled, onChange }: {
               </button>
             ))}
         </div>
-        {!loading && options.length >= 30 && <p className="border-t border-white/5 px-3 pt-2 text-[11px] text-white/35">Type a name to find more destinations.</p>}
+        {!loading && hasMore && <p className="border-t border-white/5 px-3 pt-2 text-[11px] text-white/35">Type a name to find more destinations.</p>}
       </PopoverContent>
     </Popover>
   );

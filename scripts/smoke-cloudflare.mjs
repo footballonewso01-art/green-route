@@ -10,6 +10,8 @@ if (!["production", "staging"].includes(deployEnvironment)) {
 const globallyNoIndexed =
   deployEnvironment !== "production" ||
   baseUrl.hostname.toLowerCase().endsWith(".workers.dev");
+const isLocalRuntime = ["127.0.0.1", "localhost", "[::1]"].includes(baseUrl.hostname);
+const missingSlugPath = `/seo-smoke-missing-${crypto.randomUUID()}`;
 const failures = [];
 
 async function request(pathname, options = {}) {
@@ -70,26 +72,35 @@ await expectResponse({
   contains: '<link rel="canonical" href="https://linktery.com/documentation" />',
   noIndex: globallyNoIndexed,
 });
-await expectResponse({
-  pathname: "/nasty",
-  status: 200,
-  contains: '<meta name="robots" content="noindex, nofollow" />',
-  noIndex: globallyNoIndexed,
-});
-await expectResponse({
-  pathname: "/index",
-  status: 200,
-  contains: '<meta name="robots" content="noindex, nofollow" />',
-  excludes: 'data-prerendered="true"',
-  noIndex: globallyNoIndexed,
-});
-await expectResponse({
-  pathname: "/landing",
-  status: 200,
-  contains: '<meta name="robots" content="noindex, nofollow" />',
-  excludes: 'data-prerendered="true"',
-  noIndex: globallyNoIndexed,
-});
+if (isLocalRuntime) {
+  // The offline runtime has no resolver secret. These routes test that asset
+  // filenames cannot swallow valid public slugs, so they retain the SPA shell.
+  for (const pathname of ["/nasty", "/index", "/landing"]) {
+    await expectResponse({
+      pathname,
+      status: 200,
+      contains: '<meta name="robots" content="noindex, nofollow" />',
+      excludes: 'data-prerendered="true"',
+      noIndex: globallyNoIndexed,
+    });
+  }
+} else {
+  // Live environments can authoritatively resolve slugs. A random missing
+  // address must be a real 404; do not depend on named customer fixtures.
+  await expectResponse({
+    pathname: missingSlugPath,
+    status: 404,
+    contains: '<meta name="robots" content="noindex, nofollow" />',
+    noIndex: true,
+  });
+  const missingHead = await expectResponse({
+    pathname: missingSlugPath,
+    status: 404,
+    noIndex: true,
+    method: "HEAD",
+  });
+  check((await missingHead.response.text()).length === 0, "Missing-slug HEAD response must not include a body");
+}
 await expectResponse({
   pathname: "/dashboard/settings?tab=api",
   status: 200,
@@ -143,6 +154,22 @@ if (canonicalLocation) {
   );
 }
 
+const comparisonRedirect = await request("/compare/urmybio-vs-taplink?lr_trace=comparison");
+check(comparisonRedirect.status === 308, "/compare/urmybio-vs-taplink: expected canonical 308");
+const comparisonLocation = comparisonRedirect.headers.get("location");
+check(Boolean(comparisonLocation), "/compare/urmybio-vs-taplink: Location header is missing");
+if (comparisonLocation) {
+  const comparisonUrl = new URL(comparisonLocation, baseUrl);
+  check(
+    comparisonUrl.pathname === "/compare/taplink-vs-urmybio",
+    "/compare/urmybio-vs-taplink: wrong canonical destination",
+  );
+  check(
+    comparisonUrl.search === "?lr_trace=comparison",
+    "/compare/urmybio-vs-taplink: query string was not preserved",
+  );
+}
+
 await expectResponse({
   pathname: "/u%2F%5Cevil.example",
   status: 404,
@@ -151,7 +178,7 @@ await expectResponse({
 
 for (const [pathname, expectedStatus] of [
   ["/", 200],
-  ["/nasty", 200],
+  [isLocalRuntime ? "/nasty" : missingSlugPath, isLocalRuntime ? 200 : 404],
   ["/404", 404],
 ]) {
   const initialResponse = await request(pathname);

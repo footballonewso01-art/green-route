@@ -9,9 +9,8 @@ const domainApi = vi.hoisted(() => ({
   update: vi.fn(),
   verify: vi.fn(),
   remove: vi.fn(),
+  targets: vi.fn(),
 }));
-
-const collection = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/customDomains", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/customDomains")>();
@@ -22,25 +21,21 @@ vi.mock("@/lib/customDomains", async (importOriginal) => {
     updateCustomDomainTarget: domainApi.update,
     verifyCustomDomain: domainApi.verify,
     deleteCustomDomain: domainApi.remove,
+    listCustomDomainTargets: domainApi.targets,
   };
 });
 
 vi.mock("@/lib/pocketbase", () => ({
-  pb: {
-    authStore: { model: { id: "user00000000001" } },
-    filter: (template: string) => template,
-    collection,
-  },
+  pb: { authStore: { model: { id: "user00000000001" } } },
 }));
 
 describe("Custom Domains settings UX", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    collection.mockImplementation((name: string) => ({
-      getList: vi.fn().mockResolvedValue({ items: name === "public_profiles"
-        ? [{ id: "profile00000001", name: "Main profile", slug: "creator", domain: "linktery.com" }]
-        : [{ id: "link0000000001", title: "Store", slug: "store", domain: "linktery.com", active: true }] }),
-    }));
+    domainApi.targets.mockResolvedValue({
+      has_more: false,
+      items: [{ id: "profile00000001", type: "profile", name: "Main profile", slug: "creator" }],
+    });
     domainApi.list.mockResolvedValue({
       available: true,
       entitled: true,
@@ -148,9 +143,10 @@ describe("Custom Domains settings UX", () => {
   it("loads destinations only when needed and selects an owned profile", async () => {
     render(<MemoryRouter><CustomDomainsSettings /></MemoryRouter>);
     const picker = await screen.findByRole("combobox", { name: "Choose Public Profile" });
-    expect(collection).not.toHaveBeenCalled();
+    expect(domainApi.targets).not.toHaveBeenCalled();
     fireEvent.click(picker);
     fireEvent.click(await screen.findByRole("option", { name: /Main profile/ }));
+    expect(domainApi.targets).toHaveBeenCalledWith({ type: "profile", query: "", perPage: 30 });
     expect(picker).toHaveTextContent("Main profile");
     expect(screen.getByRole("button", { name: "Connect domain" })).toBeEnabled();
   });

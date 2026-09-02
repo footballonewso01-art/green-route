@@ -1,0 +1,137 @@
+.section {
+  padding: clamp(2.25rem, 4vw, 4rem) var(--landing-page-gutter) clamp(4.5rem, 7vw, 7rem);
+  scroll-margin-top: 6.5rem;
+  background: var(--landing-paper);
+  color: var(--landing-ink);
+  font-family: var(--landing-body);
+}
+
+.inner { width: min(100%, var(--landing-content-max-width)); margin-inline: auto; }
+.pageSection { padding-top: clamp(7rem, 10vw, 9rem); padding-bottom: clamp(3rem, 5vw, 4.5rem); }
+.header { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.title { max-width: 15ch; margin: 0; font-family: var(--landing-display); font-size: clamp(2.65rem, 5vw, 4.6rem); font-weight: 720; letter-spacing: -.062em; line-height: .98; text-wrap: balance; }
+.lede { max-width: 37rem; margin: 1.25rem 0 0; color: var(--landing-ink-soft); font-size: clamp(.95rem, 1.3vw, 1.08rem); line-height: 1.7; text-wrap: balance; }
+
+.billing { display: inline-flex; align-items: center; gap: .25rem; margin-top: 2rem; padding: .3rem; border: 1px solid var(--landing-rule); border-radius: 999px; background: var(--landing-white); box-shadow: 0 .5rem 1.4rem color-mix(in oklch, var(--landing-ink) 6%, transparent); }
+.billing button { min-height: 2.7rem; padding: .55rem 1.05rem; border: 0; border-radius: 999px; background: transparent; color: var(--landing-ink-soft); font: inherit; font-size: .78rem; font-weight: 680; cursor: pointer; transition: background-color 160ms ease, color 160ms ease, transform 120ms ease; }
+.billing button[aria-pressed="true"] { background: var(--landing-ink); color: var(--landing-paper); }
+.billing button:active { transform: translateY(1px); }
+.billing button span { margin-left: .35rem; color: var(--landing-accent-dark); font-size: .64rem; font-weight: 760; }
+.billing button[aria-pressed="true"] span { color: var(--landing-accent); }
+
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; gap: clamp(1.1rem, 2vw, 1.7rem); margin-top: clamp(3rem, 5vw, 4.5rem); }
+.cardSlot { display: flex; min-width: 0; }
+.card {
+  --card-surface: var(--landing-white);
+  --card-text: var(--landing-ink);
+  --card-muted: var(--landing-ink-soft);
+  --card-shadow: color-mix(in oklch, var(--landing-ink) 88%, transparent);
+  --card-lift: 0rem;
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 39rem;
+  padding: clamp(1.45rem, 2.4vw, 2rem);
+  border: 2px solid var(--landing-ink);
+  border-radius: 2rem;
+  background: var(--card-surface);
+  color: var(--card-text);
+  box-shadow: .48rem .48rem 0 var(--card-shadow);
+  transform: translateY(var(--card-lift));
+  transition: transform 190ms var(--landing-ease-out), box-shadow 190ms var(--landing-ease-out);
+}
+.creatorCard { min-height: 36rem; }
+.proCard { --card-surface: var(--landing-media); --card-text: var(--landing-media-text); --card-muted: color-mix(in oklch, var(--landing-media-text) 67%, var(--landing-media)); --card-shadow: var(--landing-accent); --card-lift: -.9rem; min-height: 42rem; border-color: var(--landing-media); }
+.agencyCard { --card-surface: color-mix(in oklch, var(--landing-accent) 14%, var(--landing-paper)); --card-shadow: color-mix(in oklch, var(--landing-accent-dark) 68%, var(--landing-paper)); min-height: 39.5rem; }
+
+.cardTopline { display: flex; align-items: center; min-height: 2.8rem; gap: .65rem; }
+.planIcon { display: inline-flex; align-items: center; justify-content: center; width: 2.65rem; height: 2.65rem; border: 1.5px solid currentColor; border-radius: .9rem; box-shadow: .18rem .18rem 0 color-mix(in oklch, currentColor 75%, transparent); }
+.popular, .planTag { margin-left: auto; padding: .42rem .7rem; border-radius: 999px; font-size: .62rem; font-weight: 780; letter-spacing: .075em; text-transform: uppercase; }
+.popular { background: var(--landing-accent); color: var(--landing-accent-ink); }
+.planTag { border: 1px solid color-mix(in oklch, var(--landing-ink) 22%, transparent); color: var(--landing-ink); }
+.planIntro { margin-top: 1.6rem; }
+.planIntro :is(h2, h3) { margin: 0; font-family: var(--landing-display); font-size: clamp(1.65rem, 2.3vw, 2.1rem); font-weight: 720; letter-spacing: -.045em; line-height: 1.05; }
+.planIntro p { min-height: 3.2rem; margin: .65rem 0 0; color: var(--card-muted); font-size: .82rem; line-height: 1.6; }
+
+.priceRow { display: flex; align-items: flex-end; margin-top: 1.35rem; font-family: var(--landing-display); font-variant-numeric: tabular-nums; }
+.currency { align-self: flex-start; margin: .45rem .1rem 0 0; font-size: 1.25rem; font-weight: 700; }
+.priceRow strong { font-size: clamp(3.4rem, 5vw, 4.5rem); font-weight: 710; letter-spacing: -.075em; line-height: .86; }
+.period { margin: 0 0 .15rem .5rem; color: var(--card-muted); font-family: var(--landing-body); font-size: .8rem; font-weight: 650; }
+.billingNote { margin: .75rem 0 0; color: var(--card-muted); font-size: .7rem; line-height: 1.5; }
+.rule { height: 1px; margin: 1.35rem 0; background: color-mix(in oklch, var(--card-text) 16%, transparent); }
+
+.features { display: flex; flex: 1; flex-direction: column; gap: .72rem; margin: 0 0 1.7rem; padding: 0; list-style: none; }
+.features li { display: flex; align-items: flex-start; gap: .65rem; min-width: 0; color: color-mix(in oklch, var(--card-text) 88%, var(--card-surface)); font-size: .79rem; font-weight: 560; line-height: 1.42; }
+.features li > span:first-child { display: inline-flex; flex: 0 0 1.35rem; align-items: center; justify-content: center; width: 1.35rem; height: 1.35rem; margin-top: .02rem; border-radius: 50%; background: color-mix(in oklch, var(--landing-accent) 23%, var(--card-surface)); color: color-mix(in oklch, var(--landing-accent-dark) 82%, var(--card-text)); }
+.proCard .features li > span:first-child { background: color-mix(in oklch, var(--landing-accent) 18%, var(--landing-media)); color: var(--landing-accent); }
+
+.action, .disabledAction { display: inline-flex; align-items: center; justify-content: center; gap: .6rem; width: 100%; min-height: 3.15rem; margin-top: auto; border: 2px solid var(--card-text); border-radius: 999px; font-size: .8rem; font-weight: 750; text-align: center; }
+.action { background: var(--card-text); color: var(--card-surface); box-shadow: .22rem .22rem 0 color-mix(in oklch, var(--card-text) 26%, transparent); transition: transform 140ms ease, box-shadow 140ms ease, background-color 160ms ease; }
+.proCard .action { border-color: var(--landing-accent); background: var(--landing-accent); color: var(--landing-accent-ink); box-shadow: .22rem .22rem 0 color-mix(in oklch, var(--landing-accent-dark) 78%, transparent); }
+.action:active { transform: translate(.13rem, .13rem); box-shadow: 0 0 0 transparent; }
+.disabledAction { background: color-mix(in oklch, var(--card-text) 6%, var(--card-surface)); color: var(--card-muted); cursor: not-allowed; opacity: .72; }
+
+.assurances { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .8rem 2rem; margin-top: 3.6rem; color: var(--landing-ink-soft); font-size: .74rem; }
+.assurances span { display: inline-flex; align-items: center; gap: .45rem; }
+.assurances svg { color: var(--landing-accent-dark); }
+.section :where(a, button):focus-visible { outline: 2px solid var(--landing-accent-dark); outline-offset: 4px; }
+.proCard :where(a, button):focus-visible { outline-color: var(--landing-accent); }
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .card:hover, .card:focus-within { transform: translate(.24rem, calc(var(--card-lift) + .24rem)); box-shadow: .22rem .22rem 0 var(--card-shadow); }
+}
+
+@media (max-width: 63.99rem) {
+  .grid { grid-template-columns: 1fr; width: min(100%, 39rem); margin-inline: auto; }
+  .card, .creatorCard, .proCard, .agencyCard { min-height: 0; transform: none; }
+  .proCard { order: 0; }
+  .planIntro p { min-height: 0; }
+}
+
+@media (max-width: 39.99rem) {
+  .title { font-size: clamp(2.65rem, 12vw, 3.45rem); }
+  .lede { max-width: 29rem; }
+  .billing { width: 100%; max-width: 22rem; }
+  .billing button { flex: 1; padding-inline: .7rem; }
+  .grid { margin-top: 2.7rem; gap: 1.55rem; }
+  .card { padding: 1.5rem; border-radius: 1.75rem; box-shadow: .38rem .38rem 0 var(--card-shadow); }
+  .features { gap: .78rem; }
+  .features li { font-size: .82rem; }
+  .assurances { align-items: flex-start; flex-direction: column; width: min(100%, 22rem); margin: 2.8rem auto 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .action, .billing button { transition: none; }
+}
+
+.dashboardSection { padding: 0; background: transparent; color: var(--app-ink); font-family: var(--app-body); }
+.dashboardSection .inner { width: 100%; }
+.dashboardSection .header { align-items: flex-start; text-align: left; }
+.dashboardSection .title { max-width: none; color: var(--app-ink); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; line-height: 1; }
+.dashboardSection .lede { max-width: 40rem; margin-top: .8rem; color: var(--app-muted); font-size: .9rem; line-height: 1.55; }
+.dashboardSection .billing { margin-top: 1.5rem; border-color: var(--app-rule); background: var(--app-panel); box-shadow: none; }
+.dashboardSection .billing button { color: var(--app-muted); }
+.dashboardSection .billing button[aria-pressed="true"] { background: var(--app-accent); color: var(--app-accent-ink); }
+.dashboardSection .billing button span { color: var(--app-accent); }
+.dashboardSection .billing button[aria-pressed="true"] span { color: var(--app-accent-ink); }
+.dashboardSection .grid { align-items: stretch; gap: 1rem; margin-top: 2rem; }
+.dashboardSection .card { --card-surface: var(--app-price-paper); --card-text: var(--app-price-paper-ink); --card-muted: color-mix(in oklch, var(--card-text) 66%, var(--card-surface)); --card-shadow: var(--app-canvas); --card-lift: 0; min-height: 36rem; padding: 1.4rem; border: 1px solid color-mix(in oklch, var(--card-text) 38%, transparent); border-radius: var(--app-radius-pricing); box-shadow: 0 .3rem 0 var(--app-canvas); }
+.dashboardSection .proCard { --card-surface: var(--landing-media); --card-text: var(--landing-media-text); --card-muted: color-mix(in oklch, var(--card-text) 67%, var(--card-surface)); --card-shadow: var(--app-accent); border-color: color-mix(in oklch, var(--app-accent) 48%, var(--app-rule)); box-shadow: 0 .3rem 0 var(--app-accent); }
+.dashboardSection .agencyCard { --card-surface: var(--app-price-mint); --card-text: var(--app-price-mint-ink); --card-muted: color-mix(in oklch, var(--card-text) 64%, var(--card-surface)); --card-shadow: color-mix(in oklch, var(--app-accent) 52%, var(--app-canvas)); }
+.dashboardSection .planIcon { border-color: color-mix(in oklch, currentColor 38%, transparent); background: color-mix(in oklch, var(--app-accent) 16%, var(--card-surface)); color: color-mix(in oklch, var(--app-accent) 70%, var(--card-text)); box-shadow: none; }
+.dashboardSection .planTag { border-color: color-mix(in oklch, var(--card-text) 24%, transparent); color: var(--card-muted); }
+.dashboardSection .planIntro { margin-top: 1.35rem; }
+.dashboardSection .planIntro :is(h2, h3) { color: var(--card-text); font-size: 1.6rem; font-weight: 700; }
+.dashboardSection .planIntro p { min-height: 2.8rem; color: var(--card-muted); }
+.dashboardSection .priceRow strong { font-size: clamp(3rem, 5vw, 4rem); font-variant-numeric: tabular-nums; }
+.dashboardSection .rule { background: color-mix(in oklch, var(--card-text) 17%, transparent); }
+.dashboardSection .features li { color: color-mix(in oklch, var(--card-text) 90%, var(--card-surface)); font-size: .78rem; }
+.dashboardSection .features li > span:first-child,
+.dashboardSection .proCard .features li > span:first-child { background: var(--app-accent-soft); color: var(--app-accent); }
+.dashboardSection .action { border-color: var(--app-accent); background: var(--app-accent); color: var(--app-accent-ink); box-shadow: none; }
+.dashboardSection .disabledAction { border: 1px solid color-mix(in oklch, var(--card-text) 24%, transparent); background: color-mix(in oklch, var(--card-text) 7%, var(--card-surface)); color: var(--card-muted); }
+.dashboardSection .assurances { justify-content: flex-start; margin-top: 2rem; color: var(--app-muted); }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) { .dashboardSection .card:hover, .dashboardSection .card:focus-within { transform: translateY(-2px); box-shadow: 0 .3rem 0 var(--card-shadow); } }
+@media (max-width: 63.99rem) { .dashboardSection .card { min-height: 0; } }

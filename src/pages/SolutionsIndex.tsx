@@ -1,363 +1,130 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { ArrowDown, ArrowRight, ArrowUpRight, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import { 
-  ArrowRight, Zap, Globe, Smartphone, RefreshCw, BarChart3, 
-  ShoppingBag, Music, Play, Radio, Shield, Award, Sparkles, User, ShieldAlert
-} from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { pb } from "@/lib/pocketbase";
+import Footer from "@/components/Footer";
+import MarketingHeader from "@/components/MarketingHeader";
+import SolutionWorkflow from "@/components/solutions/SolutionWorkflow";
+import { solutionFilters, solutionGuides, solutionProfessions, type SolutionFilter } from "@/components/solutions/solutionPresentation";
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
-import competitorsData from "@/data/competitors.json";
-import Footer from "@/components/Footer";
+import { PRIMARY_ORIGIN } from "@/lib/siteConfig";
+import competitors from "@/data/competitors.json";
+import "@/styles/landing-rebrand.css";
+import styles from "@/components/solutions/Solutions.module.css";
 
-interface CompetitorPricing {
-  free: string;
-  pro: string;
-  customDomains: string;
-  watermarkRemoval: string;
-  transactionFee: string;
-}
-
-interface Competitor {
-  slug: string;
-  name: string;
-  emoji: string;
-  description: string;
-  pricing: CompetitorPricing;
-}
+const solutionSchema = {
+  "@context": "https://schema.org",
+  "@graph": [
+    { "@type": "CollectionPage", name: "Linktery solutions", url: PRIMARY_ORIGIN + "/solutions" },
+    {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: PRIMARY_ORIGIN },
+        { "@type": "ListItem", position: 2, name: "Solutions", item: PRIMARY_ORIGIN + "/solutions" },
+      ],
+    },
+    {
+      "@type": "ItemList",
+      itemListElement: [...solutionGuides, ...solutionProfessions].map((item, index) => ({
+        "@type": "ListItem", position: index + 1, name: item.title, url: PRIMARY_ORIGIN + item.path,
+      })),
+    },
+  ],
+};
 
 export default function SolutionsIndex() {
-  const { user } = useAuth();
-  const [stars, setStars] = useState<{ id: number; top: string; left: string; size: number; delay: string; duration: string }[]>([]);
+  const [filter, setFilter] = useState<SolutionFilter>("all");
+  const reduceMotion = useReducedMotion();
+  const guides = solutionGuides.filter((guide) => filter === "all" || guide.group === filter);
 
-  useEffect(() => {
-    const generatedStars = Array.from({ length: 40 }).map((_, i) => ({
-      id: i,
-      top: `${Math.random() * 100}%`,
-      left: `${Math.random() * 100}%`,
-      size: Math.random() * 1.5 + 0.5,
-      delay: `${Math.random() * 5}s`,
-      duration: `${Math.random() * 4 + 2}s`,
-    }));
-    setStars(generatedStars);
-  }, []);
-
-  useSeo({
-    ...SEO_PAGES.solutionsIndex
-  });
-
-  const getAvatarUrl = () => {
-    if (user?.avatar) {
-      return pb.files.getUrl(user, user.avatar, { thumb: '100x100' });
-    }
-    return null;
-  };
-
-  const coreTools = [
-    {
-      icon: Zap,
-      title: "Deeplink Generator",
-      desc: "Bypass sandboxed in-app browsers on Instagram/TikTok. Open Spotify, YouTube, or Amazon directly in their native apps.",
-      path: "/solutions/deeplink-generator"
-    },
-    {
-      icon: RefreshCw,
-      title: "Smart Redirect Engine",
-      desc: "Distribute clicks based on A/B weights, device type, or referral filters to maximize monetization metrics.",
-      path: "/solutions/smart-link-redirect"
-    },
-    {
-      icon: Globe,
-      title: "Geo-Targeted Redirects",
-      desc: "Detect visitor geolocation and browser language at the edge to route traffic to localized checkouts and shops.",
-      path: "/solutions/geo-targeted-redirect"
-    },
-    {
-      icon: BarChart3,
-      title: "CPA Link Rotator",
-      desc: "Split traffic by weights across affiliate links. Filter out bots and protect your ad account compliance.",
-      path: "/solutions/affiliate-smart-link-rotator"
-    },
-    {
-      icon: Smartphone,
-      title: "Dynamic QR Codes",
-      desc: "Generate smart QR codes for physical cards or retail that you can edit instantly without reprinting.",
-      path: "/solutions/qr-code-biolink"
-    }
-  ];
-
-  const creatorVerticals = [
-    {
-      icon: ShoppingBag,
-      title: "E-commerce & Shopify",
-      desc: "Route social traffic directly to mobile checkout apps preserving credit card auto-fills and Apple Pay sessions.",
-      path: "/solutions/shopify-smart-links"
-    },
-    {
-      icon: Music,
-      title: "Music Smart Links",
-      desc: "Direct listeners directly into Spotify or Apple Music native applications. Launch Album Pre-save campaigns.",
-      path: "/solutions/music-smart-links"
-    },
-    {
-      icon: Play,
-      title: "YouTube & Telegram",
-      desc: "Bypass in-app browser jails and route description links directly into native channels or apps.",
-      path: "/solutions/telegram-bio-link"
-    },
-    {
-      icon: Radio,
-      title: "Podcast Smart Links",
-      desc: "Attempt native Apple Podcasts or Spotify handoffs with a safe web fallback and click analytics.",
-      path: "/solutions/podcast-smart-links"
-    },
-    {
-      icon: Shield,
-      title: "OnlyFans & Fanvue",
-      desc: "Branded landing pages, custom domains, and automated traffic filtering for creator profiles.",
-      path: "/solutions/onlyfans-link-in-bio"
-    }
-  ];
-
-  const professions = [
-    { name: "Real Estate Agents", slug: "real-estate-agents", emoji: "🏢" },
-    { name: "Fitness Coaches", slug: "fitness-coaches", emoji: "💪" },
-    { name: "UGC Creators", slug: "ugc-creators", emoji: "🤳" },
-    { name: "Gamers & Streamers", slug: "streamers", emoji: "🎮" },
-    { name: "Photographers", slug: "photographers", emoji: "📸" },
-    { name: "Authors & Writers", slug: "authors", emoji: "✍️" },
-    { name: "Artists & Illustrators", slug: "artists", emoji: "🎨" },
-    { name: "Beauty & Fashion", slug: "beauty-influencers", emoji: "💅" }
-  ];
+  useSeo({ ...SEO_PAGES.solutionsIndex, structuredData: solutionSchema });
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden text-foreground">
-      {/* Starry Background */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-        {stars.map((star) => (
-          <div
-            key={star.id}
-            className="absolute rounded-full bg-white opacity-20 animate-pulse"
-            style={{
-              top: star.top,
-              left: star.left,
-              width: `${star.size}px`,
-              height: `${star.size}px`,
-              animationDelay: star.delay,
-              animationDuration: star.duration,
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Decorative gradients */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-10">
-        <div className="absolute top-10 left-1/4 w-[400px] h-[400px] bg-accent rounded-full blur-[120px] mix-blend-screen" />
-        <div className="absolute bottom-10 right-1/4 w-[350px] h-[350px] bg-emerald-500 rounded-full blur-[100px] mix-blend-screen" />
-      </div>
-
-      {/* Navbar */}
-      <nav className="fixed top-0 w-full z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3.5 hover:opacity-80 transition-opacity">
-            <img src="/logo.webp" alt="Linktery Logo" className="h-[60px] w-auto mix-blend-screen" />
-            <span className="text-[22px] font-extrabold text-foreground tracking-tight">Linktery</span>
-          </Link>
-          <div className="hidden md:flex items-center gap-8">
-            <Link to="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Home</Link>
-            <Link to="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
-
-            {user ? (
-              <Link to="/dashboard" className="flex items-center gap-3 group">
-                <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">Dashboard</span>
-                <div className="w-8 h-8 rounded-full border border-accent/30 p-0.5 overflow-hidden group-hover:border-accent transition-colors">
-                  {getAvatarUrl() ? (
-                    <img src={getAvatarUrl()!} alt="User avatar" className="w-full h-full rounded-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full rounded-full bg-accent/10 flex items-center justify-center">
-                      <User className="w-4 h-4 text-accent" />
-                    </div>
-                  )}
-                </div>
-              </Link>
-            ) : (
-              <>
-                <Link to="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Login</Link>
-                <Link to="/register" className="btn-primary-glow text-sm !py-2 !px-4 inline-block">Get Started</Link>
-              </>
-            )}
-          </div>
-        </div>
-      </nav>
-
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-12 px-6 flex items-center justify-center min-h-[40vh]">
-        <div className="max-w-4xl mx-auto text-center relative z-10 space-y-6">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-accent text-sm font-semibold">
-            <Sparkles className="w-3.5 h-3.5" />
-            Traffic Optimization & Routing Hub
-          </div>
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight uppercase">
-            LINKTERY <span className="text-accent">SOLUTIONS</span>
-          </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed font-medium">
-            Explore advanced deep linking engines, custom domain redirection systems, and industry layouts built to maximize social conversions.
-          </p>
-        </div>
-      </section>
-
-      {/* 1. Core Routing Tools */}
-      <section className="py-12 px-6 max-w-6xl mx-auto z-10 relative">
-        <div className="text-left mb-8 border-b border-border/40 pb-4">
-          <h2 className="text-2xl font-extrabold text-white uppercase tracking-tight flex items-center gap-2">
-            <Zap className="w-6 h-6 text-accent" /> Core Redirection Engines
-          </h2>
-          <p className="text-xs text-muted-foreground">High-performance dynamic routing utilities for affiliate marketers and creators.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {coreTools.map((tool, index) => {
-            const Icon = tool.icon;
-            return (
-              <Link 
-                key={index} 
-                to={tool.path}
-                className="glass-card p-6 border border-border bg-surface/25 backdrop-blur-md rounded-2xl flex flex-col justify-between hover:border-accent/40 group transition-all duration-300 text-left"
-              >
-                <div className="space-y-4">
-                  <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-background transition-all">
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <h3 className="text-lg font-bold text-white uppercase tracking-tight">{tool.title}</h3>
-                  <p className="text-sm text-slate-400 leading-relaxed font-medium">{tool.desc}</p>
-                </div>
-                <div className="pt-6 flex justify-end">
-                  <span className="text-xs font-bold text-accent group-hover:text-white flex items-center gap-1 font-mono uppercase">
-                    Configure <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                  </span>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* 2. Creator Solutions */}
-      <section className="py-12 px-6 max-w-6xl mx-auto z-10 relative">
-        <div className="text-left mb-8 border-b border-border/40 pb-4">
-          <h2 className="text-2xl font-extrabold text-white uppercase tracking-tight flex items-center gap-2">
-            <Award className="w-6 h-6 text-accent" /> Creator & Brand Verticals
-          </h2>
-          <p className="text-xs text-muted-foreground">Redirection pages tailored for specific integrations to prevent in-app browser drop-offs.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {creatorVerticals.map((tool, index) => {
-            const Icon = tool.icon;
-            return (
-              <Link 
-                key={index} 
-                to={tool.path}
-                className="glass-card p-6 border border-border bg-surface/25 backdrop-blur-md rounded-2xl flex flex-col justify-between hover:border-accent/40 group transition-all duration-300 text-left"
-              >
-                <div className="space-y-4">
-                  <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-background transition-all">
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <h3 className="text-lg font-bold text-white uppercase tracking-tight">{tool.title}</h3>
-                  <p className="text-sm text-slate-400 leading-relaxed font-medium">{tool.desc}</p>
-                </div>
-                <div className="pt-6 flex justify-end">
-                  <span className="text-xs font-bold text-accent group-hover:text-white flex items-center gap-1 font-mono uppercase">
-                    Learn More <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                  </span>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* 3. Industry Specific Biolinks */}
-      <section className="py-12 px-6 max-w-6xl mx-auto z-10 relative mb-16">
-        <div className="text-left mb-8 border-b border-border/40 pb-4">
-          <h2 className="text-2xl font-extrabold text-white uppercase tracking-tight flex items-center gap-2">
-            <User className="w-6 h-6 text-accent" /> Link in Bio for Professions
-          </h2>
-          <p className="text-xs text-muted-foreground">Custom micro-landing page structures built to align with your business vertical.</p>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {professions.map((prof, index) => (
-            <Link 
-              key={index} 
-              to={`/solutions/link-in-bio-for-${prof.slug}`}
-              className="glass-card p-4 border border-border/60 bg-surface/20 hover:border-accent/30 hover:bg-surface-hover/20 transition-all text-left flex items-center gap-3.5 rounded-xl group"
-            >
-              <span className="text-2xl">{prof.emoji}</span>
+    <div className={styles.page} data-solutions-marketing>
+      <a href="#solutions-main" className={styles.skipLink}>Skip to solutions</a>
+      <MarketingHeader current="solutions" />
+      <main id="solutions-main" className={styles.main}>
+        <div className={styles.container}>
+          <header className={styles.header}>
+            <nav className={styles.breadcrumb} aria-label="Breadcrumb">
+              <Link to="/">Home</Link><ChevronRight size={14} aria-hidden="true" /><span aria-current="page">Solutions</span>
+            </nav>
+            <div className={styles.headerRow}>
               <div>
-                <h3 className="text-sm font-bold text-white group-hover:text-accent transition-colors font-sans">{prof.name}</h3>
-                <span className="text-[10px] text-slate-500 font-mono uppercase">Setup Bio</span>
+                <h1>Find your link workflow.</h1>
+                <p>Share your work, sell an offer, or run a campaign. Start with the task you have in mind.</p>
               </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+              <a href="#solutions-professions" className={styles.jumpLink}>Browse by profession<ArrowDown size={16} aria-hidden="true" /></a>
+            </div>
+          </header>
 
-      {/* Platform Comparisons / Alternatives */}
-      <section className="py-12 px-6 max-w-6xl mx-auto z-10 relative mb-16">
-        <div className="text-left mb-8 border-b border-border/40 pb-4">
-          <h2 className="text-2xl font-extrabold text-white uppercase tracking-tight flex items-center gap-2">
-            <Award className="w-6 h-6 text-accent" /> Platform Alternatives
-          </h2>
-          <p className="text-xs text-muted-foreground">Compare side-by-side specs, pricing tiers, and custom domain options for major competitor platforms vs Linktery.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {(competitorsData as Competitor[]).slice(0, 3).map((comp, index) => (
-            <Link 
-              key={index} 
-              to={`/alternatives/${comp.slug}`}
-              className="glass-card p-6 border border-border bg-surface/20 hover:border-accent/40 hover:bg-surface-hover/10 transition-all duration-300 rounded-2xl flex flex-col justify-between text-left group"
-            >
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="w-12 h-12 rounded-xl bg-slate-900 border border-border flex items-center justify-center text-3xl">
-                    {comp.emoji}
-                  </div>
-                  <div className="text-right text-[10px] font-mono uppercase text-slate-500 space-y-0.5">
-                    <div>Free: <span className="text-white font-bold">{comp.pricing.free}</span></div>
-                    <div>Pro: <span className="text-accent font-bold">{comp.pricing.pro}</span></div>
-                  </div>
-                </div>
-
-                <h3 className="text-lg font-bold text-white tracking-tight uppercase group-hover:text-accent transition-colors">
-                  {comp.name} Alternative
-                </h3>
-                <p className="text-sm text-slate-400 leading-relaxed font-sans font-medium line-clamp-2">
-                  {comp.description}
-                </p>
+          <section aria-label="Solution guides" className={styles.catalog}>
+            <div className={styles.toolbar}>
+              <div className={styles.filters} role="group" aria-label="Filter solutions">
+                {solutionFilters.map((option) => (
+                  <button key={option.id} type="button" aria-pressed={filter === option.id} aria-controls="solution-results" onClick={() => setFilter(option.id)}>{option.label}</button>
+                ))}
               </div>
+              <span className={styles.resultCount} role="status">{guides.length} guides</span>
+            </div>
 
-              <div className="pt-4 border-t border-border/40 mt-4 flex justify-between items-center text-xs">
-                <span className="font-bold text-accent group-hover:text-white flex items-center gap-1 font-mono uppercase transition-colors">
-                  Compare <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                </span>
-              </div>
-            </Link>
-          ))}
-        </div>
-        
-        <div className="mt-8 flex justify-center">
-          <Link to="/alternatives" className="btn-primary-glow text-sm inline-flex items-center gap-2">
-            View All 14 Alternatives <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-      </section>
+            <div id="solution-results" className={styles.grid} data-filter={filter}>
+              {guides.map((guide, index) => {
+                const Icon = guide.icon;
+                return (
+                  <motion.article
+                    key={guide.path}
+                    data-solution-card={guide.path}
+                    className={styles.card + (guide.visual ? " " + styles.featuredCard : "")}
+                    initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: .08 }}
+                    transition={{ duration: .45, delay: (index % 3) * .04, ease: [.16, 1, .3, 1] }}
+                  >
+                    <Link to={guide.path} className={styles.cardLink} aria-labelledby={guide.id + "-title"} aria-describedby={guide.id + "-summary"}>
+                      {guide.visual && <SolutionWorkflow kind={guide.visual} />}
+                      <div className={styles.cardContent}>
+                        <div className={styles.cardEyebrow}><Icon size={16} strokeWidth={1.8} aria-hidden="true" /><span>{guide.label}</span></div>
+                        <h2 id={guide.id + "-title"}>{guide.title}</h2>
+                        <p id={guide.id + "-summary"}>{guide.description}</p>
+                        <span className={styles.cardAction}>Explore solution<ArrowUpRight size={17} aria-hidden="true" /></span>
+                      </div>
+                    </Link>
+                  </motion.article>
+                );
+              })}
+            </div>
+          </section>
 
-      {/* Reusable Footer */}
-      <Footer />
+          <section id="solutions-professions" className={styles.professions} aria-labelledby="professions-title">
+            <div className={styles.sectionHeading}>
+              <h2 id="professions-title">A setup for your kind of work.</h2>
+              <p>See what to put on your page, from a portfolio and booking link to listings and new releases.</p>
+            </div>
+            <div className={styles.professionGrid}>
+              {solutionProfessions.map(({ title, path, description, icon: Icon }, index) => (
+                <motion.div key={path} initial={reduceMotion ? false : { opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .1 }} transition={{ duration: .4, delay: (index % 4) * .04 }}>
+                  <Link to={path} className={styles.professionLink}>
+                    <Icon size={21} strokeWidth={1.6} aria-hidden="true" />
+                    <span><strong>{title}</strong><small>{description}</small></span>
+                    <ArrowUpRight size={16} aria-hidden="true" />
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+
+          <aside className={styles.comparisons} aria-labelledby="comparisons-title">
+            <div><h2 id="comparisons-title">Moving from another tool?</h2><p>Compare the options before choosing your setup.</p></div>
+            <nav aria-label="Platform comparisons">
+              {competitors.slice(0, 3).map((competitor) => <Link key={competitor.slug} to={"/alternatives/" + competitor.slug}>{competitor.name}<ArrowUpRight size={14} aria-hidden="true" /></Link>)}
+              <Link to="/alternatives" className={styles.allComparisons}>All comparisons<ArrowRight size={16} aria-hidden="true" /></Link>
+            </nav>
+          </aside>
+        </div>
+      </main>
+      <Footer variant="landing" />
     </div>
   );
 }

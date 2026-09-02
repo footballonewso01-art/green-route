@@ -29,9 +29,8 @@
     "run_worker_first": [
       "/*",
       "!/assets/*",
-      "!/dashboard-preview.png",
       "!/favicon.png",
-      "!/mobila.png",
+      "!/linktery-logo.png",
       "!/og-image.png",
       "!/stitch-bento-ref.png",
       "!/stitch-dashboard.png",
@@ -94,9 +93,8 @@
         "run_worker_first": [
           "/*",
           "!/assets/*",
-          "!/dashboard-preview.png",
           "!/favicon.png",
-          "!/mobila.png",
+          "!/linktery-logo.png",
           "!/og-image.png",
           "!/stitch-bento-ref.png",
           "!/stitch-dashboard.png",

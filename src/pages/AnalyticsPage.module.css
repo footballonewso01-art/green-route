@@ -1,0 +1,239 @@
+/* Locked analytics keeps the app's workbench language while previewing the value honestly. */
+.lockedPanel.lockedPanel {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-height: clamp(21rem, 42vh, 27rem);
+  align-items: flex-end;
+  overflow: clip;
+  padding: var(--app-space-xl);
+  background: var(--app-panel-sunken);
+}
+
+.lockedPanel::before {
+  content: "";
+  position: absolute;
+  z-index: -3;
+  inset: 0;
+  background-image:
+    linear-gradient(to bottom, var(--app-grid) var(--app-rule-hair), transparent var(--app-rule-hair)),
+    linear-gradient(to right, var(--app-grid) var(--app-rule-hair), transparent var(--app-rule-hair));
+  background-size: 100% 25%, 12.5% 100%;
+  opacity: .72;
+}
+
+.lockedPreview {
+  position: absolute;
+  z-index: -2;
+  inset: var(--app-space-lg) var(--app-space-lg) var(--app-space-lg) 38%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--app-space-md);
+  opacity: .48;
+  filter: blur(1.6px);
+  transform: translateX(2%);
+  pointer-events: none;
+}
+
+.previewMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--app-space-sm);
+}
+
+.previewMetric,
+.previewChart,
+.previewSegment {
+  border: var(--app-rule-hair) solid var(--app-rule-strong);
+  background: color-mix(in oklab, var(--app-panel-strong) 82%, transparent);
+}
+
+.previewMetric {
+  display: grid;
+  min-height: 4.75rem;
+  align-content: center;
+  gap: var(--app-space-xs);
+  padding: var(--app-space-sm);
+  border-radius: var(--app-radius-control);
+}
+
+.previewMetric span,
+.previewMetric strong {
+  display: block;
+  border-radius: var(--app-radius-pill);
+  background: var(--app-rule-strong);
+}
+
+.previewMetric span { width: 48%; height: .42rem; }
+.previewMetric strong { width: 72%; height: .85rem; background: color-mix(in oklab, var(--app-accent) 46%, var(--app-rule-strong)); }
+
+.previewChart {
+  position: relative;
+  min-height: 10rem;
+  overflow: hidden;
+  border-radius: var(--app-radius-card);
+  background-image: linear-gradient(to bottom, var(--app-grid) var(--app-rule-hair), transparent var(--app-rule-hair));
+  background-size: 100% 25%;
+}
+
+.previewChart svg {
+  position: absolute;
+  inset: var(--app-space-md);
+  width: calc(100% - (2 * var(--app-space-md)));
+  height: calc(100% - (2 * var(--app-space-md)));
+  overflow: visible;
+}
+
+.previewChart path {
+  fill: none;
+  stroke: var(--app-accent);
+  stroke-width: 2.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.previewChart path + path {
+  stroke: var(--app-control-rule);
+  stroke-width: 1.25;
+}
+
+.previewSegments {
+  display: grid;
+  grid-template-columns: 1.25fr .75fr;
+  gap: var(--app-space-sm);
+}
+
+.previewSegment {
+  min-height: 4.25rem;
+  border-radius: var(--app-radius-control);
+}
+
+.lockedVeil {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    linear-gradient(90deg, var(--app-panel-sunken) 4%, color-mix(in oklab, var(--app-panel-sunken) 94%, transparent) 31%, color-mix(in oklab, var(--app-panel-sunken) 48%, transparent) 65%, transparent 100%),
+    linear-gradient(0deg, color-mix(in oklab, var(--app-panel-sunken) 82%, transparent) 0%, transparent 62%);
+  pointer-events: none;
+}
+
+.lockedContent {
+  display: flex;
+  max-width: 31rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--app-space-sm);
+}
+
+.lockedIcon {
+  position: relative;
+  display: grid;
+  width: var(--app-control-height-lg);
+  height: var(--app-control-height-lg);
+  place-items: center;
+  border: var(--app-rule-hair) solid var(--app-rule-strong);
+  border-radius: var(--app-radius-control);
+  background: var(--app-panel-strong);
+  color: var(--app-accent);
+}
+
+.lockedIcon > svg:first-child { width: 1.2rem; height: 1.2rem; }
+.lockedIcon > svg:last-child {
+  position: absolute;
+  right: -.3rem;
+  bottom: -.2rem;
+  width: .8rem;
+  height: .8rem;
+  padding: .08rem;
+  border-radius: 50%;
+  background: var(--app-accent);
+  color: var(--app-accent-ink);
+}
+
+.lockedKicker {
+  margin-top: var(--app-space-xs);
+  color: var(--app-accent);
+  font-size: var(--app-text-xs);
+  font-weight: 700;
+  letter-spacing: .08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.lockedContent h2 {
+  margin: 0;
+  color: var(--app-ink);
+  font-family: var(--app-display);
+  font-size: clamp(1.55rem, 3vw, 2.15rem);
+  font-weight: 700;
+  letter-spacing: -.04em;
+  line-height: 1.06;
+}
+
+.lockedContent p {
+  max-width: 52ch;
+  margin: 0;
+  color: var(--app-muted);
+  font-size: var(--app-text-sm);
+  line-height: 1.5;
+}
+
+.lockedFeatures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-xs) var(--app-space-md);
+  margin-block: var(--app-space-xs);
+  color: var(--app-ink);
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+}
+
+.lockedFeatures span { display: inline-flex; align-items: center; gap: var(--app-space-xs); }
+.lockedFeatures svg { width: .9rem; height: .9rem; color: var(--app-accent); }
+
+.upgradeAction {
+  display: inline-flex;
+  min-height: var(--app-control-height);
+  align-items: center;
+  justify-content: center;
+  margin-top: var(--app-space-xs);
+  padding-inline: var(--app-space-lg);
+  border-radius: var(--app-radius-pill);
+  background: var(--app-accent);
+  color: var(--app-accent-ink);
+  font-size: var(--app-text-sm);
+  font-weight: 750;
+  line-height: 1;
+  transition: background-color var(--app-duration) var(--app-ease-out), transform var(--app-duration-micro) var(--app-ease-out);
+}
+
+.upgradeAction:active { transform: translateY(var(--app-press-offset)); }
+
+@media (hover: hover) and (pointer: fine) {
+  .upgradeAction:hover { background: var(--app-accent-hover); transform: translateY(var(--app-hover-offset)); }
+}
+
+@media (max-width: 47.99rem) {
+  .lockedPanel { min-height: 24rem; padding: var(--app-space-lg); }
+  .lockedPreview { inset: var(--app-space-lg); opacity: .28; transform: none; }
+  .lockedVeil {
+    background: linear-gradient(0deg, var(--app-panel-sunken) 5%, color-mix(in oklab, var(--app-panel-sunken) 94%, transparent) 58%, color-mix(in oklab, var(--app-panel-sunken) 56%, transparent) 100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upgradeAction { transition: none; }
+  .upgradeAction:active { transform: none; }
+}
+.skeletonMetric,
+.skeletonChart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-xs);
+  padding: var(--app-space-md);
+}
+
+.skeletonChart {
+  gap: var(--app-space-md);
+  padding: var(--app-space-lg);
+}

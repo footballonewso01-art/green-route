@@ -186,11 +186,16 @@ describe("Cloudflare public slug resolver", () => {
     expect(headers.get("X-Linktery-Public-Host")).toBe("linktery.bio");
   });
 
-  it("falls back to the Public Profile SPA on an origin 404", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("missing", {
-      status: 404,
-      headers: { "X-Linktery-Redirect-Origin": "v1" },
-    })));
+  it("keeps an existing Public Profile on the SPA after an origin 404", async () => {
+    const upstreamFetch = vi.fn(async (input: RequestInfo | URL) => String(input).includes("/api/public/profiles/")
+      ? new Response('{"profile":{"id":"existing-profile"}}', {
+        headers: { "X-Linktery-Public-Resolver": "v1" },
+      })
+      : new Response("frontend required", {
+        status: 404,
+        headers: { "X-Linktery-Redirect-Origin": "v1" },
+      }));
+    vi.stubGlobal("fetch", upstreamFetch);
     const env = createEnv();
 
     const response = await worker.fetch(
@@ -203,6 +208,80 @@ describe("Cloudflare public slug resolver", () => {
     expect(body).toContain("public-spa-shell");
     expect(body).not.toContain("__LINKTERY_SUPPRESS_CLIENT_CLICK__");
     expect(env.ASSETS.fetch).toHaveBeenCalledOnce();
+    expect(upstreamFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["GET", "HEAD"])("returns a real %s 404 only after both public resolvers confirm the slug is missing", async (method) => {
+    const upstreamFetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => new Response("missing", {
+      status: 404,
+      headers: String(input).includes("/api/public/")
+        ? { "X-Linktery-Public-Resolver": "v1" }
+        : { "X-Linktery-Redirect-Origin": "v1" },
+    }));
+    vi.stubGlobal("fetch", upstreamFetch);
+    const env = createEnv("<html>branded-not-found</html>");
+
+    const response = await worker.fetch(new Request("https://linktery.com/nonexistent-seo-check?domain=other.example", { method }), env);
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow");
+    expect(response.headers.get("Cache-Control")).toContain("no-store");
+    expect(await response.text()).toBe(method === "HEAD" ? "" : "<html>branded-not-found</html>");
+    const lookupCalls = upstreamFetch.mock.calls.filter(([input]) => String(input).includes("/api/public/"));
+    expect(lookupCalls.map(([input]) => String(input))).toEqual([
+      "https://greenroute-pb.fly.dev/api/public/profiles/nonexistent-seo-check",
+      "https://greenroute-pb.fly.dev/api/public/links/nonexistent-seo-check",
+    ]);
+    for (const [, init] of lookupCalls) {
+      const headers = new Headers(init?.headers);
+      expect(headers.get("X-Linktery-Public-Host")).toBe("linktery.com");
+      expect(headers.get("X-Linktery-Redirect-Secret")).toBe(secret);
+    }
+    expect(new URL((env.ASSETS.fetch.mock.calls[0] as unknown as [Request])[0].url).pathname)
+      .toBe("/_linktery/not-found");
+  });
+
+  it("preserves React-only links such as interstitials and landing pages", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => new Response("resolver response", {
+      status: String(input).includes("/api/public/links/") ? 200 : 404,
+      headers: String(input).includes("/api/public/")
+        ? { "X-Linktery-Public-Resolver": "v1" }
+        : { "X-Linktery-Redirect-Origin": "v1" },
+    })));
+    const response = await worker.fetch(new Request("https://linktery.com/interstitial"), createEnv());
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("public-spa-shell");
+  });
+
+  it.each([
+    [404, false],
+    [429, true],
+    [503, true],
+  ])("does not infer a missing slug from resolver status %i (attested: %s)", async (status, attested) => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => String(input).includes("/api/public/")
+      ? new Response("not a confirmed miss", {
+        status,
+        headers: attested ? { "X-Linktery-Public-Resolver": "v1" } : {},
+      })
+      : new Response("frontend required", {
+        status: 404,
+        headers: { "X-Linktery-Redirect-Origin": "v1" },
+      })));
+    const response = await worker.fetch(new Request("https://linktery.com/unknown-state"), createEnv());
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("public-spa-shell");
+  });
+
+  it("keeps the SPA available when a read-only existence check times out", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/api/public/")) throw new Error("lookup timeout");
+      return new Response("frontend required", {
+        status: 404,
+        headers: { "X-Linktery-Redirect-Origin": "v1" },
+      });
+    }));
+    const response = await worker.fetch(new Request("https://linktery.com/unknown-state"), createEnv());
+    expect(response.status).toBe(200);
   });
 
   it("does not call the origin when the shared secret is unavailable", async () => {
@@ -258,7 +337,10 @@ describe("Cloudflare public slug resolver", () => {
   });
 
   it("keeps HEAD requests side-effect free", async () => {
-    const upstreamFetch = vi.fn();
+    const upstreamFetch = vi.fn(async (input: RequestInfo | URL) => new Response("read-only lookup", {
+      status: String(input).includes("/api/public/profiles/") ? 404 : 200,
+      headers: { "X-Linktery-Public-Resolver": "v1" },
+    }));
     vi.stubGlobal("fetch", upstreamFetch);
     const env = createEnv();
 
@@ -269,7 +351,8 @@ describe("Cloudflare public slug resolver", () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("");
-    expect(upstreamFetch).not.toHaveBeenCalled();
+    expect(upstreamFetch).toHaveBeenCalledTimes(2);
+    expect(upstreamFetch.mock.calls.every(([input]) => String(input).includes("/api/public/"))).toBe(true);
   });
 
   it("routes a custom hostname root to its exact Link target without exposing the slug", async () => {

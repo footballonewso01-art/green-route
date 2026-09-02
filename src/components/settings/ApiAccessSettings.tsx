@@ -29,6 +29,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { pb } from "@/lib/pocketbase";
 import { maskError } from "@/lib/utils";
+import styles from "./ApiAccessSettings.module.css";
 
 interface ApiKeyItem {
   id: string;
@@ -298,7 +299,7 @@ export function ApiAccessSettings() {
             </div>
 
             <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
-              <div className="flex min-h-12 min-w-0 flex-1 items-center rounded-xl border border-border/60 bg-background/40 focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/20">
+              <div className={styles.keyField}>
                 <input
                   id="api-key-secret"
                   type={revealed && secret ? "text" : "password"}
@@ -307,7 +308,7 @@ export function ApiAccessSettings() {
                   onFocus={(event) => event.currentTarget.select()}
                   autoComplete="off"
                   aria-label="API key secret"
-                  className="min-w-0 flex-1 bg-transparent px-3.5 font-mono text-xs text-foreground outline-none"
+                  className={`${styles.keyInput} px-3.5 font-mono text-xs text-foreground`}
                 />
                 <button
                   type="button"

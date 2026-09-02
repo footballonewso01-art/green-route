@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Linktery logo mark concept v4</title>
+  <desc id="desc">A gently bowed L stem turns sharply near its lower-left corner into a rising swoosh arrow, with two proportionally sized staggered eyes.</desc>
+  <g fill="#12C77A">
+    <path
+      d="M286 170C271 310 268 470 275 560C283 665 320 740 390 790C470 847 570 863 655 827C755 785 820 700 862 603"
+      fill="none"
+      stroke="#12C77A"
+      stroke-width="120"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path d="M960 468 925 660 799 556Z" />
+    <circle cx="510" cy="574" r="39" />
+    <circle cx="630" cy="492" r="39" />
+  </g>
+</svg>

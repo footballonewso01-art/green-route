@@ -14,6 +14,15 @@ interface StarterProfile {
   slug: string;
 }
 
+export function getPostRegistrationDestination(
+  reservedProfileSlug: string,
+  profileId: string,
+): string {
+  return reservedProfileSlug.trim() && profileId.trim()
+    ? `/dashboard/profile/${profileId}`
+    : "/dashboard";
+}
+
 async function readJson(response: Response): Promise<Record<string, unknown>> {
   try {
     return await response.json() as Record<string, unknown>;

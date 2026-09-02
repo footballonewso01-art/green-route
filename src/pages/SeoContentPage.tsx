@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
-import ProfileTemplateSeoPreview from "@/components/ProfileTemplateSeoPreview";
 import SeoResourceLayout from "@/components/SeoResourceLayout";
+import GuideDetailView from "@/components/guides/GuideDetailView";
+import TemplateDetailView from "@/components/templates/TemplateDetailView";
 import { getSeoContentPage } from "@/lib/seoContent";
 
 export default function SeoContentPage() {
@@ -9,9 +10,9 @@ export default function SeoContentPage() {
 
   if (!page || page.kind === "tool") return <Navigate to="/404" replace />;
 
-  const preview = page.kind === "template" && page.templateId
-    ? <ProfileTemplateSeoPreview templateId={page.templateId} />
-    : undefined;
+  if (page.kind === "template") return <TemplateDetailView page={page} />;
 
-  return <SeoResourceLayout page={page} preview={preview} />;
+  if (page.kind === "guide") return <GuideDetailView page={page} />;
+
+  return <SeoResourceLayout page={page} />;
 }

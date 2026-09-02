@@ -8,10 +8,7 @@ const readWorkspaceFile = (path: string) =>
 describe("pricing API feature visibility", () => {
   it.each([
     "src/lib/plans.ts",
-    "src/pages/LandingPage.tsx",
-    "src/pages/PricingPage.tsx",
-    "src/pages/DashboardPricing.tsx",
-  ])("shows Public API Access explicitly in Pro and Agency in %s", (path) => {
+  ])("shows API Access explicitly in Pro and Agency in %s", (path) => {
     const source = readWorkspaceFile(path);
     const creatorStart = source.indexOf('id: "creator"');
     const proStart = source.indexOf('id: "pro"');
@@ -20,9 +17,9 @@ describe("pricing API feature visibility", () => {
     expect(creatorStart).toBeGreaterThanOrEqual(0);
     expect(proStart).toBeGreaterThan(creatorStart);
     expect(agencyStart).toBeGreaterThan(proStart);
-    expect(source.slice(creatorStart, proStart)).not.toContain("Public API Access");
-    expect(source.slice(proStart, agencyStart)).toContain("Public API Access");
-    expect(source.slice(agencyStart)).toContain("Public API Access");
+    expect(source.slice(creatorStart, proStart)).not.toContain("API Access");
+    expect(source.slice(proStart, agencyStart)).toContain("API Access");
+    expect(source.slice(agencyStart)).toContain("API Access");
   });
 
   it("keeps the Help Center comparison and pricing metadata aligned", () => {
@@ -38,9 +35,6 @@ describe("pricing API feature visibility", () => {
 describe("pricing Custom Domain allowances", () => {
   it.each([
     "src/lib/plans.ts",
-    "src/pages/LandingPage.tsx",
-    "src/pages/PricingPage.tsx",
-    "src/pages/DashboardPricing.tsx",
   ])("keeps Free at zero, Pro at two and Agency at ten in %s", (path) => {
     const source = readWorkspaceFile(path);
     const creatorStart = source.indexOf('id: "creator"');
@@ -61,6 +55,25 @@ describe("pricing Custom Domain allowances", () => {
     expect(PLANS.agency.limits.custom_domain).toBe(10);
     const help = readWorkspaceFile("src/pages/HelpCenter.tsx");
     expect(help).toContain('Custom Domains</td><td className="text-center">—</td><td className="text-center text-accent">2</td><td className="text-center text-accent">10</td>');
+  });
+
+  it("keeps the landing pricing connected to the canonical plan catalog", () => {
+    const landing = readWorkspaceFile("src/pages/LandingPage.tsx");
+    const pricing = readWorkspaceFile("src/components/landing/LandingPricing.tsx");
+
+    expect(landing).toContain("<LandingPricing");
+    expect(readWorkspaceFile("src/pages/PricingPage.tsx")).toContain("<LandingPricing");
+    expect(pricing).toMatch(/import \{[^}]*\bPLANS\b[^}]*\bPlanType\b[^}]*\} from "@\/lib\/plans"/);
+    expect(pricing).toContain("PLANS[planId]");
+  });
+
+  it("reuses the same canonical cards inside the authenticated dashboard", () => {
+    const dashboard = readWorkspaceFile("src/pages/DashboardPricing.tsx");
+    expect(dashboard).toContain("<LandingPricing");
+    expect(dashboard).toContain('variant="dashboard"');
+    expect(dashboard).toContain("STRIPE_PRICES.pro[billingCycle]");
+    expect(dashboard).toContain("STRIPE_PRICES.agency[billingCycle]");
+    expect(dashboard).not.toContain("const plans =");
   });
 });
 

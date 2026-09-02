@@ -9,13 +9,20 @@ import {
   Link2,
   Loader2,
   RefreshCw,
-  Sparkles,
   Users,
   WalletCards,
 } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { useSeo } from "@/hooks/useSeo";
+import {
+  DashboardEmptyState,
+  DashboardMetric,
+  DashboardMetricRail,
+  DashboardPage,
+  DashboardPageHeader,
+  DashboardPanel,
+} from "@/components/dashboard/DashboardPrimitives";
 
 type PartnerCode = {
   id: string;
@@ -61,8 +68,8 @@ type PartnerOverviewData = {
 
 const planStyles: Record<string, string> = {
   creator: "border-border bg-surface text-muted-foreground",
-  pro: "border-blue-400/20 bg-blue-400/10 text-blue-300",
-  agency: "border-violet-400/20 bg-violet-400/10 text-violet-300",
+  pro: "border-accent/25 bg-accent/10 text-accent",
+  agency: "border-accent/35 bg-accent/15 text-foreground",
 };
 
 function formatMoney(cents: number, currency = "USD") {
@@ -82,7 +89,7 @@ export default function PartnerOverview() {
   const [copied, setCopied] = useState("");
 
   useSeo({
-    title: "Partner Overview | Linktery",
+    title: "Partner Overview",
     description: "Track your Linktery referrals, commissions, and partner offers.",
     noIndex: true,
   });
@@ -123,9 +130,9 @@ export default function PartnerOverview() {
     const stats = data?.stats;
     if (!stats || stats.total_activated === 0) return [];
     return [
-      { label: "Creator", value: stats.creator, color: "bg-slate-400" },
-      { label: "Pro", value: stats.pro, color: "bg-blue-400" },
-      { label: "Agency", value: stats.agency, color: "bg-violet-400" },
+      { label: "Creator", value: stats.creator, color: "bg-white/25" },
+      { label: "Pro", value: stats.pro, color: "bg-accent/55" },
+      { label: "Agency", value: stats.agency, color: "bg-accent" },
     ].map((item) => ({
       ...item,
       percentage: (item.value / stats.total_activated) * 100,
@@ -145,29 +152,26 @@ export default function PartnerOverview() {
 
   if (isLoading && !data) {
     return (
-      <div className="grid min-h-[60vh] place-items-center">
+      <DashboardPage className="grid min-h-[60vh] place-items-center">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin text-accent" />
           Loading partner workspace…
         </div>
-      </div>
+      </DashboardPage>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="mx-auto max-w-xl py-16 text-center">
-        <h1 className="text-2xl font-bold text-foreground">Partner analytics are unavailable</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Try loading the workspace again in a moment.</p>
-        <button
-          onClick={retryOverview}
-          disabled={isFetching}
-          className="btn-primary-glow mt-6 inline-flex items-center gap-2 px-5 py-2.5 disabled:cursor-wait disabled:opacity-70"
-        >
-          <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-          Try again
-        </button>
-      </div>
+      <DashboardPage>
+        <DashboardPageHeader eyebrow="Partner network" title="Partner Overview" description="Initial and renewal commissions from your referrals in one place." />
+        <DashboardEmptyState
+            icon={<RefreshCw className={`h-5 w-5 ${isFetching ? "animate-spin" : ""}`} />}
+            title="Partner analytics are unavailable"
+            description="Try loading the workspace again in a moment."
+            action={<button onClick={retryOverview} disabled={isFetching} className="btn-primary-glow inline-flex items-center gap-2 px-5 py-2.5 disabled:cursor-wait disabled:opacity-70">Try again</button>}
+        />
+      </DashboardPage>
     );
   }
 
@@ -175,33 +179,27 @@ export default function PartnerOverview() {
   const stats = data.stats;
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-5 pb-10 pt-3 sm:space-y-6 sm:pt-5">
-      <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-accent">
-            <Sparkles className="h-3.5 w-3.5" />
-            Linktery Partner Network
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Partner Overview</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Initial and renewal commissions from your referrals in one place.
-          </p>
-        </div>
+    <DashboardPage className="mx-auto max-w-[1400px] pb-10">
+      <DashboardPageHeader
+        eyebrow="Partner network"
+        title="Partner Overview"
+        description="Initial and renewal commissions from your referrals in one place."
+        actions={(
         <span className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${
           data.eligible
-            ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+            ? "border-accent/25 bg-accent/10 text-accent"
             : "border-border bg-surface text-muted-foreground"
         }`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${data.eligible ? "bg-emerald-300" : "bg-muted-foreground"}`} />
+          <span className={`h-1.5 w-1.5 rounded-full ${data.eligible ? "bg-accent" : "bg-muted-foreground"}`} />
           {data.eligible ? "Partner account active" : "No active offers"}
         </span>
-      </header>
+        )}
+      />
 
-      <section className="relative overflow-hidden rounded-[24px] border border-accent/20 bg-[#08130e] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)] sm:p-7">
-        <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-accent/15 blur-3xl" />
-        <div className="relative grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-end">
+      <DashboardPanel as="section" raised className="p-5 sm:p-7">
+        <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-end">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200/60">Available balance</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Available balance</p>
             <div className="mt-2 flex items-end gap-3">
               <strong className="text-4xl font-bold tracking-[-0.05em] text-white sm:text-5xl">
                 {formatMoney(stats.available_cents, stats.currency)}
@@ -210,17 +208,17 @@ export default function PartnerOverview() {
                 ready
               </span>
             </div>
-            <p className="mt-3 max-w-md text-sm leading-6 text-emerald-50/55">
+            <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
               Commissions unlock after the refund-protection hold. {formatMoney(stats.pending_cents, stats.currency)} is earned and not yet paid.
             </p>
-            <p className="mt-1.5 text-xs text-emerald-50/40">
+            <p className="mt-1.5 text-xs text-muted-foreground">
               {stats.commission_payments.toLocaleString()} commission payment{stats.commission_payments === 1 ? "" : "s"}
               {" · "}
               {stats.renewal_payments.toLocaleString()} from renewals
             </p>
           </div>
 
-          <div className="min-w-0 rounded-2xl border border-white/10 bg-black/20 p-3.5 backdrop-blur-sm sm:p-4">
+          <div className="min-w-0 rounded-2xl border border-white/10 bg-black/20 p-3.5 sm:p-4">
             <div className="flex min-w-0 items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/40">Your referral link</p>
@@ -230,38 +228,32 @@ export default function PartnerOverview() {
                 type="button"
                 onClick={() => copyValue(data.referral_url, "referral")}
                 aria-label="Copy referral link"
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground transition-colors hover:bg-accent/90 active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 {copied === "referral" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </button>
             </div>
             <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-xs">
               <span className="text-white/45">Recurring commission rate</span>
-              <span className="font-mono font-bold text-emerald-300">{formatRate(data.default_commission_rate_bps)}</span>
+              <span className="font-mono font-bold text-accent">{formatRate(data.default_commission_rate_bps)}</span>
             </div>
           </div>
         </div>
-      </section>
+      </DashboardPanel>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <DashboardMetricRail columns={4}>
         {[
-          { label: "Activated", value: stats.total_activated.toLocaleString(), icon: Users, tone: "text-accent bg-accent/10 border-accent/20" },
-          { label: "Pro referrals", value: stats.pro.toLocaleString(), icon: ArrowUpRight, tone: "text-blue-300 bg-blue-400/10 border-blue-400/20" },
-          { label: "Agency referrals", value: stats.agency.toLocaleString(), icon: BadgeDollarSign, tone: "text-violet-300 bg-violet-400/10 border-violet-400/20" },
-          { label: "Already paid", value: formatMoney(stats.paid_cents, stats.currency), icon: WalletCards, tone: "text-amber-300 bg-amber-400/10 border-amber-400/20" },
+          { label: "Activated", value: stats.total_activated.toLocaleString(), icon: Users },
+          { label: "Pro referrals", value: stats.pro.toLocaleString(), icon: ArrowUpRight },
+          { label: "Agency referrals", value: stats.agency.toLocaleString(), icon: BadgeDollarSign },
+          { label: "Already paid", value: formatMoney(stats.paid_cents, stats.currency), icon: WalletCards },
         ].map((item) => (
-          <article key={item.label} className="glass-card min-w-0 p-4 sm:p-5">
-            <div className={`mb-4 grid h-9 w-9 place-items-center rounded-xl border ${item.tone}`}>
-              <item.icon className="h-4 w-4" />
-            </div>
-            <p className="truncate text-xl font-bold tracking-tight text-foreground sm:text-2xl">{item.value}</p>
-            <p className="mt-1 text-xs font-medium text-muted-foreground">{item.label}</p>
-          </article>
+          <DashboardMetric key={item.label} label={item.label} value={item.value} icon={<item.icon className="h-3.5 w-3.5" />} />
         ))}
-      </section>
+      </DashboardMetricRail>
 
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="glass-card overflow-hidden">
+        <DashboardPanel className="overflow-hidden !p-0">
           <div className="flex items-center justify-between border-b border-border/60 px-5 py-4 sm:px-6">
             <div>
               <h2 className="font-semibold text-foreground">Affiliate offers</h2>
@@ -288,7 +280,7 @@ export default function PartnerOverview() {
                     </button>
                     <span className={`rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${
                       code.active
-                        ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+                        ? "border-accent/25 bg-accent/10 text-accent"
                         : "border-border bg-surface text-muted-foreground"
                     }`}>
                       {code.active ? "Active" : "Inactive"}
@@ -315,9 +307,9 @@ export default function PartnerOverview() {
               </article>
             ))}
           </div>
-        </div>
+        </DashboardPanel>
 
-        <div className="glass-card p-5 sm:p-6">
+        <DashboardPanel className="p-5 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-semibold text-foreground">Referral plan mix</h2>
@@ -356,10 +348,10 @@ export default function PartnerOverview() {
               Plan distribution will appear after your first activation.
             </div>
           )}
-        </div>
+        </DashboardPanel>
       </section>
 
-      <section className="glass-card overflow-hidden">
+      <DashboardPanel as="section" className="overflow-hidden !p-0">
         <div className="border-b border-border/60 px-5 py-4 sm:px-6">
           <h2 className="font-semibold text-foreground">Recent activations</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">Latest accounts attributed to your offers</p>
@@ -394,7 +386,7 @@ export default function PartnerOverview() {
             ))}
           </div>
         )}
-      </section>
-    </div>
+      </DashboardPanel>
+    </DashboardPage>
   );
 }

@@ -11,6 +11,8 @@ import { BillingRecord, formatBillingDate } from "@/lib/billing";
 import { CancelRenewalButton } from "@/components/billing/CancelRenewalButton";
 import { ApiAccessSettings } from "@/components/settings/ApiAccessSettings";
 import { CustomDomainsSettings } from "@/components/settings/CustomDomainsSettings";
+import { DashboardPage, DashboardPageHeader, DashboardPanel } from "@/components/dashboard/DashboardPrimitives";
+import styles from "./SettingsPage.module.css";
 
 interface SettingsSection {
   id: string;
@@ -358,16 +360,13 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground text-sm mt-1">Manage your account and preferences</p>
-      </div>
+    <DashboardPage>
+      <DashboardPageHeader eyebrow="Workspace controls" title="Settings" description="Manage your account, security, billing, API access, and domains." />
 
       {/* Mobile section selector button */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="flex items-center gap-3 w-full p-4 rounded-2xl bg-surface/50 border border-border/40 lg:hidden"
+        className={styles.mobileTrigger}
       >
         {(() => {
           const activeSection = sections.find(s => s.id === active);
@@ -384,14 +383,14 @@ export default function SettingsPage() {
 
       {/* Mobile dropdown nav */}
       {sidebarOpen && (
-        <div className="lg:hidden rounded-2xl bg-surface/60 backdrop-blur-xl border border-border/40 overflow-hidden -mt-4">
+        <div className={styles.mobileMenu}>
           {sections.map((section) => {
             const isActive = active === section.id;
             return (
               <button
                 key={section.id}
                 onClick={() => handleSectionClick(section)}
-                className={`w-full flex items-center gap-3 px-5 py-3.5 transition-all duration-200 text-left ${
+                className={`w-full flex items-center gap-3 px-5 py-3.5 transition-colors duration-200 text-left ${
                   isActive
                     ? "bg-accent/10 text-accent"
                     : "text-muted-foreground hover:text-foreground hover:bg-white/[0.02]"
@@ -409,17 +408,17 @@ export default function SettingsPage() {
       )}
 
       {/* Split panel layout */}
-      <div className="flex gap-0 lg:gap-0 min-h-[520px]">
+      <div className={styles.layout}>
         {/* Left sidebar navigation — desktop only */}
-        <div className="hidden lg:flex flex-col w-[260px] shrink-0 rounded-l-3xl bg-surface/30 backdrop-blur-xl border border-border/30 border-r-0 overflow-hidden">
-          <div className="p-3 flex flex-col gap-1">
+        <nav className={styles.navigation} aria-label="Settings sections">
+          <div className={styles.navigationInner}>
             {sections.map((section) => {
               const isActive = active === section.id;
               return (
                 <button
                   key={section.id}
                   onClick={() => handleSectionClick(section)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-left group ${
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-200 text-left group ${
                     isActive
                       ? "bg-accent/10 text-accent border border-accent/15"
                       : "text-muted-foreground hover:text-foreground hover:bg-white/[0.03] border border-transparent"
@@ -430,20 +429,17 @@ export default function SettingsPage() {
                   {section.comingSoon ? (
                     <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider text-white/40">Soon</span>
                   ) : (
-                    <ChevronRight className={`w-4 h-4 transition-all duration-200 ${isActive ? 'text-accent/60 translate-x-0.5' : 'text-transparent group-hover:text-muted-foreground/40'}`} />
+                    <ChevronRight className={`w-4 h-4 transition-[color,transform] duration-200 ${isActive ? 'text-accent/60 translate-x-0.5' : 'text-transparent group-hover:text-muted-foreground/40'}`} />
                   )}
                 </button>
               );
             })}
           </div>
-        </div>
+        </nav>
 
         {/* Right content panel */}
-        <div className="flex-1 rounded-3xl lg:rounded-l-none bg-card/40 backdrop-blur-xl border border-border/30 lg:border-l-border/15 overflow-hidden relative">
-          {/* Subtle decorative glow */}
-          <div className="absolute -right-32 -top-32 w-80 h-80 bg-accent/[0.03] rounded-full blur-[120px] pointer-events-none" />
-
-          <div className="p-6 sm:p-8 relative z-10 overflow-y-auto max-h-[calc(100vh-220px)]">
+        <DashboardPanel className={styles.content}>
+          <div className={styles.scrollArea}>
 
             {/* ============ ACCOUNT ============ */}
             {active === "account" && (
@@ -463,7 +459,7 @@ export default function SettingsPage() {
                     {/* Avatar */}
                     <div className="relative group shrink-0">
                       <div
-                        className="w-16 h-16 rounded-2xl bg-accent/20 border-2 border-accent/20 flex items-center justify-center overflow-hidden cursor-pointer transition-all duration-200 group-hover:border-accent/50 group-hover:shadow-lg group-hover:shadow-accent/10"
+                        className="w-16 h-16 rounded-2xl bg-accent/20 border-2 border-accent/20 flex items-center justify-center overflow-hidden cursor-pointer transition-colors duration-200 group-hover:border-accent/50"
                         onClick={() => accountAvatarRef.current?.click()}
                       >
                         {accountAvatarPreview ? (
@@ -476,7 +472,7 @@ export default function SettingsPage() {
                         type="button"
                         aria-label="Choose account avatar"
                         onClick={() => accountAvatarRef.current?.click()}
-                        className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-accent text-accent-foreground flex items-center justify-center shadow-lg transition-transform hover:scale-110"
+                        className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-accent text-accent-foreground flex items-center justify-center transition-colors hover:bg-accent/90"
                       >
                         <Camera className="w-3 h-3" />
                       </button>
@@ -547,6 +543,17 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <span className="text-sm text-muted-foreground truncate max-w-[45%]">{user?.email}</span>
+                  </div>
+
+                  <div className="flex flex-col gap-3 px-5 py-4 bg-surface/40 border border-border/40 rounded-2xl sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <KeyRound className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Account ID</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Use this identifier when support needs to locate your account.</p>
+                      </div>
+                    </div>
+                    <code className="max-w-full select-all overflow-hidden text-ellipsis rounded-lg border border-border bg-background/45 px-3 py-2 font-mono text-xs text-foreground sm:max-w-[48%]">{user?.id || "—"}</code>
                   </div>
 
                   <div className="flex items-center justify-between px-5 py-4 bg-surface/40 border border-border/40 rounded-2xl">
@@ -676,14 +683,14 @@ export default function SettingsPage() {
                         <button
                           onClick={handleManageSubscription}
                           disabled={portalLoading}
-                          className="px-5 py-2.5 rounded-xl bg-accent text-accent-foreground font-medium hover:bg-accent/90 flex items-center gap-2 transition-all text-sm disabled:opacity-50"
+                          className="px-5 py-2.5 rounded-xl bg-accent text-accent-foreground font-medium hover:bg-accent/90 flex items-center gap-2 transition-colors text-sm disabled:opacity-50"
                         >
                           {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Manage Subscription"}
                         </button>
                       )}
                       <Link
                         to="/dashboard/pricing"
-                        className="px-5 py-2.5 rounded-xl bg-background border border-border text-foreground font-medium hover:border-accent hover:text-accent flex items-center gap-2 transition-all text-sm group"
+                        className="px-5 py-2.5 rounded-xl bg-background border border-border text-foreground font-medium hover:border-accent hover:text-accent flex items-center gap-2 transition-colors text-sm group"
                       >
                         Modify Plan
                         <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
@@ -822,9 +829,9 @@ export default function SettingsPage() {
             )}
 
           </div>
-        </div>
+        </DashboardPanel>
       </div>
 
-    </div>
+    </DashboardPage>
   );
 }

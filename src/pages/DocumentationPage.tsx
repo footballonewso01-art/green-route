@@ -14,7 +14,10 @@ import Footer from "@/components/Footer";
 import MarketingHeader from "@/components/MarketingHeader";
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
+import { createPageBreadcrumbSchema } from "@/lib/breadcrumbSchema";
 import { PUBLIC_API_BASE_URL } from "@/lib/siteConfig";
+import "@/styles/landing-rebrand.css";
+import styles from "./DocumentationPage.module.css";
 
 const API_BASE_URL = PUBLIC_API_BASE_URL;
 
@@ -99,7 +102,7 @@ const errorExample = `{
   "request_id": "reqA1b2C3d4"
 }`;
 
-function CopyControl({ value, label }: { value: string; label: string }) {
+function CopyControl({ value, label, inverse = false }: { value: string; label: string; inverse?: boolean }) {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const resetTimer = useRef<number | null>(null);
 
@@ -128,7 +131,7 @@ function CopyControl({ value, label }: { value: string; label: string }) {
       type="button"
       onClick={() => void copyValue()}
       aria-label={copied ? `${label} copied` : failed ? `${label} failed, try again` : label}
-      className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className={`${styles.copyControl} ${inverse ? styles.copyControlInverse : ""}`}
     >
       {copied ? <Check className="h-3.5 w-3.5 text-accent" /> : <Copy className="h-3.5 w-3.5" />}
       <span className={failed ? "text-destructive" : undefined} aria-live="polite">
@@ -140,12 +143,12 @@ function CopyControl({ value, label }: { value: string; label: string }) {
 
 function CodeBlock({ code, label, copyLabel }: { code: string; label: string; copyLabel?: string }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/70 bg-card/45">
-      <div className="flex items-center justify-between border-b border-border/60 px-3.5 py-2 sm:px-4">
-        <span className="font-mono text-[11px] text-muted-foreground">{label}</span>
-        <CopyControl value={code} label={copyLabel || `Copy ${label}`} />
+    <div className={styles.codeBlock}>
+      <div className={styles.codeHeader}>
+        <span>{label}</span>
+        <CopyControl value={code} label={copyLabel || `Copy ${label}`} inverse />
       </div>
-      <pre className="no-scrollbar overflow-x-auto p-4 text-[12px] leading-6 text-foreground sm:p-5 sm:text-[13px]">
+      <pre>
         <code>{code}</code>
       </pre>
     </div>
@@ -154,32 +157,36 @@ function CodeBlock({ code, label, copyLabel }: { code: string; label: string; co
 
 function SectionHeading({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
-    <header id={id} className="scroll-mt-28">
-      <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-[28px]">{title}</h2>
-      <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[15px]">{children}</p>
+    <header id={id} className={styles.sectionHeading}>
+      <h2>{title}</h2>
+      <p>{children}</p>
     </header>
   );
 }
 
 export default function DocumentationPage() {
-  useSeo(SEO_PAGES.documentation);
+  useSeo({
+    ...SEO_PAGES.documentation,
+    structuredData: createPageBreadcrumbSchema("Documentation", SEO_PAGES.documentation.canonical),
+  });
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className={styles.page} data-documentation-page>
+      <a href="#documentation-main" className={styles.skipLink}>Skip to documentation</a>
       <MarketingHeader current="documentation" />
 
-      <main className="mx-auto max-w-7xl px-5 pb-24 pt-28 sm:px-6 lg:pt-32">
-        <div className="grid gap-10 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-14 xl:grid-cols-[240px_minmax(0,1fr)] xl:gap-20">
-          <aside className="hidden lg:block">
-            <div className="sticky top-28">
-              <p className="text-sm font-semibold text-foreground">Documentation</p>
-              <nav className="mt-4" aria-label="Documentation sections">
-                <ul className="space-y-1">
+      <main id="documentation-main" className={styles.main}>
+        <div className={styles.layout}>
+          <aside className={styles.sidebar}>
+            <div className={styles.sidebarInner}>
+              <p>API reference</p>
+              <nav aria-label="Documentation sections">
+                <ul>
                   {documentationSections.map((section) => (
                     <li key={section.id}>
                       <a
                         href={`#${section.id}`}
-                        className="block rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                        className={styles.sidebarLink}
                       >
                         {section.label}
                       </a>
@@ -190,47 +197,49 @@ export default function DocumentationPage() {
             </div>
           </aside>
 
-          <article className="min-w-0 max-w-4xl">
-            <section aria-labelledby="documentation-title">
-              <div className="inline-flex items-center rounded-md border border-accent/25 bg-accent/10 px-2.5 py-1 font-mono text-xs font-semibold text-accent">
-                API v1
+          <article className={styles.article}>
+            <section className={styles.hero} aria-labelledby="documentation-title">
+              <div className={styles.heroCopy}>
+                <div className={styles.versionBadge}>API v1</div>
+                <h1 id="documentation-title">Linktery API documentation</h1>
+                <p>Create smart links, read Public Profiles, and bring aggregate link analytics into your own dashboards.</p>
+                <div className={styles.heroActions}>
+                  <Link to="/dashboard/settings?section=api" className={styles.primaryAction}>
+                    <KeyRound aria-hidden="true" />
+                    Open API Access
+                  </Link>
+                  <a href="#quickstart" className={styles.secondaryAction}>
+                    Quickstart
+                    <ChevronRight aria-hidden="true" />
+                  </a>
+                </div>
               </div>
-              <h1 id="documentation-title" className="mt-5 max-w-3xl text-4xl font-extrabold tracking-[-0.035em] text-foreground sm:text-5xl">
-                Linktery API documentation
-              </h1>
-              <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                Create smart links, read Public Profiles, and bring aggregate link analytics into your own dashboards.
-              </p>
-              <div className="mt-7 flex flex-wrap items-center gap-3">
-                <Link
-                  to="/dashboard/settings?section=api"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                >
-                  <KeyRound className="h-4 w-4" />
-                  Open API Access
-                </Link>
-                <a
-                  href="#quickstart"
-                  className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-border bg-surface/60 px-4 text-sm font-semibold text-foreground transition-colors hover:border-accent/30 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                >
-                  Quickstart
-                  <ChevronRight className="h-4 w-4" />
-                </a>
+              <div className={styles.heroPanel} aria-label="API connection details">
+                <div className={styles.panelTopline}>
+                  <span>Base URL</span>
+                  <span className={styles.liveStatus}><i aria-hidden="true" /> API v1</span>
+                </div>
+                <code>{API_BASE_URL}</code>
+                <CopyControl value={API_BASE_URL} label="Copy API base URL" inverse />
+                <dl>
+                  <div><dt>Authentication</dt><dd>Bearer key</dd></div>
+                  <div><dt>Scope</dt><dd>Account-owned data</dd></div>
+                </dl>
               </div>
             </section>
 
-            <details className="group mt-9 border-y border-border/60 lg:hidden">
-              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between text-sm font-semibold text-foreground outline-none [&::-webkit-details-marker]:hidden">
+            <details className={styles.mobileDirectory}>
+              <summary>
                 On this page
-                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+                <ChevronDown aria-hidden="true" />
               </summary>
-              <nav className="border-t border-border/60 py-2" aria-label="On this page">
-                <ul className="grid grid-cols-2 gap-1 pb-2">
+              <nav aria-label="On this page">
+                <ul>
                   {documentationSections.map((section) => (
                     <li key={section.id}>
                       <a
                         href={`#${section.id}`}
-                        className="flex min-h-10 items-center rounded-lg px-3 text-xs font-semibold text-muted-foreground transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                        className={styles.mobileDirectoryLink}
                       >
                         {section.label}
                       </a>
@@ -240,20 +249,20 @@ export default function DocumentationPage() {
               </nav>
             </details>
 
-            <section className="mt-12 border-t border-border/60 pt-10 sm:mt-14 sm:pt-12">
+            <section className={styles.docsSection}>
               <SectionHeading id="quickstart" title="Quickstart">
                 Make your first owner-scoped request with the API key from Settings.
               </SectionHeading>
 
-              <div className="mt-6 overflow-hidden rounded-2xl border border-border/70 bg-surface/30">
-                <ol className="divide-y divide-border/60">
+              <div className={styles.steps}>
+                <ol>
                   {[
                     ["Get your key", "Open Settings, choose API Access, then reveal and copy your account key."],
                     ["Store it safely", "Save it as a server environment variable named LINKTERY_API_KEY."],
                     ["Send a request", "Pass the key in the Authorization header. Query parameters are not accepted."],
                   ].map(([title, detail], index) => (
-                    <li key={title} className="flex gap-4 px-4 py-4 sm:px-5">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-accent/25 bg-accent/10 font-mono text-xs font-bold text-accent">
+                    <li key={title}>
+                      <span>
                         {index + 1}
                       </span>
                       <div>
@@ -269,18 +278,9 @@ export default function DocumentationPage() {
                 <CodeBlock code={listLinksExample} label="cURL" copyLabel="Copy list links request" />
               </div>
 
-              <div className="mt-5 flex flex-col gap-2 rounded-xl border border-border/70 bg-surface/30 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-foreground">API base URL</p>
-                  <code className="mt-1 block overflow-x-auto whitespace-nowrap text-xs text-muted-foreground sm:text-sm">
-                    {API_BASE_URL}
-                  </code>
-                </div>
-                <CopyControl value={API_BASE_URL} label="Copy API base URL" />
-              </div>
             </section>
 
-            <section className="mt-14 border-t border-border/60 pt-12">
+            <section className={styles.docsSection}>
               <SectionHeading id="authentication" title="Authentication">
                 Every request uses your single account API key as a Bearer token.
               </SectionHeading>
@@ -310,7 +310,7 @@ export default function DocumentationPage() {
               </p>
             </section>
 
-            <section className="mt-14 border-t border-border/60 pt-12">
+            <section className={styles.docsSection}>
               <SectionHeading id="endpoints" title="Endpoints">
                 All resources are filtered to the account that owns the API key. Another account's resource returns the same 404 as a missing resource.
               </SectionHeading>
@@ -400,7 +400,7 @@ export default function DocumentationPage() {
               </p>
             </section>
 
-            <section className="mt-14 border-t border-border/60 pt-12">
+            <section className={styles.docsSection}>
               <SectionHeading id="analytics" title="Link analytics">
                 Use aggregate analytics to power a custom dashboard without exposing individual visitor records.
               </SectionHeading>
@@ -435,7 +435,7 @@ export default function DocumentationPage() {
               </div>
             </section>
 
-            <section className="mt-14 border-t border-border/60 pt-12">
+            <section className={styles.docsSection}>
               <SectionHeading id="limits-errors" title="Limits and errors">
                 Creator Pro and Agency use the same API surface with different rate and daily safety limits.
               </SectionHeading>
@@ -505,7 +505,7 @@ export default function DocumentationPage() {
         </div>
       </main>
 
-      <Footer />
+      <Footer variant="landing" />
     </div>
   );
 }

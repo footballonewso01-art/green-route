@@ -6,9 +6,17 @@ const allConfigs = getSeoPageConfigs();
 const configs = allConfigs.filter((config) => !config.noIndex);
 const failures = [];
 const allRoutes = new Set(allConfigs.map((config) => config.route));
+const inboundByRoute = new Map(configs.map((config) => [config.route, new Set()]));
+const requiredBreadcrumbRoutes = new Set(["/documentation", "/pricing", "/privacy", "/terms", "/alternatives"]);
 const contentPages = JSON.parse(
   fs.readFileSync(path.join(process.cwd(), "src", "data", "seo-content-pages.json"), "utf8"),
 );
+
+const escapeHtml = (value) => String(value)
+  .replace(/&/g, "&amp;")
+  .replace(/"/g, "&quot;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;");
 
 if (fs.existsSync(path.join(process.cwd(), "public", "sitemap.xml"))) {
   failures.push("public/sitemap.xml must not exist; the release sitemap is generated from the SEO route catalog");
@@ -60,6 +68,13 @@ for (const page of contentPages) {
 }
 
 for (const config of configs) {
+  // Project editorial budget, not a fixed Google display limit.
+  if (config.title.length > 65) {
+    failures.push(`${config.route}: title exceeds the 65-character editorial budget (${config.title.length})`);
+  }
+  if (config.description.trim().length < 70) {
+    failures.push(`${config.route}: description is suspiciously short (${config.description.trim().length} characters)`);
+  }
   if (/\(20\d{2}\)/.test(config.title)) {
     failures.push(`${config.route}: title contains a hard-coded year without a freshness contract`);
   }
@@ -79,9 +94,35 @@ for (const config of allConfigs) {
   const rootContent = html.match(/<div id="root" data-prerendered="true">([\s\S]*?)<\/div><!--app-root-end-->/i)?.[1] || "";
   const canonical = config.route === "/" ? DOMAIN : `${DOMAIN}${config.route}`;
 
+  for (const match of rootContent.matchAll(/<a\b[^>]*\bhref=["']([^"']+)["']/gi)) {
+    const href = match[1].replace(/&amp;/g, "&");
+    let target;
+    try {
+      target = new URL(href, canonical);
+    } catch {
+      failures.push(`${config.route}: invalid link URL ${href}`);
+      continue;
+    }
+    if (target.origin !== DOMAIN) continue;
+    const targetPath = target.pathname.length > 1
+      ? target.pathname.replace(/\/$/, "")
+      : target.pathname;
+    if (
+      /^\/(?:features|templates|guides|tools|solutions|alternatives|compare)(?:\/|$)/.test(targetPath) &&
+      !allRoutes.has(targetPath)
+    ) {
+      failures.push(`${config.route}: internal SEO link targets an unpublished route: ${targetPath}`);
+    }
+    if (!config.noIndex && targetPath !== config.route && inboundByRoute.has(targetPath)) {
+      inboundByRoute.get(targetPath).add(config.route);
+    }
+  }
+
   if (!rootContent) failures.push(`${config.route}: prerendered app root is empty`);
   if (/Loading\.\.\./i.test(rootContent)) failures.push(`${config.route}: loading placeholder leaked into app root`);
   if (!/<h1(?:\s|>)/i.test(rootContent)) failures.push(`${config.route}: H1 is missing`);
+  if (!html.includes(`<title>${escapeHtml(config.title)}</title>`)) failures.push(`${config.route}: title does not match the SEO catalog`);
+  if (!html.includes(`<meta name="description" content="${escapeHtml(config.description)}" />`)) failures.push(`${config.route}: description does not match the SEO catalog`);
   if (!html.includes(`<link rel="canonical" href="${canonical}" />`)) failures.push(`${config.route}: canonical is incorrect`);
   const expectedRobots = config.noIndex ? "noindex, follow" : "index, follow";
   if (!html.includes(`<meta name="robots" content="${expectedRobots}" />`)) {
@@ -94,9 +135,12 @@ for (const config of allConfigs) {
   if (Buffer.byteLength(html, "utf8") > 500_000) failures.push(`${config.route}: HTML is unexpectedly larger than 500 KB`);
 
   const serializedSchemas = [];
+  const schemas = [];
   for (const match of html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
-      serializedSchemas.push(JSON.stringify(JSON.parse(match[1])));
+      const schema = JSON.parse(match[1]);
+      schemas.push(...(schema["@graph"] || [schema]));
+      serializedSchemas.push(JSON.stringify(schema));
     } catch {
       failures.push(`${config.route}: invalid JSON-LD`);
     }
@@ -105,21 +149,21 @@ for (const config of allConfigs) {
     failures.push(`${config.route}: duplicate JSON-LD schema is present`);
   }
 
-  if (config.route.startsWith("/compare/")) {
-    const pair = config.route.replace("/compare/", "").split("-vs-");
-    if (pair.length === 2) {
-      const reverseRoute = `/compare/${pair[1]}-vs-${pair[0]}`;
-      const reversePath = path.join(process.cwd(), "dist", reverseRoute.replace(/^\//, ""), "index.html");
-      if (!fs.existsSync(reversePath)) {
-        failures.push(`${reverseRoute}: reverse comparison alias is missing`);
-      } else {
-        const reverseHtml = fs.readFileSync(reversePath, "utf8");
-        if (!/<meta name="robots" content="noindex, follow" \/>/i.test(reverseHtml)) failures.push(`${reverseRoute}: reverse alias must be noindex`);
-        if (!reverseHtml.includes(`<link rel="canonical" href="${canonical}" />`)) failures.push(`${reverseRoute}: reverse alias canonical is incorrect`);
-        if (!/<meta http-equiv="refresh" content="0;url=https:\/\/linktery\.com\/compare\//i.test(reverseHtml)) failures.push(`${reverseRoute}: reverse alias redirect is missing`);
-        if (/type="module"|data-prerendered="true"/i.test(reverseHtml)) failures.push(`${reverseRoute}: reverse alias must not hydrate the React app`);
-      }
+  if (requiredBreadcrumbRoutes.has(config.route)) {
+    const breadcrumbs = schemas.filter((schema) => schema["@type"] === "BreadcrumbList");
+    const items = breadcrumbs[0]?.itemListElement;
+    if (breadcrumbs.length !== 1 || !Array.isArray(items) || items.length !== 2
+      || items[0]?.item !== DOMAIN || items[1]?.item !== canonical
+      || items.some((item, index) => item["@type"] !== "ListItem" || item.position !== index + 1 || !item.name)) {
+      failures.push(`${config.route}: missing or invalid Home-to-page BreadcrumbList`);
     }
+  }
+
+}
+
+for (const [route, sources] of inboundByRoute) {
+  if (route !== "/" && sources.size === 0) {
+    failures.push(`${route}: indexable orphan page has no link from another indexable page`);
   }
 }
 

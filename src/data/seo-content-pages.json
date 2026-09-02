@@ -3,201 +3,655 @@
     "path": "/features/url-shortener",
     "kind": "feature",
     "eyebrow": "LINK MANAGEMENT",
-    "title": "URL Shortener Built for Measurable Campaigns",
+    "title": "URL shortener",
     "seoTitle": "URL Shortener with Analytics & Smart Routing | Linktery",
     "seoDescription": "Create short, trackable URLs, edit destinations, use branded domains, and understand clicks by device, location, source, and campaign.",
-    "lead": "Turn a long destination into a clean Linktery URL that remains measurable and manageable after it has been shared.",
+    "lead": "Create a compact URL for a destination, then update its settings without replacing the link you shared.",
     "highlights": [
-      { "title": "Short and editable", "text": "Keep one shareable URL while updating its destination from the dashboard when a campaign changes." },
-      { "title": "Analytics included", "text": "Review clicks, devices, countries, browsers, referrers, and UTM values without rebuilding the link." },
-      { "title": "Routing when needed", "text": "Add device, geography, scheduling, or weighted destination rules to the same short URL." }
+      {
+        "title": "Editable destination",
+        "text": "Keep the short address while changing the destination."
+      },
+      {
+        "title": "Campaign parameters",
+        "text": "Set UTM source, medium, and campaign values in the editor."
+      },
+      {
+        "title": "Optional routing",
+        "text": "Device rules are available on all plans; geo targeting and A/B splitting depend on your plan."
+      }
     ],
     "sections": [
-      { "heading": "More than a shorter address", "paragraphs": ["A basic URL shortener replaces a long address with a compact one. Linktery adds a management layer around that address, so the destination, campaign context, and performance data stay connected.", "This is useful for social posts, email, QR codes, affiliate campaigns, creator profiles, and any placement where a long URL is difficult to read or update."], "bullets": ["Custom back-half for recognizable links", "Active and scheduled link states", "Destination changes without replacing the public URL", "One dashboard for short links and public profiles"] },
-      { "heading": "What Linktery records", "paragraphs": ["Each visit can contribute useful operational data such as device class, country, browser, referrer, and campaign parameters. The redirect remains the primary task; analytics should never prevent a visitor from reaching the destination.", "Use these dimensions to compare channels and improve routing rules instead of relying on a single total-click number."], "bullets": ["Total and unique click trends", "Country and device breakdowns", "Referrer and UTM attribution", "Per-link performance history"] },
-      { "heading": "When to use a short URL", "paragraphs": ["Use a short link when there is one primary destination. Use a public profile when visitors need a choice of destinations. Both formats share Linktery's slug system, so a visitor still sees a simple address such as linktery.com/your-name.", "Linktery checks the slug against active short links and public profiles, preserving the familiar one-path experience while supporting two different use cases."], "bullets": ["One offer or campaign destination", "Links printed into QR codes", "Paid media and creator attribution", "Destinations that may need to change later"] }
+      {
+        "heading": "Create and share",
+        "paragraphs": [
+          "Open Links, add an HTTP or HTTPS destination, and choose an available platform domain. Copy the generated short address into your post, message, or QR code."
+        ],
+        "bullets": [
+          "Generated short URLs on every plan",
+          "Custom Smart Link slugs on Agency",
+          "Unique addresses across Links and profiles",
+          "Existing destination parameters are preserved"
+        ]
+      },
+      {
+        "heading": "Update your link",
+        "paragraphs": [
+          "Edit the destination, active status, or schedule from Links. Destination changes keep the same public URL; changing its slug or domain changes the address you share.",
+          "Before replacing a campaign offer, open the published short URL and confirm the final page, including any campaign parameters. This also checks links already embedded in messages or printed materials."
+        ],
+        "bullets": [
+          "Editable target URL",
+          "UTM campaign fields",
+          "Activation and scheduling",
+          "Test the public address after updates"
+        ]
+      },
+      {
+        "heading": "Choose the right format",
+        "paragraphs": [
+          "Use a Smart Link for a redirect or a Public Profile for a page of choices. Advanced traffic breakdowns are a paid analytics feature, not part of every Free account report."
+        ],
+        "bullets": [
+          "One destination: Smart Link",
+          "Multiple cards: Public Profile",
+          "Advanced reports on paid plans",
+          "Custom domains open at the root"
+        ]
+      }
     ],
     "faqs": [
-      { "question": "Can I change a short link destination later?", "answer": "Yes. You can update the destination in Linktery while keeping the public short URL unchanged." },
-      { "question": "Can a short URL and public profile use the same slug?", "answer": "No. Slugs are reserved across links and public profiles so one public address resolves to one intended resource." },
-      { "question": "Does shortening remove UTM parameters?", "answer": "No. Destination query parameters are preserved, and Linktery can also report supported campaign parameters in analytics." }
+      {
+        "question": "Can I change the destination later?",
+        "answer": "Yes. Update it in Links while keeping the published short URL."
+      },
+      {
+        "question": "Can I choose my own short-link slug?",
+        "answer": "Custom Smart Link slugs are included on Agency. Other plans use generated short addresses."
+      },
+      {
+        "question": "Is a Public Profile also a redirect?",
+        "answer": "No. It displays a page where visitors choose between your cards."
+      }
     ],
-    "related": ["/features/link-management", "/features/link-analytics", "/features/branded-links", "/tools/utm-builder"]
+    "related": [
+      "/features/link-management",
+      "/features/link-analytics",
+      "/features/branded-links",
+      "/tools/utm-builder"
+    ]
   },
   {
     "path": "/features/link-management",
     "kind": "feature",
     "eyebrow": "LINK MANAGEMENT",
-    "title": "Manage Short Links, Profiles, QR Codes, and Routing Together",
+    "title": "Link management",
     "seoTitle": "Link Management Platform for Creators & Teams | Linktery",
     "seoDescription": "Manage short URLs, public profiles, branded domains, QR codes, routing rules, and click analytics from one Linktery workspace.",
-    "lead": "Link management connects every public URL to its destination rules, brand, campaign context, and performance history.",
+    "lead": "Maintain published addresses, content, and destinations from the Links and Public Profiles editors.",
     "highlights": [
-      { "title": "One workspace", "text": "Organize short links and public profiles without splitting campaigns across disconnected tools." },
-      { "title": "Controlled destinations", "text": "Edit, schedule, rotate, or localize destinations while preserving the URL already in circulation." },
-      { "title": "Shared measurement", "text": "Compare traffic across links, profile cards, QR placements, devices, and countries." }
+      {
+        "title": "Link controls",
+        "text": "Edit destinations, UTM values, active status, and routing."
+      },
+      {
+        "title": "Profile editing",
+        "text": "Update appearance, content blocks, and the order of your cards."
+      },
+      {
+        "title": "Domain attachments",
+        "text": "See the custom domain attached to each resource alongside its platform address."
+      }
     ],
     "sections": [
-      { "heading": "What link management means", "paragraphs": ["Link management is the practice of creating, organizing, branding, updating, routing, and measuring the URLs a business or creator shares. URL shortening is one feature inside that broader workflow.", "A managed link remains useful after publication because its destination and rules can change without editing every post, email, bio, or printed asset where it appears."], "bullets": ["Create and label campaign links", "Connect branded domains", "Update destinations centrally", "Review click and profile analytics"] },
-      { "heading": "A shared layer for digital and physical traffic", "paragraphs": ["The same managed destination can be shared as a clickable URL, placed on a public profile, or encoded in a QR code. This keeps attribution and destination maintenance consistent across online and offline touchpoints.", "For teams, consistent naming and UTM conventions also reduce the reporting errors that appear when every person creates campaign URLs differently."], "bullets": ["Social and creator campaigns", "Email and messaging", "Packaging, events, and print", "Affiliate and performance marketing"] },
-      { "heading": "Linktery's model", "paragraphs": ["Linktery combines two public experiences: a short URL that redirects to one destination and a public profile that presents multiple cards. Both use the same simple domain-and-slug format.", "Behind that format, link owners can add routing and measurement while profile owners can customize visual templates and control which destinations are shown."], "bullets": ["Short URL redirects", "Customizable public profiles", "Geo and device rules", "Click and card-level analytics"] }
+      {
+        "heading": "Use the right editor",
+        "paragraphs": [
+          "Links manages redirects. Public Profiles manages multi-link pages. Each resource has its own editor and published address."
+        ],
+        "bullets": [
+          "Edit redirect destinations",
+          "Customize profile content",
+          "Arrange cards and social links",
+          "Copy the correct public URL"
+        ]
+      },
+      {
+        "heading": "Maintain published content",
+        "paragraphs": [
+          "Review destinations when an offer changes or a campaign ends. Keeping a Link's public address unchanged also keeps QR codes pointing to that address useful after a destination update.",
+          "Keep a record of where each address is published, such as social bios, newsletters, packaging, or advertisements. That makes it easier to assess which placements need attention before changing a domain or retiring a resource."
+        ],
+        "bullets": [
+          "Remove outdated offers",
+          "Check active status and schedules",
+          "Review enabled routing rules",
+          "Test the complete visitor path"
+        ]
+      },
+      {
+        "heading": "Account and plan scope",
+        "paragraphs": [
+          "Resource counts and advanced settings depend on your plan. The current workspace is account-based: team seats, invitations, and role-based publishing permissions are not included."
+        ],
+        "bullets": [
+          "Links and profiles have separate allowances",
+          "Domain limits follow your plan",
+          "API actions retain account permissions",
+          "No shared team seats"
+        ]
+      }
     ],
     "faqs": [
-      { "question": "What is the difference between URL shortening and link management?", "answer": "URL shortening creates a compact address. Link management also covers branding, organization, destination updates, routing, QR distribution, and analytics." },
-      { "question": "Is link management only for large teams?", "answer": "No. Creators benefit from keeping bio links and campaign destinations organized, while teams gain additional value from consistent naming and reporting." },
-      { "question": "Can Linktery manage both redirects and landing pages?", "answer": "Yes. Linktery supports single-destination short links and multi-destination public profiles in the same workspace." }
+      {
+        "question": "Can I manage Links and Public Profiles together?",
+        "answer": "Yes. They share your account, with a dedicated editor for each resource type."
+      },
+      {
+        "question": "Do edits require a new address?",
+        "answer": "Content and destination edits can keep the existing address. Renaming a slug or changing a domain changes the address itself."
+      },
+      {
+        "question": "Does Agency include team seats?",
+        "answer": "No. The current product does not include shared workspace seats or role-based team permissions."
+      }
     ],
-    "related": ["/features/url-shortener", "/features/link-analytics", "/features/public-api", "/guides/what-is-link-management"]
+    "related": [
+      "/features/url-shortener",
+      "/features/link-analytics",
+      "/features/public-api",
+      "/guides/what-is-link-management"
+    ]
   },
   {
     "path": "/features/branded-links",
     "kind": "feature",
     "eyebrow": "BRAND CONTROL",
-    "title": "Branded Links That Keep Your Domain Visible",
+    "title": "Branded links",
     "seoTitle": "Branded Short Links & Custom Link Domains | Linktery",
     "seoDescription": "Use a custom domain for recognizable short links and public profiles while managing destinations, routing, and analytics in Linktery.",
-    "lead": "Replace an unfamiliar shared domain with a branded address your audience can recognize before clicking.",
+    "lead": "Choose your public address: a platform domain, a custom Smart Link slug, or a domain you own.",
     "highlights": [
-      { "title": "Your domain", "text": "Connect an approved domain or subdomain and assign it to links and public profiles." },
-      { "title": "Readable slugs", "text": "Pair the branded host with a descriptive back-half that makes sense in social, email, and print." },
-      { "title": "Central control", "text": "Update destinations and review analytics without losing the branded URL already shared." }
+      {
+        "title": "Platform domains",
+        "text": "Choose from the domains offered in your resource editor."
+      },
+      {
+        "title": "Custom short-link slugs",
+        "text": "Agency lets you replace a generated Smart Link slug with a readable name."
+      },
+      {
+        "title": "Your own host",
+        "text": "Pro and Agency can connect an owned domain at its root address."
+      }
     ],
     "sections": [
-      { "heading": "What makes a link branded", "paragraphs": ["A branded link uses a domain controlled by your business or creator brand instead of a generic shortening host. The domain and slug work together to provide context before the visitor opens the destination.", "Examples include go.example.com/summer or links.example.com/booking. The exact structure depends on the domain and DNS configuration you choose."], "bullets": ["Recognizable host name", "Consistent campaign naming", "Custom short back-half", "Destination managed in Linktery"] },
-      { "heading": "Where branded links help", "paragraphs": ["Brand visibility matters when the URL is exposed as text: creator bios, podcast descriptions, direct messages, event signage, packaging, and email. A clear address can also make internal campaign reviews easier.", "Branding does not replace good security practices. Visitors should still evaluate the destination, and link owners should keep DNS, account access, and destination content secure."], "bullets": ["Social media bios", "SMS and messaging campaigns", "QR codes and print", "Affiliate and partner links"] },
-      { "heading": "Domain setup in practice", "paragraphs": ["Connecting a custom domain normally requires adding DNS records provided by the platform. DNS propagation and certificate issuance can take time, so plan the setup before a campaign launch.", "After verification, keep system and marketing pages canonical on linktery.com while using the custom or alias domain for the intended public link traffic."], "bullets": ["Choose a short, dedicated domain or subdomain", "Add the required DNS record", "Wait for verification and HTTPS", "Test redirects on mobile and desktop"] }
+      {
+        "heading": "Two address formats",
+        "paragraphs": [
+          "Platform addresses use a domain plus a slug, such as linktery.com/launch. Owned domains work differently: go.yourbrand.com opens one attached Link or Public Profile without a /slug."
+        ],
+        "bullets": [
+          "Platform domain plus slug",
+          "Own domain at the root",
+          "One resource per custom hostname",
+          "Custom Smart Link slugs require Agency"
+        ]
+      },
+      {
+        "heading": "Address and destination",
+        "paragraphs": [
+          "The address is what you share; Link settings determine the redirect destination. A Public Profile renders a page instead. Updating the destination or profile content can keep your existing address."
+        ],
+        "bullets": [
+          "Editable destinations",
+          "Customizable profile content",
+          "Routing according to your plan",
+          "Review placements before changing addresses"
+        ]
+      },
+      {
+        "heading": "Publish a verified domain",
+        "paragraphs": [
+          "Complete the Custom Domains setup and wait for DNS and HTTPS readiness. Use a dedicated subdomain if your main domain already serves a website.",
+          "Check the exact hostname you intend to share, not only the account setup screen. Keep your current website and email records intact while following the DNS instructions for the new hostname."
+        ],
+        "bullets": [
+          "Add the requested DNS records",
+          "Verify ownership",
+          "Wait for the ready state",
+          "Test mobile and desktop"
+        ]
+      }
     ],
     "faqs": [
-      { "question": "Can I use a subdomain for branded links?", "answer": "Yes. A dedicated subdomain such as go.example.com is often a convenient choice because it can be managed separately from the main website." },
-      { "question": "Will my custom link use HTTPS?", "answer": "A production branded domain should be verified and served over HTTPS before it is shared publicly." },
-      { "question": "Can a branded domain serve public profiles too?", "answer": "Yes, when the domain is connected and assigned to the profile according to the account's available domain settings." }
+      {
+        "question": "Can I use go.yourbrand.com/launch?",
+        "answer": "Custom domains attach to one resource at the root, such as go.yourbrand.com, without a /slug. Platform domains use the domain-and-slug format."
+      },
+      {
+        "question": "Which plan includes custom Smart Link slugs?",
+        "answer": "Agency. Owned domains are available on Creator Pro and Agency."
+      },
+      {
+        "question": "Can a custom domain open a Public Profile?",
+        "answer": "Yes. Attach the verified domain to the profile; it will open at the domain's root."
+      }
     ],
-    "related": ["/features/custom-domains", "/features/url-shortener", "/guides/how-to-create-branded-short-url", "/tools/qr-code-generator"]
+    "related": [
+      "/features/custom-domains",
+      "/features/url-shortener",
+      "/guides/how-to-create-branded-short-url",
+      "/tools/qr-code-generator"
+    ]
   },
   {
     "path": "/features/link-analytics",
     "kind": "feature",
     "eyebrow": "MEASUREMENT",
-    "title": "Link Analytics for Every Click and Profile Card",
+    "title": "Link analytics",
     "seoTitle": "Link Analytics & URL Click Tracking | Linktery",
     "seoDescription": "Track short-link clicks and public-profile engagement by time, destination, country, device, browser, referrer, and campaign.",
-    "lead": "See how audiences reach your links and which destinations earn attention without turning reporting into a spreadsheet project.",
+    "lead": "Read click trends and traffic breakdowns by date, country, device, source, and campaign.",
     "highlights": [
-      { "title": "Traffic trends", "text": "Compare click volume over time and identify changes after a campaign, post, or profile update." },
-      { "title": "Audience context", "text": "Break traffic down by supported geography, device, browser, referrer, and UTM dimensions." },
-      { "title": "Profile engagement", "text": "Measure profile views and individual card clicks instead of treating the whole profile as one number." }
+      {
+        "title": "Traffic over time",
+        "text": "Compare activity across reporting periods."
+      },
+      {
+        "title": "Traffic context",
+        "text": "Inspect supported country, device, browser, referrer, and UTM dimensions."
+      },
+      {
+        "title": "Per-link scope",
+        "text": "Review a particular Link instead of only account-wide totals."
+      }
     ],
     "sections": [
-      { "heading": "Metrics that answer practical questions", "paragraphs": ["A click total shows volume, but it does not explain where the traffic came from or what the visitor used. Segmentation turns that total into information you can act on.", "For example, device data can reveal a mobile-heavy audience, while referrer and UTM values can separate a newsletter campaign from a creator partnership."], "bullets": ["Clicks over time", "Country and device distribution", "Browser and referrer context", "UTM source, medium, and campaign"] },
-      { "heading": "Analytics for public profiles", "paragraphs": ["A public profile has two stages: the visitor opens the page and then chooses a destination card. Measuring both stages helps identify whether the profile layout and link order support the intended action.", "Compare card clicks after changing titles, positions, images, or visual templates. Keep tests focused so the reason for a change is easier to interpret."], "bullets": ["Profile views", "Clicks per card", "Relative card engagement", "Template and ordering experiments"] },
-      { "heading": "Use data responsibly", "paragraphs": ["Analytics should collect only the information needed to operate and improve the service. Avoid treating approximate geography or user-agent classification as a precise identity.", "Campaign owners should also configure their own consent and privacy practices when adding external analytics or advertising pixels."], "bullets": ["Use aggregated trends for decisions", "Document campaign naming conventions", "Review tracking integrations", "Respect applicable privacy requirements"] }
+      {
+        "heading": "Read your report",
+        "paragraphs": [
+          "Choose a date range and Link, then move from overall activity to individual breakdowns. Full analytics is included on Creator Pro and Agency; basic dashboard totals are not the same as advanced reports."
+        ],
+        "bullets": [
+          "Click trends",
+          "Country and device distribution",
+          "Browser and referrer context",
+          "Per-link reporting"
+        ]
+      },
+      {
+        "heading": "Keep attribution consistent",
+        "paragraphs": [
+          "Use consistent UTM source, medium, and campaign names. Some apps omit referrer information, so a missing referrer does not prove that a URL was typed directly.",
+          "Agree on one naming convention before distributing campaign URLs. Using different spellings for the same campaign makes reports harder to compare, even when every link reaches the correct destination."
+        ],
+        "bullets": [
+          "Consistent campaign naming",
+          "Separate source, medium, and campaign",
+          "Check destination parameters",
+          "Expect missing referrers"
+        ]
+      },
+      {
+        "heading": "Interpret the metrics",
+        "paragraphs": [
+          "Link clicks do not prove sales or signups; measure those at the destination. Events are processed asynchronously, so fresh activity may take a short time to appear. Location and device dimensions are approximate."
+        ],
+        "bullets": [
+          "Allow for reporting delay",
+          "Compare equivalent periods",
+          "Use downstream conversion reports",
+          "Do not treat network signals as identity"
+        ]
+      }
     ],
     "faqs": [
-      { "question": "Can I track clicks on individual profile cards?", "answer": "Yes. Linktery separates public-profile views from clicks on the links displayed inside that profile." },
-      { "question": "Does Linktery show device and country data?", "answer": "Linktery records supported device and approximate geographic dimensions for traffic analysis and routing." },
-      { "question": "How should I name UTM campaigns?", "answer": "Use a consistent lowercase convention for source, medium, and campaign so reports do not split the same channel across multiple spellings." }
+      {
+        "question": "Why is a new click not visible immediately?",
+        "answer": "Analytics is processed asynchronously. Allow a short time for new activity to appear and the report to refresh."
+      },
+      {
+        "question": "Does a click prove a conversion?",
+        "answer": "No. Sales and signups must be measured at the destination or through a suitable downstream integration."
+      },
+      {
+        "question": "Where are profile card clicks?",
+        "answer": "Public Profile analytics separates profile views from clicks on individual cards."
+      }
     ],
-    "related": ["/features/public-profile-analytics", "/guides/build-link-analytics-dashboard-with-api", "/guides/how-to-track-link-clicks", "/tools/utm-builder"]
+    "related": [
+      "/features/public-profile-analytics",
+      "/guides/build-link-analytics-dashboard-with-api",
+      "/guides/how-to-track-link-clicks",
+      "/tools/utm-builder"
+    ]
   },
   {
     "path": "/features/custom-domains",
     "kind": "feature",
     "eyebrow": "DOMAINS",
-    "title": "Custom Domains for Short Links and Public Profiles",
+    "title": "Custom domains",
     "seoTitle": "Custom Domains for Short Links & Bio Pages | Linktery",
-    "seoDescription": "Connect a custom domain to Linktery short links and public profiles, keep HTTPS enabled, and manage branded destinations centrally.",
-    "lead": "Run links and profiles on a domain your audience already associates with your creator identity, business, or client campaign.",
+    "seoDescription": "Connect an owned domain at its root to one Link or Public Profile. Pro includes 2 custom domains, Agency 10, with DNS verification and HTTPS.",
+    "lead": "Attach a domain you own to one Smart Link or Public Profile. Visitors open the domain directly, with no /slug.",
     "highlights": [
-      { "title": "Short links", "text": "Publish campaign redirects on a branded root domain or subdomain configured for Linktery." },
-      { "title": "Public profiles", "text": "Use the same domain system for creator profiles while keeping each slug globally unambiguous." },
-      { "title": "Alias support", "text": "Continue using Linktery alias domains for redirect traffic while linktery.com remains the canonical product website." }
+      {
+        "title": "Root address",
+        "text": "Use yourbrand.com or go.yourbrand.com with no path after the hostname."
+      },
+      {
+        "title": "One attached resource",
+        "text": "Choose a Link or Public Profile owned by your account."
+      },
+      {
+        "title": "Verified connection",
+        "text": "DNS ownership verification and HTTPS readiness protect the connection."
+      }
     ],
     "sections": [
-      { "heading": "Root domains, subdomains, and aliases", "paragraphs": ["A root domain is the primary host such as example.com. A subdomain adds a dedicated label such as go.example.com. Either can be useful, but a subdomain is often easier to isolate from an existing website.", "Linktery also supports shared alias domains for public redirect and profile traffic. Those aliases do not replace linktery.com as the canonical domain for product and SEO pages."], "bullets": ["Root domain for a dedicated link brand", "Subdomain alongside an existing website", "Shared aliases for quick publishing", "Canonical product pages on linktery.com"] },
-      { "heading": "A safe connection workflow", "paragraphs": ["Domain ownership is verified through DNS. Copy the record exactly, avoid removing unrelated website or email records, and allow time for DNS changes to propagate.", "After verification, test HTTPS, a short link, and a public profile before publishing the domain in a large campaign."], "bullets": ["Review existing DNS records", "Add only the requested record", "Confirm domain verification", "Test HTTPS and both slug types"] },
-      { "heading": "Avoiding route conflicts", "paragraphs": ["A public slug can represent either an active short link or a public profile, so Linktery reserves uniqueness across both collections. This prevents one address from resolving differently depending on timing.", "System routes such as pricing, features, tools, and account pages remain separate from user-created slugs."], "bullets": ["One resource per public slug", "Server-side uniqueness checks", "Reserved system path prefixes", "Consistent behavior across supported domains"] }
+      {
+        "heading": "Connect your domain",
+        "paragraphs": [
+          "In Custom Domains, enter the hostname and choose its Link or Public Profile. Add the DNS records provided by the setup flow at your DNS provider. Keep unrelated website and email records intact."
+        ],
+        "bullets": [
+          "Enter a hostname, not a full URL",
+          "Select your own resource",
+          "Copy the requested DNS records",
+          "Wait for DNS and HTTPS readiness"
+        ]
+      },
+      {
+        "heading": "Root-level attachment",
+        "paragraphs": [
+          "A hostname serves one attached resource at its root. It does not create a namespace for all your Links at different /slug paths. The resource's Linktery primary and alias addresses remain separate."
+        ],
+        "bullets": [
+          "No /slug on a custom domain",
+          "One resource per hostname",
+          "Platform addresses remain separate",
+          "Edit the resource without rebuilding the connection"
+        ]
+      },
+      {
+        "heading": "Limits and status",
+        "paragraphs": [
+          "Creator Pro includes up to 2 connected custom domains at once; Agency includes up to 10. Free does not include custom domains. Creation and provisioning also have safety limits, so repeated deletion and recreation is not unlimited."
+        ],
+        "bullets": [
+          "Pro: 2 concurrent domains",
+          "Agency: 10 concurrent domains",
+          "DNS propagation can take time",
+          "Share only after the connection is ready"
+        ]
+      }
     ],
     "faqs": [
-      { "question": "Should I use a root domain or subdomain?", "answer": "Use a subdomain if your root domain already hosts a website. Use a root domain when the entire domain is dedicated to short links and profiles." },
-      { "question": "Do alias domains change Linktery's canonical website?", "answer": "No. Alias domains are used for public redirects and profiles, while linktery.com remains the canonical product and SEO domain." },
-      { "question": "Why must profile and short-link slugs be unique?", "answer": "Because both are served from the same /slug format, uniqueness guarantees that each public address has one deterministic meaning." }
+      {
+        "question": "Does a custom domain need a /slug?",
+        "answer": "No. It opens its attached Link or Public Profile directly at the root, such as https://yourbrand.com."
+      },
+      {
+        "question": "Can one hostname open several resources?",
+        "answer": "Not as separate /slug paths. Connect a different hostname for another resource, within your plan limit."
+      },
+      {
+        "question": "Why is my domain still pending?",
+        "answer": "DNS propagation and HTTPS setup can take time. Check the records and status shown in Custom Domains before sharing the address."
+      }
     ],
-    "related": ["/features/branded-links", "/features/url-shortener", "/guides/how-to-create-branded-short-url", "/pricing"]
+    "related": [
+      "/features/branded-links",
+      "/features/url-shortener",
+      "/guides/how-to-create-branded-short-url",
+      "/pricing"
+    ]
   },
   {
     "path": "/features/link-rotator",
     "kind": "feature",
     "eyebrow": "TRAFFIC CONTROL",
-    "title": "Weighted Link Rotator for Controlled Traffic Splits",
-    "seoTitle": "Weighted Link Rotator & A/B URL Splitter | Linktery",
-    "seoDescription": "Split clicks across multiple destinations with explicit weights, preserve one public URL, and compare destination performance in Linktery.",
-    "lead": "Distribute visits across multiple approved destinations without changing the short link used in ads, profiles, email, or print.",
+    "title": "Link rotator",
+    "seoTitle": "Link Rotator & A/B URL Splitter | Linktery",
+    "seoDescription": "Randomly split visits between a Link destination and alternative URLs with equal selection chances. Keep one public address for A/B experiments.",
+    "lead": "Use A/B Traffic Splitter to randomly send visits to your Link destination or one of its alternative URLs.",
     "highlights": [
-      { "title": "Weighted destinations", "text": "Assign relative traffic weights instead of relying on an opaque random redirect." },
-      { "title": "One public URL", "text": "Keep campaign placements unchanged while destinations or weights are updated centrally." },
-      { "title": "Measured outcomes", "text": "Review click distribution and downstream campaign results before declaring a winning variant." }
+      {
+        "title": "Equal-chance selection",
+        "text": "Each configured destination has the same chance on every visit."
+      },
+      {
+        "title": "Stable shared URL",
+        "text": "Edit alternatives without replacing your campaign's short address."
+      },
+      {
+        "title": "Campaign experiments",
+        "text": "Compare downstream results using consistent UTM values and destination analytics."
+      }
     ],
     "sections": [
-      { "heading": "How weighted rotation works", "paragraphs": ["A link rotator chooses from multiple configured destinations according to their weights. A 50/50 setup aims for an even distribution over a meaningful number of visits; it does not guarantee alternating destinations click by click.", "Weights can also support uneven allocations such as 70/30 when one destination is a control and the other is an experiment."], "bullets": ["Two or more destinations", "Relative percentage weights", "Editable allocation", "One stable campaign URL"] },
-      { "heading": "Good use cases", "paragraphs": ["Rotators are useful for landing-page experiments, partner allocation, regional offer testing, or gradual traffic shifts. Every destination must be suitable for the audience and compliant with the channel where the link is shared.", "Do not use rotation to show crawlers or reviewers materially different content from real visitors. That behavior can violate platform policies and undermine user trust."], "bullets": ["Landing-page experiments", "Partner traffic allocation", "Offer validation", "Controlled migration between destinations"] },
-      { "heading": "Reading the result", "paragraphs": ["Click distribution alone is not a conversion test. Use consistent UTM values or downstream analytics to compare signups, sales, or other outcomes associated with each destination.", "Run the experiment long enough to reduce noise and avoid changing several page elements at the same time."], "bullets": ["Confirm actual traffic distribution", "Track downstream outcomes", "Use a defined test window", "Document the winning criterion"] }
+      {
+        "heading": "Configure the splitter",
+        "paragraphs": [
+          "On Agency, enable A/B Traffic Splitter in the Link editor and add alternative URLs. The resolved main destination is included. Two options give each a 50% chance; custom weights such as 70/30 are not available."
+        ],
+        "bullets": [
+          "Main destination plus alternatives",
+          "Equal probability per option",
+          "Random, not round-robin",
+          "Agency plan required"
+        ]
+      },
+      {
+        "heading": "Routing order matters",
+        "paragraphs": [
+          "Device and country rules resolve the main destination before the split. A/B selection then chooses between that URL and the alternatives. An alternative can therefore be chosen after a country match."
+        ],
+        "bullets": [
+          "Device rules first",
+          "Country rules can override device rules",
+          "A/B selection follows routing",
+          "UTM parameters are applied afterward"
+        ]
+      },
+      {
+        "heading": "Evaluate the result",
+        "paragraphs": [
+          "Equal probability does not guarantee equal totals in a small sample, and repeat visitors may reach another option. Click volume alone is not a conversion result; measure sales or signups at each destination."
+        ],
+        "bullets": [
+          "Use a defined test period",
+          "Keep all alternatives suitable for your audience",
+          "Track downstream conversions",
+          "Do not mix unrestricted alternatives with mandatory country routing"
+        ]
+      }
     ],
     "faqs": [
-      { "question": "Does a 50/50 rotator alternate every click?", "answer": "Not necessarily. Weighted selection targets an even distribution over time rather than guaranteeing a strict alternating sequence." },
-      { "question": "Can I update weights after sharing the link?", "answer": "Yes. The public URL remains the same while configured destination weights are updated in the dashboard." },
-      { "question": "Is a link rotator the same as geo-targeting?", "answer": "No. Rotation distributes traffic by weight, while geo-targeting selects a destination using an approximate location rule." }
+      {
+        "question": "Can I set custom weights?",
+        "answer": "No. The current splitter selects randomly with equal probability across the main destination and alternatives."
+      },
+      {
+        "question": "Does it alternate every click?",
+        "answer": "No. Each visit is a random selection, so exact totals may differ."
+      },
+      {
+        "question": "Will country routing always win?",
+        "answer": "No. A country rule resolves the main option first, then the split can select that option or an alternative."
+      }
     ],
-    "related": ["/features/geo-targeting", "/features/device-targeting", "/features/link-analytics", "/solutions/affiliate-smart-link-rotator"]
+    "related": [
+      "/features/geo-targeting",
+      "/features/device-targeting",
+      "/features/link-analytics",
+      "/solutions/affiliate-smart-link-rotator"
+    ]
   },
   {
     "path": "/features/geo-targeting",
     "kind": "feature",
     "eyebrow": "TRAFFIC CONTROL",
-    "title": "Geo-Targeted Links for Local Destinations",
+    "title": "Geo targeting",
     "seoTitle": "Geo-Targeted Links & Country Redirects | Linktery",
     "seoDescription": "Route clicks to country-specific destinations while preserving a default URL and recording geographic link analytics in Linktery.",
-    "lead": "Use one public URL to send visitors toward a configured country-specific store, language, offer, or regional resource.",
+    "lead": "Set country-specific destinations and country-tier rules, with a fallback for other visitors.",
     "highlights": [
-      { "title": "Country rules", "text": "Map supported country codes to destinations while keeping one default fallback." },
-      { "title": "Graceful fallback", "text": "Visitors still reach the main destination when geography is unavailable or has no matching rule." },
-      { "title": "Combined analytics", "text": "Review country distribution alongside device, referrer, and campaign context." }
+      {
+        "title": "Country rules",
+        "text": "Map countries to regional stores, language pages, or available offers."
+      },
+      {
+        "title": "Country tiers",
+        "text": "Configure grouped destinations using the tiers available in the editor."
+      },
+      {
+        "title": "Fallback path",
+        "text": "Unmatched geography keeps the previously resolved device or default destination."
+      }
     ],
     "sections": [
-      { "heading": "How a country redirect works", "paragraphs": ["When a visitor opens the link, Linktery obtains an approximate country signal and checks it against the configured rules. If a match exists, the corresponding destination is used; otherwise the default destination remains active.", "Country detection is not a precise identity or address and may be affected by VPNs, mobile networks, and provider data."], "bullets": ["Country-specific destination map", "Default fallback URL", "Approximate location signal", "One link across regions"] },
-      { "heading": "Localization examples", "paragraphs": ["A store can direct visitors to regional storefronts, a creator can choose language-specific pages, and an affiliate campaign can use destinations that are available in each market.", "Keep the visible promise of the link consistent. Localization should improve relevance, not conceal a materially different experience."], "bullets": ["Regional storefronts", "Localized language pages", "Country-specific booking pages", "Market availability routing"] },
-      { "heading": "Testing geo rules", "paragraphs": ["Always configure and test a default destination first. Then validate representative country rules and monitor analytics for unexpected fallback volume.", "Document which destinations are active in each region so future campaign updates do not create inconsistent offers."], "bullets": ["Verify the default destination", "Test representative rules", "Monitor fallback traffic", "Review destination availability"] }
+      {
+        "heading": "Set regional destinations",
+        "paragraphs": [
+          "Start with a default URL, then add country and tier destinations. A specific country match takes priority over a matching tier. Location is an approximate country-level network signal."
+        ],
+        "bullets": [
+          "Default URL required",
+          "Country-specific destinations",
+          "Country-tier rules",
+          "Specific country before tier"
+        ]
+      },
+      {
+        "heading": "Understand rule priority",
+        "paragraphs": [
+          "The redirect starts with the default URL, applies a matching device rule, then applies a country or tier match. No geo match preserves the device-selected URL or default. A/B splitting runs afterward if enabled."
+        ],
+        "bullets": [
+          "Default destination",
+          "Device match",
+          "Country or tier match",
+          "Optional split, then UTM values"
+        ]
+      },
+      {
+        "heading": "Test your configuration",
+        "paragraphs": [
+          "Check regional availability and always keep a useful fallback. VPNs, carriers, and network data can affect country detection; it is not precise address or identity tracking.",
+          "For example, send a matched country to its regional store and keep a general store locator as the default. Confirm that each destination supports the intended currency, shipping region, and language before sharing."
+        ],
+        "bullets": [
+          "Test representative countries",
+          "Check the no-match path",
+          "Review overlapping device rules",
+          "Treat location as approximate"
+        ]
+      }
     ],
     "faqs": [
-      { "question": "How accurate is link geolocation?", "answer": "It is an approximate country-level signal and can be affected by VPNs, carrier routing, and network provider data." },
-      { "question": "What happens when no country rule matches?", "answer": "Linktery uses the link's default destination." },
-      { "question": "Can geo-targeting be combined with a link rotator?", "answer": "The product supports routing capabilities, but complex rule ordering should be tested carefully so the intended destination priority is clear." }
+      {
+        "question": "What happens if no country matches?",
+        "answer": "The device-selected destination remains, or the default if no device rule matched. An enabled A/B split may still choose an alternative afterward."
+      },
+      {
+        "question": "Can I target an exact city?",
+        "answer": "The current feature provides country and country-tier rules, not exact city or street-address targeting."
+      },
+      {
+        "question": "Which plans include geo targeting?",
+        "answer": "Creator Pro and Agency."
+      }
     ],
-    "related": ["/solutions/geo-targeted-redirect", "/features/device-targeting", "/features/link-rotator", "/features/link-analytics"]
+    "related": [
+      "/solutions/geo-targeted-redirect",
+      "/features/device-targeting",
+      "/features/link-rotator",
+      "/features/link-analytics"
+    ]
   },
   {
     "path": "/features/device-targeting",
     "kind": "feature",
     "eyebrow": "TRAFFIC CONTROL",
-    "title": "Device-Targeted Redirects from One Smart URL",
+    "title": "Device targeting",
     "seoTitle": "Device-Targeted Links for Mobile & Desktop | Linktery",
     "seoDescription": "Send mobile, tablet, and desktop visitors to configured destinations while keeping one Linktery short URL and default fallback.",
-    "lead": "Adapt the destination to broad device classes when the best mobile experience differs from the desktop journey.",
+    "lead": "Set separate URLs for mobile, desktop, and tablet visitors from one Smart Link.",
     "highlights": [
-      { "title": "Device classes", "text": "Configure supported mobile, tablet, and desktop destinations from the same link." },
-      { "title": "Default destination", "text": "Keep a reliable fallback for unknown or unmatched user agents." },
-      { "title": "Native-app support", "text": "Use compatible deep-link destinations where the operating system and target app support them." }
+      {
+        "title": "Three device types",
+        "text": "Configure Mobile, Desktop, and Tablet destinations."
+      },
+      {
+        "title": "Default fallback",
+        "text": "An absent device match keeps the default destination."
+      },
+      {
+        "title": "Included on Free",
+        "text": "Device targeting is available on all current plans."
+      }
     ],
     "sections": [
-      { "heading": "When device routing is useful", "paragraphs": ["A mobile visitor may need an app-aware destination, while a desktop visitor may need a full website or web dashboard. Device routing keeps the shared URL consistent while selecting the configured journey.", "Use device rules only when destinations genuinely differ. Unnecessary branching makes campaigns harder to test and maintain."], "bullets": ["Mobile app and desktop web destinations", "Platform-specific store pages", "Mobile checkout versus desktop catalog", "Device-aware onboarding"] },
-      { "heading": "User-agent classification", "paragraphs": ["Device routing typically uses the browser user-agent to classify a request. This is a broad technical signal, not a guaranteed description of the person or hardware.", "Keep a working default URL because privacy settings, new devices, embedded browsers, and automated clients can produce unexpected values."], "bullets": ["Mobile, tablet, and desktop groups", "Default fallback", "No assumption of personal identity", "Testing across common browsers"] },
-      { "heading": "Deep links and fallbacks", "paragraphs": ["Opening a destination in a native app depends on the destination's supported universal links, app links, URI schemes, installed applications, and browser behavior. No redirect platform can guarantee an app handoff in every environment.", "Pair app-aware destinations with a useful web fallback so visitors can still continue when the application is unavailable."], "bullets": ["Use supported destination formats", "Provide a web fallback", "Test iOS and Android separately", "Avoid absolute app-opening claims"] }
+      {
+        "heading": "Configure destinations",
+        "paragraphs": [
+          "Create a Link with a default URL and add the device destinations you need. An unconfigured class uses the default, unless another enabled routing rule changes it."
+        ],
+        "bullets": [
+          "Mobile destination",
+          "Desktop destination",
+          "Tablet destination",
+          "Default URL"
+        ]
+      },
+      {
+        "heading": "Know the classification",
+        "paragraphs": [
+          "Device classes come from browser user-agent information, which can be incomplete or unusual. The editor offers broad device classes, not separate iOS and Android rules.",
+          "A mobile destination can be a shorter signup page while desktop visitors reach a more detailed product page. Keep both responsive: device classification describes the request and does not guarantee screen dimensions, installed apps, or visitor intent."
+        ],
+        "bullets": [
+          "Broad device classification",
+          "No OS-specific rule editor",
+          "Usable fallback pages",
+          "Test unusual browser contexts"
+        ]
+      },
+      {
+        "heading": "Check combined routing",
+        "paragraphs": [
+          "A matching country or tier rule runs after device targeting and can replace its destination. A/B splitting can then choose an alternative. Test the complete configuration, not only the device rule."
+        ],
+        "bullets": [
+          "Check each configured device class",
+          "Review country-rule overlaps",
+          "Review split alternatives",
+          "Verify the final URL"
+        ]
+      }
     ],
     "faqs": [
-      { "question": "Can Linktery guarantee that every link opens an app?", "answer": "No. App opening depends on the destination, operating system, installed app, browser, and supported linking standards." },
-      { "question": "What happens when a device is not recognized?", "answer": "The link should continue to its configured default destination." },
-      { "question": "Is device targeting based on personal identity?", "answer": "No. It uses broad technical request information such as the browser user-agent." }
+      {
+        "question": "Is device targeting included on Free?",
+        "answer": "Yes. It is available on Free, Creator Pro, and Agency."
+      },
+      {
+        "question": "Can I route iOS and Android separately?",
+        "answer": "The current editor supports Mobile, Desktop, and Tablet, not separate operating-system rules."
+      },
+      {
+        "question": "Why did a mobile visitor reach a country page?",
+        "answer": "Country and tier rules run after device rules and can override their destination."
+      }
     ],
-    "related": ["/features/geo-targeting", "/features/link-rotator", "/features/deep-linking", "/guides/what-is-a-smart-link"]
+    "related": [
+      "/features/geo-targeting",
+      "/features/link-rotator",
+      "/features/deep-linking",
+      "/guides/what-is-a-smart-link"
+    ]
   },
   {
     "path": "/templates/link-in-bio",
@@ -209,7 +663,7 @@
     "seoDescription": "Explore responsive Linktery public-profile templates, including cinematic covers, compact avatars, banners, portraits, and editorial layouts.",
     "lead": "Choose a visual structure first, then customize its card style, avatar, text, and destinations in the profile editor.",
     "highlights": [
-      { "title": "Five structures", "text": "Switch between Classic Cover, Compact Circle, Banner Circle, Hero Portrait, and Cutout Editorial." },
+      { "title": "Six structures", "text": "Switch between cinematic, compact, banner, portrait, editorial, and full-canvas profile layouts." },
       { "title": "Responsive by design", "text": "Templates adapt their image treatment, spacing, typography, and card layout across phones and larger screens." },
       { "title": "Content stays yours", "text": "Changing a template changes presentation, not the saved profile name, bio, links, or analytics history." }
     ],
@@ -223,7 +677,7 @@
       { "question": "Are Linktery templates responsive?", "answer": "Yes. The five profile structures use responsive layouts for phone and larger screens." },
       { "question": "Can I also change card colors and styles?", "answer": "Yes. Profile Template, Card Theme, Link Card Style, and Social Links Style are available in the editor." }
     ],
-    "related": ["/templates/classic-cover", "/templates/compact-circle", "/templates/banner-circle", "/templates/hero-portrait", "/templates/cutout-editorial"]
+    "related": ["/templates/classic-cover", "/templates/compact-circle", "/templates/banner-circle", "/templates/hero-portrait", "/templates/cutout-editorial", "/templates/visual-canvas"]
   },
   {
     "path": "/templates/classic-cover",
@@ -353,7 +807,33 @@
       { "question": "Does the layout work on desktop and mobile?", "answer": "Yes. Its spacing, portrait treatment, typography, and cards adapt across viewport sizes." },
       { "question": "What content is best for this template?", "answer": "It is best for concise, visually led creator or portfolio profiles with a strong portrait and a focused set of destinations." }
     ],
-    "related": ["/templates/link-in-bio", "/templates/hero-portrait", "/solutions/ugc-portfolio", "/register"]
+    "related": ["/templates/link-in-bio", "/templates/hero-portrait", "/templates/visual-canvas", "/solutions/ugc-portfolio"]
+  },
+  {
+    "path": "/templates/visual-canvas",
+    "kind": "template",
+    "templateId": "visual",
+    "eyebrow": "PROFILE TEMPLATE",
+    "title": "Visual Canvas Link-in-Bio Template",
+    "seoTitle": "Visual Canvas Link-in-Bio Template | Linktery",
+    "seoDescription": "Use full-page artwork, a floating profile identity, and layered Linktery cards in the responsive Visual Canvas link-in-bio template.",
+    "lead": "A full-canvas profile layout for creators and brands that want one image to shape the atmosphere of the entire page.",
+    "highlights": [
+      { "title": "Full-page artwork", "text": "Uses one image as the visual environment behind the complete profile." },
+      { "title": "Floating identity", "text": "Keeps the avatar, name, and social links legible above the artwork." },
+      { "title": "Layered cards", "text": "Places destinations on elevated surfaces so content remains usable over photography." }
+    ],
+    "sections": [
+      { "heading": "Build one visual world", "paragraphs": ["Visual Canvas treats the background as part of the profile rather than a separate header. It works well for photographers, artists, travel creators, product launches, and brands with strong campaign artwork.", "Choose an image with a clear mood but limited fine detail behind the profile name and first destination cards."], "bullets": ["Campaign artwork", "Travel and photography", "Product launches", "Visual portfolios"] },
+      { "heading": "Control contrast before publishing", "paragraphs": ["The balanced overlay helps separate text from the image, but the source artwork still matters. Test bright, dark, and highly saturated areas behind every important element.", "Keep essential words in the actual profile content. Text embedded inside the background can be cropped, obscured, or unreadable on smaller screens."], "bullets": ["Quiet area behind identity", "Readable card surfaces", "No essential text in artwork", "Phone-width contrast check"] },
+      { "heading": "Use imagery without hiding the action", "paragraphs": ["A strong canvas should support the destination list, not compete with it. Put the primary link first, keep card labels concise, and avoid stacking several unrelated visual styles.", "If the page needs to present many resources with minimum distraction, compare Visual Canvas with Compact Circle."], "bullets": ["Primary action first", "Consistent card treatment", "Focused destination list", "Review the first mobile screen"] }
+    ],
+    "faqs": [
+      { "question": "Can Visual Canvas use my own background image?", "answer": "Yes. Visual Canvas supports a full-page background image with an overlay that helps keep profile content readable." },
+      { "question": "Does the background replace my avatar?", "answer": "No. The background creates the page atmosphere while the avatar remains a separate identity element." },
+      { "question": "Can I switch away from Visual Canvas later?", "answer": "Yes. Switching templates changes the presentation while keeping the profile content and destinations." }
+    ],
+    "related": ["/templates/link-in-bio", "/templates/compact-circle", "/templates/cutout-editorial", "/register"]
   },
   {
     "path": "/tools/utm-builder",
@@ -574,76 +1054,247 @@
     "path": "/features/public-api",
     "kind": "feature",
     "eyebrow": "DEVELOPER PLATFORM",
-    "title": "Public API for Links, Profiles, and Analytics",
+    "title": "Public API",
     "seoTitle": "Link Management API for Links & Analytics | Linktery",
     "seoDescription": "Use the Linktery Public API to manage links, read public profiles, and bring aggregate link analytics into your own tools and dashboards.",
-    "lead": "Connect Linktery to internal tools, campaign workflows, and reporting dashboards through an account-scoped API designed for controlled automation.",
+    "lead": "Use API v1 to create and update Links, read Public Profiles, and retrieve aggregate analytics for your account.",
     "highlights": [
-      { "title": "Managed links", "text": "List, create, and update links using the same account ownership and plan rules as the Linktery dashboard." },
-      { "title": "Profile data", "text": "Read the public-profile resources that belong to the authenticated Linktery account." },
-      { "title": "Aggregate analytics", "text": "Retrieve supported link totals and breakdowns without exposing the service's raw click-event store." }
+      {
+        "title": "Link operations",
+        "text": "Create and update Links from your application or automation."
+      },
+      {
+        "title": "Profiles and reporting",
+        "text": "Read Public Profile data and aggregate analytics."
+      },
+      {
+        "title": "Account-scoped access",
+        "text": "API keys retain your account's ownership rules and plan limits."
+      }
     ],
     "sections": [
-      { "heading": "What the Linktery API is for", "paragraphs": ["The Public API provides a stable programmatic layer for workflows that would otherwise require repeated dashboard actions. A team can create campaign links from an internal tool, synchronize destinations, or display Linktery analytics in its own reporting interface.", "The API is not a separate pool of data. Every request is scoped to the account represented by the API key, and plan limits continue to apply."], "bullets": ["Campaign-link creation", "Destination and status updates", "Public-profile reads", "Custom analytics dashboards"] },
-      { "heading": "One account-scoped key", "paragraphs": ["API requests use the key shown in Settings. The key acts as a credential, so it belongs in a server-side secret store rather than frontend JavaScript, public repositories, screenshots, or shared documents.", "Refreshing the key invalidates the previous value. This provides a direct recovery path when a credential may have been copied or exposed."], "bullets": ["Store the key as a secret", "Send it only over HTTPS", "Do not embed it in browser code", "Refresh it after suspected exposure"] },
-      { "heading": "Build integrations defensively", "paragraphs": ["Integrations should validate input before creating a link, handle authentication and rate-limit responses, and avoid retrying write requests indefinitely. Keep a record of the Linktery resource ID returned by a successful request.", "Use the public API hostname documented by Linktery. The underlying database service is an implementation detail and should not be included in customer integrations."], "bullets": ["Validate destination URLs", "Handle non-success responses", "Use bounded retry logic", "Follow the current API documentation"] }
+      {
+        "heading": "Authenticate server-side",
+        "paragraphs": [
+          "Get an API key from Settings and send it as a Bearer token to the documented API host. Keep it in server-side environment variables, never browser code, public repositories, or exposed logs."
+        ],
+        "bullets": [
+          "Bearer authentication",
+          "Server-side secret storage",
+          "Account-scoped requests",
+          "Key refresh invalidates the old key"
+        ]
+      },
+      {
+        "heading": "Use documented endpoints",
+        "paragraphs": [
+          "API v1 supports Link creation and updates, Public Profile reads, and aggregate analytics. It does not provide unrestricted database access. Check endpoint documentation for accepted fields and pagination.",
+          "Start with a read request and inspect the response before adding write operations. Use a separate test Link when validating updates so an integration mistake does not change an active campaign destination."
+        ],
+        "bullets": [
+          "Create and update Links",
+          "Read Public Profiles",
+          "Retrieve aggregate analytics",
+          "Follow request schemas"
+        ]
+      },
+      {
+        "heading": "Handle limits and errors",
+        "paragraphs": [
+          "API access is included on Creator Pro and Agency. Rate and usage limits vary by plan and endpoint, and resource allowances still apply. Use bounded retries for transient errors, not unchanged retries for validation or authentication failures."
+        ],
+        "bullets": [
+          "Plan and resource limits remain enforced",
+          "Check error responses",
+          "Respect rate limits",
+          "Avoid unbounded retries"
+        ]
+      }
     ],
     "faqs": [
-      { "question": "Can an API key access another Linktery account?", "answer": "No. API resources are ownership-scoped to the account associated with the key." },
-      { "question": "Can I use the API key in a browser application?", "answer": "Do not expose a long-lived key in public frontend code. Send API requests from a trusted server or secure automation environment." },
-      { "question": "What happens when I refresh the key?", "answer": "The previous API key becomes invalid and the newly issued key must be updated in your integrations." }
+      {
+        "question": "Does Free include Public API access?",
+        "answer": "No. Public API access is included on Creator Pro and Agency."
+      },
+      {
+        "question": "Can a key read someone else's resources?",
+        "answer": "No. Requests are scoped to the account owning the key and checked against resource ownership."
+      },
+      {
+        "question": "Can I embed the key in a public website?",
+        "answer": "No. Keep it on your server. Refresh a key that has been exposed."
+      }
     ],
-    "related": ["/documentation", "/guides/create-short-links-with-linktery-api", "/guides/build-link-analytics-dashboard-with-api", "/pricing"]
+    "related": [
+      "/documentation",
+      "/guides/create-short-links-with-linktery-api",
+      "/guides/build-link-analytics-dashboard-with-api",
+      "/pricing"
+    ]
   },
   {
     "path": "/features/public-profile-analytics",
     "kind": "feature",
     "eyebrow": "PROFILE MEASUREMENT",
-    "title": "Analytics for Link-in-Bio Profiles",
+    "title": "Public Profile analytics",
     "seoTitle": "Link-in-Bio Analytics & Profile View Tracking | Linktery",
     "seoDescription": "Measure Linktery public-profile views, card clicks, engagement trends, countries, devices, browsers, and referrers in one analytics workspace.",
-    "lead": "Understand both stages of a link-in-bio journey: opening the public profile and choosing one of its destination cards.",
+    "lead": "Compare visits to your Public Profile with clicks on the individual cards inside it.",
     "highlights": [
-      { "title": "Profile views", "text": "See how often a public profile was opened during the selected reporting period." },
-      { "title": "Card performance", "text": "Compare clicks across attached cards so ordering, copy, and visual changes can be evaluated." },
-      { "title": "Audience context", "text": "Explore supported country, device, browser, referrer, and time-based breakdowns." }
+      {
+        "title": "Profile visits",
+        "text": "Read views and the supported unique-visitor measurements."
+      },
+      {
+        "title": "Card performance",
+        "text": "See which individual destinations receive clicks."
+      },
+      {
+        "title": "Profile-level scope",
+        "text": "Review one profile or the available combined reporting scope."
+      }
     ],
     "sections": [
-      { "heading": "Measure the complete profile journey", "paragraphs": ["A short link has one immediate destination, while a public profile asks the visitor to make a choice. Measuring only destination clicks hides how many people opened the profile but did not continue.", "Linktery keeps profile views and managed-card clicks as separate signals. This makes the relationship between reach and action visible without pretending that every view belongs to a permanently identifiable person."], "bullets": ["Total profile views", "Daily unique profile visits", "Managed-card clicks", "Clicks per profile view"] },
-      { "heading": "Find useful patterns", "paragraphs": ["A card near the top can receive more attention because it is immediately visible. A clear title, recognizable icon, or more relevant destination can also affect performance. Change one major element at a time when you want to learn from the result.", "Country and device distributions provide context for layout and destination decisions. They are aggregate operational signals, not precise personal identities."], "bullets": ["Compare card order", "Review mobile-heavy traffic", "Inspect geographic distribution", "Track changes over time"] },
-      { "heading": "All profiles or one profile", "paragraphs": ["Account-level reporting helps teams review combined profile activity, while an individual profile scope is better for diagnosing a specific creator, client, or campaign page.", "When viewing multiple profiles together, remember that daily unique visits are measured per profile. A person who opens two different profiles can contribute to each profile's unique count."], "bullets": ["Combined account overview", "Individual profile scope", "Period comparison", "Profile-specific card reporting"] }
+      {
+        "heading": "Views and clicks are different",
+        "paragraphs": [
+          "A view records a profile opening; a card click records a destination selection. One visitor may click several cards, so card clicks can exceed profile views."
+        ],
+        "bullets": [
+          "Page opened: profile view",
+          "Destination chosen: card click",
+          "Several clicks per visit are possible",
+          "Compare the same date range"
+        ]
+      },
+      {
+        "heading": "Compare content changes",
+        "paragraphs": [
+          "Review Card Performance after changing titles, images, positions, or offers. Keep the profile and period comparable, and change one important variable at a time.",
+          "Record when you publish a change and whether a promotion also changed the incoming audience. A busier card after a campaign launch does not, by itself, demonstrate that its new design caused the increase."
+        ],
+        "bullets": [
+          "Select the relevant profile",
+          "Compare individual cards",
+          "Use comparable periods",
+          "Measure conversions at the destination"
+        ]
+      },
+      {
+        "heading": "Understand unique counts",
+        "paragraphs": [
+          "Uniqueness is scoped by the reporting logic, including daily and per-profile grouping. Summing days or profiles does not produce a deduplicated count of people. Events can also take a short time to appear."
+        ],
+        "bullets": [
+          "Daily uniques are not lifetime uniques",
+          "Profiles can share visitors",
+          "Allow for processing delay",
+          "Advanced reports on Pro and Agency"
+        ]
+      }
     ],
     "faqs": [
-      { "question": "What is the difference between a profile view and a card click?", "answer": "A view records the public profile opening. A card click records a visitor selecting a managed link displayed on that profile." },
-      { "question": "Can card clicks be higher than profile views?", "answer": "Yes. One profile visit can produce clicks on more than one card, so clicks per view is not always limited to 100 percent." },
-      { "question": "Can I view all profiles together?", "answer": "Yes. Linktery supports an all-profiles scope as well as analytics for an individual public profile." }
+      {
+        "question": "Why can clicks exceed profile views?",
+        "answer": "One visitor can open several cards or click again during the same visit."
+      },
+      {
+        "question": "Can I identify the most-clicked card?",
+        "answer": "Yes. Card Performance shows individual card activity for the selected profile and reporting period."
+      },
+      {
+        "question": "Are combined unique counts distinct people?",
+        "answer": "Not necessarily. Daily and per-profile counts should not be summed as a deduplicated audience across all dates and profiles."
+      }
     ],
-    "related": ["/features/link-analytics", "/guides/link-in-bio-analytics-guide", "/templates", "/features/link-management"]
+    "related": [
+      "/features/link-analytics",
+      "/guides/link-in-bio-analytics-guide",
+      "/templates",
+      "/features/link-management"
+    ]
   },
   {
     "path": "/features/deep-linking",
     "kind": "feature",
     "eyebrow": "MOBILE ROUTING",
-    "title": "Deep Linking with Reliable Web Fallbacks",
+    "title": "Deep linking",
     "seoTitle": "Deep Linking for Smart Links with Web Fallbacks | Linktery",
     "seoDescription": "Create smart links that attempt supported native-app or external-browser handoffs while preserving a useful HTTPS fallback for every visitor.",
-    "lead": "Reduce mobile journey friction where platforms permit it, without making promises that operating systems and in-app browsers cannot guarantee.",
+    "lead": "Help visitors opening a Link inside a social app continue to the destination in an external browser.",
     "highlights": [
-      { "title": "Best-effort handoff", "text": "Use destination and platform-aware behavior for compatible mobile environments." },
-      { "title": "HTTPS fallback", "text": "Keep a normal web destination ready when an app is missing or a browser blocks the handoff." },
-      { "title": "Loop protection", "text": "Limit automatic attempts and provide a clear manual path instead of repeatedly reopening the same page." }
+      {
+        "title": "Social app handling",
+        "text": "Recognizes supported in-app contexts such as Instagram, TikTok, and Facebook."
+      },
+      {
+        "title": "Best-effort opening",
+        "text": "Automatic handoff depends on the source app and device restrictions."
+      },
+      {
+        "title": "Manual fallback",
+        "text": "Visitors can continue manually when automatic opening is blocked."
+      }
     ],
     "sections": [
-      { "heading": "What deep linking can control", "paragraphs": ["A deep link can request that an operating system or application open a supported destination. Universal links, Android app links, URI schemes, installed-app state, and the source browser all influence the outcome.", "Linktery can choose and initiate a supported handoff strategy, but the final decision remains with the visitor's device, browser, and destination application."], "bullets": ["Supported destination URL", "Mobile operating system", "Installed application", "Browser or embedded webview"] },
-      { "heading": "Why fallbacks matter", "paragraphs": ["Social apps may restrict automatic navigation, ignore private schemes, or require a user gesture. A link that depends on one automatic action can leave the visitor on a blank or looping page when that action fails.", "A production deep-link flow needs a valid HTTPS destination plus a concise manual option such as opening the browser menu or copying the link."], "bullets": ["Normal HTTPS destination", "Single automatic attempt", "Manual open instructions", "Copy-link recovery"] },
-      { "heading": "Test the actual campaign path", "paragraphs": ["Testing only in desktop Chrome does not represent an Instagram or TikTok webview. Test the shared Linktery URL from the exact social placement and on representative iOS and Android devices.", "Retest important campaigns after destination apps or social platforms release major updates because private webview behavior can change independently of Linktery."], "bullets": ["Instagram on iOS and Android", "Installed and missing destination app", "Return from background", "Fallback after a blocked handoff"] }
+      {
+        "heading": "Enable Deeplink",
+        "paragraphs": [
+          "On Creator Pro or Agency, enable Deeplink in the Link editor and keep a normal HTTP or HTTPS destination. The feature helps with social in-app browsers; it is not an arbitrary native-app URI editor."
+        ],
+        "bullets": [
+          "Enable per Link",
+          "HTTP or HTTPS destination",
+          "Share the normal Link address",
+          "Test from the source app"
+        ]
+      },
+      {
+        "heading": "The visitor experience",
+        "paragraphs": [
+          "Supported app and device combinations can attempt external-browser opening. Others require an explicit action. Manual opening or copying options remain when the automatic attempt cannot complete."
+        ],
+        "bullets": [
+          "In-app context detection",
+          "Limited automatic attempt",
+          "Manual opening or copying",
+          "Source-app restrictions still apply"
+        ]
+      },
+      {
+        "heading": "Test on real devices",
+        "paragraphs": [
+          "Desktop previews cannot reproduce every social-app restriction. Check the source apps and phones your audience uses, and make sure the final page remains usable on mobile.",
+          "Open the shared Link from an actual post or message inside the source app. Follow the manual option as well as the automatic attempt, and confirm that visitors can still reach the intended page without repeated prompts."
+        ],
+        "bullets": [
+          "Relevant social apps",
+          "Android and iOS devices",
+          "Automatic and manual paths",
+          "Final destination usability"
+        ]
+      }
     ],
     "faqs": [
-      { "question": "Can deep linking force every visitor into an app?", "answer": "No. The operating system, browser, installed apps, and destination platform control whether a handoff is allowed." },
-      { "question": "What happens if the app is not installed?", "answer": "The visitor should continue to the configured web destination or see a clear manual fallback." },
-      { "question": "Does deep linking replace a normal destination URL?", "answer": "No. A valid HTTPS destination remains essential for unsupported and blocked environments." }
+      {
+        "question": "Will every visit open a browser automatically?",
+        "answer": "No. App and operating-system restrictions can prevent it. A manual fallback is provided."
+      },
+      {
+        "question": "Can I use any native-app URI scheme?",
+        "answer": "No. Link destinations must use HTTP or HTTPS. Deeplink is not a general-purpose native-app scheme editor."
+      },
+      {
+        "question": "Which plans include Deeplink?",
+        "answer": "Creator Pro and Agency."
+      }
     ],
-    "related": ["/solutions/deeplink-generator", "/guides/deep-links-and-in-app-browsers", "/features/device-targeting", "/guides/what-is-a-smart-link"]
+    "related": [
+      "/solutions/deeplink-generator",
+      "/guides/deep-links-and-in-app-browsers",
+      "/features/device-targeting",
+      "/guides/what-is-a-smart-link"
+    ]
   },
   {
     "path": "/guides/how-to-create-a-link-in-bio",

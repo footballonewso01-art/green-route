@@ -48,6 +48,7 @@ describe("public profile appearance settings", () => {
     const styles = readWorkspaceFile("src/index.css");
 
     expect(dashboard).toContain('data-profile-preview-viewport="390x812"');
+    expect(dashboard).toContain("<ProfileCanvas\n                    preview\n                    embeddedPreview");
     expect(dashboard).toContain('h-[812px] w-[391px] origin-top-left');
     expect(dashboard).toContain('style={{ transform: "scale(0.7692307692)" }}');
     expect(dashboard).toContain("overflow-x-hidden overflow-y-auto overscroll-contain");

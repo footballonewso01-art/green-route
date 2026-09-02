@@ -111,6 +111,9 @@ describe("Public Profile design contracts", () => {
     expect(canvas).toHaveAttribute("data-social-link-style", "branded-pills");
     expect(screen.getByRole("link", { name: "Latest project, opens in a new tab" }))
       .toHaveAttribute("href", "/latest?ref=profile");
+    const poweredBy = screen.getByRole("link", { name: "Powered by Linktery" });
+    expect(poweredBy.querySelector('img[alt="Linktery"]')).toHaveClass("h-[18px]", "translate-y-px");
+    expect(poweredBy).not.toHaveTextContent("Powered by Linktery");
   });
 
   it("renders every link card style with the same accessible click contract", () => {
@@ -206,6 +209,27 @@ describe("Public Profile design contracts", () => {
     expect(canvas).toHaveAttribute("data-profile-preview", "true");
     expect(canvas).toHaveClass("border-0", "shadow-none");
     expect(canvas).not.toHaveClass("border");
+  });
+
+  it("uses neutral document semantics when the preview is embedded in an editor", () => {
+    const { container } = render(
+      <ProfileCanvas
+        preview
+        embeddedPreview
+        template="classic"
+        linkCardStyle="solid"
+        socialLinkStyle="icons"
+        name="Preview Creator"
+        username="preview"
+        avatarFallback="P"
+        cardColor="#101311"
+        links={[]}
+      />,
+    );
+
+    expect(container.querySelector("main")).not.toBeInTheDocument();
+    expect(container.querySelector("h1")).not.toBeInTheDocument();
+    expect(container.querySelector("[data-profile-preview='true']")?.tagName).toBe("DIV");
   });
 
   it("paints an overlapping card-theme surface behind every template", () => {

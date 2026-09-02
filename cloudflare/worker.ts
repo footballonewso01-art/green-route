@@ -213,7 +213,7 @@ async function serveInternalHtml(
   request: Request,
   env: Env,
   pathname: string,
-  options: { status?: number; noIndex?: boolean } = {},
+  options: { status?: number; noIndex?: boolean; cacheControl?: string } = {},
 ): Promise<Response> {
   const assetResponse = await fetchAsset(request, env, pathname);
   if (!assetResponse.ok) {
@@ -224,7 +224,7 @@ async function serveInternalHtml(
     status: options.status,
     noIndex: options.noIndex,
     contentType: "text/html; charset=utf-8",
-    cacheControl: "public, max-age=0, must-revalidate",
+    cacheControl: options.cacheControl ?? "public, max-age=0, must-revalidate",
   });
 }
 
@@ -1035,21 +1035,61 @@ async function handleCustomDomainRequest(
 }
 
 /**
+ * The redirect endpoint uses 404 for profiles and React-only Link modes too.
+ * Only two attested, read-only misses prove that the public URL is absent.
+ * Never turn an outage, rate limit, or legacy/unattested response into a 404.
+ */
+async function resolveMissingPublicSlug(
+  request: Request,
+  env: Env,
+  origin: URL,
+  trustedHeaders: Headers,
+): Promise<Response | null> {
+  const pathname = new URL(request.url).pathname;
+  const headers = new Headers(trustedHeaders);
+  headers.set("Accept", "application/json");
+  const signal = typeof AbortSignal.timeout === "function"
+    ? AbortSignal.timeout(5_000)
+    : undefined;
+
+  try {
+    // Check profiles first: that is the usual reason for the SPA fallback.
+    for (const resource of ["profiles", "links"]) {
+      const upstream = await fetch(new URL(`/api/public/${resource}${pathname}`, origin), {
+        method: "GET",
+        headers,
+        redirect: "manual",
+        signal,
+      });
+      const confirmedMissing = upstream.status === 404
+        && upstream.headers.get("X-Linktery-Public-Resolver") === "v1";
+      await upstream.body?.cancel();
+      if (!confirmedMissing) return null;
+    }
+  } catch {
+    return null;
+  }
+
+  return serveInternalHtml(request, env, INTERNAL_ASSETS.notFound, {
+    status: 404,
+    noIndex: true,
+    // A just-created profile/link must not inherit a cached negative lookup.
+    cacheControl: "private, no-store, max-age=0",
+  });
+}
+
+/**
  * Resolve short links before booting the SPA. This preserves the original
  * social-app navigation context for deeplink handoffs and removes the React +
- * Records API round trips from the redirect hot path. A 404 means that the
- * slug may be a Public Profile (or missing), so the normal SPA resolver keeps
- * ownership of that response.
+ * Records API round trips from the redirect hot path. Ambiguous 404 responses
+ * are checked separately without recording another click or profile view.
  */
 async function resolvePublicSlugAtOrigin(
   request: Request,
   env: Env,
   customDomainRoot = false,
 ): Promise<Response | null> {
-  if (
-    request.method !== "GET" &&
-    !(request.method === "HEAD" && isSocialPreviewRequest(request))
-  ) return null;
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
 
   const secret = String(env.REDIRECT_ORIGIN_SECRET || "");
   if (secret.length < 32) return null;
@@ -1090,6 +1130,12 @@ async function resolvePublicSlugAtOrigin(
   const country = getEdgeCountry(request);
   if (country) headers.set("X-Linktery-Country", country);
 
+  // Ordinary HEAD probes must never hit /slug: that endpoint records visits.
+  // The existing custom-domain lookup already confirmed its root target.
+  if (request.method === "HEAD" && !isSocialPreviewRequest(request)) {
+    return customDomainRoot ? null : resolveMissingPublicSlug(request, env, origin, headers);
+  }
+
   try {
     const timeoutSignal = typeof AbortSignal.timeout === "function"
       ? AbortSignal.timeout(5_000)
@@ -1109,7 +1155,10 @@ async function resolvePublicSlugAtOrigin(
     if (upstream.headers.get("X-Linktery-Redirect-Origin") !== "v1") {
       return serveAmbiguousOriginFallback(request, env);
     }
-    if (upstream.status === 404) return null;
+    if (upstream.status === 404) {
+      await upstream.body?.cancel();
+      return customDomainRoot ? null : resolveMissingPublicSlug(request, env, origin, headers);
+    }
     if (upstream.status >= 500) return serveAmbiguousOriginFallback(request, env);
 
     const isSocialPreview =

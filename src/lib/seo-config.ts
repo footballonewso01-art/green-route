@@ -9,7 +9,7 @@ export interface PageSeoConfig {
 
 export const SEO_PAGES: Record<string, PageSeoConfig> = {
   home: {
-    title: "Linktery — Link in Bio & Traffic Analytics Platform",
+    title: "Linktery — Link In Bio & Analytics",
     description: "Create link-in-bio profiles and managed short links, route traffic by device or country, and measure clicks and profile engagement with Linktery.",
     canonical: "/",
   },
@@ -44,13 +44,13 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     canonical: "/pricing",
   },
   login: {
-    title: "Login | Linktery",
+    title: "Sign in",
     description: "Sign in to your Linktery account to access your biolink profiles, smart routing links, and analytics dashboard.",
     canonical: "/login",
     noIndex: true,
   },
   register: {
-    title: "Create Your Account | Linktery",
+    title: "Create account",
     description: "Register a free account on Linktery. Build premium link-in-bio pages, configure device & geo-targeting rules, and capture deep analytics today.",
     canonical: "/register",
     noIndex: true,
@@ -68,18 +68,18 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
   // Reusable placeholders for upcoming landing/alternative pages
 
   onlyfansSolution: {
-    title: "OnlyFans Link in Bio: Safe Sharing on Instagram & TikTok | Linktery",
+    title: "OnlyFans Link in Bio for Instagram & TikTok | Linktery",
     description: "Build a branded creator link page for OnlyFans audiences, use custom domains, and route visitors with clear, policy-safe landing experiences.",
     canonical: "/solutions/onlyfans-link-in-bio",
   },
   telegramSolution: {
-    title: "Telegram Link in Bio: Optimize Social Traffic & Conversions | Linktery",
+    title: "Telegram Link in Bio & App Routing | Linktery",
     description: "Create Telegram smart links that attempt supported native-app handoffs, retain a safe web fallback, and measure incoming social traffic.",
     canonical: "/solutions/telegram-bio-link",
   },
   affiliateSolution: {
-    title: "Affiliate Link Rotator: Optimize CPA Traffic & A/B Split | Linktery",
-    description: "Maximize your CPA marketing ROI. Set up multi-variant link rotators, distribute traffic by custom weights, and verify visitor quality safely.",
+    title: "Affiliate Link Rotator & A/B Traffic Split | Linktery",
+    description: "Set up multi-destination affiliate link rotators, distribute traffic evenly, compare click activity, and keep campaign destinations current.",
     canonical: "/solutions/affiliate-smart-link-rotator",
   },
   bioLinkTool: {
@@ -89,7 +89,7 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
   },
   smartRedirect: {
     title: "Smart URL Redirect & Traffic Routing Engine | Linktery",
-    description: "Route campaign clicks dynamically by device OS, geolocation, or A/B split weights. Filter bots, protect ad account compliance, and scale campaign yields.",
+    description: "Route campaign clicks by device or country, keep a reliable default destination, or distribute visits evenly across active link variants.",
     canonical: "/solutions/smart-link-redirect",
   },
   deeplinkGenerator: {
@@ -118,7 +118,7 @@ export const SEO_PAGES: Record<string, PageSeoConfig> = {
     canonical: "/solutions/digital-product-smart-links",
   },
   podcastSmartLinks: {
-    title: "Podcast Smart Links: Apple & Spotify Podcasts Redirection | Linktery",
+    title: "Podcast Smart Links for Apple Podcasts & Spotify | Linktery",
     description: "Create podcast smart links for Apple Podcasts and Spotify with supported native-app handoffs, web fallbacks, and click analytics.",
     canonical: "/solutions/podcast-smart-links",
   },

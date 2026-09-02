@@ -105,7 +105,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
             { text: "Deeplink", icon: "⚡", tooltip: "Smart route optimization for social app traffic." },
             { text: "Advanced Analytics", icon: "📊" },
             { text: "2 Custom Domains", icon: "🌐", tooltip: "Connect up to 2 domains to a Link or Public Profile." },
-            { text: "Public API Access", icon: "🔌", tooltip: "Create and update Links, read Public Profiles, and pull aggregate analytics through API v1." },
+            { text: "API Access", icon: "🔌", tooltip: "Create and update Links, read Public Profiles, and pull aggregate analytics through API v1." },
             { text: "Link Optimization", icon: "🛡️" },
             { text: "Geo Targeting", icon: "🌍" }
         ],
@@ -135,13 +135,14 @@ export const PLANS: Record<PlanType, PlanDetails> = {
         description: "For agencies and operators managing multiple brands.",
         buttonText: "Upgrade to Agency",
         features: [
-            { text: "Unlimited Links", icon: "🚀" },
+            { text: "Unlimited Smart Links", icon: "🚀" },
             { ...getPublicProfileFeatureCopy(25), icon: "👥" },
             { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
+            { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
             { text: "10 Custom Domains", icon: "🌐", tooltip: "Connect up to 10 domains to a Link or Public Profile." },
             { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
-            { text: "Public API Access", icon: "🔌", tooltip: "API v1 access with higher rate and daily usage limits." },
-            { text: "Everything in Pro", icon: "✅" }
+            { text: "API Access", icon: "🔌", tooltip: "API v1 access with higher rate and daily usage limits." },
+            { text: "Everything in Creator Pro", icon: "✅" }
         ],
         limits: {
             links: -1,

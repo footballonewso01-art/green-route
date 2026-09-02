@@ -1,0 +1,50 @@
+.page {
+  min-width: 0;
+  min-height: 100svh;
+  background: var(--landing-paper);
+  color: var(--landing-ink);
+  font-family: var(--landing-body);
+}
+.page :where(a, button):focus-visible { outline: 2px solid var(--landing-focus); outline-offset: 4px; }
+.page main { display: flex; min-height: 100svh; align-items: center; padding: 8rem var(--landing-page-gutter) 4rem; }
+.container { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(24rem, .95fr); align-items: center; gap: clamp(3rem, 8vw, 8rem); width: min(100%, var(--landing-content-max-width)); margin-inline: auto; }
+.message > p:first-child { margin: 0 0 .6rem; color: var(--landing-accent-dark); font-size: .69rem; font-weight: 750; letter-spacing: .055em; text-transform: uppercase; }
+.message h1 { margin: 0; font-family: var(--landing-display); font-size: clamp(7rem, 16vw, 14rem); line-height: .72; letter-spacing: -.09em; font-weight: 780; }
+.message h2 { max-width: 13ch; margin: 2.2rem 0 0; font-family: var(--landing-display); font-size: clamp(2rem, 3.8vw, 3.8rem); line-height: 1.02; letter-spacing: -.055em; font-weight: 700; }
+.message > p:not(:first-child) { max-width: 35rem; margin: 1.2rem 0 0; color: var(--landing-ink-soft); font-size: .92rem; line-height: 1.7; }
+.primary { display: inline-flex; align-items: center; justify-content: center; gap: .7rem; min-height: 3rem; margin-top: 1.7rem; padding: .7rem 1.25rem; border-radius: 99px; background: var(--landing-accent); color: var(--landing-accent-ink); font-size: .79rem; font-weight: 750; transition: transform 180ms var(--landing-ease-out); }
+.primary:hover { transform: translateY(-2px); }
+.routes { overflow: hidden; border: 1px solid color-mix(in oklch, var(--landing-media-text) 13%, transparent); border-radius: 1.75rem; background: var(--landing-media); color: var(--landing-media-text); }
+.routeTop { display: flex; min-height: 5rem; align-items: center; justify-content: space-between; padding: 1rem 1.35rem; border-bottom: 1px solid color-mix(in oklch, var(--landing-media-text) 13%, transparent); }
+.routeTop span { color: var(--landing-accent); font-size: .68rem; font-weight: 750; letter-spacing: .055em; text-transform: uppercase; }
+.routeTop svg { color: color-mix(in oklch, var(--landing-media-text) 56%, transparent); }
+.routes > a { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem; min-height: 6rem; padding: 1rem 1.35rem; transition: background-color 180ms ease; }
+.routes > a + a { border-top: 1px solid color-mix(in oklch, var(--landing-media-text) 13%, transparent); }
+.routes > a:hover { background: var(--landing-media-raised); }
+.routes > a > svg:first-child { color: var(--landing-accent); }
+.routes > a > svg:last-child { color: color-mix(in oklch, var(--landing-media-text) 46%, transparent); }
+.routes span { display: grid; gap: .25rem; }
+.routes strong { font-family: var(--landing-display); font-size: .9rem; font-weight: 700; }
+.routes small { color: color-mix(in oklch, var(--landing-media-text) 58%, transparent); font-size: .7rem; line-height: 1.5; }
+
+@media (max-width: 63.99rem) {
+  .page main { padding-top: 7.5rem; }
+  .container { grid-template-columns: 1fr; gap: 3rem; }
+  .message h1 { font-size: clamp(7rem, 26vw, 12rem); }
+  .routes { width: min(100%, 43rem); }
+}
+
+@media (max-width: 47.99rem) {
+  .page main { align-items: flex-start; padding-top: 7.5rem; padding-bottom: 3rem; }
+  .container { gap: 2.5rem; }
+  .message h1 { font-size: clamp(6.4rem, 38vw, 10rem); }
+  .message h2 { margin-top: 1.7rem; font-size: clamp(2rem, 11vw, 3rem); }
+  .message > p:not(:first-child) { font-size: .86rem; }
+  .routes { border-radius: 1.4rem; }
+  .routes > a { min-height: 5.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primary { transition: none; }
+  .primary:hover { transform: none; }
+}

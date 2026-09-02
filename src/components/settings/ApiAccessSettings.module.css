@@ -1,0 +1,43 @@
+/* Hallmark · component: API credential field · genre: modern-minimal · theme: Linktery
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass (46–50) · pre-emit critique: P5 H5 E5 S5 R5 V4
+ */
+.keyField {
+  display: flex;
+  min-width: 0;
+  min-height: 3rem;
+  flex: 1;
+  align-items: center;
+  border: var(--app-rule-hair) solid var(--app-control-rule);
+  border-radius: var(--app-radius-control);
+  background: var(--app-panel-sunken);
+  transition: border-color var(--app-duration) var(--app-ease-out), background-color var(--app-duration) var(--app-ease-out);
+}
+
+.keyField:focus-within {
+  border-color: var(--app-focus);
+  outline: 2px solid var(--app-focus);
+  outline-offset: 2px;
+}
+
+.keyField .keyInput {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: 0;
+}
+
+.keyField .keyInput:focus-visible {
+  outline: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .keyField:hover { background: var(--app-panel-hover); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .keyField { transition-duration: var(--app-duration-reduced); }
+}

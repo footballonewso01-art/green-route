@@ -260,7 +260,7 @@
         "answer": "Absolutely. Over 80% of fans view streamer links on mobile, and Linktery compiles pages to load instantly on 3G/4G."
       }
     ],
-    "seoTitle": "Link in Bio for Gamers & Streamers: Twitch, Kick & Discord | Linktery",
+    "seoTitle": "Link in Bio for Gamers & Streamers | Linktery",
     "seoDescription": "Create a custom streamer bio link. Route fans to Twitch, Kick, and Discord natively, split-test sponsor codes, and track audience analytics."
   },
   {
@@ -392,7 +392,7 @@
         "answer": "Yes, we integrate with affiliate UTM tags to track and attribute every book click."
       }
     ],
-    "seoTitle": "Link in Bio for Authors & Writers: Sell Books on Amazon | Linktery",
+    "seoTitle": "Link in Bio for Authors: Books & Reader Resources | Linktery",
     "seoDescription": "Build a custom author bio link. Direct readers to Amazon app directly, manage Substack signups, link Goodreads, and track book conversions."
   },
   {
@@ -436,7 +436,7 @@
         "answer": "Yes. Bind your personal domain or subdomain (e.g. art.myname.com) to your Linktery bio link."
       }
     ],
-    "seoTitle": "Link in Bio for Artists & Illustrators: Showcase Portfolio | Linktery",
+    "seoTitle": "Link in Bio for Artists: Portfolio & Commissions | Linktery",
     "seoDescription": "Build a custom art bio link. Showcase digital portfolios, sell commissions, connect custom subdomains, and track Patreon signups."
   },
   {
@@ -656,7 +656,7 @@
         "answer": "Linktery uses lightweight page markup and cache-friendly assets. Actual load time depends on the visitor's device, network, and media content."
       }
     ],
-    "seoTitle": "Link in Bio for VTubers: Deep Links to Twitch & Discord | Linktery",
+    "seoTitle": "Link in Bio for VTubers: Twitch & Discord | Linktery",
     "seoDescription": "Build a professional VTuber bio link. Bypass in-app browsers to launch Twitch and Discord natively, showcase virtual stores, and track stream analytics."
   }
 ]

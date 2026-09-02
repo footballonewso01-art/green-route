@@ -1,0 +1,29 @@
+<!-- Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc" shape-rendering="geometricPrecision">
+  <title id="title">Linktery logo mark concept v7</title>
+  <desc id="desc">A clearly readable rounded Latin L whose short lower arm becomes a restrained rising arrow, with two aligned dots creating a friendly face.</desc>
+  <defs>
+    <linearGradient id="logo-accent">
+      <stop stop-color="#12C77A" />
+    </linearGradient>
+  </defs>
+  <g fill="url(#logo-accent)" transform="translate(-74 47)">
+    <circle cx="292" cy="174" r="56" />
+    <path
+      d="M292 174C284 310 284 482 292 590C299 695 365 758 476 758H680C741 758 779 741 817 704"
+      fill="none"
+      stroke="url(#logo-accent)"
+      stroke-width="112"
+      stroke-linecap="butt"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M942 582 856 744 778 664Z"
+      stroke="url(#logo-accent)"
+      stroke-width="2"
+      stroke-linejoin="round"
+    />
+    <circle cx="530" cy="537" r="38" />
+    <circle cx="642" cy="537" r="38" />
+  </g>
+</svg>

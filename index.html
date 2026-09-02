@@ -4,8 +4,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/png" href="/favicon.png" />
-  <title>Linktery</title>
+  <link rel="stylesheet" href="/src/components/AppLoadingScreen.css" />
+  <!-- Critical for prerendered marketing markup: prevents an unstyled Hero image flash before hydration. -->
+  <link rel="stylesheet" href="/src/styles/landing-rebrand.css" />
+  <script>
+    try {
+      if (localStorage.getItem("pocketbase_auth")) {
+        document.documentElement.dataset.authSnapshot = "present";
+      }
+    } catch (_) {}
+  </script>
+  <style id="auth-snapshot-critical">
+    html[data-auth-snapshot="present"] [data-auth-visibility="guest"] { visibility: hidden !important; }
+  </style>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/favicon.png" />
+  <title>Linktery — Link In Bio &amp; Analytics</title>
   <meta name="description" content="Linktery - Smart Link Management and Traffic Routing" />
   <meta name="author" content="Linktery" />
   <link rel="canonical" href="https://linktery.com" />
@@ -42,7 +56,7 @@
     "@id": "https://linktery.com/#organization",
     "name": "Linktery",
     "url": "https://linktery.com",
-    "logo": "https://linktery.com/logo.webp"
+    "logo": "https://linktery.com/linktery-logo.png"
   }
   </script>
   <script type="application/ld+json">
@@ -59,15 +73,10 @@
 
 <body>
   <!--app-root-start--><div id="root">
-    <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #000000; color: #ffffff; font-family: system-ui, -apple-system, sans-serif; gap: 16px;">
-      <div style="width: 48px; height: 48px; border: 4px solid #10b981; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-      <p style="color: #9ca3af; font-size: 14px; margin: 0; font-weight: 500; letter-spacing: 0.05em;">Loading...</p>
+    <div class="app-loading-screen" role="status" aria-live="polite" aria-atomic="true">
+      <span class="app-loading-screen__spinner" aria-hidden="true"></span>
+      <p class="app-loading-screen__label">Loading…</p>
     </div>
-    <style>
-      @keyframes spin {
-        to { transform: rotate(360deg); }
-      }
-    </style>
   </div><!--app-root-end-->
   <script type="module" src="/src/main.tsx"></script>
 </body>

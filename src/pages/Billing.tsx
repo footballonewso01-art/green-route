@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { BillingRecord, formatBillingDate } from "@/lib/billing";
 import { CancelRenewalButton } from "@/components/billing/CancelRenewalButton";
 import { maskError } from "@/lib/utils";
+import { DashboardPage, DashboardPageHeader, DashboardPanel } from "@/components/dashboard/DashboardPrimitives";
+import styles from "./Billing.module.css";
 
 export default function BillingPage() {
     const { user, refreshUser } = useAuth();
@@ -131,23 +133,22 @@ export default function BillingPage() {
     };
 
     return (
-        <div className="max-w-5xl mx-auto space-y-8 pb-12">
-            <div className="space-y-2">
-                <h1 className="text-3xl font-bold text-foreground">Billing History</h1>
-                <p className="text-muted-foreground">Manage your subscription status and billing history.</p>
-            </div>
+        <DashboardPage className={styles.page}>
+            <DashboardPageHeader
+                eyebrow="Account"
+                title="Billing"
+                description="Review your current plan, renewal state, and payment history."
+            />
 
             {/* Current Plan Block */}
-            <div className="glass-card rounded-3xl p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
-                <div className="absolute -right-20 -top-20 w-64 h-64 bg-accent/10 rounded-full blur-[100px] pointer-events-none"></div>
-
-                <div className="flex items-start gap-5 relative z-10">
-                    <div className="w-14 h-14 rounded-2xl bg-accent/10 border border-accent/20 flex flex-shrink-0 items-center justify-center">
+            <DashboardPanel className={styles.planPanel}>
+                <div className="flex items-start gap-5">
+                    <div className={styles.planIcon}>
                         <CreditCard className="w-7 h-7 text-accent" />
                     </div>
                     <div>
-                        <div className={`inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider mb-2 ${renewalIsCanceling ? "bg-amber-500/10 text-amber-500 border-amber-500/20" : "bg-green-500/10 text-green-500 border-green-500/20"}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${renewalIsCanceling ? "bg-amber-500" : "bg-green-500 animate-pulse"}`}></span>
+                        <div className={`${styles.status} ${renewalIsCanceling ? styles.statusWarning : styles.statusActive}`}>
+                            <span aria-hidden="true" />
                             {renewalIsCanceling ? "Renewal off" : "Active"}
                         </div>
                         <h2 className="text-2xl font-bold text-foreground mb-1">{activePlanDetails.name} Plan</h2>
@@ -157,7 +158,7 @@ export default function BillingPage() {
                     </div>
                 </div>
 
-                <div className="relative z-10 w-full md:w-auto flex flex-col sm:flex-row gap-3">
+                <div className={styles.planActions}>
                     {hasStripeCustomer && (
                         <button
                             onClick={handleManageSubscription}
@@ -183,7 +184,7 @@ export default function BillingPage() {
                         />
                     )}
                 </div>
-            </div>
+            </DashboardPanel>
 
             {renewalIsCanceling && (
                 <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 text-sm text-amber-400">
@@ -192,7 +193,7 @@ export default function BillingPage() {
             )}
 
             {/* History Table */}
-            <div className="glass-card rounded-2xl overflow-hidden">
+            <DashboardPanel className={styles.historyPanel}>
                 <div className="p-6 border-b border-border flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-background flex items-center justify-center">
                         <History className="w-5 h-5 text-muted-foreground" />
@@ -256,7 +257,7 @@ export default function BillingPage() {
                         </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
+            </DashboardPanel>
+        </DashboardPage>
     );
 }

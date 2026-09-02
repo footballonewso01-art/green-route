@@ -101,6 +101,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const referralUserCreated = user?.created;
 
   useEffect(() => {
+    // Prerendered marketing pages contain guest CTAs. Keep their critical-CSS
+    // guard for the full authenticated session; removing it on the first frame
+    // can expose the prerendered controls before mounted components swap to
+    // their Dashboard variants. A real sign-out removes the guard immediately.
+    if (user) {
+      document.documentElement.dataset.authSnapshot = "present";
+      return;
+    }
+    delete document.documentElement.dataset.authSnapshot;
+  }, [user]);
+
+  useEffect(() => {
     // Token expiry check: if stored token is no longer valid, force logout
     if (user && !pb.authStore.isValid) {
       console.warn("[Auth] Token expired, forcing logout.");

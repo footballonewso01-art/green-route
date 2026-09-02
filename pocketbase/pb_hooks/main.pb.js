@@ -5035,6 +5035,7 @@ onRecordUpdateRequest((e) => {
             throw new ForbiddenError("Link ownership cannot be changed.");
         }
     }
+    utils.enforceLinkFeatureEntitlements($app, e.record, null, authInfo.isAdmin);
     utils.sanitizeLinkSystemFields(e.record, authInfo.isAdmin);
     utils.validateLinkRecordForMutation($app, e.record);
     e.next();

@@ -4,8 +4,28 @@ import {
   PUBLIC_SLUG_PATTERN,
 } from "../src/lib/systemRoutes";
 import { PRIMARY_ORIGIN } from "../src/lib/siteConfig";
+import competitorsData from "../src/data/competitors.json";
 
 export { isValidPublicSlug, PUBLIC_SLUG_PATTERN };
+
+const comparisonCompetitorSlugs = new Set(
+  (competitorsData as { slug: string }[]).map((competitor) => competitor.slug),
+);
+
+export function getCanonicalComparisonPath(pathname: string): string | null {
+  const prefix = "/compare/";
+  if (!pathname.startsWith(prefix)) return null;
+  const parts = pathname.slice(prefix.length).split("-vs-");
+  if (
+    parts.length !== 2 ||
+    parts[0] === parts[1] ||
+    !parts.every((slug) => comparisonCompetitorSlugs.has(slug))
+  ) {
+    return null;
+  }
+  const [first, second] = [...parts].sort((a, b) => a.localeCompare(b));
+  return `${prefix}${first}-vs-${second}`;
+}
 
 export function createPrimaryRedirectUrl(
   requestUrl: string,
@@ -45,6 +65,7 @@ function isCanonicalizablePath(pathname: string): boolean {
   if (pathname === "/") return true;
   if (SPA_EXACT_ROUTES.has(pathname) || isSpaPrefixRoute(pathname)) return true;
   if (isSystemRoute(pathname)) return true;
+  if (getCanonicalComparisonPath(pathname)) return true;
 
   const parts = pathname.slice(1).split("/");
   return parts.length === 1 && isValidPublicSlug(parts[0]);
@@ -86,6 +107,18 @@ export function decideEdgeRoute(pathname: string): EdgeRouteDecision {
       ? pathname.slice(0, -1)
       : pathname;
   const canonicalPath = withoutTrailingSlash.toLowerCase();
+  const canonicalComparisonPath = getCanonicalComparisonPath(canonicalPath);
+
+  if (
+    canonicalComparisonPath &&
+    canonicalComparisonPath !== pathname
+  ) {
+    return {
+      kind: "redirect",
+      destination: canonicalComparisonPath,
+      status: 308,
+    };
+  }
 
   if (
     canonicalPath !== pathname &&

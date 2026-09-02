@@ -1,0 +1,134 @@
+/* Swing is confined to the quotation cards. The surrounding page keeps the
+ * established landing canvas, gutter, type hierarchy and accessible controls. */
+.section {
+  --testimonial-overlap: clamp(.8rem, 1.45vw, 1.35rem);
+  --testimonial-blush: oklch(93.2% 0.032 34);
+  --testimonial-butter: oklch(94.4% 0.065 104);
+  --testimonial-lilac: oklch(84.8% 0.082 298);
+  --testimonial-sage: color-mix(in oklch, var(--landing-accent) 17%, var(--landing-paper));
+  padding: clamp(2.25rem, 4vw, 4rem) var(--landing-page-gutter) clamp(3rem, 5vw, 5rem);
+  scroll-margin-top: 6.5rem;
+  background: var(--landing-paper);
+  color: var(--landing-ink);
+  font-family: var(--landing-body);
+}
+
+.inner { width: min(100%, var(--landing-content-max-width)); margin-inline: auto; }
+.header { display: flex; align-items: center; justify-content: center; margin-bottom: clamp(1.5rem, 3vw, 2.5rem); text-align: center; }
+.header > div { min-width: 0; }
+.title { margin: 0; font-family: var(--landing-display); font-size: clamp(2.55rem, 4.2vw, 4.1rem); font-weight: 700; letter-spacing: -.058em; line-height: 1.04; text-wrap: balance; }
+.previewNote { max-width: 35rem; margin: .9rem auto 0; color: var(--landing-ink-soft); font-size: .75rem; line-height: 1.6; }
+
+.viewport {
+  position: relative;
+  margin-inline: -1.15rem;
+  padding: 1.6rem 1.15rem 2.25rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 1.15rem;
+  scrollbar-width: none;
+}
+.viewport::-webkit-scrollbar { display: none; }
+.track { display: flex; align-items: stretch; }
+.cardSlot {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 0 0 calc((100% + 3 * var(--testimonial-overlap)) / 4);
+  min-width: 0;
+  scroll-snap-align: start;
+}
+.cardSlot + .cardSlot { margin-inline-start: calc(-1 * var(--testimonial-overlap)); }
+.cardSlot:nth-child(2) { z-index: 2; }
+.cardSlot:nth-child(3) { z-index: 3; }
+.cardSlot:nth-child(4) { z-index: 2; }
+.card {
+  --testimonial-turn: -2.5deg;
+  --testimonial-surface: var(--testimonial-blush);
+  --testimonial-text: var(--landing-ink);
+  --testimonial-muted: var(--landing-ink-soft);
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: clamp(27rem, 32vw, 29.5rem);
+  padding: clamp(1.3rem, 2vw, 1.8rem);
+  border: 1px solid color-mix(in oklch, var(--testimonial-text) 9%, var(--testimonial-surface));
+  border-radius: 1.65rem;
+  background: var(--testimonial-surface);
+  color: var(--testimonial-text);
+  transform: rotate(var(--testimonial-turn));
+  transform-origin: 50% 55%;
+  box-shadow: 0 .7rem 1.8rem color-mix(in oklch, var(--landing-ink) 5%, transparent);
+  transition: transform 240ms var(--landing-ease-out), box-shadow 240ms ease, border-color 240ms ease;
+}
+.cardSlot:nth-child(4n + 2) .card { --testimonial-turn: 1.4deg; --testimonial-surface: var(--testimonial-butter); }
+.cardSlot:nth-child(4n + 3) .card { --testimonial-turn: -1.15deg; --testimonial-surface: var(--testimonial-lilac); }
+.cardSlot:nth-child(4n + 4) .card { --testimonial-turn: 2.5deg; --testimonial-surface: var(--testimonial-sage); }
+.quoteMark { flex-shrink: 0; margin-bottom: 1.5rem; color: var(--landing-accent-dark); }
+.cardSlot:nth-child(4n + 3) .quoteMark { color: color-mix(in oklch, var(--landing-ink) 55%, var(--testimonial-lilac)); }
+.card blockquote { margin: 0 0 2rem; }
+.card blockquote p { margin: 0; font-family: var(--landing-display); font-size: clamp(1.04rem, 1.3vw, 1.2rem); font-weight: 500; letter-spacing: -.018em; line-height: 1.55; overflow-wrap: anywhere; }
+.attribution { display: flex; align-items: center; gap: .7rem; margin-top: auto; }
+.attribution > div { min-width: 0; }
+.avatar { display: inline-flex; flex: 0 0 2.75rem; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem; overflow: hidden; border: 1px solid color-mix(in oklch, var(--testimonial-text) 16%, transparent); border-radius: 50%; background: color-mix(in oklch, var(--testimonial-text) 6%, var(--testimonial-surface)); color: var(--testimonial-text); font-family: var(--landing-display); font-size: .8rem; font-weight: 650; }
+.avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.author { display: inline-flex; align-items: center; gap: .3rem; color: var(--testimonial-text); font-size: .76rem; font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
+a.author { min-height: 2.75rem; }
+a.author:hover { text-decoration: underline; text-underline-offset: .2rem; }
+.role { display: block; margin-top: .2rem; color: var(--testimonial-muted); font-size: .67rem; line-height: 1.5; overflow-wrap: anywhere; }
+.controls { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .25rem; }
+.position { font-family: var(--landing-display); font-size: .9rem; font-variant-numeric: tabular-nums; font-weight: 600; }
+.position span { margin-left: .35rem; color: var(--landing-ink-soft); font-weight: 450; }
+.controls > div { display: flex; gap: .5rem; }
+.controls button { display: inline-flex; align-items: center; justify-content: center; width: 2.9rem; height: 2.9rem; border: 1px solid var(--landing-rule); border-radius: 50%; background: var(--landing-white); color: var(--landing-ink); cursor: pointer; transition: background-color 160ms ease; }
+.controls button:hover:not(:disabled) { background: var(--landing-accent); }
+.controls button:disabled { opacity: .38; cursor: default; }
+.section :where(a, button, [tabindex]):focus-visible { outline: 2px solid var(--landing-accent-dark); outline-offset: 4px; }
+.single { justify-content: center; }
+.single .cardSlot { flex-basis: min(100%, 40rem); }
+.visuallyHidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (max-width: 74.99rem) {
+  .cardSlot { flex-basis: calc((100% + var(--testimonial-overlap)) / 2); }
+  .card { min-height: 25rem; padding: 1.7rem; }
+  .card blockquote p { font-size: 1.2rem; }
+}
+@media (max-width: 39.99rem) {
+  .section { padding-top: 2.25rem; }
+  .header { margin-bottom: 1.25rem; }
+  .title { max-width: 12ch; margin-inline: auto; font-size: clamp(2.55rem, 11vw, 3.3rem); }
+  .viewport { margin-inline: -.65rem; padding: .85rem .65rem 1.25rem; scroll-padding-inline: .65rem; }
+  .track { gap: .85rem; }
+  .cardSlot { flex-basis: calc(100% - 1rem); }
+  .cardSlot + .cardSlot { margin-inline-start: 0; }
+  .card { min-height: 22rem; padding: 1.5rem; border-radius: 1.5rem; --testimonial-turn: -1deg; }
+  .cardSlot:nth-child(4n + 2) .card { --testimonial-turn: 1deg; }
+  .cardSlot:nth-child(4n + 3) .card { --testimonial-turn: -1deg; }
+  .cardSlot:nth-child(4n + 4) .card { --testimonial-turn: 1deg; }
+  .card blockquote p { font-size: 1.16rem; }
+  .single .cardSlot { flex-basis: 100%; }
+}
+@keyframes testimonial-card-settle {
+  0% { transform: rotate(var(--testimonial-turn)) translateY(0); }
+  34% { transform: rotate(-.75deg) translateY(-.8rem); }
+  58% { transform: rotate(.45deg) translateY(-.7rem); }
+  78% { transform: rotate(-.18deg) translateY(-.72rem); }
+  100% { transform: rotate(0deg) translateY(-.7rem); }
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .cardSlot:hover, .cardSlot:focus-within { z-index: 20; }
+  .cardSlot:hover .card, .cardSlot:focus-within .card {
+    border-color: color-mix(in oklch, var(--testimonial-text) 16%, var(--testimonial-surface));
+    box-shadow: 0 1.5rem 3rem color-mix(in oklch, var(--landing-ink) 15%, transparent);
+    animation: testimonial-card-settle 440ms cubic-bezier(.16, 1, .3, 1) both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card, .controls button { transition: none; }
+  .card { transform: none; }
+  .viewport { scroll-behavior: auto; }
+}

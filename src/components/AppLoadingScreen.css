@@ -1,0 +1,53 @@
+/* Shared by the HTML boot screen and React fallbacks; no global theme changes. */
+.app-loading-screen {
+  /* Fallbacks match Hero tokens before the lazy landing stylesheet is loaded. */
+  --app-loading-background: var(--landing-media, oklch(19% 0.027 158));
+  --app-loading-accent: var(--landing-accent, oklch(73.1% 0.1722 156.7));
+  --app-loading-text: oklch(76% 0.006 155);
+
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 1rem;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 1.5rem;
+  overflow: hidden;
+  background: var(--app-loading-background);
+  color: var(--app-loading-text);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app-loading-screen__spinner {
+  display: block;
+  box-sizing: border-box;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 2px solid color-mix(in oklch, var(--app-loading-accent) 18%, transparent);
+  border-top-color: var(--app-loading-accent);
+  border-right-color: var(--app-loading-accent);
+  border-radius: 50%;
+  animation: app-loading-spin 900ms linear infinite;
+}
+
+.app-loading-screen__label {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.015em;
+}
+
+@keyframes app-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-loading-screen__spinner {
+    animation: none;
+  }
+}

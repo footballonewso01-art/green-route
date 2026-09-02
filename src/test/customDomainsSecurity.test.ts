@@ -115,6 +115,15 @@ describe("custom domain security contract", () => {
     expect(hook).toContain('String(record.get("user_id") || "") !== user.id');
   });
 
+  it("loads domain destinations through an authenticated field-limited owner route", () => {
+    expect(hook).toContain('routerAdd("GET", "/api/domains/targets"');
+    expect(hook).toContain('filter = "user_id = {:userId}"');
+    expect(hook).toContain('kind === "link" ? " && active = true"');
+    expect(hook).toContain('name: String(record.get(labelField) || slug)');
+    expect(read("src/components/settings/DomainTargetPicker.tsx")).toContain("listCustomDomainTargets");
+    expect(read("src/components/settings/DomainTargetPicker.tsx")).not.toContain('.collection("links")');
+  });
+
   it("normalizes friendly domain input without inventing a path", () => {
     expect(normalizeCustomDomainInput(" HTTPS://Brand.Example/path?q=1 ")).toBe("brand.example");
     expect(normalizeCustomDomainInput("links.brand.example.")).toBe("links.brand.example");

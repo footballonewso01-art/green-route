@@ -51,6 +51,8 @@ import {
   SOCIAL_LINK_STYLES,
   SocialLinkStyleId,
 } from "@/lib/profileAppearance";
+import { DashboardPage, DashboardPageHeader } from "@/components/dashboard/DashboardPrimitives";
+import styles from "./DashboardProfile.module.css";
 
 function TemplateThumbnail({ template }: { template: ProfileTemplateId }) {
   const linkRows = (
@@ -736,7 +738,6 @@ export default function DashboardProfile() {
         updateData.profile_background_image = null;
       }
 
-      console.log("[handleSaveProfile] Updating profile metadata...", updateData);
       await pb.collection("public_profiles").update(activeProfileId, updateData, { requestKey: null });
 
       setAvatarFile(null);
@@ -856,66 +857,39 @@ export default function DashboardProfile() {
     : false;
 
   return (
-    <div className="space-y-8 pb-10 overflow-visible">
-      <div>
-        <RouterLink
-          to="/dashboard/profile"
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-accent uppercase tracking-widest hover:text-accent/80 transition-colors"
-        >
-          ← Back to Profiles
-        </RouterLink>
-      </div>
-
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border pb-6">
-        <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-white">
-              Edit: {name || username || "Biolink Profile"}
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1">Customize your profile, links, and presentation</p>
-          </div>
-          {username && (
-            <div className="md:border-l md:border-border/60 md:pl-6 flex flex-col sm:flex-row sm:items-center gap-2">
-              <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Public Link:</span>
-              <div className="inline-flex items-center gap-2 bg-surface/50 border border-border/80 px-3 py-1.5 rounded-xl min-w-0 max-w-full">
-                <span className="min-w-0 truncate text-xs font-sans font-semibold tracking-normal text-accent">
-                  {domain}/{username}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCopyLink}
-                  className="p-1 rounded-lg hover:bg-surface text-muted-foreground hover:text-foreground transition-all focus:outline-none shrink-0"
-                  title="Copy Link"
-                >
-                  {copied ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-3">
+    <DashboardPage className={styles.page}>
+      <DashboardPageHeader
+        eyebrow={<RouterLink to="/dashboard/profile" className={styles.back}>← Back to profiles</RouterLink>}
+        title={`Edit ${name || username || "Public Profile"}`}
+        description="Customize its identity, layout, links, and published presentation."
+        actions={(
           <button
             onClick={handleDeleteProfile}
             disabled={profileLoading}
-            className="flex items-center gap-1.5 text-sm font-semibold text-red-500/80 hover:text-red-400 bg-red-500/5 hover:bg-red-500/10 border border-red-500/20 px-4 py-2.5 rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none"
+            className={styles.deleteAction}
             title="Delete this profile"
           >
             <Trash2 className="w-4 h-4" /> Delete Profile
           </button>
+        )}
+      />
+
+      {username && (
+        <div className={styles.publicAddress}>
+          <span>Public address</span>
+          <code>{domain}/{username}</code>
+          <button type="button" onClick={handleCopyLink} aria-label="Copy public profile address">
+            {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+          </button>
         </div>
-      </div>
+      )}
 
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Col: Editor */}
         <div className="lg:col-span-7 space-y-6">
 
-          <div className="glass-card p-6 space-y-6">
+          <div className={`${styles.editorPanel} space-y-6`}>
             <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
               <Camera className="w-5 h-5 text-accent" /> Visuals
             </h2>
@@ -1348,7 +1322,7 @@ export default function DashboardProfile() {
           </div>
 
           {/* Identity Section */}
-          <div className="glass-card p-6 space-y-5">
+          <div className={`${styles.editorPanel} space-y-5`}>
             <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
               <User className="w-5 h-5 text-accent" /> Identity
             </h2>
@@ -1424,7 +1398,7 @@ export default function DashboardProfile() {
           </div>
 
           {/* Social Links Section */}
-          <div className="glass-card p-6 space-y-5 overflow-visible">
+          <div className={`${styles.editorPanel} space-y-5 overflow-visible`}>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
                 <Globe className="w-5 h-5 text-accent" /> Social Links
@@ -1652,6 +1626,7 @@ export default function DashboardProfile() {
                 >
                   <ProfileCanvas
                     preview
+                    embeddedPreview
                     template={profileTemplate}
                     linkCardStyle={linkCardStyle}
                     socialLinkStyle={socialLinkStyle}
@@ -1750,15 +1725,7 @@ export default function DashboardProfile() {
       {/* Create Profile Modal */}
       {showCreateProfileModal && mounted && createPortal(
         <div className="fixed inset-0 z-[100] bg-background/70 backdrop-blur-md flex items-center justify-center p-4">
-          <div 
-            className="relative overflow-hidden w-full max-w-md rounded-[24px] border border-white/[0.08] backdrop-blur-2xl p-7 text-white shadow-[0_20px_50px_rgba(0,0,0,0.5)] space-y-6"
-            style={{
-              background: 'linear-gradient(135deg, rgba(25, 45, 35, 0.4) 0%, rgba(10, 20, 15, 0.95) 100%)',
-              borderTop: '3px solid #22C55E'
-            }}
-          >
-            {/* Ambient background glow orb */}
-            <div className="absolute -right-20 -top-20 w-44 h-44 rounded-full bg-accent/10 blur-[50px] pointer-events-none" />
+          <div className={`${styles.modalPanel} space-y-6`}>
 
             <div className="relative z-10 flex items-center justify-between">
               <h3 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
@@ -1845,6 +1812,6 @@ export default function DashboardProfile() {
         description={upgradeModal.description}
         planNeeded={upgradeModal.planNeeded}
       />
-    </div >
+    </DashboardPage>
   );
 }

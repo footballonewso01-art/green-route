@@ -1,0 +1,45 @@
+.page {
+  width: min(100%, 42rem);
+  margin-inline: 0;
+}
+
+.loading {
+  min-height: 20rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-xs);
+  color: var(--app-accent);
+  font-size: var(--app-text-xs);
+  font-weight: 650;
+}
+
+.back svg {
+  width: .9rem;
+  height: .9rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-xl);
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.submit {
+  display: inline-flex;
+  min-height: var(--app-control-height-lg);
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-xs);
+  margin-top: var(--app-space-xs);
+}
+
+@media (max-width: 39.99rem) {
+  .form { gap: var(--app-space-lg); }
+}

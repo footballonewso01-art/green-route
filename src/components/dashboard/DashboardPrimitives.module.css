@@ -1,0 +1,140 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: design.md · designed-as-app
+ * pre-emit critique: P5 H5 E5 S5 R5 V5
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-lg);
+  min-width: 0;
+  color: var(--app-ink);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--app-space-md);
+  padding-block: var(--app-space-xs) var(--app-space-sm);
+}
+
+.intro { min-width: 0; }
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-xs);
+  margin: 0 0 var(--app-space-xs);
+  color: var(--app-accent);
+  font-size: var(--app-text-xs);
+  font-weight: 650;
+  line-height: 1;
+}
+.title {
+  min-width: 0;
+  margin: 0;
+  color: var(--app-ink);
+  font-family: var(--app-display);
+  font-size: var(--app-text-2xl);
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: -.04em;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+.description {
+  max-width: 68ch;
+  margin: var(--app-space-xs) 0 0;
+  color: var(--app-muted);
+  font-size: var(--app-text-sm);
+  line-height: 1.55;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--app-space-sm);
+}
+
+.panel {
+  min-width: 0;
+  border: var(--app-rule-hair) solid var(--app-rule);
+  border-radius: var(--app-radius-card);
+  background: var(--app-panel);
+  color: var(--app-ink);
+}
+
+.panelRaised { background: var(--app-panel-strong); }
+
+.metricRail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: clip;
+  border: var(--app-rule-hair) solid var(--app-rule);
+  border-radius: var(--app-radius-card);
+  background: var(--app-panel);
+  color: var(--app-ink);
+}
+.metric {
+  min-width: 0;
+  padding: var(--app-space-lg);
+}
+.metric + .metric { border-block-start: var(--app-rule-hair) solid var(--app-rule); }
+.metricLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-xs);
+  color: var(--app-muted);
+  font-size: var(--app-text-xs);
+  font-weight: 550;
+  line-height: 1;
+}
+.metricLabel svg { color: var(--app-accent); }
+.metricValue {
+  margin-top: var(--app-space-sm);
+  color: var(--app-ink);
+  font-family: var(--app-display);
+  font-size: var(--app-text-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.045em;
+  line-height: 1;
+}
+
+.empty {
+  display: flex;
+  min-height: 18rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: var(--app-space-sm);
+  padding: var(--app-space-xl);
+  border: var(--app-rule-hair) solid var(--app-rule);
+  border-radius: var(--app-radius-card);
+  background: var(--app-panel);
+  color: var(--app-ink);
+  text-align: left;
+}
+.emptyIcon {
+  display: grid;
+  place-items: center;
+  width: var(--app-control-height);
+  height: var(--app-control-height);
+  border: var(--app-rule-hair) solid var(--app-rule);
+  border-radius: var(--app-radius-control);
+  background: var(--app-panel-strong);
+  color: var(--app-accent);
+}
+.emptyIcon svg { width: 1.1rem; height: 1.1rem; }
+.emptyTitle { margin: 0; font-size: var(--app-text-md); font-weight: 700; line-height: 1.2; }
+.emptyDescription { max-width: 56ch; margin: 0; color: var(--app-muted); font-size: var(--app-text-sm); line-height: 1.5; }
+.emptyAction { margin-top: var(--app-space-xs); }
+
+@media (min-width: 40rem) {
+  .header { flex-direction: row; align-items: center; }
+  .metricRail { grid-template-columns: repeat(var(--dashboard-metric-columns, 3), minmax(0, 1fr)); }
+  .metric + .metric { border-block-start: 0; border-inline-start: var(--app-rule-hair) solid var(--app-rule); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page { scroll-behavior: auto; }
+}

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Linktery logo mark concept v5</title>
+  <desc id="desc">A pointed left tail sweeps through a broad curved motion into an upward arrow, with two proportionally sized staggered eyes.</desc>
+  <g fill="#12C77A">
+    <path d="M105 452C248 653 379 851 559 858C718 864 833 744 900 610L970 468 820 550C758 651 660 720 545 710C390 696 260 570 105 452Z" />
+    <circle cx="480" cy="570" r="40" />
+    <circle cx="608" cy="500" r="40" />
+  </g>
+</svg>

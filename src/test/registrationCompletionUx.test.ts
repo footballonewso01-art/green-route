@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { getPostRegistrationDestination } from "@/lib/profileOnboarding";
 
 const read = (relativePath: string) => fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
 
@@ -24,5 +25,13 @@ describe("registration completion UX", () => {
     expect(register).toContain('toast.success("Account and Public Profile are ready."');
     expect(toaster).toContain("expand={true}");
     expect(toaster).toContain("gap={12}");
+  });
+
+  it("opens Profile only for registrations that reserved a profile address", () => {
+    expect(getPostRegistrationDestination("", "profile-1")).toBe("/dashboard");
+    expect(getPostRegistrationDestination("maya", "profile-1")).toBe("/dashboard/profile/profile-1");
+
+    const register = read("src/pages/RegisterPage.tsx");
+    expect(register.match(/getPostRegistrationDestination\(reservedProfileSlug, profileSetup\.profile\.id\)/g)).toHaveLength(2);
   });
 });

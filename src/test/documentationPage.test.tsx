@@ -7,6 +7,16 @@ const { writeTextMock } = vi.hoisted(() => ({
   writeTextMock: vi.fn(),
 }));
 
+vi.mock("framer-motion", async () => {
+  const React = await import("react");
+  const ignored = new Set(["initial", "whileInView", "viewport", "transition"]);
+  const staticMotion = (tag: string) => (props: Record<string, unknown>) => React.createElement(
+    tag,
+    Object.fromEntries(Object.entries(props).filter(([key]) => !ignored.has(key))),
+  );
+  return { motion: { div: staticMotion("div"), footer: staticMotion("footer") }, useReducedMotion: () => true };
+});
+
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: null }),
 }));
@@ -49,6 +59,18 @@ describe("public API documentation", () => {
     expect(screen.getByText("/profiles/{id}/links")).toBeInTheDocument();
     expect(screen.getByText(/never returns raw click rows/i)).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "Linktery API limits by plan" })).toBeInTheDocument();
+    expect(document.querySelector("[data-documentation-page]")).toBeInTheDocument();
+    expect(document.querySelector("[data-landing-header]")).toBeInTheDocument();
+    expect(document.querySelector("[data-landing-footer]")).toBeInTheDocument();
+    expect(screen.getByRole("complementary")).toHaveTextContent("API reference");
+    expect(screen.getByLabelText("API connection details")).toHaveTextContent("Account-owned data");
+    expect(JSON.parse(document.getElementById("jsonld-structured")?.textContent || "{}")).toMatchObject({
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { position: 1, name: "Home", item: "https://linktery.com" },
+        { position: 2, name: "Documentation", item: "https://linktery.com/documentation" },
+      ],
+    });
 
     const documentationLink = screen.getByRole("link", { name: "Documentation" });
     expect(documentationLink).toHaveAttribute("aria-current", "page");
@@ -71,6 +93,26 @@ describe("public API documentation", () => {
       .toBeInTheDocument();
   });
 
+  it("keeps the mobile table of contents connected to every section", () => {
+    render(
+      <MemoryRouter>
+        <DocumentationPage />
+      </MemoryRouter>,
+    );
+
+    const mobileNavigation = screen.getByRole("navigation", { name: "On this page" });
+    for (const [label, id] of [
+      ["Quickstart", "quickstart"],
+      ["Authentication", "authentication"],
+      ["Endpoints", "endpoints"],
+      ["Link analytics", "analytics"],
+      ["Limits and errors", "limits-errors"],
+    ]) {
+      expect(mobileNavigation.querySelector(`a[href="#${id}"]`)).toHaveTextContent(label);
+      expect(document.getElementById(id)).toBeInTheDocument();
+    }
+  });
+
   it("wires documentation into the landing header and reserves its public slug in the database", () => {
     const landing = readWorkspaceFile("src/pages/LandingPage.tsx");
     const header = readWorkspaceFile("src/components/MarketingHeader.tsx");
@@ -80,7 +122,7 @@ describe("public API documentation", () => {
 
     expect(landing).toContain('<MarketingHeader current="home" />');
     expect(header).toContain('to="/documentation"');
-    expect(header).toContain("md:hidden");
+    expect(header).toContain("lg:hidden");
     expect(migration).toContain("WHERE lower(slug) = 'documentation'");
     expect(migration).toContain("WHEN lower(NEW.slug) = 'documentation'");
     expect(migration).toContain("Cannot reserve /documentation");

@@ -10,6 +10,13 @@ import { PLANS, PlanType } from '@/lib/plans';
 import { maskError } from "@/lib/utils";
 import { getNewLinkHrefForFilter } from "@/lib/linkProfileContext";
 import { CoreLinkRecord, getAssignedProfileIds, ProfileLinkRecord } from "@/lib/profileLinks";
+import {
+  DashboardEmptyState,
+  DashboardPage,
+  DashboardPageHeader,
+  DashboardPanel,
+} from "@/components/dashboard/DashboardPrimitives";
+import styles from "./LinksManager.module.css";
 
 interface LinkItem extends CoreLinkRecord {
   order?: number;
@@ -34,6 +41,9 @@ export default function LinksManager() {
   const [viewMode, setViewMode] = useState<"bento" | "list">(() => {
     return (localStorage.getItem("links_view_mode") as "bento" | "list") || "bento";
   });
+  const [isCompactViewport, setIsCompactViewport] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 39.99rem)").matches : false
+  );
   const [sparklines, setSparklines] = useState<Record<string, number[]>>({});
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -113,6 +123,14 @@ export default function LinksManager() {
   useEffect(() => {
     localStorage.setItem("links_view_mode", viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    const compactQuery = window.matchMedia("(max-width: 39.99rem)");
+    const syncViewport = (event?: MediaQueryListEvent) => setIsCompactViewport(event?.matches ?? compactQuery.matches);
+    syncViewport();
+    compactQuery.addEventListener("change", syncViewport);
+    return () => compactQuery.removeEventListener("change", syncViewport);
+  }, []);
 
   const userPlan = pb.authStore.model?.plan || "creator";
   const limit = PLANS[userPlan as PlanType]?.limits?.links ?? 3;
@@ -246,7 +264,7 @@ export default function LinksManager() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <DashboardPage>
         <div className="flex justify-between items-center">
           <div className="space-y-2">
             <div className="h-7 w-32 bg-surface rounded-lg animate-pulse" />
@@ -257,7 +275,7 @@ export default function LinksManager() {
         <div className="h-11 w-full bg-surface rounded-xl animate-pulse" />
         <div className="space-y-3">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="glass-card p-4 flex items-center gap-4">
+            <DashboardPanel key={i} className={styles.skeletonCard}>
               <div className="w-5 h-8 bg-surface rounded animate-pulse" />
               <div className="w-10 h-10 bg-surface rounded-lg animate-pulse" />
               <div className="flex-1 space-y-2">
@@ -265,34 +283,38 @@ export default function LinksManager() {
                 <div className="h-3 w-48 bg-surface rounded animate-pulse" />
               </div>
               <div className="h-8 w-16 bg-surface rounded animate-pulse" />
-            </div>
+            </DashboardPanel>
           ))}
         </div>
-      </div>
+      </DashboardPage>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Links</h1>
-          <p className="text-muted-foreground text-sm mt-1">{links.length} total links</p>
-        </div>
+    <DashboardPage>
+      <DashboardPageHeader
+        eyebrow="Link library"
+        title="Links"
+        description={`${links.length} total ${links.length === 1 ? "link" : "links"}. Create, organize, and route every destination from one workspace.`}
+        actions={(
         <div className="flex items-center gap-3">
           {/* View Toggle - Hidden on Mobile, only Desktop/Tablet can switch */}
           <div className="hidden sm:flex items-center bg-surface border border-border p-1 rounded-xl">
             <button
+              type="button"
               onClick={() => setViewMode("bento")}
+              aria-label="Use bento view"
+              aria-pressed={viewMode === "bento"}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === "bento" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"}`}
-              title="Bento View"
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
             <button
+              type="button"
               onClick={() => setViewMode("list")}
+              aria-label="Use list view"
+              aria-pressed={viewMode === "list"}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === "list" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"}`}
-              title="List View"
             >
               <List className="w-4 h-4" />
             </button>
@@ -301,29 +323,36 @@ export default function LinksManager() {
             <Plus className="w-4 h-4" /> New Link
           </Link>
         </div>
-      </div>
+        )}
+      />
 
       {/* Profile Filters */}
       {profiles.length >= 1 && (
-        <div className="flex flex-wrap items-center gap-2 bg-surface/30 border border-border/80 p-1.5 rounded-xl">
+        <div className={styles.filters}>
           <button
+            type="button"
             onClick={() => setSelectedProfileFilter("all")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${selectedProfileFilter === "all" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground"}`}
+            aria-pressed={selectedProfileFilter === "all"}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${selectedProfileFilter === "all" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground"}`}
           >
             All Links
           </button>
           {profiles.map(p => (
             <button
+              type="button"
               key={p.id}
               onClick={() => setSelectedProfileFilter(p.id)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${selectedProfileFilter === p.id ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground"}`}
+              aria-pressed={selectedProfileFilter === p.id}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${selectedProfileFilter === p.id ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground"}`}
             >
               {p.name || `@${p.slug}`}
             </button>
           ))}
           <button
+            type="button"
             onClick={() => setSelectedProfileFilter("none")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${selectedProfileFilter === "none" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground"}`}
+            aria-pressed={selectedProfileFilter === "none"}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${selectedProfileFilter === "none" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground"}`}
           >
             Outside Profiles
           </button>
@@ -331,34 +360,31 @@ export default function LinksManager() {
       )}
 
       {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+      <div className={styles.search}>
+        <Search />
         <input
           type="text"
+          aria-label="Search links"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search links..."
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
+          className="focus:outline-none focus:border-accent/50 placeholder:text-muted-foreground"
         />
       </div>
 
       {/* Links list */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
-          <div className="text-center py-16 glass-card space-y-4">
-            <div className="w-20 h-20 mx-auto rounded-full bg-accent/5 border border-accent/10 flex items-center justify-center">
-              <Link2 className="w-9 h-9 text-accent/40" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">{search ? 'No results found' : 'No links yet'}</h3>
-              <p className="text-sm text-muted-foreground mt-1">{search ? 'Try a different search term' : 'Create your first smart link to get started'}</p>
-            </div>
-            {!search && (
+          <DashboardEmptyState
+              icon={<Link2 className="h-5 w-5" />}
+              title={search ? "No results found" : "No links yet"}
+              description={search ? "Try another title, slug, or destination." : "Create your first smart link and start collecting traffic data."}
+              action={!search ? (
               <Link to="/dashboard/links/create" className="btn-primary-glow text-sm !py-2 !px-6 inline-flex items-center gap-2">
                 <Plus className="w-4 h-4" /> Create First Link
               </Link>
-            )}
-          </div>
+              ) : undefined}
+          />
         ) : (
           <DragDropContext onDragEnd={handleDragEnd}>
             <Droppable droppableId="links-list" isDropDisabled={filtered.length <= 1}>
@@ -369,8 +395,7 @@ export default function LinksManager() {
                   className={viewMode === "bento" ? "grid grid-cols-1 xl:grid-cols-2 gap-4" : "space-y-3"}
                 >
                   {filtered.map((link, index) => {
-                    // Force List View for mobile devices regardless of state
-                    const effectiveViewMode = (typeof window !== 'undefined' && window.innerWidth < 640) ? 'list' : viewMode;
+                    const effectiveViewMode = isCompactViewport ? 'list' : viewMode;
                     const activeIndex = link.active ? activeLinks.findIndex(al => al.id === link.id) : -1;
                     const isFrozen = link.active && limit !== -1 && activeIndex >= limit;
                     const assignedProfileIds = getAssignedProfileIds(profileAssignments, link.id);
@@ -385,9 +410,7 @@ export default function LinksManager() {
                             style={{
                               ...provided.draggableProps.style,
                             }}
-                            className={effectiveViewMode === "bento"
-                              ? `bento-card p-5 flex flex-col justify-between gap-4 transition-all duration-300 min-h-[160px] ${isFrozen ? '!border-amber-500/25 !bg-amber-500/[0.01]' : ''} ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:shadow-glow'}`
-                              : `glass-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-all duration-200 ${isFrozen ? '!border-amber-500/25 !bg-amber-500/[0.01]' : ''} ${snapshot.isDragging ? 'shadow-2xl border-accent ring-2 ring-accent shadow-accent/20 z-[9999]' : 'hover:border-accent/20'}`}
+                            className={`${styles.linkCard} ${effectiveViewMode === "bento" ? styles.bento : styles.list} ${isFrozen ? styles.frozen : ""} ${snapshot.isDragging ? styles.dragging : ""}`}
                           >
                             <div className={`flex items-start justify-between gap-3 ${effectiveViewMode === 'list' ? 'flex-1 min-w-0' : ''}`}>
                               <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -408,7 +431,7 @@ export default function LinksManager() {
                                       }
                                     </span>
                                     {link.title && <span className="text-xs font-medium px-2 py-0.5 rounded bg-surface border border-border">{link.title}</span>}
-                                    <button onClick={() => copyToClipboard(link.slug, link.domain)} className="text-muted-foreground hover:text-foreground transition-colors mr-1">
+                                    <button type="button" onClick={() => copyToClipboard(link.slug, link.domain)} aria-label={`Copy ${link.title || link.slug} link`} className="text-muted-foreground hover:text-foreground transition-colors mr-1">
                                       <Copy className="w-3.5 h-3.5" />
                                     </button>
                                     {isFrozen && (
@@ -435,19 +458,19 @@ export default function LinksManager() {
                                     <button
                                       type="button"
                                       onClick={() => profiles.length > 0 ? setProfileSelectorLinkId(link.id) : toast.error("Create a Public Profile first")}
+                                      aria-label={isOnProfile ? `Manage profile placement for ${link.title || link.slug}` : `Add ${link.title || link.slug} to a Public Profile`}
                                       className={`p-2 rounded-xl transition-colors ${isOnProfile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground hover:text-foreground hover:bg-surface-hover'}`}
-                                      title={isOnProfile ? `Shown on ${assignedProfileIds.length} profile${assignedProfileIds.length === 1 ? '' : 's'}` : "Add to a Public Profile"}
                                     >
                                       {isOnProfile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                     </button>
                                   </div>
-                                  <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
+                                  <button type="button" onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} aria-label={`Show QR code for ${link.title || link.slug}`} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
                                     <QrCode className="w-4 h-4" />
                                   </button>
-                                  <Link to={`/dashboard/links/edit/${link.id}`} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="Edit Full Settings">
+                                  <Link to={`/dashboard/links/edit/${link.id}`} aria-label={`Edit ${link.title || link.slug}`} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
                                     <Edit className="w-4 h-4" />
                                   </Link>
-                                  <button onClick={() => deleteLink(link.id)} className="p-2 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors" title="Delete">
+                                  <button type="button" onClick={() => deleteLink(link.id)} aria-label={`Delete ${link.title || link.slug}`} className="p-2 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors">
                                     <Trash2 className="w-4 h-4" />
                                   </button>
                                 </div>
@@ -467,7 +490,7 @@ export default function LinksManager() {
                                       {(sparklines[link.id] || [0, 0, 0, 0, 0, 0, 0]).map((val, i) => {
                                         const maxVal = Math.max(...(sparklines[link.id] || [0, 0, 0, 0, 0, 0, 0]), 1);
                                         return (
-                                          <div key={i} className="w-1 bg-accent/50 rounded-t-sm transition-all" style={{ height: `${(val / maxVal) * 100}%`, minHeight: '2px' }} />
+                                          <div key={i} className="w-1 bg-accent/50 rounded-t-sm" style={{ height: `${(val / maxVal) * 100}%`, minHeight: '2px' }} />
                                         );
                                       })}
                                     </div>
@@ -482,7 +505,7 @@ export default function LinksManager() {
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                  <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors scale-90" title="Toggle active status">
+                                  <button type="button" role="switch" aria-checked={link.active} aria-label={`${link.active ? "Deactivate" : "Activate"} ${link.title || link.slug}`} onClick={() => toggleLink(link.id, link.active)} className="transition-colors scale-90">
                                     {isFrozen ? (
                                       <ToggleRight className="w-8 h-8 text-amber-500" />
                                     ) : link.active ? (
@@ -492,7 +515,7 @@ export default function LinksManager() {
                                     )}
                                   </button>
 
-                                  <Link to={`/dashboard/analytics?link=${link.id}`} className="p-2.5 rounded-xl bg-surface border border-border hover:border-accent/50 text-foreground transition-all tactile-btn" title="View Analytics">
+                                  <Link to={`/dashboard/analytics?link=${link.id}`} aria-label={`View analytics for ${link.title || link.slug}`} className="p-2.5 rounded-xl bg-surface border border-border hover:border-accent/50 text-foreground transition-colors tactile-btn">
                                     <BarChart3 className="w-4 h-4 text-accent" />
                                   </Link>
                                 </div>
@@ -509,14 +532,14 @@ export default function LinksManager() {
                                   <button
                                     type="button"
                                     onClick={() => profiles.length > 0 ? setProfileSelectorLinkId(link.id) : toast.error("Create a Public Profile first")}
+                                    aria-label={isOnProfile ? `Manage profile placement for ${link.title || link.slug}` : `Add ${link.title || link.slug} to a Public Profile`}
                                     className={`p-2 rounded-lg transition-colors ${isOnProfile ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted-foreground bg-surface hover:bg-surface-hover'}`}
-                                    title={isOnProfile ? `Shown on ${assignedProfileIds.length} profile${assignedProfileIds.length === 1 ? '' : 's'}` : "Add to a Public Profile"}
                                   >
                                     {isOnProfile ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                   </button>
                                 </div>
 
-                                <button onClick={() => toggleLink(link.id, link.active)} className="transition-colors" title="Toggle active status">
+                                <button type="button" role="switch" aria-checked={link.active} aria-label={`${link.active ? "Deactivate" : "Activate"} ${link.title || link.slug}`} onClick={() => toggleLink(link.id, link.active)} className="transition-colors">
                                   {isFrozen ? (
                                     <ToggleRight className="w-8 h-8 text-amber-500" />
                                   ) : link.active ? (
@@ -527,16 +550,16 @@ export default function LinksManager() {
                                 </button>
 
                                 <div className="flex items-center gap-1">
-                                  <button onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors" title="QR Code">
+                                  <button type="button" onClick={() => setQrModal({ slug: link.slug, title: link.title || link.slug, domain: link.domain })} aria-label={`Show QR code for ${link.title || link.slug}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
                                     <QrCode className="w-4 h-4" />
                                   </button>
-                                  <Link to={`/dashboard/analytics?link=${link.id}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
+                                  <Link to={`/dashboard/analytics?link=${link.id}`} aria-label={`View analytics for ${link.title || link.slug}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
                                     <BarChart3 className="w-4 h-4" />
                                   </Link>
-                                  <Link to={`/dashboard/links/edit/${link.id}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
+                                  <Link to={`/dashboard/links/edit/${link.id}`} aria-label={`Edit ${link.title || link.slug}`} className="p-2 rounded-lg hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
                                     <Edit className="w-4 h-4" />
                                   </Link>
-                                  <button onClick={() => deleteLink(link.id)} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                                  <button type="button" onClick={() => deleteLink(link.id)} aria-label={`Delete ${link.title || link.slug}`} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                                     <Trash2 className="w-4 h-4" />
                                   </button>
                                 </div>
@@ -556,17 +579,16 @@ export default function LinksManager() {
       </div>
       {profileSelectorLinkId && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-background/90 p-4 backdrop-blur-md"
+          className={styles.modalOverlay}
           role="dialog"
           aria-modal="true"
           aria-labelledby="profile-selector-title"
           onClick={() => setProfileSelectorLinkId(null)}
         >
           <div
-            className="relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-white/10 bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
+            className={styles.profileModal}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-accent/[0.09] to-transparent pointer-events-none" />
             <div className="relative p-5 sm:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex min-w-0 items-start gap-3">
@@ -614,7 +636,7 @@ export default function LinksManager() {
                       key={profileOption.id}
                       type="button"
                       onClick={() => void toggleProfileAssignment(profileSelectorLinkId, profileOption.id)}
-                      className={`group flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition-all ${selected ? "border-accent/40 bg-accent/[0.07]" : "border-border/80 bg-background/20 hover:border-accent/40 hover:bg-accent/[0.06]"}`}
+                      className={`group flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition-colors ${selected ? "border-accent/40 bg-accent/[0.07]" : "border-border/80 bg-background/20 hover:border-accent/40 hover:bg-accent/[0.06]"}`}
                       aria-pressed={selected}
                     >
                       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-sm font-black uppercase transition-colors ${selected ? "border-accent/30 bg-accent/10 text-accent" : "border-border bg-white/5 text-muted-foreground group-hover:border-accent/25 group-hover:bg-accent/10 group-hover:text-accent"}`}>
@@ -624,7 +646,7 @@ export default function LinksManager() {
                         <span className="block truncate text-sm font-semibold text-foreground">{displayName}</span>
                         <span className="mt-0.5 block truncate text-xs font-sans text-muted-foreground">{profileOption.domain || "linktery.com"}/{profileOption.slug}</span>
                       </span>
-                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all ${selected ? "border-accent bg-accent text-black" : "border-border text-transparent group-hover:border-accent"}`}>
+                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${selected ? "border-accent bg-accent text-black" : "border-border text-transparent group-hover:border-accent"}`}>
                         <Check className="h-3.5 w-3.5" />
                       </span>
                     </button>
@@ -644,11 +666,11 @@ export default function LinksManager() {
         </div>
       )}
       {qrModal && (
-        <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setQrModal(null)}>
-          <div className="bg-surface border border-border rounded-2xl p-8 w-full max-w-sm shadow-2xl text-center space-y-6" onClick={e => e.stopPropagation()}>
+        <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-labelledby="qr-modal-title" onClick={() => setQrModal(null)}>
+          <div className={`${styles.modalPanel} text-center space-y-6`} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-foreground">QR Code</h3>
-              <button onClick={() => setQrModal(null)} className="p-1 rounded-lg hover:bg-surface-hover text-muted-foreground">
+              <h3 id="qr-modal-title" className="text-lg font-bold text-foreground">QR Code</h3>
+              <button type="button" onClick={() => setQrModal(null)} aria-label="Close QR code" className="p-1 rounded-lg hover:bg-surface-hover text-muted-foreground">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -684,6 +706,6 @@ export default function LinksManager() {
           </div>
         </div>
       )}
-    </div>
+    </DashboardPage>
   );
 }

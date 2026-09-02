@@ -1,114 +1,22 @@
-import { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Zap, Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { parseAuthError } from "@/lib/authErrors";
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
 import { maskError } from "@/lib/utils";
-
-interface Star {
-  x: number;
-  y: number;
-  size: number;
-  opacity: number;
-  speed: number;
-  blinkDirection: number;
-}
+import AuthShell from "@/components/auth/AuthShell";
+import styles from "@/components/auth/AuthShell.module.css";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  // Background animated stars canvas
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    let animationId: number;
-    let stars: Star[] = [];
-
-    const resizeCanvas = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      initStars();
-    };
-
-    const initStars = () => {
-      stars = [];
-      const numStars = Math.floor((canvas.width * canvas.height) / 12000);
-      for (let i = 0; i < numStars; i++) {
-        stars.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          size: Math.random() * 2 + 0.5,
-          opacity: Math.random() * 0.7 + 0.1,
-          speed: Math.random() * 0.05 + 0.01,
-          blinkDirection: Math.random() > 0.5 ? 1 : -1,
-        });
-      }
-    };
-
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw grains/noise overlay manually via canvas for high performance
-      ctx.fillStyle = "rgba(255, 255, 255, 0.01)";
-      for (let i = 0; i < 5000; i++) {
-        const x = Math.random() * canvas.width;
-        const y = Math.random() * canvas.height;
-        ctx.fillRect(x, y, 1, 1);
-      }
-
-      stars.forEach((star) => {
-        // Soft green glowing stars
-        ctx.beginPath();
-        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-        
-        // Blink logic
-        star.opacity += star.blinkDirection * 0.005;
-        if (star.opacity > 0.8) {
-          star.opacity = 0.8;
-          star.blinkDirection = -1;
-        } else if (star.opacity < 0.1) {
-          star.opacity = 0.1;
-          star.blinkDirection = 1;
-        }
-
-        // Float up slowly
-        star.y -= star.speed * 12;
-        if (star.y < 0) {
-          star.y = canvas.height;
-          star.x = Math.random() * canvas.width;
-        }
-
-        ctx.fillStyle = `rgba(34, 197, 94, ${star.opacity})`;
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = "rgba(34, 197, 94, 0.6)";
-        ctx.fill();
-        ctx.shadowBlur = 0; // reset
-      });
-
-      animationId = requestAnimationFrame(draw);
-    };
-
-    window.addEventListener("resize", resizeCanvas);
-    resizeCanvas();
-    draw();
-
-    return () => {
-      cancelAnimationFrame(animationId);
-      window.removeEventListener("resize", resizeCanvas);
-    };
-  }, []);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   useSeo(SEO_PAGES.login);
 
@@ -152,33 +60,35 @@ export default function LoginPage() {
     }
   };
 
+  const handlePasswordReset = async () => {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      toast.info("Enter your email first, then request a reset link.");
+      return;
+    }
+
+    setResettingPassword(true);
+    try {
+      await pb.collection("users").requestPasswordReset(normalizedEmail);
+      toast.success("If an account exists for this email, a reset link is on its way.");
+    } catch (error: unknown) {
+      console.error("Password reset request failed:", error);
+      toast.error("The reset request couldn't be completed. Please try again.");
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-6 relative overflow-hidden">
-      {/* Background stars canvas & grid */}
-      <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none w-full h-full opacity-60" />
-      <div className="absolute inset-0 bg-grid-white opacity-[0.03] z-0 pointer-events-none" />
+    <AuthShell mode="login">
+      <div className={styles.formPanel}>
+        <header className={styles.formHeader}>
+          <p className={styles.formEyebrow}>Welcome back</p>
+          <h1>Sign in.</h1>
+          <p>Continue to your profiles, links, routing, and analytics.</p>
+        </header>
 
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
-      </div>
-
-      <div className="glass-card p-8 w-full max-w-md relative z-10 animate-scale-in">
-        <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2.5 mb-6 hover:opacity-80 transition-opacity">
-            <img src="/logo.webp" alt="Linktery" className="h-14 w-auto mix-blend-screen" />
-            <span className="text-3xl font-bold text-foreground tracking-tighter">Linktery</span>
-          </Link>
-          <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
-          <p className="text-sm text-muted-foreground mt-1">Sign in to your account</p>
-        </div>
-
-        {/* Google Sign In */}
-        <button
-          onClick={handleGoogleLogin}
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-3 py-2.5 rounded-xl border border-border bg-surface hover:bg-surface-hover text-foreground font-medium transition-all duration-200 mb-6"
-        >
+        <button type="button" onClick={handleGoogleLogin} disabled={loading} className={styles.oauthButton}>
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
@@ -188,49 +98,50 @@ export default function LoginPage() {
           Continue with Google
         </button>
 
-        <div className="relative mb-6">
-          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
-          <div className="relative flex justify-center text-xs"><span className="bg-card px-3 text-muted-foreground">or sign in with email</span></div>
-        </div>
+        <div className={styles.divider}>or use email</div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Email</label>
+        <form onSubmit={handleLogin} className={styles.form}>
+          <div className={styles.field}>
+            <label htmlFor="login-email" className={styles.label}>Email</label>
             <input
+              id="login-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors"
+              className={styles.input}
               placeholder="you@example.com"
+              autoComplete="email"
               required
             />
           </div>
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Password</label>
-            <div className="relative">
+          <div className={styles.field}>
+            <div className={styles.fieldHeader}>
+              <label htmlFor="login-password" className={styles.label}>Password</label>
+              <button type="button" onClick={() => void handlePasswordReset()} disabled={resettingPassword} className={styles.textAction}>
+                {resettingPassword ? "Sending…" : "Forgot password?"}
+              </button>
+            </div>
+            <div className={styles.passwordField}>
               <input
+                id="login-password"
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none input-glow focus:border-accent/50 transition-colors pr-10"
+                className={styles.input}
                 placeholder="••••••••"
+                autoComplete="current-password"
                 required
               />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className={styles.passwordToggle} aria-label={showPassword ? "Hide password" : "Show password"}>
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
           </div>
-          <button type="submit" disabled={loading} className="btn-primary-glow w-full !mt-6 disabled:opacity-50">
-            {loading ? "Signing in..." : "Sign In"}
+          <button type="submit" disabled={loading} className={styles.submitButton}>
+            {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
-
-        <p className="text-sm text-muted-foreground text-center mt-6">
-          Don't have an account?{" "}
-          <Link to="/register" className="text-accent hover:underline">Sign up</Link>
-        </p>
       </div>
-    </div>
+    </AuthShell>
   );
 }

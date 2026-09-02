@@ -1,26 +1,27 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 
-const exploreLinks = [
-  { label: "All Features", to: "/features" },
-  { label: "Pricing", to: "/pricing" },
-  { label: "Profile Templates", to: "/templates" },
-  { label: "Solutions", to: "/solutions" },
-  { label: "Free Tools", to: "/tools" },
-] as const;
-
-const resourceLinks = [
-  { label: "API Documentation", to: "/documentation" },
-  { label: "Public API", to: "/features/public-api" },
-  { label: "Guides", to: "/guides" },
-  { label: "Privacy", to: "/privacy" },
-  { label: "Terms", to: "/terms" },
-] as const;
+import BrandWordmark from "@/components/BrandWordmark";
+import { exploreLinks, resourceLinks } from "@/lib/marketingLinks";
+import styles from "./Footer.module.css";
 
 const footerLinkClass =
   "inline-flex min-h-11 items-center whitespace-nowrap text-sm text-muted-foreground transition-colors hover:text-accent focus-visible:rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
-export default function Footer() {
+const landingFooterGroups = [
+  { title: "Product", label: "Linktery product", links: exploreLinks.slice(0, 3) },
+  { title: "Discover", label: "Discover Linktery", links: exploreLinks.slice(3) },
+  { title: "Resources", label: "Linktery resources", links: resourceLinks.slice(0, 3) },
+] as const;
+
+const legalLinks = resourceLinks.slice(3);
+
+interface FooterProps {
+  variant?: "default" | "landing";
+}
+
+function LegacyFooter() {
   return (
     <footer className="relative z-10 border-t border-border/60 bg-background/70 px-4 font-sans sm:px-6">
       <div className="mx-auto max-w-7xl">
@@ -76,12 +77,99 @@ export default function Footer() {
             aria-label="Linktery home"
             className="flex min-h-11 w-fit items-center gap-2.5 transition-opacity hover:opacity-80 focus-visible:rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
-            <img src="/logo.webp" alt="" className="h-10 w-auto mix-blend-screen" />
-            <span className="text-base font-extrabold tracking-tight text-foreground">Linktery</span>
+            <BrandWordmark tone="light" className="h-8 w-auto" />
           </Link>
           <p className="text-xs leading-5 text-muted-foreground">© 2026 Linktery. All rights reserved.</p>
         </div>
       </div>
     </footer>
   );
+}
+
+function LandingFooter() {
+  const reduceMotion = useReducedMotion();
+  const reveal = reduceMotion ? false : { opacity: 0, y: 20 };
+  const transition = (delay: number) => ({
+    duration: reduceMotion ? 0 : 0.65,
+    delay: reduceMotion ? 0 : delay,
+    ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+  });
+
+  return (
+    <footer className={styles.landingFooter} data-landing-footer>
+      <div className={styles.bridge}>
+        <motion.div
+          initial={reveal}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={transition(0)}
+          className={styles.bridgeInner}
+        >
+          <section className={styles.ctaCard} aria-labelledby="landing-footer-cta-title" data-footer-cta="true">
+            <div className={styles.ctaCopy}>
+              <h2 id="landing-footer-cta-title">Put your next link to work.</h2>
+              <p>Create a polished profile or smart link, route each visitor, and understand every result.</p>
+            </div>
+            <Link to="/register" className={styles.ctaAction}>
+              Start free <ArrowUpRight size={18} strokeWidth={1.8} aria-hidden="true" />
+            </Link>
+          </section>
+        </motion.div>
+      </div>
+
+      <div className={styles.footerBody}>
+        <div className={styles.footerInner}>
+          <div className={styles.footerGrid}>
+            <motion.div
+              initial={reveal}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.25 }}
+              transition={transition(0)}
+              className={styles.brandColumn}
+            >
+              <Link to="/" aria-label="Linktery home" className={styles.brand}>
+                <BrandWordmark tone="light" />
+              </Link>
+              <p>Smart links, public profiles, and analytics in one workspace.</p>
+            </motion.div>
+
+            {landingFooterGroups.map((group, index) => (
+              <motion.div
+                key={group.title}
+                initial={reveal}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.25 }}
+                transition={transition(index * 0.07)}
+                className={styles.navColumn}
+              >
+                <h3>{group.title}</h3>
+                <nav aria-label={group.label}>
+                  {group.links.map((item) => (
+                    <Link key={item.to} to={item.to} className={styles.navLink}>{item.label}</Link>
+                  ))}
+                </nav>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div
+            initial={reveal}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.4 }}
+            transition={transition(0.24)}
+            className={styles.bottomBar}
+          >
+            <p>© 2026 Linktery. All rights reserved.</p>
+            <nav aria-label="Legal">
+              {legalLinks.map((item) => <Link key={item.to} to={item.to} className={styles.navLink}>{item.label}</Link>)}
+            </nav>
+          </motion.div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+export default function Footer({ variant = "default" }: FooterProps) {
+  return variant === "landing" ? <LandingFooter /> : <LegacyFooter />;
 }

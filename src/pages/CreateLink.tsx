@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useId, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Globe, Smartphone, Clock, Shuffle, Loader2, Shield, Info, Lock, Zap, CalendarRange, Check, UserRound, AlertTriangle, ChevronDown, X, Layers3 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -28,6 +28,8 @@ import { isReservedPublicSlug } from "@/lib/systemRoutes";
 import { normalizeTrackingPixels } from "@/lib/trackingPixels";
 import { isPublicSlugAvailable } from "@/lib/publicAssets";
 import { CustomDomainAttachments } from "@/components/CustomDomainAttachments";
+import { DashboardPage, DashboardPageHeader, DashboardPanel } from "@/components/dashboard/DashboardPrimitives";
+import styles from "./CreateLink.module.css";
 
 const generateRandomSlug = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -343,7 +345,6 @@ export default function CreateLink() {
         }
       });
 
-      console.log("Submitting link data:", data);
       let savedLinkId = id;
       if (id) {
         await pb.collection('links').update(id, formData);
@@ -374,27 +375,25 @@ export default function CreateLink() {
 
   if (fetching) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <DashboardPage className={styles.loading} aria-busy="true">
         <Loader2 className="w-8 h-8 animate-spin text-accent" />
-      </div>
+      </DashboardPage>
     );
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 rounded-xl hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="w-5 h-5" />
+    <DashboardPage className={styles.page}>
+      <DashboardPageHeader
+        eyebrow={(
+          <button type="button" onClick={() => navigate(-1)} className={styles.back}>
+            <ArrowLeft aria-hidden="true" /> Back to links
           </button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-foreground truncate">{id ? "Edit Link" : "Create Link"}</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">{id ? "Update your smart link settings" : "Set up your new smart link"}</p>
-          </div>
-        </div>
-      </div>
+        )}
+        title={id ? "Edit link" : "Create link"}
+        description={id ? "Update its destination, routing, placement, and measurement settings." : "Publish one managed address, then decide where each visitor should go."}
+      />
 
-      <form onSubmit={handleSubmit} className="glass-card p-6 space-y-6">
+      <DashboardPanel as="form" onSubmit={handleSubmit} className={styles.form}>
         {/* Title, URL & Icon */}
         <div className="space-y-4">
           <div className="animate-fade-in">
@@ -410,6 +409,8 @@ export default function CreateLink() {
                   id="create-page-icon-btn"
                   type="button"
                   onClick={() => setShowIconPicker(!showIconPicker)}
+                  aria-label="Choose link icon"
+                  aria-expanded={showIconPicker}
                   className="w-[42px] h-[42px] shrink-0 overflow-hidden bg-surface border border-border rounded-xl flex items-center justify-center hover:bg-surface-hover hover:border-accent/50 transition-colors"
                 >
                   <IconRenderer type={form.icon_type} value={form.icon_value} className="w-5 h-5 text-muted-foreground" />
@@ -490,7 +491,8 @@ export default function CreateLink() {
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-sm font-medium text-foreground block">Custom Slug</label>
               {!checkPlan(userPlan, "custom_slug") && (
-                <div
+                <button
+                  type="button"
                   onClick={() => setUpgradeModal({
                     open: true,
                     feature: "Custom Slugs",
@@ -501,7 +503,7 @@ export default function CreateLink() {
                 >
                   <Lock className="w-2.5 h-2.5" />
                   Agency Only
-                </div>
+                </button>
               )}
             </div>
             <div
@@ -848,7 +850,7 @@ export default function CreateLink() {
                           type="button"
                           onClick={() => setGeoData(geoData.filter((_, j) => j !== i))}
                           className="self-end rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive sm:self-auto"
-                          title="Remove rule"
+                          aria-label={`Remove ${isCountryTierKey(d.code) ? getCountryTierPack(d.code)?.label || "country tier" : d.code || "country"} routing rule`}
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -910,7 +912,8 @@ export default function CreateLink() {
               <Zap className="w-4 h-4 text-accent" /> Tracking Pixels
             </h3>
             {!checkPlan(userPlan, "pixels") && (
-              <div
+              <button
+                type="button"
                 onClick={() => setUpgradeModal({
                   open: true,
                   feature: "Tracking Pixels",
@@ -920,7 +923,7 @@ export default function CreateLink() {
               >
                 <Lock className="w-2.5 h-2.5" />
                 Agency Only
-              </div>
+              </button>
             )}
           </div>
           <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 ${!checkPlan(userPlan, "pixels") ? "opacity-50 pointer-events-none" : ""}`}>
@@ -968,11 +971,11 @@ export default function CreateLink() {
           )}
         </div>
 
-        <button type="submit" disabled={loading} className="btn-primary-glow w-full mt-4 flex items-center justify-center gap-2">
+        <button type="submit" disabled={loading} className={`btn-primary-glow ${styles.submit}`}>
           {loading && <Loader2 className="w-4 h-4 animate-spin" />}
           {id ? "Update Link" : "Create Link"}
         </button>
-      </form>
+      </DashboardPanel>
 
       <UpgradeModal
         isOpen={upgradeModal.open}
@@ -981,7 +984,7 @@ export default function CreateLink() {
         description={upgradeModal.description}
         planNeeded={upgradeModal.planNeeded}
       />
-    </div>
+    </DashboardPage>
   );
 }
 
@@ -1004,20 +1007,23 @@ function ToggleRow({
   disabled?: boolean;
   lockedTooltip?: string;
 }) {
+  const labelId = useId();
+  const descriptionId = useId();
+
   return (
-    <div className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${disabled ? 'opacity-60 border-border bg-background cursor-pointer' : 'border-border hover:border-accent/20 cursor-pointer'}`} onClick={() => onChange(!checked)}>
+    <div className={`flex items-center justify-between gap-4 p-3 rounded-xl border transition-colors ${disabled ? 'opacity-60 border-border bg-background' : 'border-border hover:border-accent/20'}`}>
       <div className="flex items-center gap-3">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${disabled ? 'bg-muted/50' : 'bg-accent/10'}`}>
           <Icon className={`w-4 h-4 ${disabled ? 'text-muted-foreground' : 'text-accent'}`} />
         </div>
         <div>
           <div className="flex items-center gap-1.5">
-            <div className="text-sm font-medium text-foreground">{label}</div>
+            <div id={labelId} className="text-sm font-medium text-foreground">{label}</div>
             {tooltip && !disabled && (
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
-                  <button type="button" className="text-muted-foreground hover:text-accent transition-colors" onClick={(e) => e.stopPropagation()}>
-                    <Info className="w-3.5 h-3.5" />
+                  <button type="button" aria-label={`About ${label}`} className="rounded text-muted-foreground transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
+                    <Info aria-hidden="true" className="w-3.5 h-3.5" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-xs text-[10px] leading-relaxed p-2 bg-surface border-border text-foreground shadow-2xl">
@@ -1028,9 +1034,14 @@ function ToggleRow({
             {disabled && lockedTooltip && (
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
-                  <div className="bg-muted px-1.5 py-0.5 rounded text-[10px] uppercase font-bold text-muted-foreground ml-1" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    aria-label={`${label}: ${lockedTooltip}`}
+                    onClick={() => onChange(!checked)}
+                    className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                  >
                     PRO
-                  </div>
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-xs text-[10px] leading-relaxed p-2 bg-surface border-border text-foreground shadow-2xl">
                   <p>{lockedTooltip}</p>
@@ -1038,11 +1049,20 @@ function ToggleRow({
               </Tooltip>
             )}
           </div>
-          <div className="text-xs text-muted-foreground">{description}</div>
+          <div id={descriptionId} className="text-xs text-muted-foreground">{description}</div>
         </div>
       </div>
-      <button type="button" disabled={disabled} className={`w-11 h-6 rounded-full transition-colors duration-200 relative ${checked ? "bg-accent" : "bg-border"} ${disabled ? "opacity-50 cursor-not-allowed cursor-pointer pointer-events-none" : ""}`}>
-        <div className={`w-5 h-5 rounded-full bg-foreground absolute top-0.5 transition-transform duration-200 ${checked ? "translate-x-5.5 left-0.5" : "left-0.5"}`} style={{ transform: checked ? "translateX(22px)" : "translateX(0)" }} />
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-disabled={disabled || undefined}
+        aria-labelledby={labelId}
+        aria-describedby={descriptionId}
+        onClick={() => onChange(!checked)}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${checked ? "bg-accent" : "bg-border"} ${disabled ? "cursor-pointer opacity-50" : ""}`}
+      >
+        <span aria-hidden="true" className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-foreground transition-transform duration-200" style={{ transform: checked ? "translateX(22px)" : "translateX(0)" }} />
       </button>
     </div>
   );

@@ -28,6 +28,7 @@ interface ProfileIdentityProps {
   socialStyle?: SocialLinkStyleId;
   onlineCounter?: ReactNode;
   preview?: boolean;
+  headingAs?: "h1" | "p";
 }
 
 function Avatar({
@@ -234,6 +235,7 @@ export function ProfileIdentity({
   socialStyle = "icons",
   onlineCounter,
   preview = false,
+  headingAs: Heading = "h1",
 }: ProfileIdentityProps) {
   const light = forceDarkAppearance ? false : isLightProfileColor(cardColor);
   const primaryText = light ? "text-black" : "text-white";
@@ -241,7 +243,7 @@ export function ProfileIdentity({
   const bioText = light ? "text-black/80" : "text-white/90";
   const identityText = (alignment: "center" | "left" = "center", hero = false) => (
     <div className={alignment === "left" ? "text-left" : "text-center"}>
-      <h1
+      <Heading
         className={`break-words ${
           hero
             ? `font-sans text-4xl font-black leading-[0.94] tracking-[-0.045em] ${preview ? "" : "sm:text-5xl"}`
@@ -257,7 +259,7 @@ export function ProfileIdentity({
         } ${primaryText} ${hero ? "drop-shadow-[0_3px_20px_rgba(0,0,0,0.7)]" : ""}`}
       >
         {name}
-      </h1>
+      </Heading>
       <p className={`mt-1.5 break-all text-sm font-medium tracking-wide ${secondaryText} ${template === "compact" || template === "banner" || template === "visual" ? "font-geist" : "font-sans"}`}>
         @{username}
       </p>

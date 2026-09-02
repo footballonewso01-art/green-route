@@ -1,0 +1,51 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench records · design-system: design.md · pre-emit critique: P5 H5 E5 S5 R5 V5 */
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--app-space-2xs); padding: var(--app-space-2xs); border: var(--app-rule-hair) solid var(--app-rule); border-radius: var(--app-radius-control); background: var(--app-panel-sunken); }
+.search { position: relative; }
+.search input { width: 100%; min-height: var(--app-control-height); padding: 0 var(--app-space-md) 0 2.5rem; border: var(--app-rule-hair) solid var(--app-rule); background: var(--app-panel-sunken); color: var(--app-ink); }
+.search svg { position: absolute; z-index: 1; left: var(--app-space-sm); top: 50%; width: 1rem; height: 1rem; transform: translateY(-50%); color: var(--app-muted); pointer-events: none; }
+.linkCard { min-width: 0; border: var(--app-rule-hair) solid var(--app-rule); border-radius: var(--app-radius-card); background: var(--app-panel); color: var(--app-ink); transition: border-color var(--app-duration) var(--app-ease-out), background-color var(--app-duration) var(--app-ease-out); }
+.bento { display: flex; min-height: 10rem; flex-direction: column; justify-content: space-between; gap: var(--app-space-md); padding: var(--app-space-lg); }
+.list { display: flex; flex-direction: column; gap: var(--app-space-md); padding: var(--app-space-md); }
+.frozen { border-color: color-mix(in oklab, var(--app-error) 28%, var(--app-rule)); }
+.dragging { z-index: 9999; border-color: var(--app-accent); background: var(--app-panel-strong); outline: 2px solid color-mix(in oklab, var(--app-accent) 30%, transparent); }
+@media (hover: hover) and (pointer: fine) { .linkCard:hover { border-color: var(--app-control-rule); background: var(--app-panel-hover); } }
+@media (min-width: 40rem) { .list { flex-direction: row; align-items: center; } }
+@media (prefers-reduced-motion: reduce) { .linkCard { transition: none; } }
+.skeletonCard {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-md);
+  padding: var(--app-space-md);
+}
+
+.modalOverlay {
+  position: fixed;
+  z-index: 70;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--app-space-md);
+  background: color-mix(in oklch, var(--app-canvas) 91%, transparent);
+}
+
+.modalPanel {
+  width: min(100%, 24rem);
+  padding: var(--app-space-xl);
+  border: var(--app-rule-hair) solid var(--app-rule);
+  border-radius: var(--app-radius-card);
+  background: var(--app-panel-strong);
+  color: var(--app-ink);
+  box-shadow: 0 1.5rem 4rem color-mix(in oklch, black 48%, transparent);
+}
+
+.profileModal {
+  position: relative;
+  width: min(100%, 28rem);
+  overflow: hidden;
+  border: var(--app-rule-hair) solid var(--app-rule);
+  border-radius: var(--app-radius-card);
+  background: var(--app-panel-strong);
+  color: var(--app-ink);
+  box-shadow: 0 1.5rem 4rem color-mix(in oklch, black 48%, transparent);
+}

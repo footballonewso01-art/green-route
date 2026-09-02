@@ -3,6 +3,56 @@
 // Public traffic resolves an indexed hostname mapping and never guesses a
 // target from a slug.
 
+// Field-limited, owner-scoped destinations for the Custom Domain picker.
+// Keeping this on a purpose-built route avoids coupling a critical account
+// workflow to the public Records API filters used by public slug lookups.
+routerAdd("GET", "/api/domains/targets", (c) => {
+    c.response.header().add("Cache-Control", "private, no-store");
+    var user = c.auth;
+    if (!user || user.collection().name !== "users") return c.json(401, { message: "Sign in to manage custom domains." });
+
+    var targetType = String(c.request.url.query().get("type") || "").trim().toLowerCase();
+    if (targetType && targetType !== "link" && targetType !== "profile") {
+        return c.json(400, { message: "Select a valid Link or Public Profile." });
+    }
+    var search = String(c.request.url.query().get("query") || "").trim().slice(0, 100);
+    var perType = Math.max(1, Math.min(50, parseInt(c.request.url.query().get("per_page") || "30", 10) || 30));
+
+    var loadTargets = function(kind) {
+        var collectionName = kind === "link" ? "links" : "public_profiles";
+        var labelField = kind === "link" ? "title" : "name";
+        var filter = "user_id = {:userId}" + (kind === "link" ? " && active = true" : "");
+        var params = { userId: user.id };
+        if (search) {
+            filter += " && (" + labelField + " ~ {:search} || slug ~ {:search})";
+            params.search = search;
+        }
+        var records = $app.findRecordsByFilter(collectionName, filter, "-created,-id", perType + 1, 0, params);
+        return {
+            hasMore: records.length > perType,
+            items: records.slice(0, perType).map(function(record) {
+                var slug = String(record.get("slug") || "");
+                return {
+                    id: record.id,
+                    type: kind,
+                    name: String(record.get(labelField) || slug),
+                    slug: slug
+                };
+            })
+        };
+    };
+
+    var kinds = targetType ? [targetType] : ["profile", "link"];
+    var items = [];
+    var hasMore = false;
+    kinds.forEach(function(kind) {
+        var result = loadTargets(kind);
+        items = items.concat(result.items);
+        hasMore = hasMore || result.hasMore;
+    });
+    return c.json(200, { items: items, has_more: hasMore });
+});
+
 routerAdd("GET", "/api/domains", (c) => {
     c.response.header().add("Cache-Control", "private, no-store");
     var user = c.auth;

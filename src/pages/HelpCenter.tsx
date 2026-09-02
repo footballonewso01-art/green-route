@@ -3,8 +3,10 @@ import {
     Search, ChevronDown, ChevronRight, Rocket, Link2, BarChart3, Zap, User,
     CreditCard, HelpCircle, BookOpen, ThumbsUp, ThumbsDown, ExternalLink,
     Globe, Smartphone, Shield, Target, Shuffle, Clock, Palette, Share2,
-    ArrowUpRight, Sparkles
+    ArrowUpRight, Sparkles, Play, Square, MapPin
 } from "lucide-react";
+import { DashboardPage, DashboardPageHeader, DashboardPanel } from "@/components/dashboard/DashboardPrimitives";
+import styles from "./HelpCenter.module.css";
 
 interface Star {
     x: number;
@@ -201,11 +203,11 @@ const helpCategories: Category[] = [
                         <p>Schedule links to activate or expire automatically on specific dates.</p>
                         <div className="space-y-3 text-muted-foreground">
                             <div className="flex items-start gap-3">
-                                <div className="w-6 h-6 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400 text-xs shrink-0 mt-0.5">▶</div>
+                                <div className="w-6 h-6 rounded-lg bg-accent/10 flex items-center justify-center text-accent shrink-0 mt-0.5"><Play className="h-3 w-3" /></div>
                                 <p><strong className="text-foreground">Start Date</strong> — Link won't work until this date. Visitors see "not yet active" before then.</p>
                             </div>
                             <div className="flex items-start gap-3">
-                                <div className="w-6 h-6 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 text-xs shrink-0 mt-0.5">■</div>
+                                <div className="w-6 h-6 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 shrink-0 mt-0.5"><Square className="h-3 w-3" /></div>
                                 <p><strong className="text-foreground">Expiry Date</strong> — Link automatically stops working after this date. Perfect for limited-time offers.</p>
                             </div>
                         </div>
@@ -251,19 +253,19 @@ const helpCategories: Category[] = [
                         <p>Linktery tracks every click on your links and provides real-time insights.</p>
                         <div className="space-y-3 text-muted-foreground">
                             <div className="flex items-start gap-3">
-                                <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 text-xs font-bold shrink-0 mt-0.5">📍</div>
+                                <div className="w-6 h-6 rounded-lg bg-accent/10 flex items-center justify-center text-accent shrink-0 mt-0.5"><MapPin className="h-3 w-3" /></div>
                                 <p><strong className="text-foreground">Geo Data</strong> — See which countries your clicks come from using IP-based geolocation.</p>
                             </div>
                             <div className="flex items-start gap-3">
-                                <div className="w-6 h-6 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400 text-xs font-bold shrink-0 mt-0.5">📱</div>
+                                <div className="w-6 h-6 rounded-lg bg-accent/10 flex items-center justify-center text-accent shrink-0 mt-0.5"><Smartphone className="h-3 w-3" /></div>
                                 <p><strong className="text-foreground">Device & OS</strong> — Breakdown by Mobile/Desktop/Tablet and iOS/Android/Windows.</p>
                             </div>
                             <div className="flex items-start gap-3">
-                                <div className="w-6 h-6 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-400 text-xs font-bold shrink-0 mt-0.5">🌐</div>
+                                <div className="w-6 h-6 rounded-lg bg-accent/10 flex items-center justify-center text-accent shrink-0 mt-0.5"><Globe className="h-3 w-3" /></div>
                                 <p><strong className="text-foreground">Browser & Source</strong> — Know if clicks come from Instagram, TikTok, Chrome, Safari, etc.</p>
                             </div>
                             <div className="flex items-start gap-3">
-                                <div className="w-6 h-6 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400 text-xs font-bold shrink-0 mt-0.5">📊</div>
+                                <div className="w-6 h-6 rounded-lg bg-accent/10 flex items-center justify-center text-accent shrink-0 mt-0.5"><BarChart3 className="h-3 w-3" /></div>
                                 <p><strong className="text-foreground">Unique vs Total</strong> — Track unique visitors per day vs. total click count.</p>
                             </div>
                         </div>
@@ -283,15 +285,15 @@ const helpCategories: Category[] = [
                         <p>Add tracking pixels to your links to build retargeting audiences and track conversions.</p>
                         <div className="space-y-3">
                             <div className="p-4 rounded-xl bg-surface border border-border">
-                                <h4 className="font-semibold text-foreground mb-1">📘 Facebook/Meta Pixel</h4>
+                                <h4 className="mb-1 flex items-center gap-2 font-semibold text-foreground"><Target className="h-4 w-4 text-accent" /> Facebook/Meta Pixel</h4>
                                 <p className="text-sm text-muted-foreground">Enter your Pixel ID to track Facebook ad conversions and build custom audiences.</p>
                             </div>
                             <div className="p-4 rounded-xl bg-surface border border-border">
-                                <h4 className="font-semibold text-foreground mb-1">📊 Google Analytics</h4>
+                                <h4 className="mb-1 flex items-center gap-2 font-semibold text-foreground"><BarChart3 className="h-4 w-4 text-accent" /> Google Analytics</h4>
                                 <p className="text-sm text-muted-foreground">Paste your GA4 Measurement ID (G-XXXXX) to track link traffic in Google Analytics.</p>
                             </div>
                             <div className="p-4 rounded-xl bg-surface border border-border">
-                                <h4 className="font-semibold text-foreground mb-1">🎵 TikTok Pixel</h4>
+                                <h4 className="mb-1 flex items-center gap-2 font-semibold text-foreground"><Target className="h-4 w-4 text-accent" /> TikTok Pixel</h4>
                                 <p className="text-sm text-muted-foreground">Add your TikTok Pixel ID to optimize ad campaigns with conversion data.</p>
                             </div>
                         </div>
@@ -363,15 +365,15 @@ const helpCategories: Category[] = [
                         <p>Send Mobile, Desktop, and Tablet users to different destinations from the same link.</p>
                         <div className="space-y-3">
                             <div className="p-4 rounded-xl bg-surface border border-border">
-                                <h4 className="font-semibold text-foreground mb-1">📱 Mobile</h4>
+                                <h4 className="mb-1 flex items-center gap-2 font-semibold text-foreground"><Smartphone className="h-4 w-4 text-accent" /> Mobile</h4>
                                 <p className="text-sm text-muted-foreground">Send mobile users to an app download page or mobile-optimized landing page.</p>
                             </div>
                             <div className="p-4 rounded-xl bg-surface border border-border">
-                                <h4 className="font-semibold text-foreground mb-1">💻 Desktop</h4>
+                                <h4 className="mb-1 flex items-center gap-2 font-semibold text-foreground"><Globe className="h-4 w-4 text-accent" /> Desktop</h4>
                                 <p className="text-sm text-muted-foreground">Desktop users get the full experience — website, dashboard, or web app.</p>
                             </div>
                             <div className="p-4 rounded-xl bg-surface border border-border">
-                                <h4 className="font-semibold text-foreground mb-1">📲 Tablet</h4>
+                                <h4 className="mb-1 flex items-center gap-2 font-semibold text-foreground"><Smartphone className="h-4 w-4 text-accent" /> Tablet</h4>
                                 <p className="text-sm text-muted-foreground">Optionally send tablet users to a specific URL.</p>
                             </div>
                         </div>
@@ -473,7 +475,7 @@ const helpCategories: Category[] = [
                                         <th className="text-left py-3 px-4 text-muted-foreground font-medium">Feature</th>
                                         <th className="text-center py-3 px-4 text-foreground font-bold">Creator <span className="text-muted-foreground font-normal">(Free)</span></th>
                                         <th className="text-center py-3 px-4 text-accent font-bold">Pro <span className="text-muted-foreground font-normal">($11/mo)</span></th>
-                                        <th className="text-center py-3 px-4 text-blue-400 font-bold">Agency <span className="text-muted-foreground font-normal">($29/mo)</span></th>
+                                        <th className="py-3 px-4 text-center font-bold text-accent">Agency <span className="font-normal text-muted-foreground">($29/mo)</span></th>
                                     </tr>
                                 </thead>
                                 <tbody className="text-muted-foreground">
@@ -532,7 +534,7 @@ const helpCategories: Category[] = [
                             </div>
                             <div className="p-4 rounded-xl bg-surface border border-border">
                                 <h4 className="font-semibold text-foreground mb-2">Can I get a refund?</h4>
-                                <p className="text-sm text-muted-foreground">Yes, we offer a <strong className="text-foreground">30-day money-back guarantee</strong> on all paid plans. Contact us at Telegram: @linkterysupport.</p>
+                                <p className="text-sm text-muted-foreground">Yes, we offer a <strong className="text-foreground">7-day money-back guarantee</strong> on all paid plans. Contact us at Telegram: @linkterysupport.</p>
                             </div>
                             <div className="p-4 rounded-xl bg-surface border border-border">
                                 <h4 className="font-semibold text-foreground mb-2">Is there a free trial?</h4>
@@ -550,6 +552,63 @@ const helpCategories: Category[] = [
     },
 ];
 
+function CategoryVisual({ category }: { category: Category["id"] }) {
+    if (category === "getting-started") {
+        return (
+            <span className={`${styles.categoryVisual} ${styles.visualStart}`} aria-hidden="true">
+                <span className={styles.launchMark}><Rocket /></span>
+                <span className={styles.stepDots}><i /><i /><i /></span>
+            </span>
+        );
+    }
+
+    if (category === "smart-links") {
+        return (
+            <span className={`${styles.categoryVisual} ${styles.visualLinks}`} aria-hidden="true">
+                <span className={styles.linkNode}><Link2 /></span>
+                <span className={styles.linkBranch}><i /><i /><i /></span>
+            </span>
+        );
+    }
+
+    if (category === "analytics") {
+        return (
+            <span className={`${styles.categoryVisual} ${styles.visualAnalytics}`} aria-hidden="true">
+                <span className={styles.chartBars}><i /><i /><i /><i /><i /></span>
+                <span className={styles.chartCursor}><ArrowUpRight /></span>
+            </span>
+        );
+    }
+
+    if (category === "advanced") {
+        return (
+            <span className={`${styles.categoryVisual} ${styles.visualRouting}`} aria-hidden="true">
+                <span className={styles.routeOrigin}><Zap /></span>
+                <span className={styles.routePaths}><i /><i /></span>
+                <span className={styles.routeTargets}><b /><b /></span>
+            </span>
+        );
+    }
+
+    if (category === "profile") {
+        return (
+            <span className={`${styles.categoryVisual} ${styles.visualProfile}`} aria-hidden="true">
+                <span className={styles.profilePreview}>
+                    <i className={styles.profileAvatar}><User /></i>
+                    <i /><i /><i />
+                </span>
+            </span>
+        );
+    }
+
+    return (
+        <span className={`${styles.categoryVisual} ${styles.visualPlans}`} aria-hidden="true">
+            <span className={styles.planStack}><i /><i /><i /></span>
+            <span className={styles.planMark}><CreditCard /></span>
+        </span>
+    );
+}
+
 export default function HelpCenter() {
     const [searchQuery, setSearchQuery] = useState("");
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -565,8 +624,9 @@ export default function HelpCenter() {
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
 
-        let animationId: number;
+        let animationId = 0;
         let stars: Star[] = [];
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
         const resizeCanvas = () => {
             canvas.width = canvas.parentElement ? canvas.parentElement.clientWidth : window.innerWidth;
@@ -605,20 +665,24 @@ export default function HelpCenter() {
                 ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
                 
                 // Blink logic
-                star.opacity += star.blinkDirection * 0.004;
-                if (star.opacity > 0.7) {
-                    star.opacity = 0.7;
-                    star.blinkDirection = -1;
-                } else if (star.opacity < 0.1) {
-                    star.opacity = 0.1;
-                    star.blinkDirection = 1;
+                if (!reduceMotion) {
+                    star.opacity += star.blinkDirection * 0.004;
+                    if (star.opacity > 0.7) {
+                        star.opacity = 0.7;
+                        star.blinkDirection = -1;
+                    } else if (star.opacity < 0.1) {
+                        star.opacity = 0.1;
+                        star.blinkDirection = 1;
+                    }
                 }
 
                 // Float up slowly
-                star.y -= star.speed * 10;
-                if (star.y < 0) {
-                    star.y = canvas.height;
-                    star.x = Math.random() * canvas.width;
+                if (!reduceMotion) {
+                    star.y -= star.speed * 10;
+                    if (star.y < 0) {
+                        star.y = canvas.height;
+                        star.x = Math.random() * canvas.width;
+                    }
                 }
 
                 ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity * 0.6})`;
@@ -628,7 +692,7 @@ export default function HelpCenter() {
                 ctx.shadowBlur = 0; // reset
             });
 
-            animationId = requestAnimationFrame(draw);
+            if (!reduceMotion) animationId = requestAnimationFrame(draw);
         };
 
         window.addEventListener("resize", resizeCanvas);
@@ -636,7 +700,7 @@ export default function HelpCenter() {
         draw();
 
         return () => {
-            cancelAnimationFrame(animationId);
+            if (animationId) cancelAnimationFrame(animationId);
             window.removeEventListener("resize", resizeCanvas);
         };
     }, []);
@@ -667,75 +731,62 @@ export default function HelpCenter() {
     const totalArticles = helpCategories.reduce((sum, c) => sum + c.articles.length, 0);
 
     return (
-        <div className="relative w-full min-h-full">
-            {/* Background elements wrapper - extends beyond main padding to prevent clipping at layout borders */}
-            <div className="absolute -top-10 -left-6 -right-6 -bottom-12 overflow-hidden pointer-events-none z-0">
-                {/* Background stars canvas & grid */}
-                <canvas ref={canvasRef} className="absolute inset-0 z-[1] pointer-events-none w-full h-full opacity-55" />
-                <div className="absolute inset-0 bg-grid-white opacity-[0.02] z-[1] pointer-events-none" />
-
-                {/* Premium Ambient Background Glows */}
-                <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-gradient-to-r from-accent/25 to-emerald-500/10 rounded-full blur-[120px] z-0" />
-                <div className="absolute top-[250px] right-[-100px] w-[350px] h-[350px] bg-accent/5 rounded-full blur-[130px] z-0" />
-            </div>
-
-            <div className="relative z-10 max-w-5xl mx-auto space-y-8 pb-12">
-                {/* Header */}
-                <div className="text-center space-y-4 pt-4 relative z-10">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/25 bg-accent/10 text-accent text-xs font-semibold uppercase tracking-wider shadow-inner">
-                        <HelpCircle className="w-3.5 h-3.5" /> Help Center
-                    </div>
-                    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
-                        How can we <span className="bg-gradient-to-r from-accent via-accent to-emerald-300 bg-clip-text text-transparent drop-shadow-sm">help?</span>
-                    </h1>
-                    <p className="text-muted-foreground text-base md:text-lg max-w-xl mx-auto font-medium">
-                        Guides, tutorials, and answers to help you get the most out of Linktery.
-                    </p>
-                </div>
-
-                {/* Search */}
-                <div className="relative max-w-2xl mx-auto group">
-                    <div className="absolute -inset-0.5 bg-gradient-to-r from-accent to-emerald-500 rounded-2xl blur opacity-15 group-focus-within:opacity-30 transition duration-500 pointer-events-none" />
-                    <div className="relative">
-                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-accent transition-colors" />
+        <DashboardPage className={styles.page}>
+            <DashboardPanel raised className={styles.hero}>
+                <canvas ref={canvasRef} className={styles.stars} aria-hidden="true" />
+                <div className={styles.heroContent}>
+                    <DashboardPageHeader
+                        eyebrow={<><HelpCircle className="h-3.5 w-3.5" /> Knowledge base</>}
+                        title="How can we help?"
+                        description="Guides, tutorials, and answers to help you get the most out of Linktery."
+                    />
+                    <div className={styles.search}>
+                        <Search className={styles.searchIcon} />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => { setSearchQuery(e.target.value); setActiveCategory(null); }}
                             placeholder="Search articles... (e.g. deeplinks, analytics, pricing)"
-                            className="w-full pl-14 pr-6 py-4 bg-surface/60 backdrop-blur-xl border border-border/80 rounded-2xl text-base focus:outline-none focus:border-accent/50 focus:ring-4 focus:ring-accent/5 transition-all placeholder:text-muted-foreground/45 text-white"
+                            className="focus:outline-none focus:border-accent/60 placeholder:text-muted-foreground"
                         />
                         {searchQuery && (
                             <button
                                 onClick={() => setSearchQuery("")}
-                                className="absolute right-5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
+                                className={styles.clear}
                             >
                                 Clear
                             </button>
                         )}
-                    </div>
-                    {searchQuery && (
-                        <p className="text-xs text-muted-foreground mt-3 text-center">
+                        {searchQuery && (
+                        <p className={styles.resultCount}>
                             {filteredCategories.reduce((s, c) => s + c.articles.length, 0)} result(s) found
                         </p>
-                    )}
+                        )}
+                    </div>
                 </div>
+            </DashboardPanel>
 
                 {/* Category Grid */}
                 {!searchQuery && !activeCategory && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className={styles.categoryGrid}>
                         {helpCategories.map((cat) => (
                             <button
                                 key={cat.id}
                                 onClick={() => setActiveCategory(cat.id)}
-                                className="group p-6 bg-surface/50 hover:bg-surface/75 backdrop-blur-md border border-border/60 rounded-2xl text-left hover:border-accent/40 hover:shadow-[0_8px_30px_rgba(34,197,94,0.08)] hover:-translate-y-1.5 transition-all duration-300"
+                                className={styles.categoryCard}
+                                data-category={cat.id}
                             >
-                                <div className="w-12 h-12 rounded-xl bg-background/60 border border-border/80 group-hover:border-accent/30 group-hover:bg-accent/5 flex items-center justify-center mb-4 transition-all duration-300 group-hover:shadow-[0_0_15px_rgba(34,197,94,0.1)]">
-                                    <cat.icon className={`w-6 h-6 ${cat.color} transition-transform group-hover:scale-110`} />
+                                <div className={styles.categoryMeta}>
+                                    <div className={styles.categoryIcon}>
+                                        <cat.icon />
+                                    </div>
+                                    <div className={styles.categoryCopy}>
+                                        <h3>{cat.title}</h3>
+                                        <p>{cat.description}</p>
+                                    </div>
+                                    <span className={styles.categoryCount}>{cat.articles.length} articles</span>
                                 </div>
-                                <h3 className="font-bold text-foreground group-hover:text-accent mb-1 transition-colors">{cat.title}</h3>
-                                <p className="text-sm text-muted-foreground/90">{cat.description}</p>
-                                <p className="text-xs text-muted-foreground/50 mt-3">{cat.articles.length} articles</p>
+                                <CategoryVisual category={cat.id} />
                             </button>
                         ))}
                     </div>
@@ -766,7 +817,7 @@ export default function HelpCenter() {
                                 <div key={cat.id} className="space-y-3">
                                     {searchQuery && (
                                         <div className="flex items-center gap-2 px-1">
-                                            <cat.icon className={`w-4 h-4 ${cat.color}`} />
+                                            <cat.icon className="h-4 w-4 text-accent" />
                                             <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{cat.title}</h3>
                                         </div>
                                     )}
@@ -775,7 +826,7 @@ export default function HelpCenter() {
                                         return (
                                             <div
                                                 key={article.id}
-                                                className={`bg-surface/40 hover:bg-surface/60 backdrop-blur-md border rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-[1px] ${isOpen ? "border-accent/40 shadow-lg shadow-accent/5 bg-surface/75" : "border-border/60 hover:border-accent/30"}`}
+                                                className={`${styles.articleCard} ${isOpen ? styles.articleCardOpen : ""}`}
                                             >
                                                 <button
                                                     onClick={() => toggleArticle(article.id)}
@@ -805,13 +856,13 @@ export default function HelpCenter() {
                                                             <span className="text-xs text-muted-foreground/60">Was this helpful?</span>
                                                             <button
                                                                 onClick={() => setHelpfulArticles((p) => ({ ...p, [article.id]: true }))}
-                                                                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all ${helpfulArticles[article.id] === true ? "bg-accent/10 border-accent/30 text-accent" : "border-border text-muted-foreground hover:border-accent/20 hover:text-foreground"}`}
+                                                                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${helpfulArticles[article.id] === true ? "bg-accent/10 border-accent/30 text-accent" : "border-border text-muted-foreground hover:border-accent/20 hover:text-foreground"}`}
                                                             >
                                                                 <ThumbsUp className="w-3 h-3" /> Yes
                                                             </button>
                                                             <button
                                                                 onClick={() => setHelpfulArticles((p) => ({ ...p, [article.id]: false }))}
-                                                                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all ${helpfulArticles[article.id] === false ? "bg-red-500/10 border-red-500/30 text-red-400" : "border-border text-muted-foreground hover:border-red-500/20 hover:text-foreground"}`}
+                                                                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${helpfulArticles[article.id] === false ? "bg-red-500/10 border-red-500/30 text-red-400" : "border-border text-muted-foreground hover:border-red-500/20 hover:text-foreground"}`}
                                                             >
                                                                 <ThumbsDown className="w-3 h-3" /> No
                                                             </button>
@@ -838,8 +889,8 @@ export default function HelpCenter() {
                 )}
 
                 {/* Bottom Stats + Contact */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                    <div className="bg-surface/50 backdrop-blur-md border border-border/60 rounded-2xl p-6 flex items-center gap-4">
+                <div className={styles.footerGrid}>
+                    <DashboardPanel className={styles.footerPanel}>
                         <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
                             <BookOpen className="w-6 h-6 text-accent" />
                         </div>
@@ -847,8 +898,8 @@ export default function HelpCenter() {
                             <p className="text-2xl font-extrabold text-foreground">{totalArticles}</p>
                             <p className="text-sm text-muted-foreground">Help articles available</p>
                         </div>
-                    </div>
-                    <div className="bg-accent/5 backdrop-blur-md border border-accent/20 rounded-2xl p-6 flex items-center gap-4">
+                    </DashboardPanel>
+                    <DashboardPanel className={styles.footerPanel}>
                         <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
                             <HelpCircle className="w-6 h-6 text-accent" />
                         </div>
@@ -861,9 +912,8 @@ export default function HelpCenter() {
                                 </a>
                             </p>
                         </div>
-                    </div>
+                    </DashboardPanel>
                 </div>
-            </div>
-        </div>
+        </DashboardPage>
     );
 }

@@ -65,6 +65,15 @@ export interface CustomDomainTarget {
   slug: string;
 }
 
+export interface CustomDomainTargetOption extends CustomDomainTarget {
+  name: string;
+}
+
+export interface CustomDomainTargetListResponse {
+  items: CustomDomainTargetOption[];
+  has_more: boolean;
+}
+
 export function normalizeCustomDomainInput(value: string): string {
   return value.trim().toLowerCase().replace(/^https?:\/\//, "").split(/[/?#]/, 1)[0].replace(/\.$/, "");
 }
@@ -86,6 +95,26 @@ export interface CustomDomainListResponse {
 
 export async function listCustomDomains(page = 1): Promise<CustomDomainListResponse> {
   return pb.send("/api/domains", { method: "GET", query: { page }, requestKey: null });
+}
+
+export async function listCustomDomainTargets(options: {
+  type?: CustomDomainTargetType;
+  query?: string;
+  perPage?: number;
+} = {}): Promise<CustomDomainTargetListResponse> {
+  const response = await pb.send<CustomDomainTargetListResponse>("/api/domains/targets", {
+    method: "GET",
+    query: {
+      ...(options.type ? { type: options.type } : {}),
+      ...(options.query?.trim() ? { query: options.query.trim().slice(0, 100) } : {}),
+      per_page: Math.max(1, Math.min(50, options.perPage || 30)),
+    },
+    requestKey: null,
+  });
+  return {
+    items: Array.isArray(response.items) ? response.items : [],
+    has_more: response.has_more === true,
+  };
 }
 
 export async function listCustomDomainsForTarget(

@@ -6,6 +6,7 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AdminRoute } from "./components/AdminRoute";
+import { AppLoadingScreen } from "./components/AppLoadingScreen";
 import {
   isCustomPublicHostname,
   isPrimaryWwwDomain,
@@ -23,24 +24,7 @@ const DocumentationPage = lazy(() => import("./pages/DocumentationPage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsAndConditions = lazy(() => import("./pages/TermsAndConditions"));
-const OnlyFansSolution = lazy(() => import("./pages/OnlyFansSolution"));
-const TelegramSolution = lazy(() => import("./pages/TelegramSolution"));
-const AffiliateSolution = lazy(() => import("./pages/AffiliateSolution"));
-const BioLinkTool = lazy(() => import("./pages/BioLinkTool"));
-const SmartRedirect = lazy(() => import("./pages/SmartRedirect"));
-const DeeplinkGenerator = lazy(() => import("./pages/DeeplinkGenerator"));
-const FitnessCoachSolution = lazy(() => import("./pages/FitnessCoachSolution"));
-const YoutubeSmartLinks = lazy(() => import("./pages/YoutubeSmartLinks"));
-const MusicSmartLinks = lazy(() => import("./pages/MusicSmartLinks"));
-const DigitalProductsSolution = lazy(() => import("./pages/DigitalProductsSolution"));
-const PodcastSmartLinks = lazy(() => import("./pages/PodcastSmartLinks"));
-const ShopifySmartLinks = lazy(() => import("./pages/ShopifySmartLinks"));
-const FanvueSmartLinks = lazy(() => import("./pages/FanvueSmartLinks"));
-const GeoTargetedRedirect = lazy(() => import("./pages/GeoTargetedRedirect"));
-const AmazonSmartLinks = lazy(() => import("./pages/AmazonSmartLinks"));
-const UgcPortfolio = lazy(() => import("./pages/UgcPortfolio"));
-const QrCodeBiolink = lazy(() => import("./pages/QrCodeBiolink"));
-const ProfessionSolutions = lazy(() => import("./pages/ProfessionSolutions"));
+const SolutionDetailPage = lazy(() => import("./pages/SolutionDetailPage"));
 const CompetitorComparison = lazy(() => import("./pages/CompetitorComparison"));
 const CompetitorAlternative = lazy(() => import("./pages/CompetitorAlternative"));
 const SolutionsIndex = lazy(() => import("./pages/SolutionsIndex"));
@@ -128,11 +112,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isValid, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center relative z-10">
-        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <AppLoadingScreen />;
   }
 
   if (!user || !isValid) {
@@ -156,27 +136,10 @@ const AppRoutes = () => (
     <Route path="/pricing" element={<PricingPage />} />
     <Route path="/privacy" element={<PrivacyPolicy />} />
     <Route path="/terms" element={<TermsAndConditions />} />
-    <Route path="/solutions/onlyfans-link-in-bio" element={<OnlyFansSolution />} />
-    <Route path="/solutions/telegram-bio-link" element={<TelegramSolution />} />
-    <Route path="/solutions/affiliate-smart-link-rotator" element={<AffiliateSolution />} />
-    <Route path="/solutions/bio-link-tool" element={<BioLinkTool />} />
-    <Route path="/solutions/smart-link-redirect" element={<SmartRedirect />} />
-    <Route path="/solutions/deeplink-generator" element={<DeeplinkGenerator />} />
-    <Route path="/solutions/link-in-bio-for-fitness-coaches" element={<FitnessCoachSolution />} />
-    <Route path="/solutions/youtube-smart-links" element={<YoutubeSmartLinks />} />
-    <Route path="/solutions/music-smart-links" element={<MusicSmartLinks />} />
-    <Route path="/solutions/digital-product-smart-links" element={<DigitalProductsSolution />} />
-    <Route path="/solutions/podcast-smart-links" element={<PodcastSmartLinks />} />
-    <Route path="/solutions/shopify-smart-links" element={<ShopifySmartLinks />} />
-    <Route path="/solutions/fanvue-ai-models" element={<FanvueSmartLinks />} />
-    <Route path="/solutions/geo-targeted-redirect" element={<GeoTargetedRedirect />} />
-    <Route path="/solutions/amazon-smart-links" element={<AmazonSmartLinks />} />
     <Route path="/solutions" element={<SolutionsIndex />} />
     <Route path="/alternatives" element={<AlternativesIndex />} />
     <Route path="/alternatives/:competitorSlug" element={<CompetitorAlternative />} />
-    <Route path="/solutions/ugc-portfolio" element={<UgcPortfolio />} />
-    <Route path="/solutions/qr-code-biolink" element={<QrCodeBiolink />} />
-    <Route path="/solutions/:professionPath" element={<ProfessionSolutions />} />
+    <Route path="/solutions/:solutionPath" element={<SolutionDetailPage />} />
     <Route path="/compare/:comparisonSlug" element={<CompetitorComparison />} />
     <Route path="/features" element={<SeoHubPage kind="feature" />} />
     <Route path="/features/:resourceSlug" element={<SeoContentPage />} />
@@ -207,13 +170,15 @@ const AppRoutes = () => (
     </Route>
 
     <Route path="/admin" element={<AdminRoute />}>
-      <Route index element={<Navigate to="/admin/overview" replace />} />
-      <Route path="overview" element={<AdminOverview />} />
-      <Route path="users" element={<AdminUsers />} />
-      <Route path="users/:id" element={<AdminUserProfile />} />
-      <Route path="links" element={<AdminLinks />} />
-      <Route path="promocodes" element={<AdminPromocodes />} />
-      <Route path="promocodes/:id" element={<AdminPromocodeStats />} />
+      <Route element={<DashboardLayout />}>
+        <Route index element={<Navigate to="/admin/overview" replace />} />
+        <Route path="overview" element={<AdminOverview />} />
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="users/:id" element={<AdminUserProfile />} />
+        <Route path="links" element={<AdminLinks />} />
+        <Route path="promocodes" element={<AdminPromocodes />} />
+        <Route path="promocodes/:id" element={<AdminPromocodeStats />} />
+      </Route>
     </Route>
 
     {/* Short Link Redirector - Catch all other usernames/slugs */}
@@ -231,11 +196,7 @@ export const AppContent = () => (
       <DomainGuard />
       <AmbientBackground />
       <AuthProvider>
-        <Suspense fallback={
-          <div className="min-h-screen bg-background flex items-center justify-center relative z-10">
-            <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-          </div>
-        }>
+        <Suspense fallback={<AppLoadingScreen />}>
           <AppRoutes />
         </Suspense>
       </AuthProvider>

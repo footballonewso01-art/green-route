@@ -68,12 +68,13 @@ try {
   assert(ready, "Local PocketBase readiness timeout");
   const admin = new PocketBase(origin);
   await admin.collection("_superusers").authWithPassword("security-smoke@example.com", password);
-  const createUser = suffix => admin.collection("users").create({
+  const createUser = (suffix, plan = "agency") => admin.collection("users").create({
     email: `security-${suffix}@example.com`, password, passwordConfirm: password,
-    username: `security-${suffix}`, name: `Security ${suffix}`, plan: "agency", plan_status: "active",
+    username: `security-${suffix}`, name: `Security ${suffix}`, plan, plan_status: "active",
+    plan_expires_at: plan === "creator" ? "" : "2099-01-01 00:00:00.000Z",
   });
   const owner = await createUser("owner");
-  const other = await createUser("other");
+  const other = await createUser("other", "creator");
   const link = await admin.collection("links").create({
     user_id: owner.id, slug: "security-smoke-link", title: "Security test", active: true,
     destination_url: "https://example.com/default", domain: "linktery.com", mode: "redirect",
@@ -96,6 +97,46 @@ try {
   await assert.rejects(customer.collection("links").update(link.id, {
     icon_type: "custom", icon_value: "data:image/png;base64," + Buffer.from("<svg/>").toString("base64"),
   }), error => error.status === 400);
+
+  const creatorClient = stranger;
+  await assert.rejects(creatorClient.collection("links").create({
+    user_id: other.id, slug: "creator-paid-bypass", title: "Blocked premium field",
+    destination_url: "https://example.com", domain: "linktery.com", mode: "redirect",
+    geo_targeting: { US: "https://example.com/us" }, active: true,
+  }), error => error.status === 400 && /Creator Pro plan/.test(String(error.message)));
+  const creatorLink = await creatorClient.collection("links").create({
+    user_id: other.id, slug: "creator-chosen-slug", title: "Server slug",
+    destination_url: "https://example.com", domain: "linktery.com", mode: "redirect", active: true,
+  });
+  assert.notEqual(creatorLink.slug, "creator-chosen-slug", "Free users must not control custom slugs through the Records API");
+  assert.match(creatorLink.slug, /^[a-z0-9]{8,10}$/);
+  await assert.rejects(
+    creatorClient.collection("links").update(creatorLink.id, { mode: "direct" }),
+    error => error.status === 400 && /Creator Pro plan/.test(String(error.message)),
+  );
+  await assert.rejects(
+    creatorClient.collection("links").update(creatorLink.id, { slug: "changed-by-direct-api" }),
+    error => error.status === 400 && /Agency plan/.test(String(error.message)),
+  );
+  await creatorClient.collection("links").update(creatorLink.id, {
+    device_targeting: { Mobile: "https://example.com/mobile" },
+  });
+
+  await admin.collection("users").update(other.id, {
+    plan: "pro", plan_status: "active", plan_expires_at: "2099-01-01 00:00:00.000Z",
+  });
+  const proClient = creatorClient;
+  const proLink = await proClient.collection("links").create({
+    user_id: other.id, slug: "pro-generated-slug", title: "Allowed Pro routing",
+    destination_url: "https://example.com", domain: "linktery.com", mode: "direct",
+    cloaking: true, safe_page_url: "https://example.com/safe",
+    geo_targeting: { US: "https://example.com/us" }, active: true,
+  });
+  assert.notEqual(proLink.slug, "pro-generated-slug", "Creator Pro still requires server-generated slugs");
+  await assert.rejects(
+    proClient.collection("links").update(proLink.id, { fb_pixel: "123456789" }),
+    error => error.status === 400 && /Agency plan/.test(String(error.message)),
+  );
 
   const edgeHeaders = {
     "X-Linktery-Redirect-Secret": redirectSecret, "X-Linktery-Public-Host": "linktery.com",
@@ -216,7 +257,7 @@ try {
   execFileSync(executable, ["migrate", "up", `--dir=${temporary}`, "--encryptionEnv=PB_ENCRYPTION_KEY", `--migrationsDir=${path.join(root, "pocketbase/pb_migrations")}`], {
     env, windowsHide: true, stdio: "pipe",
   });
-  console.log("PASS: owner isolation, immutable ownership, private routing DTO, trusted geo, HTTP redirect and click count, profile/social data and view count, atomic card clicks from redirects and fallback telemetry, fresh analytics and cache/rate-limit isolation, slug checks, forged SVG rejection, raster upload and file CSP, migration, encrypted settings reload.");
+  console.log("PASS: owner isolation, immutable ownership, server-side plan entitlements, private routing DTO, trusted geo, HTTP redirect and click count, profile/social data and view count, atomic card clicks from redirects and fallback telemetry, fresh analytics and cache/rate-limit isolation, slug checks, forged SVG rejection, raster upload and file CSP, migration, encrypted settings reload.");
 } catch (error) {
   console.error(error.stack || String(error));
   process.exitCode = 1;

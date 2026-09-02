@@ -1903,9 +1903,9 @@ var requireKnownStripeLineItemPrice = function(lineItems) {
 };
 
 var PLAN_CATALOG = {
-    "creator": { "links": 3, "publicProfiles": 1, "customDomains": 0, "monthlyPrice": 0, "analytics": false, "customSlug": false, "apiKeys": 0, "apiRatePerMinute": 0, "apiWriteRatePerMinute": 0, "apiAnalyticsRatePerMinute": 0, "apiWriteDailyLimit": 0, "apiCreateDailyLimit": 0 },
-    "pro": { "links": 15, "publicProfiles": 3, "customDomains": 2, "monthlyPrice": 11, "analytics": true, "customSlug": false, "apiKeys": 1, "apiRatePerMinute": 60, "apiWriteRatePerMinute": 15, "apiAnalyticsRatePerMinute": 20, "apiWriteDailyLimit": 1000, "apiCreateDailyLimit": 100 },
-    "agency": { "links": -1, "publicProfiles": 25, "customDomains": 10, "monthlyPrice": 29, "analytics": true, "customSlug": true, "apiKeys": 1, "apiRatePerMinute": 300, "apiWriteRatePerMinute": 60, "apiAnalyticsRatePerMinute": 60, "apiWriteDailyLimit": 10000, "apiCreateDailyLimit": 2000 }
+    "creator": { "links": 3, "publicProfiles": 1, "customDomains": 0, "monthlyPrice": 0, "analytics": false, "customSlug": false, "apiKeys": 0, "apiRatePerMinute": 0, "apiWriteRatePerMinute": 0, "apiAnalyticsRatePerMinute": 0, "apiWriteDailyLimit": 0, "apiCreateDailyLimit": 0, "deepLinks": false, "cloaking": false, "geoTargeting": false, "deviceTargeting": true, "pixels": false, "abTesting": false },
+    "pro": { "links": 15, "publicProfiles": 3, "customDomains": 2, "monthlyPrice": 11, "analytics": true, "customSlug": false, "apiKeys": 1, "apiRatePerMinute": 60, "apiWriteRatePerMinute": 15, "apiAnalyticsRatePerMinute": 20, "apiWriteDailyLimit": 1000, "apiCreateDailyLimit": 100, "deepLinks": true, "cloaking": true, "geoTargeting": true, "deviceTargeting": true, "pixels": false, "abTesting": false },
+    "agency": { "links": -1, "publicProfiles": 25, "customDomains": 10, "monthlyPrice": 29, "analytics": true, "customSlug": true, "apiKeys": 1, "apiRatePerMinute": 300, "apiWriteRatePerMinute": 60, "apiAnalyticsRatePerMinute": 60, "apiWriteDailyLimit": 10000, "apiCreateDailyLimit": 2000, "deepLinks": true, "cloaking": true, "geoTargeting": true, "deviceTargeting": true, "pixels": true, "abTesting": true }
 };
 
 var PROFILE_TEMPLATES = {
@@ -2272,15 +2272,37 @@ var isSafePublicProfileCompositionFilter = function(filter) {
     return /^\s*profile_id\s*=\s*"[a-z0-9]{15}"\s*&&\s*visible\s*=\s*true\s*$/i.test(filter);
 };
 
-var isAuthenticatedOwnerFilter = function(filter, authUserId) {
-    if (!authUserId || filter.indexOf("||") !== -1) return false;
+var isAuthenticatedOwnerFilter = function(filter, authUserId, collectionName) {
+    if (!authUserId) return false;
 
     var escapedUserId = String(authUserId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // PocketBase's client-side pb.filter() currently serializes bound string
+    // values with single quotes, while hand-written owner filters elsewhere in
+    // the app use double quotes. Both are valid PocketBase filter syntax. Keep
+    // this check tied to the authenticated id instead of a generic quoted value.
+    var quotedOwnerId = "(?:\\\"" + escapedUserId + "\\\"|'" + escapedUserId + "')";
     var ownerPattern = new RegExp(
-        "(?:^|&&|\\()\\s*user_id\\s*=\\s*\"" + escapedUserId + "\"\\s*(?:$|&&|\\))",
+        "(?:^|&&|\\()\\s*user_id\\s*=\\s*" + quotedOwnerId + "\\s*(?:$|&&|\\))",
         "i"
     );
-    return ownerPattern.test(filter);
+    if (!ownerPattern.test(filter)) return false;
+    if (filter.indexOf("||") === -1) return true;
+
+    // Public collection rules intentionally allow slug lookups. Do not accept
+    // arbitrary OR expressions just because an owner clause appears somewhere
+    // in the filter. The only OR form used by the authenticated destination
+    // picker is a parenthesized name/title-or-slug search after the owner guard.
+    var quotedSearch = "(?:'(?:\\\\.|[^'\\\\])*'|\\\"(?:\\\\.|[^\\\"\\\\])*\\\")";
+    var ownerPrefix = "^\\s*user_id\\s*=\\s*" + quotedOwnerId;
+    var activeClause = collectionName === "links" ? "\\s*&&\\s*active\\s*=\\s*true" : "";
+    var labelField = collectionName === "links" ? "title" : collectionName === "public_profiles" ? "name" : "";
+    if (!labelField) return false;
+    var safeSearchPattern = new RegExp(
+        ownerPrefix + activeClause + "\\s*&&\\s*\\(\\s*" + labelField + "\\s*~\\s*" + quotedSearch
+        + "\\s*\\|\\|\\s*slug\\s*~\\s*" + quotedSearch + "\\s*\\)\\s*$",
+        "i"
+    );
+    return safeSearchPattern.test(filter);
 };
 
 var assertSafePublicListFilter = function(e, collectionName, authInfo) {
@@ -2292,7 +2314,7 @@ var assertSafePublicListFilter = function(e, collectionName, authInfo) {
     if (filter && isSafeSlugLookupFilter(filter)) return;
     if (collectionName === "links" && filter && isSafePublicProfileLinksFilter(filter)) return;
     if (collectionName === "profile_links" && filter && isSafePublicProfileCompositionFilter(filter)) return;
-    if (filter && authInfo && isAuthenticatedOwnerFilter(filter, authInfo.authUserId)) return;
+    if (filter && authInfo && isAuthenticatedOwnerFilter(filter, authInfo.authUserId, collectionName)) return;
 
     throw new BadRequestError(
         "Bulk queries are restricted. Use a public slug lookup or an authenticated owner filter."
@@ -2444,14 +2466,140 @@ var normalizeLinkDomain = function(value) {
     return domain;
 };
 
+var generateAvailableLinkSlug = function(app) {
+    var databaseApp = app || $app;
+    for (var attempt = 0; attempt < 20; attempt++) {
+        var candidate = $security.randomString(12)
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, "")
+            .substring(0, 10);
+        if (candidate.length < 8 || isReservedPublicSlug(candidate)) continue;
+
+        var occupied = false;
+        try {
+            databaseApp.findFirstRecordByFilter("links", "slug = {:slug}", { slug: candidate });
+            occupied = true;
+        } catch (err) {}
+        if (!occupied) {
+            try {
+                databaseApp.findFirstRecordByFilter("public_profiles", "slug = {:slug}", { slug: candidate });
+                occupied = true;
+            } catch (err) {}
+        }
+        if (!occupied) return candidate;
+    }
+    throw new Error("Unable to allocate a unique link slug.");
+};
+
+var hasLinkEntitlementValue = function(record, field) {
+    var value = record.get(field);
+    if (value === null || value === undefined || value === false) return false;
+    if (typeof value === "string") {
+        var normalized = value.trim();
+        return normalized !== "" && normalized !== "null" && normalized !== "{}" && normalized !== "[]";
+    }
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === "object") return Object.keys(value).length > 0;
+    return Boolean(value);
+};
+
+var linkEntitlementFieldsChanged = function(record, fields) {
+    var original = null;
+    try { original = record.original(); } catch (err) {}
+    if (!original) return true;
+
+    for (var i = 0; i < fields.length; i++) {
+        var field = fields[i];
+        var currentValue = record.get(field);
+        var originalValue = original.get(field);
+        var currentComparable = typeof currentValue === "object"
+            ? JSON.stringify(currentValue)
+            : String(currentValue === null || currentValue === undefined ? "" : currentValue);
+        var originalComparable = typeof originalValue === "object"
+            ? JSON.stringify(originalValue)
+            : String(originalValue === null || originalValue === undefined ? "" : originalValue);
+        if (currentComparable !== originalComparable) return true;
+    }
+    return false;
+};
+
+// Records API writes must obey the same feature matrix as the dashboard. The
+// client remains responsible for upgrade UX, while this boundary prevents a
+// signed-in user from enabling paid routing fields with a handcrafted request.
+// Existing paid settings may remain after a downgrade so unrelated edits keep
+// working, but they cannot be changed or newly enabled without entitlement.
+var enforceLinkFeatureEntitlements = function(app, record, user, isAdmin, isCreate) {
+    if (isAdmin) return getPlanCatalogEntry("agency");
+    var databaseApp = app || $app;
+    var owner = user || databaseApp.findRecordById("users", String(record.get("user_id") || ""));
+    var planName = getEffectivePlanNameForUser(owner);
+    var plan = getPlanCatalogEntry(planName);
+    var original = null;
+    try { original = record.original(); } catch (err) {}
+
+    if (plan.customSlug !== true && !isCreate && original && linkEntitlementFieldsChanged(record, ["slug"])) {
+        throw new BadRequestError("Custom slugs require the Agency plan.");
+    }
+
+    var assertFeature = function(allowed, fields, active, label, requiredPlan) {
+        if (allowed || !active || !linkEntitlementFieldsChanged(record, fields)) return;
+        throw new BadRequestError(label + " requires the " + requiredPlan + " plan.");
+    };
+
+    assertFeature(
+        plan.deepLinks === true,
+        ["mode"],
+        String(record.get("mode") || "redirect") === "direct",
+        "Deeplinks",
+        "Creator Pro"
+    );
+    assertFeature(
+        plan.cloaking === true,
+        ["cloaking", "safe_page_url"],
+        record.get("cloaking") === true,
+        "Link Optimization",
+        "Creator Pro"
+    );
+    assertFeature(
+        plan.geoTargeting === true,
+        ["geo_targeting"],
+        hasLinkEntitlementValue(record, "geo_targeting"),
+        "Geo Targeting",
+        "Creator Pro"
+    );
+    assertFeature(
+        plan.deviceTargeting === true,
+        ["device_targeting"],
+        hasLinkEntitlementValue(record, "device_targeting"),
+        "Device Targeting",
+        "Creator Pro"
+    );
+    assertFeature(
+        plan.abTesting === true,
+        ["ab_split", "split_urls"],
+        record.get("ab_split") === true || hasLinkEntitlementValue(record, "split_urls"),
+        "A/B Traffic Splitter",
+        "Agency"
+    );
+    assertFeature(
+        plan.pixels === true,
+        ["fb_pixel", "google_pixel", "tiktok_pixel"],
+        hasLinkEntitlementValue(record, "fb_pixel") ||
+            hasLinkEntitlementValue(record, "google_pixel") ||
+            hasLinkEntitlementValue(record, "tiktok_pixel"),
+        "Tracking Pixels",
+        "Agency"
+    );
+
+    return plan;
+};
+
 // Shared by PocketBase Records API hooks and custom Public API routes. Custom
 // routes do not execute onRecordCreateRequest, so owner and quota checks must
 // be callable directly and (for Public API) inside the same transaction as the
 // insert.
 var enforceLinkCreateOwnershipAndEntitlements = function(app, record, actorUserId, isAdmin) {
     var databaseApp = app || $app;
-    var slug = validatePublicSlug(record.get("slug"));
-    record.set("slug", slug);
     var userId = String(record.get("user_id") || "");
     var safeActorUserId = String(actorUserId || "");
 
@@ -2468,6 +2616,14 @@ var enforceLinkCreateOwnershipAndEntitlements = function(app, record, actorUserI
     }
     if (!userId) throw new BadRequestError("A link owner is required.");
 
+    var user = databaseApp.findRecordById("users", userId);
+    var planName = getEffectivePlanNameForUser(user);
+    var plan = getPlanCatalogEntry(planName);
+    var slug = !isAdmin && plan.customSlug !== true
+        ? generateAvailableLinkSlug(databaseApp)
+        : validatePublicSlug(record.get("slug"));
+    record.set("slug", slug);
+
     var profileWithSameSlug = null;
     try {
         profileWithSameSlug = databaseApp.findFirstRecordByFilter(
@@ -2480,9 +2636,7 @@ var enforceLinkCreateOwnershipAndEntitlements = function(app, record, actorUserI
         throw new BadRequestError("This slug is already taken by a public profile.");
     }
 
-    var user = databaseApp.findRecordById("users", userId);
-    var planName = user.get("plan") || "creator";
-    var maxLinks = getPlanCatalogEntry(planName).links;
+    var maxLinks = plan.links;
     if (!isAdmin && maxLinks !== -1) {
         var count = new DynamicModel({ "total": 0 });
         databaseApp.db().newQuery(
@@ -2495,7 +2649,8 @@ var enforceLinkCreateOwnershipAndEntitlements = function(app, record, actorUserI
         }
     }
 
-    return { user: user, plan: getPlanCatalogEntry(planName), planName: planName };
+    enforceLinkFeatureEntitlements(databaseApp, record, user, isAdmin, true);
+    return { user: user, plan: plan, planName: planName };
 };
 
 var sanitizeLinkSystemFields = function(record, isAdmin) {
@@ -3387,7 +3542,9 @@ module.exports = {
     isAuthenticatedOwnerFilter,
     assertSafePublicListFilter,
     normalizeLinkDomain,
+    generateAvailableLinkSlug,
     enforceLinkCreateOwnershipAndEntitlements,
+    enforceLinkFeatureEntitlements,
     sanitizeLinkSystemFields,
     validateLinkRecordForMutation,
     validateCustomLinkIcon,

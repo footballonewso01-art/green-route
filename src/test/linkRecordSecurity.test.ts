@@ -29,6 +29,17 @@ describe("Link record and upload security", () => {
     expect(hook).toContain('throw new ForbiddenError("Link ownership cannot be changed.")');
   });
 
+  it("enforces paid Link features on both create and update boundaries", () => {
+    expect(utils).toContain("var enforceLinkFeatureEntitlements = function(app, record, user, isAdmin, isCreate)");
+    expect(utils).toContain('plan.deepLinks === true');
+    expect(utils).toContain('plan.cloaking === true');
+    expect(utils).toContain('plan.geoTargeting === true');
+    expect(utils).toContain('plan.abTesting === true');
+    expect(utils).toContain('plan.pixels === true');
+    expect(hook).toContain("utils.enforceLinkCreateOwnershipAndEntitlements(");
+    expect(hook).toContain("utils.enforceLinkFeatureEntitlements($app, e.record, null, authInfo.isAdmin)");
+  });
+
   it("accepts only passive raster uploads and rejects SVG data icons", () => {
     expect(migration).toContain('["image/jpeg", "image/png", "image/webp"]');
     expect(migration).not.toContain('"image/svg+xml"');

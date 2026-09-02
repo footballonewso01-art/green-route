@@ -14,6 +14,14 @@ import ProfileScopeSelect, {
 } from "@/components/analytics/ProfileScopeSelect";
 import { getCountryDisplayName, normalizeCountryCode } from "@/lib/countryFormatting";
 import { refreshOnTabReturn } from "@/lib/refreshOnTabReturn";
+import styles from "./AnalyticsPage.module.css";
+import {
+  DashboardMetric,
+  DashboardMetricRail,
+  DashboardPage,
+  DashboardPageHeader,
+  DashboardPanel,
+} from "@/components/dashboard/DashboardPrimitives";
 
 interface ClickRecord {
   id: string;
@@ -212,13 +220,13 @@ export default function AnalyticsPage() {
         const deviceMap: Record<string, number> = {};
         (stats.devices || []).forEach((d: { name: string; value: number }) => { deviceMap[d.name] = d.value; });
         setDevices([
-          { name: "Mobile", value: deviceMap["Mobile"] || 0, color: "hsl(153, 68%, 55%)" },
-          { name: "Desktop", value: deviceMap["Desktop"] || 0, color: "hsl(155, 70%, 14%)" },
-          { name: "Tablet", value: deviceMap["Tablet"] || 0, color: "hsl(155, 25%, 35%)" },
+          { name: "Mobile", value: deviceMap["Mobile"] || 0, color: "var(--app-accent)" },
+          { name: "Desktop", value: deviceMap["Desktop"] || 0, color: "var(--app-panel-hover)" },
+          { name: "Tablet", value: deviceMap["Tablet"] || 0, color: "var(--app-control-rule)" },
         ]);
 
         // 5. Browsers (add colors)
-        const browserColors = ["hsl(153, 68%, 55%)", "hsl(155, 35%, 25%)", "hsl(155, 20%, 40%)"];
+        const browserColors = ["var(--app-accent)", "var(--app-panel-hover)", "var(--app-control-rule)"];
         setBrowserData((stats.browsers || []).map((b: { name: string; value: number }, i: number) => ({
           ...b, color: browserColors[i] || browserColors[2]
         })));
@@ -369,27 +377,53 @@ export default function AnalyticsPage() {
 
   if (!canUseAnalytics) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
-        <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center border border-accent/20 relative">
-          <BarChart3 className="w-10 h-10 text-accent opacity-50" />
-          <Lock className="w-6 h-6 text-foreground absolute -bottom-1 -right-1" />
-        </div>
-        <div className="text-center space-y-2">
-          <h2 className="text-3xl font-bold text-foreground">Advanced Analytics</h2>
-          <p className="text-muted-foreground max-w-sm mx-auto">
-            Unlock detailed link and profile analytics, geographic data, and device insights with Creator Pro.
-          </p>
-        </div>
-        <Link to="/dashboard/pricing" className="btn-primary-glow px-8 py-3 mt-4">
-          Upgrade to Creator Pro
-        </Link>
-      </div>
+      <DashboardPage>
+        <DashboardPageHeader eyebrow="Performance" title="Analytics" description="Understand where traffic comes from and what converts." />
+        <DashboardPanel className={styles.lockedPanel} aria-labelledby="locked-analytics-title">
+          <div className={styles.lockedPreview} aria-hidden="true">
+            <div className={styles.previewMetrics}>
+              {[0, 1, 2].map((item) => (
+                <div className={styles.previewMetric} key={item}>
+                  <span />
+                  <strong />
+                </div>
+              ))}
+            </div>
+            <div className={styles.previewChart}>
+              <svg viewBox="0 0 760 220" preserveAspectRatio="none">
+                <path d="M0 184 C72 178 105 142 164 154 C232 168 270 78 340 108 C416 140 458 52 526 72 C606 96 650 32 760 38" />
+                <path d="M0 198 C98 190 134 174 206 182 C288 190 334 136 406 150 C510 170 594 104 760 118" />
+              </svg>
+            </div>
+            <div className={styles.previewSegments}>
+              <div className={styles.previewSegment} />
+              <div className={styles.previewSegment} />
+            </div>
+          </div>
+          <div className={styles.lockedVeil} aria-hidden="true" />
+          <div className={styles.lockedContent}>
+            <span className={styles.lockedIcon}>
+              <BarChart3 aria-hidden="true" />
+              <Lock aria-hidden="true" />
+            </span>
+            <span className={styles.lockedKicker}>Creator Pro</span>
+            <h2 id="locked-analytics-title">See what drives every click.</h2>
+            <p>Unlock detailed link and profile analytics, geographic data, and device insights.</p>
+            <div className={styles.lockedFeatures} aria-label="Analytics available with Creator Pro">
+              <span><MousePointerClick aria-hidden="true" /> Link performance</span>
+              <span><Globe aria-hidden="true" /> Country insights</span>
+              <span><Smartphone aria-hidden="true" /> Device breakdown</span>
+            </div>
+            <Link to="/dashboard/pricing" className={styles.upgradeAction}>Upgrade to Creator Pro</Link>
+          </div>
+        </DashboardPanel>
+      </DashboardPage>
     );
   }
 
   if (loading || resolvedAnalyticsScope !== analyticsScopeKey || (isProfileMode && !profileOptionsLoaded)) {
     return (
-      <div className="space-y-6">
+      <DashboardPage>
         <div className="flex justify-between items-center">
           <div className="space-y-2">
             <div className="h-7 w-32 bg-surface rounded-lg animate-pulse" />
@@ -399,21 +433,20 @@ export default function AnalyticsPage() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="glass-card p-4 space-y-2">
+            <DashboardPanel key={i} className={styles.skeletonMetric}>
               <div className="h-3 w-20 bg-surface rounded animate-pulse" />
               <div className="h-7 w-16 bg-surface rounded animate-pulse" />
-            </div>
+            </DashboardPanel>
           ))}
         </div>
-        <div className="glass-card p-6 space-y-4">
+        <DashboardPanel className={styles.skeletonChart}>
           <div className="h-5 w-28 bg-surface rounded animate-pulse" />
           <div className="h-[300px] bg-surface rounded-xl animate-pulse" />
-        </div>
-      </div>
+        </DashboardPanel>
+      </DashboardPage>
     );
   }
 
-  const COLORS = ["hsl(153, 68%, 55%)", "hsl(155, 35%, 25%)", "hsl(155, 20%, 40%)"];
   const activeProfile = profileOptions.find(profile => profile.id === profileId);
   const activityLabel = isProfileMode ? "views" : "clicks";
   const selectLinksMode = () => {
@@ -427,20 +460,21 @@ export default function AnalyticsPage() {
     next.set("profile", nextProfileId || ALL_PROFILES_SCOPE);
     setSearchParams(next);
   };
+  const analyticsDescription = isProfileMode
+    ? isAllProfiles
+      ? `Combined performance across ${profileOptions.length} ${profileOptions.length === 1 ? "profile" : "profiles"}`
+      : `Profile performance${activeProfile ? ` for @${activeProfile.slug}` : ""}`
+    : linkId
+      ? "Showing stats for a specific link"
+      : "Performance across all your links";
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Analytics</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {isProfileMode
-              ? isAllProfiles
-                ? `Combined performance across ${profileOptions.length} ${profileOptions.length === 1 ? "profile" : "profiles"}`
-                : `Profile performance${activeProfile ? ` for @${activeProfile.slug}` : ""}`
-              : linkId ? "Showing stats for specific link" : "Across all your links"}
-          </p>
-        </div>
+    <DashboardPage>
+      <DashboardPageHeader
+        eyebrow="Performance"
+        title="Analytics"
+        description={analyticsDescription}
+        actions={(
         <div className="flex items-center gap-1 p-1 rounded-xl bg-surface border border-border">
           {refreshing && <Loader2 className="ml-1 h-4 w-4 animate-spin text-accent" aria-label="Refreshing analytics" />}
           {["24h", "7d", "30d", "90d"].map((p) => (
@@ -449,9 +483,10 @@ export default function AnalyticsPage() {
             </button>
           ))}
         </div>
-      </div>
+        )}
+      />
 
-      <div className="glass-card flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <DashboardPanel className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="inline-flex w-fit items-center gap-1 rounded-xl border border-border bg-background/35 p-1" role="group" aria-label="Analytics resource type">
           <button
             type="button"
@@ -481,87 +516,53 @@ export default function AnalyticsPage() {
             />
           </div>
         )}
-      </div>
+      </DashboardPanel>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <DashboardMetricRail columns={4}>
         {isProfileMode ? (
           <>
-            <div className="glass-card p-4">
-              <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"><Eye className="h-3.5 w-3.5 text-accent" /> Profile Views</p>
-              <div className="text-2xl font-bold">{clicksCount.toLocaleString()}</div>
-            </div>
-            <div className="glass-card border-l-2 border-l-accent/30 p-4">
-              <p
-                className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent"
-                title={isAllProfiles ? "Deduplicated per profile and day" : "Deduplicated per day"}
-              >
-                <Users className="h-3.5 w-3.5" /> {isAllProfiles ? "Unique Profile Visits" : "Unique Visits"}
-              </p>
-              <div className="text-2xl font-bold">{uniqueCount.toLocaleString()}</div>
-            </div>
-            <div className="glass-card p-4">
-              <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"><MousePointerClick className="h-3.5 w-3.5 text-accent" /> Card Clicks</p>
-              <div className="text-2xl font-bold">{profileCardClicks.toLocaleString()}</div>
-            </div>
-            <div className="glass-card border-l-2 border-l-muted-foreground/30 p-4">
-              <p
-                className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"
-                title="Card clicks divided by profile views. It can exceed 100% when a visitor opens more than one card."
-              >
-                <Gauge className="h-3.5 w-3.5 text-accent" /> Card Click Rate
-              </p>
-              <div className="text-2xl font-bold">{profileCtr.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</div>
-            </div>
+            <DashboardMetric label="Profile Views" value={clicksCount.toLocaleString()} icon={<Eye className="h-3.5 w-3.5" />} />
+            <DashboardMetric label={isAllProfiles ? "Unique Profile Visits" : "Unique Visits"} value={uniqueCount.toLocaleString()} icon={<Users className="h-3.5 w-3.5" />} />
+            <DashboardMetric label="Card Clicks" value={profileCardClicks.toLocaleString()} icon={<MousePointerClick className="h-3.5 w-3.5" />} />
+            <DashboardMetric label="Card Click Rate" value={`${profileCtr.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`} icon={<Gauge className="h-3.5 w-3.5" />} />
           </>
         ) : (
           <>
-            <div className="glass-card p-4">
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Total Clicks</p>
-              <div className="text-2xl font-bold">{clicksCount.toLocaleString()}</div>
-            </div>
-            <div className="glass-card p-4 border-l-accent/30 border-l-2">
-              <p className="text-xs text-accent uppercase font-bold tracking-wider mb-1">Unique Clicks</p>
-              <div className="text-2xl font-bold">{uniqueCount.toLocaleString()}</div>
-            </div>
-            <div className="glass-card p-4">
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Avg. Daily</p>
-              <div className="text-2xl font-bold">{Math.round(clicksCount / ({ "24h": 1, "7d": 7, "30d": 30, "90d": 90 }[period] || 1)).toLocaleString()}</div>
-            </div>
-            <div className="glass-card p-4 border-l-muted-foreground/30 border-l-2">
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Top Location</p>
-              <div className="text-2xl font-bold truncate" title={countries[0]?.name || "N/A"}>{countries[0]?.name || "N/A"}</div>
-            </div>
+            <DashboardMetric label="Total clicks" value={clicksCount.toLocaleString()} />
+            <DashboardMetric label="Unique clicks" value={uniqueCount.toLocaleString()} />
+            <DashboardMetric label="Average daily" value={Math.round(clicksCount / ({ "24h": 1, "7d": 7, "30d": 30, "90d": 90 }[period] || 1)).toLocaleString()} />
+            <DashboardMetric label="Top location" value={countries[0]?.name || "N/A"} />
           </>
         )}
-      </div>
+      </DashboardMetricRail>
 
       {/* Clicks chart */}
-      <div className="glass-card p-6">
+      <DashboardPanel className="p-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">{isProfileMode ? "Profile Funnel Trend" : "Click Trends"}</h2>
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={trendData}>
             <defs>
               <linearGradient id="analyticsGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="hsl(153, 68%, 55%)" stopOpacity={0.3} />
-                <stop offset="100%" stopColor="hsl(153, 68%, 55%)" stopOpacity={0} />
+                <stop offset="0%" stopColor="var(--app-accent)" stopOpacity={0.3} />
+                <stop offset="100%" stopColor="var(--app-accent)" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="0 0" vertical={false} stroke="hsl(155, 15%, 16%)" />
-            <XAxis dataKey="date" stroke="hsl(150, 8%, 55%)" fontSize={10} axisLine={false} tickLine={false} />
-            <YAxis stroke="hsl(150, 8%, 55%)" fontSize={10} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={{ backgroundColor: "hsl(155, 35%, 9%)", border: "1px solid hsl(155, 15%, 20%)", borderRadius: "12px" }} />
-            <Area name={isProfileMode ? "Profile views" : "Clicks"} type="monotone" dataKey="clicks" stroke="hsl(153, 68%, 55%)" fill="url(#analyticsGradient)" strokeWidth={3} />
-            {isProfileMode && <Area name="Card clicks" type="monotone" dataKey="cardClicks" stroke="hsl(189, 78%, 58%)" fill="none" strokeWidth={2} />}
+            <CartesianGrid strokeDasharray="0 0" vertical={false} stroke="var(--app-grid)" />
+            <XAxis dataKey="date" stroke="var(--app-muted)" fontSize={10} axisLine={false} tickLine={false} />
+            <YAxis stroke="var(--app-muted)" fontSize={10} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={{ backgroundColor: "var(--app-panel-strong)", border: "1px solid var(--app-rule)", borderRadius: "var(--app-radius-control)" }} />
+            <Area name={isProfileMode ? "Profile views" : "Clicks"} type="monotone" dataKey="clicks" stroke="var(--app-accent)" fill="url(#analyticsGradient)" strokeWidth={3} />
+            {isProfileMode && <Area name="Card clicks" type="monotone" dataKey="cardClicks" stroke="var(--app-focus)" fill="none" strokeWidth={2} />}
           </AreaChart>
         </ResponsiveContainer>
-      </div>
+      </DashboardPanel>
 
       <WorldTrafficMap countries={countryMap} metric={isProfileMode ? "views" : "clicks"} />
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Countries */}
-        <div className="glass-card p-6">
+        <DashboardPanel className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 text-sm"><Globe className="w-4 h-4 text-accent" /> Top Locations</h2>
             <AnalyticsStatBadge>
@@ -577,17 +578,17 @@ export default function AnalyticsPage() {
                 </div>
                 <div className="h-1.5 rounded-full bg-surface overflow-hidden">
                   <div
-                    className="h-full bg-accent transition-all"
+                    className="h-full bg-accent"
                     style={{ width: `${Math.max(2, (c.clicks / Math.max(countries[0]?.clicks || 1, 1)) * 100)}%` }}
                   />
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </DashboardPanel>
 
         {/* Traffic Sources */}
-        <div className="glass-card p-6">
+        <DashboardPanel className="p-6">
           <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2 text-sm"><Globe className="w-4 h-4 text-accent" /> Traffic Sources</h2>
           <div className="space-y-4">
             {referrers.length === 0 ? <p className="text-sm text-muted-foreground">No data yet</p> : referrers.map((r) => (
@@ -597,23 +598,23 @@ export default function AnalyticsPage() {
                   <span className="text-muted-foreground">{r.clicks} {activityLabel}</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-surface border border-border overflow-hidden">
-                  <div className="h-full bg-blue-500 transition-all" style={{ width: `${r.pct}%` }} />
+                  <div className="h-full bg-accent" style={{ width: `${r.pct}%` }} />
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </DashboardPanel>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
         {/* Devices Pie */}
-        <div className="glass-card p-6">
+        <DashboardPanel className="p-6">
           <h3 className="text-sm font-semibold mb-6 flex items-center gap-2"><Smartphone className="w-4 h-4 text-accent" /> Devices</h3>
           <div className="h-40 flex items-center justify-center">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={clicksCount > 0 ? devices : [{ value: 100 }]} innerRadius={50} outerRadius={70} dataKey="value" stroke="none">
-                  {devices.map((d, i) => <Cell key={i} fill={clicksCount > 0 ? d.color : "#1e293b"} />)}
+                  {devices.map((d, i) => <Cell key={i} fill={clicksCount > 0 ? d.color : "var(--app-panel-sunken)"} />)}
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
@@ -626,16 +627,16 @@ export default function AnalyticsPage() {
               </div>
             ))}
           </div>
-        </div>
+        </DashboardPanel>
 
         {/* Browser Pie */}
-        <div className="glass-card p-6">
+        <DashboardPanel className="p-6">
           <h3 className="text-sm font-semibold mb-6 flex items-center gap-2"><Monitor className="w-4 h-4 text-accent" /> Browsers</h3>
           <div className="h-40 flex items-center justify-center">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={clicksCount > 0 ? browserData : [{ value: 100 }]} innerRadius={50} outerRadius={70} dataKey="value" stroke="none">
-                  {browserData.map((d, i) => <Cell key={i} fill={clicksCount > 0 ? d.color : "#1e293b"} />)}
+                  {browserData.map((d, i) => <Cell key={i} fill={clicksCount > 0 ? d.color : "var(--app-panel-sunken)"} />)}
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
@@ -648,16 +649,16 @@ export default function AnalyticsPage() {
               </div>
             ))}
           </div>
-        </div>
+        </DashboardPanel>
 
         {/* OS Pie */}
-        <div className="glass-card p-6">
+        <DashboardPanel className="p-6">
           <h3 className="text-sm font-semibold mb-6 flex items-center gap-2"><TabletSmartphone className="w-4 h-4 text-accent" /> OS</h3>
           <div className="h-40 flex items-center justify-center">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={clicksCount > 0 ? osData : [{ value: 100 }]} innerRadius={50} outerRadius={70} dataKey="value" stroke="none">
-                  {osData.map((d, i) => <Cell key={i} fill={clicksCount > 0 ? d.color : "#1e293b"} />)}
+                  {osData.map((d, i) => <Cell key={i} fill={clicksCount > 0 ? d.color : "var(--app-panel-sunken)"} />)}
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
@@ -670,11 +671,11 @@ export default function AnalyticsPage() {
               </div>
             ))}
           </div>
-        </div>
+        </DashboardPanel>
       </div>
 
       {/* Click Heatmap */}
-      <div className="glass-card p-6">
+      <DashboardPanel className="p-6">
         <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
           <Clock className="w-5 h-5 text-accent" /> Activity Heatmap
         </h2>
@@ -702,8 +703,8 @@ export default function AnalyticsPage() {
                       className="flex-1 h-5 rounded-sm transition-colors cursor-pointer group relative"
                       style={{
                         backgroundColor: count === 0
-                          ? 'hsl(155, 15%, 10%)'
-                          : `hsla(153, 68%, 55%, ${0.15 + intensity * 0.85})`
+                          ? 'var(--app-panel-sunken)'
+                          : `color-mix(in oklab, var(--app-accent) ${15 + intensity * 85}%, var(--app-panel-sunken))`
                       }}
                       title={`${day} ${h}:00 — ${count} ${activityLabel}`}
                     />
@@ -715,16 +716,16 @@ export default function AnalyticsPage() {
             <div className="flex items-center justify-end gap-2 mt-3">
               <span className="text-[10px] text-muted-foreground">Less</span>
               {[0, 0.25, 0.5, 0.75, 1].map((v, i) => (
-                <div key={i} className="w-4 h-4 rounded-sm" style={{ backgroundColor: v === 0 ? 'hsl(155, 15%, 10%)' : `hsla(153, 68%, 55%, ${0.15 + v * 0.85})` }} />
+                <div key={i} className="w-4 h-4 rounded-sm" style={{ backgroundColor: v === 0 ? 'var(--app-panel-sunken)' : `color-mix(in oklab, var(--app-accent) ${15 + v * 85}%, var(--app-panel-sunken))` }} />
               ))}
               <span className="text-[10px] text-muted-foreground">More</span>
             </div>
           </div>
         </div>
-      </div>
+      </DashboardPanel>
 
       {isProfileMode ? (
-        <div className="glass-card overflow-hidden">
+        <DashboardPanel className="overflow-hidden !p-0">
           <div className="flex items-center justify-between border-b border-border bg-accent/5 p-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold">
               <MousePointerClick className="h-4 w-4 text-accent" />
@@ -766,10 +767,10 @@ export default function AnalyticsPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </DashboardPanel>
       ) : (
       /* Real-time Click Stream */
-      <div className="glass-card overflow-hidden">
+      <DashboardPanel className="overflow-hidden !p-0">
         <div className="p-4 border-b border-border bg-accent/5 flex items-center justify-between">
           <h3 className="text-sm font-semibold flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
@@ -823,8 +824,8 @@ export default function AnalyticsPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </DashboardPanel>
       )}
-    </div>
+    </DashboardPage>
   );
 }

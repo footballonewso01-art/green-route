@@ -1,7 +1,9 @@
 import { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Check, ChevronRight, ExternalLink } from "lucide-react";
+import BrandWordmark from "@/components/BrandWordmark";
 import Footer from "@/components/Footer";
+import FeatureDetailView from "@/components/features/FeatureDetailView";
 import { useSeo } from "@/hooks/useSeo";
 import {
   getSeoContentLabel,
@@ -62,13 +64,16 @@ export default function SeoResourceLayout({ page, children, preview }: SeoResour
     structuredData,
   });
 
+  if (page.kind === "feature") {
+    return <FeatureDetailView page={page}>{children}</FeatureDetailView>;
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-50 border-b border-border/70 bg-background/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-6">
           <Link to="/" className="flex items-center gap-2.5" aria-label="Linktery home">
-            <img src="/logo.webp" alt="" className="h-11 w-auto mix-blend-screen" />
-            <span className="text-xl font-extrabold tracking-tight">Linktery</span>
+            <BrandWordmark tone="light" className="h-8 w-auto" />
           </Link>
           <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex" aria-label="SEO resources">
             <Link className="transition-colors hover:text-foreground" to="/features">Features</Link>

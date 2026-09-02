@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { Check, Copy, Link2 } from "lucide-react";
-import SeoResourceLayout from "@/components/SeoResourceLayout";
+import { Check, Copy, Link2, LockKeyhole } from "lucide-react";
+import ToolDetailLayout from "@/components/tools/ToolDetailLayout";
+import styles from "@/components/tools/ToolDetails.module.css";
 import { getSeoContentPage } from "@/lib/seoContent";
 
 const page = getSeoContentPage("/tools/utm-builder");
@@ -44,7 +45,7 @@ export default function UtmBuilder() {
     }
   }, [campaign, content, destination, medium, source, term]);
 
-  if (!page) return null;
+  if (!page || page.kind !== "tool") return null;
 
   const copyResult = async () => {
     if (!result.url || typeof navigator === "undefined" || !navigator.clipboard) return;
@@ -62,45 +63,48 @@ export default function UtmBuilder() {
   ];
 
   return (
-    <SeoResourceLayout page={page}>
-      <section className="border-b border-border/60 px-5 py-14 sm:px-6 sm:py-18">
-        <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1fr_0.9fr]">
-          <div className="rounded-3xl border border-border bg-card/60 p-5 sm:p-8">
-            <h2 className="text-2xl font-extrabold">Campaign details</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">Values are normalized to lowercase and spaces become hyphens.</p>
-            <div className="mt-7 space-y-5">
-              <label className="block" htmlFor="utm-destination">
-                <span className="mb-2 block text-sm font-bold">Destination URL</span>
-                <input id="utm-destination" type="url" value={destination} onChange={(event) => setDestination(event.target.value)} className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none transition-colors focus:border-accent" />
-              </label>
-              <div className="grid gap-5 sm:grid-cols-2">
-                {fields.map((field) => (
-                  <label className="block" htmlFor={field.id} key={field.id}>
-                    <span className="mb-2 block text-sm font-bold">{field.label}{field.required ? " *" : ""}</span>
-                    <input id={field.id} value={field.value} onChange={(event) => field.setter(event.target.value)} placeholder={field.placeholder} className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none transition-colors focus:border-accent" />
-                  </label>
-                ))}
-              </div>
+    <ToolDetailLayout page={page}>
+      <div className={styles.workbench} data-workbench="utm">
+        <section className={styles.inputPanel} aria-labelledby="utm-input-title">
+          <div className={styles.panelKicker}><span><Link2 size={16} aria-hidden="true" />Campaign recipe</span><span>Required fields are marked *</span></div>
+          <h2 id="utm-input-title">Describe the traffic source.</h2>
+          <p className={styles.panelIntro}>Values are normalized to lowercase and spaces become hyphens, so campaign labels stay consistent.</p>
+          <div className={styles.formStack}>
+            <label className={styles.field} htmlFor="utm-destination">
+              <span>Destination URL</span>
+              <input id="utm-destination" type="url" value={destination} onChange={(event) => setDestination(event.target.value)} />
+            </label>
+            <div className={styles.fieldGrid}>
+              {fields.map((field) => (
+                <label className={styles.field} htmlFor={field.id} key={field.id}>
+                  <span>{field.label}{field.required ? " *" : ""}{!field.required && <em>Optional</em>}</span>
+                  <input id={field.id} value={field.value} onChange={(event) => field.setter(event.target.value)} placeholder={field.placeholder} />
+                </label>
+              ))}
             </div>
           </div>
+          <p className={styles.privacyNote}><LockKeyhole size={14} aria-hidden="true" />Do not put names, email addresses, tokens, or private information into UTM values. They remain visible in the URL.</p>
+        </section>
 
-          <div className="rounded-3xl border border-accent/25 bg-accent/[0.04] p-5 sm:p-8">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent"><Link2 className="h-5 w-5" /></div>
-              <div><h2 className="text-xl font-extrabold">Generated campaign URL</h2><p className="text-xs text-muted-foreground">Generated locally in this browser</p></div>
-            </div>
-            {result.error ? (
-              <div className="mt-7 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{result.error}</div>
-            ) : (
-              <div className="mt-7 break-all rounded-xl border border-border bg-background p-4 font-mono text-xs leading-6 text-foreground">{result.url}</div>
-            )}
-            <button type="button" disabled={!result.url} onClick={copyResult} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 font-bold text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50">
-              {copied ? <><Check className="h-4 w-4" /> Copied</> : <><Copy className="h-4 w-4" /> Copy campaign URL</>}
-            </button>
-            <p className="mt-4 text-xs leading-5 text-muted-foreground">Do not put names, email addresses, tokens, or private information into UTM values. They remain visible in the URL.</p>
+        <section className={styles.outputPanel} aria-labelledby="utm-output-title">
+          <div className={styles.panelKicker}><span><Check size={16} aria-hidden="true" />Live result</span><span>Updates as you type</span></div>
+          <h2 id="utm-output-title">Generated campaign URL</h2>
+          <p className={styles.panelIntro}>Copy this exact URL into the campaign, or use it as the destination behind a managed Linktery link.</p>
+          {result.error ? (
+            <div className={`${styles.urlOutput} ${styles.errorOutput}`} role="alert">{result.error}</div>
+          ) : (
+            <div className={styles.urlOutput}><span>Ready-to-share URL</span><code>{result.url}</code></div>
+          )}
+          <div className={styles.outputMeta} aria-label="Campaign parameter summary">
+            <div><span>Source</span><strong>{normalizeCampaignValue(source) || "—"}</strong></div>
+            <div><span>Medium</span><strong>{normalizeCampaignValue(medium) || "—"}</strong></div>
+            <div><span>Campaign</span><strong>{normalizeCampaignValue(campaign) || "—"}</strong></div>
           </div>
-        </div>
-      </section>
-    </SeoResourceLayout>
+          <button type="button" disabled={!result.url} onClick={copyResult} className={styles.toolButton}>
+            {copied ? <><Check size={16} aria-hidden="true" />Copied</> : <><Copy size={16} aria-hidden="true" />Copy campaign URL</>}
+          </button>
+        </section>
+      </div>
+    </ToolDetailLayout>
   );
 }

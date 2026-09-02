@@ -131,39 +131,6 @@ const runPrerender = async () => {
     throw new Error(`Prerender failed for ${failures.length} route(s):\n${failures.join("\n")}`);
   }
 
-  // Preserve backlinks that use the opposite competitor order. These aliases
-  // are intentionally excluded from the sitemap, marked noindex, and point to
-  // the canonical pre-rendered pair. This avoids a static 404 without touching
-  // the top-level /:slug resolver used by short URLs and public profiles.
-  let comparisonAliases = 0;
-  for (const config of configs.filter((item) => item.route.startsWith("/compare/"))) {
-    const pair = config.route.replace("/compare/", "").split("-vs-");
-    if (pair.length !== 2) continue;
-    const reverseRoute = `/compare/${pair[1]}-vs-${pair[0]}`;
-    const canonicalUrl = `${DOMAIN}${config.route}`;
-    const escapedCanonical = escapeAttribute(canonicalUrl);
-    const aliasHtml = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Redirecting to ${escapeAttribute(config.title)}</title>
-  <meta name="robots" content="noindex, follow" />
-  <link rel="canonical" href="${escapedCanonical}" />
-  <meta http-equiv="refresh" content="0;url=${escapedCanonical}" />
-</head>
-<body>
-  <main>
-    <h1>This comparison has moved</h1>
-    <p>Continue to <a href="${escapedCanonical}">${escapeAttribute(config.title)}</a>.</p>
-  </main>
-</body>
-</html>`;
-    writeRoute(reverseRoute, aliasHtml);
-    comparisonAliases += 1;
-  }
-
-  console.log(`Generated ${comparisonAliases} noindex comparison aliases.`);
   console.log(`Prerendered ${configs.length} routes (${indexableConfigs.length} indexable).`);
 };
 

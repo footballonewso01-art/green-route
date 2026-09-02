@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Gift, Eye, EyeOff, ChevronDown, Link2 } from "lucide-react";
 import { pb } from "@/lib/pocketbase";
@@ -9,105 +9,12 @@ import { SEO_PAGES } from "@/lib/seo-config";
 import { maskError } from "@/lib/utils";
 import { captureReferral, claimStoredReferral, normalizeReferralCode } from "@/lib/affiliate";
 import { trackGrowthEvent } from "@/lib/telemetry";
-import { ensureStarterProfile } from "@/lib/profileOnboarding";
-
-interface Star {
-  x: number;
-  y: number;
-  size: number;
-  opacity: number;
-  speed: number;
-  blinkDirection: number;
-}
+import { ensureStarterProfile, getPostRegistrationDestination } from "@/lib/profileOnboarding";
+import AuthShell from "@/components/auth/AuthShell";
+import styles from "@/components/auth/AuthShell.module.css";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  // Background animated stars canvas
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    let animationId: number;
-    let stars: Star[] = [];
-
-    const resizeCanvas = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      initStars();
-    };
-
-    const initStars = () => {
-      stars = [];
-      const numStars = Math.floor((canvas.width * canvas.height) / 12000);
-      for (let i = 0; i < numStars; i++) {
-        stars.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          size: Math.random() * 2 + 0.5,
-          opacity: Math.random() * 0.7 + 0.1,
-          speed: Math.random() * 0.05 + 0.01,
-          blinkDirection: Math.random() > 0.5 ? 1 : -1,
-        });
-      }
-    };
-
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw grains/noise overlay manually via canvas for high performance
-      ctx.fillStyle = "rgba(255, 255, 255, 0.01)";
-      for (let i = 0; i < 5000; i++) {
-        const x = Math.random() * canvas.width;
-        const y = Math.random() * canvas.height;
-        ctx.fillRect(x, y, 1, 1);
-      }
-
-      stars.forEach((star) => {
-        // Soft green glowing stars
-        ctx.beginPath();
-        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-        
-        // Blink logic
-        star.opacity += star.blinkDirection * 0.005;
-        if (star.opacity > 0.8) {
-          star.opacity = 0.8;
-          star.blinkDirection = -1;
-        } else if (star.opacity < 0.1) {
-          star.opacity = 0.1;
-          star.blinkDirection = 1;
-        }
-
-        // Float up slowly
-        star.y -= star.speed * 12;
-        if (star.y < 0) {
-          star.y = canvas.height;
-          star.x = Math.random() * canvas.width;
-        }
-
-        ctx.fillStyle = `rgba(34, 197, 94, ${star.opacity})`;
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = "rgba(34, 197, 94, 0.6)";
-        ctx.fill();
-        ctx.shadowBlur = 0; // reset
-      });
-
-      animationId = requestAnimationFrame(draw);
-    };
-
-    window.addEventListener("resize", resizeCanvas);
-    resizeCanvas();
-    draw();
-
-    return () => {
-      cancelAnimationFrame(animationId);
-      window.removeEventListener("resize", resizeCanvas);
-    };
-  }, []);
 
   const [searchParams] = useSearchParams();
   const reservedProfileSlug = (searchParams.get("profile") || "")
@@ -277,7 +184,7 @@ export default function RegisterPage() {
         } else {
           toast.success("Account and Public Profile are ready.", { description: profileDescription });
         }
-        navigate(`/dashboard/profile/${profileSetup.profile.id}`);
+        navigate(getPostRegistrationDestination(reservedProfileSlug, profileSetup.profile.id));
       } else {
         toast.error("Your account is ready, but profile setup didn't finish.", {
           description: profileSetup.error || "Open Profiles from the dashboard to try again.",
@@ -326,7 +233,7 @@ export default function RegisterPage() {
         toast.success("Account and Public Profile are ready.", {
           description: `linktery.com/${profileSetup.profile.slug} is ready.`,
         });
-        navigate(`/dashboard/profile/${profileSetup.profile.id}`);
+        navigate(getPostRegistrationDestination(reservedProfileSlug, profileSetup.profile.id));
       } else {
         toast.error("You're signed in, but profile setup didn't finish.", {
           description: profileSetup.error || "Open Profiles from the dashboard to try again.",
@@ -344,33 +251,25 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-6 sm:px-6 sm:py-10 relative overflow-x-hidden">
-      {/* Background stars canvas & grid */}
-      <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none w-full h-full opacity-60" />
-      <div className="absolute inset-0 bg-grid-white opacity-[0.03] z-0 pointer-events-none" />
+    <AuthShell mode="register" reservedProfileSlug={reservedProfileSlug}>
+      <div className={styles.formPanel} data-promo-expanded={showPromocode ? "true" : undefined}>
+        <header className={styles.formHeader}>
+          {reservedProfileSlug && <p className={styles.formEyebrow}>Profile reserved</p>}
+          <h1>{reservedProfileSlug ? "Claim your profile." : "Create your account."}</h1>
+          <p>
+            {reservedProfileSlug
+              ? "Create your account, then continue to the profile editor."
+              : "Your starter Public Profile is created with your account."}
+          </p>
+        </header>
 
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/3 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
-      </div>
-
-      <div className="glass-card px-5 py-7 sm:p-8 w-full max-w-md relative z-10 animate-scale-in">
-        <div className="text-center mb-6">
-          <Link to="/" className="inline-flex items-center gap-2.5 mb-4 hover:opacity-80 transition-opacity">
-            <img src="/logo.webp" alt="Linktery" className="h-9 w-auto mix-blend-screen" />
-            <span className="text-2xl font-bold text-foreground tracking-tighter">Linktery</span>
-          </Link>
-          <h1 className="text-xl font-bold text-foreground">Create your account</h1>
-          <p className="text-sm text-muted-foreground mt-1">Start managing your links today</p>
-        </div>
-
-        {/* Google Sign Up */}
         <button
+          type="button"
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-3 py-2.5 rounded-xl border border-border bg-surface hover:bg-surface-hover text-foreground font-medium transition-all duration-200 mb-5 text-sm"
+          className={styles.oauthButton}
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24">
+          <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
@@ -379,130 +278,129 @@ export default function RegisterPage() {
           Continue with Google
         </button>
 
-        <div className="relative mb-5">
-          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
-          <div className="relative flex justify-center text-xs"><span className="bg-card px-3 text-muted-foreground">or sign up with email</span></div>
-        </div>
+        <div className={styles.divider}>or use email</div>
 
-        <form onSubmit={handleRegister} className="space-y-4">
+        <form onSubmit={handleRegister} className={styles.form}>
           {reservedProfileSlug && (
-            <div className="flex items-start gap-3 rounded-xl border border-accent/20 bg-accent/[0.06] px-3.5 py-3 text-left">
-              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                <Link2 className="h-4 w-4" />
+            <div className={styles.reservation}>
+              <span>
+                <Link2 aria-hidden="true" />
               </span>
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-muted-foreground">Reserved Public Profile</p>
-                <p className="truncate text-sm font-semibold text-foreground">linktery.com/{reservedProfileSlug}</p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">Your account username stays private to Linktery and can be different.</p>
+              <div>
+                <small>Reserved Public Profile</small>
+                <strong>linktery.com/{reservedProfileSlug}</strong>
+                <p className={styles.reservationNote}>Your account username stays private and can be different.</p>
               </div>
             </div>
           )}
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Username</label>
+          <div className={styles.field}>
+            <div className={styles.fieldHeader}>
+              <label htmlFor="account-username" className={styles.label}>Account username</label>
+              <span className={styles.fieldHint}>Private</span>
+            </div>
             <input
+              id="account-username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_.]/g, "").slice(0, 22))}
               maxLength={22}
-              className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
+              className={styles.input}
               placeholder="yourname"
+              autoComplete="username"
               required
             />
           </div>
 
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Email</label>
+          <div className={styles.field}>
+            <label htmlFor="register-email" className={styles.label}>Email</label>
             <input
+              id="register-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
+              className={styles.input}
               placeholder="you@example.com"
+              autoComplete="email"
               required
             />
           </div>
 
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Password</label>
-            <div className="relative">
+          <div className={styles.field}>
+            <label htmlFor="register-password" className={styles.label}>Password</label>
+            <div className={styles.passwordField}>
               <input
+                id="register-password"
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors pr-10 text-sm"
+                className={styles.input}
                 placeholder="At least 6 characters"
+                autoComplete="new-password"
                 required
                 minLength={6}
               />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className={styles.passwordToggle}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
               </button>
             </div>
           </div>
 
-          <div className="rounded-xl border border-border/70 bg-surface/40 overflow-hidden">
+          <div className={styles.promo}>
             <button
               type="button"
               onClick={() => setShowPromocode((current) => !current)}
               aria-expanded={showPromocode}
               aria-controls="promocode-field"
-              className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-surface/70 transition-colors"
+              className={styles.promoSummary}
             >
-              <span className="flex items-center gap-2">
-                <Gift className="w-4 h-4 text-accent" />
+              <span>
+                <Gift aria-hidden="true" />
                 Have a promocode?
               </span>
-              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showPromocode ? "rotate-180" : ""}`} />
+              <ChevronDown aria-hidden="true" />
             </button>
             {showPromocode && (
-              <div id="promocode-field" className="px-3 pb-3 animate-fade-in">
+              <div id="promocode-field" className={styles.promoField}>
                 <label htmlFor="promocode" className="sr-only">Promocode</label>
                 <input
                   id="promocode"
                   type="text"
                   value={promocode}
                   onChange={(e) => setPromocode(e.target.value.toUpperCase())}
-                  className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none input-glow focus:border-accent/50 transition-colors text-sm"
+                  className={styles.promoInput}
                   placeholder="Enter promocode"
                 />
               </div>
             )}
           </div>
 
-          <div className="flex items-start gap-3 py-0.5">
-            <div className="relative flex items-center justify-center shrink-0 mt-0.5">
-              <input
-                type="checkbox"
-                id="terms"
-                checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
-                className="h-4 w-4 shrink-0 rounded-[4px] border-2 border-border bg-surface text-accent focus:ring-accent/30 cursor-pointer appearance-none checked:bg-accent checked:border-accent transition-all duration-200"
-                required
-              />
-              {agreed && (
-                <svg className="absolute w-2.5 h-2.5 text-white pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </div>
-            <label htmlFor="terms" className="text-xs text-muted-foreground leading-tight cursor-pointer select-none">
+          <div className={styles.terms}>
+            <input
+              type="checkbox"
+              id="terms"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className={styles.checkbox}
+              required
+            />
+            <label htmlFor="terms">
               I agree with{" "}
-              <Link to="/privacy" className="text-accent hover:underline font-medium">Privacy Policy</Link>
-              <span className="mx-1 opacity-20">|</span>
-              <Link to="/terms" className="text-accent hover:underline font-medium">Terms & Conditions</Link>
+              <Link to="/privacy">Privacy Policy</Link>
+              <span> and </span>
+              <Link to="/terms">Terms &amp; Conditions</Link>
             </label>
           </div>
 
-          <button type="submit" disabled={loading} className="btn-primary-glow w-full !py-2.5 text-sm disabled:opacity-50">
-            {loading ? "Creating account..." : "Create Account"}
+          <button type="submit" disabled={loading} className={styles.submitButton}>
+            {loading ? "Creating account…" : "Create account"}
           </button>
         </form>
-
-        <p className="text-sm text-muted-foreground text-center mt-5">
-          Already have an account?{" "}
-          <Link to="/login" className="text-accent hover:underline">Sign in</Link>
-        </p>
       </div>
-    </div>
+    </AuthShell>
   );
 }

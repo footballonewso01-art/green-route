@@ -4,9 +4,11 @@ import { describe, expect, it } from "vitest";
 import {
   createPrimaryRedirectUrl,
   decideEdgeRoute,
+  getCanonicalComparisonPath,
   isLikelyStaticAssetPath,
   isValidPublicSlug,
 } from "../../cloudflare/router";
+import competitors from "@/data/competitors.json";
 
 const readWorkspaceFile = (relativePath: string) =>
   fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
@@ -114,6 +116,35 @@ describe("Cloudflare edge routing contract", () => {
     });
   });
 
+  it("canonicalizes every reverse comparison alias with one HTTP 308", () => {
+    let aliases = 0;
+    for (let first = 0; first < competitors.length; first += 1) {
+      for (let second = first + 1; second < competitors.length; second += 1) {
+        const pair = [competitors[first].slug, competitors[second].slug]
+          .sort((a, b) => a.localeCompare(b));
+        const canonical = `/compare/${pair[0]}-vs-${pair[1]}`;
+        const reverse = `/compare/${pair[1]}-vs-${pair[0]}`;
+        expect(getCanonicalComparisonPath(canonical)).toBe(canonical);
+        expect(decideEdgeRoute(canonical)).toEqual({ kind: "not-found" });
+        expect(decideEdgeRoute(reverse)).toEqual({
+          kind: "redirect",
+          destination: canonical,
+          status: 308,
+        });
+        aliases += 1;
+      }
+    }
+    expect(aliases).toBe(153);
+  });
+
+  it("normalizes case and trailing slash directly to the canonical comparison", () => {
+    expect(decideEdgeRoute("/Compare/UrMyBio-vs-Taplink/")).toEqual({
+      kind: "redirect",
+      destination: "/compare/taplink-vs-urmybio",
+      status: 308,
+    });
+  });
+
   it("uses exactly the same public slug boundary as PocketBase", () => {
     expect(isValidPublicSlug("a")).toBe(true);
     expect(isValidPublicSlug("a--b")).toBe(true);
@@ -151,7 +182,6 @@ describe("Cloudflare edge routing contract", () => {
         "/*",
         "!/assets/*",
         "!/og-image.png",
-        "!/dashboard-preview.png",
         "!/*.webp",
         "!/*.mp4",
       ]),

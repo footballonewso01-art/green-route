@@ -1,0 +1,54 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Split control workbench · design-system: design.md · pre-emit critique: P5 H5 E5 S5 R5 V5 */
+.mobileTrigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--app-space-sm);
+  min-height: var(--app-control-height-lg);
+  padding-inline: var(--app-space-md);
+  border: var(--app-rule-hair) solid var(--app-rule);
+  border-radius: var(--app-radius-control);
+  background: var(--app-panel);
+  color: var(--app-ink);
+}
+.mobileMenu {
+  overflow: hidden;
+  border: var(--app-rule-hair) solid var(--app-rule);
+  border-radius: var(--app-radius-control);
+  background: var(--app-panel);
+}
+.layout {
+  display: grid;
+  min-height: 32.5rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+.navigation { display: none; }
+.navigationInner { display: flex; flex-direction: column; gap: var(--app-space-2xs); padding: var(--app-space-sm); }
+.content {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--app-radius-card);
+}
+.scrollArea {
+  position: relative;
+  max-height: calc(100dvh - 13.75rem);
+  overflow-y: auto;
+  padding: var(--app-space-lg);
+}
+
+@media (min-width: 64rem) {
+  .mobileTrigger,
+  .mobileMenu { display: none; }
+  .layout { grid-template-columns: 15rem minmax(0, 1fr); }
+  .navigation {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: var(--app-rule-hair) solid var(--app-rule);
+    border-inline-end: 0;
+    border-radius: var(--app-radius-card) 0 0 var(--app-radius-card);
+    background: var(--app-sidebar);
+  }
+  .content { border-radius: 0 var(--app-radius-card) var(--app-radius-card) 0; }
+  .scrollArea { padding: var(--app-space-xl); }
+}

@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Link2, MousePointer, TrendingUp, ArrowUpRight, ArrowDownRight, Loader2, Plus, Share2 } from "lucide-react";
+import { BarChart3, Link2, MousePointer, TrendingUp, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import styles from "./DashboardHome.module.css";
 
 export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
@@ -95,62 +96,39 @@ export default function DashboardHome() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <div className="h-7 w-40 bg-surface rounded-lg animate-pulse" />
-          <div className="h-4 w-56 bg-surface rounded animate-pulse" />
+      <div className={styles.page} aria-busy="true" aria-label="Loading dashboard">
+        <div className={styles.skeletonHeader}>
+          <span className={styles.skeletonTitle} />
+          <span className={styles.skeletonCopy} />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="glass-card p-5 space-y-3">
-              <div className="flex justify-between">
-                <div className="w-9 h-9 rounded-xl bg-surface animate-pulse" />
-                <div className="w-12 h-4 bg-surface rounded animate-pulse" />
-              </div>
-              <div className="h-7 w-20 bg-surface rounded animate-pulse" />
-              <div className="h-3 w-24 bg-surface rounded animate-pulse" />
-            </div>
-          ))}
+        <div className={styles.skeletonMetrics}>
+          {[1, 2, 3].map((item) => <span key={item} />)}
         </div>
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 glass-card p-6 space-y-4">
-            <div className="h-5 w-36 bg-surface rounded animate-pulse" />
-            <div className="h-[280px] bg-surface rounded-xl animate-pulse" />
-          </div>
-          <div className="glass-card p-6 space-y-4">
-            <div className="h-5 w-28 bg-surface rounded animate-pulse" />
-            {[1, 2, 3].map(i => (
-              <div key={i} className="flex justify-between py-2">
-                <div className="space-y-1.5">
-                  <div className="h-4 w-16 bg-surface rounded animate-pulse" />
-                  <div className="h-3 w-24 bg-surface rounded animate-pulse" />
-                </div>
-                <div className="h-3 w-10 bg-surface rounded animate-pulse" />
-              </div>
-            ))}
-          </div>
+        <div className={styles.details}>
+          <div className={`${styles.panel} ${styles.skeletonPanel}`} />
+          <div className={`${styles.panel} ${styles.skeletonPanel}`} />
         </div>
       </div>
     );
   }
 
   const metrics = [
-    { title: "Total Clicks", value: stats.totalClicks.toLocaleString(), change: "+0%", up: true, icon: MousePointer },
-    { title: "Active Links", value: stats.activeLinks.toString(), change: "+0", up: true, icon: Link2 },
-    { title: "Avg Clicks/Link", value: stats.clickRate.toString(), change: "+0", up: true, icon: TrendingUp },
+    { title: "Total Clicks", value: stats.totalClicks.toLocaleString(), icon: MousePointer },
+    { title: "Active Links", value: stats.activeLinks.toString(), icon: Link2 },
+    { title: "Avg Clicks/Link", value: stats.clickRate.toString(), icon: TrendingUp },
   ];
 
-  const hour = new Date().getHours();
   const displayName = pb.authStore.model?.name || pb.authStore.model?.username || "Friend";
+  const hasTraffic = trendData.some((entry) => entry.clicks > 0);
 
   const containerVariants = {
     hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+    show: { opacity: 1, transition: { staggerChildren: 0.06 } }
   };
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
+    show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as const } }
   };
 
   return (
@@ -158,111 +136,115 @@ export default function DashboardHome() {
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="space-y-8"
+      className={styles.page}
     >
-      {/* Welcome Card */}
-      <motion.div variants={itemVariants} className="relative overflow-hidden glass-card px-8 py-5 group">
-        {/* Background decorative elements */}
-        <div className="absolute -right-12 -top-12 w-48 h-48 bg-accent/10 rounded-full blur-3xl group-hover:bg-accent/20 transition-colors duration-500" />
-        <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl" />
-
-        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold text-foreground">
-              Welcome, <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-emerald-400">{displayName}</span>!
-            </h1>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-muted-foreground text-sm">ID:</span>
-              <code className="px-2 py-0.5 rounded bg-surface border border-border text-xs font-mono">
-                {pb.authStore.model?.id}
-              </code>
-            </div>
-          </div>
-
-          <div className="flex items-center shrink-0">
-            <Link to="/dashboard/profile">
-              <motion.button 
-                whileHover={{ scale: 1.02 }} 
-                whileTap={{ scale: 0.98 }} 
-                className="btn-primary-glow flex items-center gap-2 px-6 py-2.5 text-sm shadow-xl shadow-accent/20"
-              >
-                <Plus className="w-4 h-4" /> Create Link
-              </motion.button>
-            </Link>
-          </div>
+      <motion.header variants={itemVariants} className={styles.pageHeader}>
+        <div className={styles.pageIntro}>
+          <h1>Dashboard</h1>
+          <p>Welcome back, <strong>{displayName}</strong>. Here’s what’s happening with your links.</p>
         </div>
-      </motion.div>
+        <Link to="/dashboard/links/create" className={styles.primary}>
+          <Plus className="w-4 h-4" aria-hidden="true" /> Create link
+        </Link>
+      </motion.header>
 
 
       {/* Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <motion.section variants={itemVariants} className={styles.metrics} aria-label="Link performance overview">
         {metrics.map((m) => (
-          <motion.div variants={itemVariants} key={m.title} className="glass-card p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center">
-                <m.icon className="w-4 h-4 text-accent" />
-              </div>
-              <span className={`text-xs font-medium flex items-center gap-0.5 ${m.up ? "text-accent" : "text-destructive"}`}>
-                {m.up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                {m.change}
-              </span>
+          <article key={m.title} className={styles.metric}>
+            <div className={styles.metricLabel}>
+              <m.icon className="w-4 h-4" aria-hidden="true" />
+              <span>{m.title}</span>
             </div>
-            <div className="text-2xl font-bold text-foreground">{m.value}</div>
-            <div className="text-xs text-muted-foreground mt-0.5">{m.title}</div>
-          </motion.div>
+            <div className={styles.metricValue}>{m.value}</div>
+          </article>
         ))}
-      </div>
+      </motion.section>
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className={styles.details}>
         {/* Chart */}
-        <motion.div variants={itemVariants} className="lg:col-span-2 glass-card p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Clicks This Week</h2>
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={trendData}>
-              <defs>
-                <linearGradient id="clickGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(153, 68%, 55%)" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="hsl(153, 68%, 55%)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(155, 15%, 16%)" />
-              <XAxis dataKey="name" stroke="hsl(150, 8%, 55%)" fontSize={12} />
-              <YAxis stroke="hsl(150, 8%, 55%)" fontSize={12} />
-              <Tooltip
-                contentStyle={{ backgroundColor: "hsl(155, 35%, 9%)", border: "1px solid hsl(155, 15%, 20%)", borderRadius: "12px", color: "hsl(150, 10%, 92%)" }}
-              />
-              <Area type="monotone" dataKey="clicks" stroke="hsl(153, 68%, 55%)" fill="url(#clickGradient)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </motion.div>
+        <motion.section variants={itemVariants} className={`${styles.panel} ${styles.chartPanel}`}>
+          <div className={styles.panelHeader}>
+            <div>
+              <h2>Clicks this week</h2>
+              <p>Last 7 days</p>
+            </div>
+          </div>
+          {hasTraffic ? (
+            <div className={styles.chart}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendData}>
+                  <defs>
+                    <linearGradient id="clickGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--app-accent)" stopOpacity={0.26} />
+                      <stop offset="100%" stopColor="var(--app-accent)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--app-grid)" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--app-muted)" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="var(--app-muted)" fontSize={12} tickLine={false} axisLine={false} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "var(--app-panel-strong)",
+                      border: "1px solid var(--app-rule)",
+                      borderRadius: "var(--app-radius-control)",
+                      color: "var(--app-ink)",
+                    }}
+                  />
+                  <Area type="monotone" dataKey="clicks" stroke="var(--app-accent)" fill="url(#clickGradient)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className={styles.emptyChart}>
+              <div className={styles.emptyChartPreview} aria-hidden="true">
+                <svg viewBox="0 0 800 240" preserveAspectRatio="none">
+                  <path d="M0 206 C88 194 116 168 176 178 C250 190 274 108 350 132 C424 156 458 68 528 86 C612 108 642 28 800 42" />
+                  <path d="M0 214 C104 206 148 188 222 194 C312 204 350 154 430 166 C528 180 602 106 800 126" />
+                </svg>
+              </div>
+              <div className={styles.emptyChartContent}>
+                <span className={styles.emptyIcon}><BarChart3 aria-hidden="true" /></span>
+                <div>
+                  <strong>Traffic will appear here</strong>
+                  <p>Clicks are added to this chart as people visit your links.</p>
+                </div>
+                <Link to="/dashboard/links/create" className={styles.secondaryAction}>Create a link</Link>
+              </div>
+            </div>
+          )}
+        </motion.section>
 
         {/* Recent Clicks */}
-        <motion.div variants={itemVariants} className="glass-card p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Recent Clicks</h2>
-          <div className="space-y-3">
+        <motion.section variants={itemVariants} className={`${styles.panel} ${styles.activityPanel}`}>
+          <div className={styles.panelHeader}>
+            <div>
+              <h2>Recent clicks</h2>
+              <p>Latest activity</p>
+            </div>
+            <Link to="/dashboard/analytics" className={styles.panelLink}>View analytics</Link>
+          </div>
+          <div className={styles.activityList}>
             {recentLoading ? (
               [1, 2, 3].map((item) => (
-                <div key={item} className="flex items-center justify-between py-2">
-                  <div className="space-y-1.5">
-                    <div className="h-4 w-20 rounded bg-surface animate-pulse" />
-                    <div className="h-3 w-28 rounded bg-surface animate-pulse" />
-                  </div>
-                  <div className="h-3 w-10 rounded bg-surface animate-pulse" />
-                </div>
+                <div key={item} className={styles.activitySkeleton} />
               ))
             ) : recentUnavailable ? (
-              <p className="text-sm text-muted-foreground">Recent activity is temporarily unavailable.</p>
-            ) : recentClicks.length === 0 ? <p className="text-sm text-muted-foreground">No recent clicks</p> : recentClicks.map((c, i) => (
-              <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+              <div className={styles.emptyRecent}><strong>Activity unavailable</strong><span>Refresh the page to try loading recent clicks again.</span></div>
+            ) : recentClicks.length === 0 ? (
+              <div className={styles.emptyRecent}><strong>No recent clicks</strong><span>New visits will appear here as they happen.</span></div>
+            ) : recentClicks.map((c, i) => (
+              <div key={i} className={styles.recentRow}>
                 <div>
-                  <div className="text-sm font-medium text-foreground">/{c.slug}</div>
-                  <div className="text-xs text-muted-foreground">{c.country} · {c.device}</div>
+                  <strong>/{c.slug}</strong>
+                  <small>{c.country} · {c.device}</small>
                 </div>
-                <span className="text-xs text-muted-foreground">{c.time}</span>
+                <span>{c.time}</span>
               </div>
             ))}
           </div>
-        </motion.div>
+        </motion.section>
       </div>
     </motion.div>
   );

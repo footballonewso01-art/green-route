@@ -19,6 +19,7 @@ import {
   ProfileSocialLink,
 } from "@/components/profile/ProfileIdentity";
 import { ProfileLinkCard } from "@/components/profile/ProfileLinkCard";
+import BrandWordmark from "@/components/BrandWordmark";
 
 export interface ProfileCanvasLink {
   id: string;
@@ -50,6 +51,7 @@ interface ProfileCanvasProps {
   links: ProfileCanvasLink[];
   plan?: string;
   preview?: boolean;
+  embeddedPreview?: boolean;
 }
 
 function getContentPadding(template: ProfileTemplateId, preview: boolean): string {
@@ -101,7 +103,9 @@ export function ProfileCanvas({
   links,
   plan = "creator",
   preview = false,
+  embeddedPreview = false,
 }: ProfileCanvasProps) {
+  const CanvasElement = preview && embeddedPreview ? "div" : "main";
   const imageBackgroundActive = backgroundMode === "image"
     && supportsProfileImageBackground(template)
     && Boolean(backgroundImageUrl);
@@ -111,7 +115,7 @@ export function ProfileCanvas({
   const interactiveClass = preview ? "pointer-events-none select-none" : "";
 
   return (
-    <main
+    <CanvasElement
       className={`relative flex w-full max-w-[528px] flex-col overflow-hidden ${
         preview
           ? "min-h-[812px] border-0 shadow-none"
@@ -168,6 +172,7 @@ export function ProfileCanvas({
           socialStyle={socialLinkStyle}
           onlineCounter={onlineCounter}
           preview={preview}
+          headingAs={preview && embeddedPreview ? "p" : "h1"}
         />
       </div>
 
@@ -216,23 +221,15 @@ export function ProfileCanvas({
               <a
                 href={PRIMARY_ORIGIN}
                 tabIndex={preview ? -1 : undefined}
-                className={`group inline-flex items-center gap-1.5 text-[10px] transition-colors ${
+                className={`group inline-flex items-center gap-2 text-[10px] transition-colors ${
                   lightCard ? "text-black/40 hover:text-black" : "text-white/38 hover:text-white"
                 }`}
               >
                 <span className="font-medium uppercase tracking-widest">Powered by</span>
-                <span className="flex items-center gap-1 font-black">
-                  <img
-                    src="/logo.webp"
-                    alt="Linktery"
-                    className={`h-6 w-auto opacity-80 transition-opacity group-hover:opacity-100 ${
-                      lightCard ? "invert" : "grayscale mix-blend-screen"
-                    }`}
-                  />
-                  <span className={`text-[11px] uppercase tracking-tighter ${lightCard ? "text-black/70" : "text-white/80"}`}>
-                    Linktery
-                  </span>
-                </span>
+                <BrandWordmark
+                  tone={lightCard ? "dark" : "light"}
+                  className="h-[18px] w-auto translate-y-px opacity-80 transition-opacity group-hover:opacity-100"
+                />
               </a>
             </div>
           )}
@@ -256,6 +253,6 @@ export function ProfileCanvas({
           </div>
         </div>
       </div>
-    </main>
+    </CanvasElement>
   );
 }

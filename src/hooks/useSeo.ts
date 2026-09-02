@@ -12,13 +12,14 @@ interface SeoOptions {
   description?: string;
   canonical?: string;
   noIndex?: boolean;
+  followLinksOnNoIndex?: boolean;
   ogImage?: string;
   twitterCard?: "summary" | "summary_large_image" | "app" | "player";
   faq?: FAQItem[];
   structuredData?: Record<string, unknown>;
 }
 
-export function useSeo({ title, description, canonical, noIndex, ogImage, twitterCard, faq, structuredData }: SeoOptions) {
+export function useSeo({ title, description, canonical, noIndex, followLinksOnNoIndex = false, ogImage, twitterCard, faq, structuredData }: SeoOptions) {
   collectServerSeo({ faq, structuredData });
 
   useEffect(() => {
@@ -87,7 +88,7 @@ export function useSeo({ title, description, canonical, noIndex, ogImage, twitte
         robotsMeta.setAttribute("name", "robots");
         document.head.appendChild(robotsMeta);
       }
-      robotsMeta.setAttribute("content", "noindex, nofollow");
+      robotsMeta.setAttribute("content", followLinksOnNoIndex ? "noindex, follow" : "noindex, nofollow");
     } else {
       // Clean up noindex directives for normal public pages
       if (robotsMeta) {
@@ -137,7 +138,7 @@ export function useSeo({ title, description, canonical, noIndex, ogImage, twitte
         }
       });
     };
-  }, [title, description, canonical, noIndex, ogImage, twitterCard, faq, structuredData]);
+  }, [title, description, canonical, noIndex, followLinksOnNoIndex, ogImage, twitterCard, faq, structuredData]);
 }
 
 export function stripUnverifiedRatings(value: unknown): unknown {

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fbf8"/>
+      <stop offset="1" stop-color="#edf5ef"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#061b12"/>
+      <stop offset="1" stop-color="#0b2a1c"/>
+    </linearGradient>
+    <filter id="soft-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="26" flood-color="#0b2a1c" flood-opacity=".14"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#paper)"/>
+  <circle cx="112" cy="548" r="198" fill="#12c77a" opacity=".06"/>
+  <circle cx="1075" cy="80" r="230" fill="#12c77a" opacity=".07"/>
+
+  <g transform="translate(54 42) scale(.062)">
+    <g fill="#12C77A" transform="translate(-74 47)">
+      <circle cx="292" cy="174" r="56"/>
+      <path d="M292 174C284 310 284 482 292 590C299 695 365 758 476 758H680C741 758 779 741 817 704" fill="none" stroke="#12C77A" stroke-width="112" stroke-linecap="butt" stroke-linejoin="round"/>
+      <path d="M942 582 856 744 778 664Z" stroke="#12C77A" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="530" cy="537" r="38"/>
+      <circle cx="642" cy="537" r="38"/>
+    </g>
+  </g>
+  <text x="122" y="91" fill="#102319" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" letter-spacing="-1">Linktery</text>
+
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="58" y="224" fill="#102319" font-size="68" font-weight="700" letter-spacing="-3.4">
+      <tspan x="58">Make every link</tspan>
+      <tspan x="58" dy="72">work harder.</tspan>
+    </text>
+    <text x="61" y="400" fill="#57665e" font-size="23" font-weight="400">
+      <tspan x="61">Smart links, public profiles, routing, and analytics</tspan>
+      <tspan x="61" dy="34">in one workspace.</tspan>
+    </text>
+    <rect x="60" y="494" width="238" height="58" rx="29" fill="#12c77a"/>
+    <text x="92" y="531" fill="#061b12" font-size="19" font-weight="700">LINKTERY.COM</text>
+    <path d="M262 516h14m0 0-6-6m6 6-6 6" fill="none" stroke="#061b12" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <g filter="url(#soft-shadow)">
+    <rect x="704" y="54" width="434" height="522" rx="40" fill="url(#ink)"/>
+    <rect x="705" y="55" width="432" height="520" rx="39" fill="none" stroke="#294438"/>
+  </g>
+
+  <g font-family="Arial, Helvetica, sans-serif">
+    <rect x="744" y="91" width="151" height="34" rx="17" fill="#f6faf7"/>
+    <text x="765" y="114" fill="#0b2318" font-size="13" font-weight="700" letter-spacing=".6">SMART ROUTING</text>
+    <circle cx="1094" cy="108" r="18" fill="#f6faf7"/>
+    <path d="M1088 113l11-11m0 0h-8m8 0v8" fill="none" stroke="#102319" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <text x="744" y="186" fill="#fff" font-size="40" font-weight="700" letter-spacing="-1.8">One link.</text>
+    <text x="744" y="231" fill="#fff" font-size="40" font-weight="700" letter-spacing="-1.8">The right path.</text>
+
+    <line x1="770" y1="320" x2="1068" y2="320" stroke="#315245" stroke-width="2"/>
+    <circle cx="774" cy="320" r="25" fill="#0d2e20" stroke="#315245"/>
+    <path d="M766 314c5 0 5 12 11 12s6-12 12-12" fill="none" stroke="#12c77a" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="922" cy="320" r="6" fill="#12c77a"/>
+    <circle cx="1065" cy="320" r="25" fill="#0d2e20" stroke="#315245"/>
+    <rect x="1059" y="309" width="12" height="22" rx="3" fill="none" stroke="#12c77a" stroke-width="2"/>
+
+    <rect x="744" y="380" width="164" height="146" rx="24" fill="#f1f6f2"/>
+    <text x="765" y="414" fill="#57665e" font-size="12" font-weight="700" letter-spacing="1.1">CLICKS</text>
+    <text x="765" y="461" fill="#102319" font-size="38" font-weight="700" letter-spacing="-1.5">143,873</text>
+    <path d="M765 493c17-3 28-17 43-12s23 13 37 4 23-5 39-18" fill="none" stroke="#12c77a" stroke-width="4" stroke-linecap="round"/>
+
+    <rect x="925" y="380" width="173" height="146" rx="24" fill="#102d20" stroke="#315245"/>
+    <text x="947" y="414" fill="#a3b5ac" font-size="12" font-weight="700" letter-spacing="1.1">TOP COUNTRY</text>
+    <text x="947" y="461" fill="#fff" font-size="38" font-weight="700" letter-spacing="-1.5">93%</text>
+    <rect x="947" y="486" width="126" height="8" rx="4" fill="#294438"/>
+    <rect x="947" y="486" width="117" height="8" rx="4" fill="#12c77a"/>
+    <text x="947" y="516" fill="#a3b5ac" font-size="12" font-weight="600">UNITED STATES</text>
+  </g>
+</svg>

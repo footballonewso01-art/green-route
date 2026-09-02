@@ -26,7 +26,7 @@ export interface SeoContentSource {
 export interface SeoContentPageDefinition {
   path: string;
   kind: SeoContentKind;
-  templateId?: "hub" | "classic" | "compact" | "banner" | "hero" | "cutout";
+  templateId?: "hub" | "classic" | "compact" | "banner" | "hero" | "cutout" | "visual";
   eyebrow: string;
   title: string;
   seoTitle: string;

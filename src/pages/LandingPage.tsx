@@ -1,116 +1,22 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, BarChart3, Shield, Zap, Globe, MousePointer, User as UserIcon, Sparkles } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ArrowRight, ArrowUpRight, Play, Route, Smartphone } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getPublicProfileFeatureCopy, PlanType, PLAN_RANKS } from "@/lib/plans";
+import { type PlanType } from "@/lib/plans";
 import { trackGrowthEvent } from "@/lib/telemetry";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useSeo } from "@/hooks/useSeo";
 import { SEO_PAGES } from "@/lib/seo-config";
 import Footer from "@/components/Footer";
 import MarketingHeader from "@/components/MarketingHeader";
+import LandingSocialProof from "@/components/landing/LandingSocialProof";
+import LandingFeatures from "@/components/landing/LandingFeatures";
+import LandingTestimonials from "@/components/landing/LandingTestimonials";
+import LandingPricing from "@/components/landing/LandingPricing";
+import HeroAnalyticsPreview from "@/components/landing/HeroAnalyticsPreview";
 import { reserveStarterProfile } from "@/lib/profileOnboarding";
 import classicCoverPhone from "@/assets/mobila-classic-cover.webp";
-
-const features = [
-  {
-    icon: Shield,
-    title: "Link Optimization",
-    description: "Secure your destination URLs. Protect your campaigns from redirection hijacking and brand abuse.",
-  },
-  {
-    icon: BarChart3,
-    title: "Deep Analytics",
-    description: "Track every click with geo, device, and source data. Real-time insights at your fingertips.",
-  },
-  {
-    icon: Zap,
-    title: "Smart Routing",
-    description: "Route traffic by country, device, or OS. Maximize conversions with intelligent redirects.",
-  },
-  {
-    icon: Globe,
-    title: "Custom Domains",
-    description: "Use your own domain for branded links. Build trust and increase click-through rates.",
-  },
-  {
-    icon: MousePointer,
-    title: "Deeplink",
-    description: "Optimized link routing from social apps to the system browser. Smooth transitions for better user experience across devices.",
-  },
-  {
-    icon: UserIcon,
-    title: "Link-in-Bio Profiles",
-    description: "Create beautiful profile pages with all your links. Complete visual control and customization.",
-  },
-];
-
-const plans = [
-  {
-    id: "creator",
-    name: "Creator",
-    price: "0",
-    description: "Perfect for getting started",
-    features: [
-      { text: "3 Smart Links", icon: "🔗", tooltip: "Includes 3 Smart Links on Free plan." },
-      { ...getPublicProfileFeatureCopy(1), icon: "👤" },
-      { text: "Full Profile Customization", icon: "👤", tooltip: "Avatar, bio, and custom themes now free." },
-      { text: "Device Targeting", icon: "📱", tooltip: "Redirect users by their device type for free." },
-      { text: "Security Check", icon: "🛡️", tooltip: "Protective verification page before every redirect." },
-      { text: "Domain Choose List", icon: "🌐", tooltip: "Select from a curated pool of domains to host your smart links." }
-    ],
-    buttonText: "Start for Free",
-    popular: false
-  },
-  {
-    id: "pro",
-    name: "Creator Pro",
-    price: "11",
-    annualPrice: "9",
-    description: "Advanced tools for growing creators",
-    popular: true,
-    features: [
-      { text: "15 Smart Links", icon: "🔗", tooltip: "Create and manage up to 15 active smart redirect links." },
-      { ...getPublicProfileFeatureCopy(3), icon: "👥" },
-      { text: "Remove Linktery Branding", icon: "✨", tooltip: "Completely remove the branding badge from your public profile." },
-      { text: "Deeplink", icon: "⚡", tooltip: "Bypass in-app social browsers to open your links directly in Safari or Chrome." },
-      { text: "Advanced Analytics", icon: "📊", tooltip: "Detailed tracking: clicks over time, countries, referrers, and device types." },
-      { text: "2 Custom Domains", icon: "🌐", tooltip: "Connect up to 2 domains to a Link or Public Profile." },
-      { text: "Public API Access", icon: "🔌", tooltip: "Create and update links, read profiles, and connect aggregate analytics to your own tools." },
-      { text: "Link Optimization", icon: "🛡️", tooltip: "Optimize traffic quality by filtering automated crawlers and verifying visitors." },
-      { text: "Geo Targeting", icon: "🌍", tooltip: "Route visitors to different destination URLs based on their country." }
-    ],
-    buttonText: "Upgrade to Pro",
-  },
-  {
-    id: "agency",
-    name: "Agency",
-    price: "29",
-    annualPrice: "24",
-    description: "For agencies and power users",
-    features: [
-      { text: "Unlimited Smart Links", icon: "🚀" },
-      { ...getPublicProfileFeatureCopy(25), icon: "👥" },
-      { text: "Tracking Pixels", icon: "🎯", tooltip: "FB, Google, TikTok pixel support." },
-      { text: "A/B Testing (Unlimited)", icon: "🧪", tooltip: "Compare multiple link variants simultaneously." },
-      { text: "10 Custom Domains", icon: "🌐", tooltip: "Connect up to 10 domains to a Link or Public Profile." },
-      { text: "Custom Slugs (e.g. /my-link)", icon: "✍️", tooltip: "Choose your own short link handles." },
-      { text: "Public API Access", icon: "🔌", tooltip: "API v1 access with higher rate and daily usage limits." },
-      { text: "Everything in Creator Pro", icon: "✅" }
-    ],
-    buttonText: "Upgrade to Agency",
-    popular: false
-  },
-];
-
-const words = [
-  { text: "Your Link in Bio", className: "font-sans font-extrabold tracking-tight text-white" },
-  { text: "Link Masking Tool", className: "font-mono font-bold tracking-tighter text-white text-[0.78em]" },
-  { text: "Smart Redirects", className: "font-sans font-black italic tracking-tighter text-white text-[0.95em]" },
-  { text: "Deep Link Router", className: "font-sans font-extrabold tracking-wide text-white text-[0.82em]" },
-  { text: "Traffic Analytics", className: "font-sans font-black tracking-tighter text-white" },
-];
+import heroCreatorPortrait from "@/assets/hero-creator-portrait.webp";
+import "@/styles/landing-rebrand.css";
 
 export default function LandingPage() {
   const { user } = useAuth();
@@ -118,49 +24,11 @@ export default function LandingPage() {
   const [usernameInput, setUsernameInput] = useState("");
   const [slugReservationLoading, setSlugReservationLoading] = useState(false);
   const [slugReservationError, setSlugReservationError] = useState("");
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const sectionRef = useRef<HTMLElement>(null);
-
-  const [wordIndex, setWordIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
-  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (prefersReducedMotion) {
-      setWordIndex(0);
-      return;
-    }
-
-    let interval: NodeJS.Timeout;
-
-    const startInterval = () => {
-      interval = setInterval(() => {
-        setWordIndex((prev) => (prev + 1) % words.length);
-      }, 3000);
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        clearInterval(interval);
-      } else {
-        clearInterval(interval);
-        startInterval();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    startInterval();
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [prefersReducedMotion]);
 
   useSeo(SEO_PAGES.home);
 
@@ -201,24 +69,8 @@ export default function LandingPage() {
     window.addEventListener("click", triggerAnalytics, { passive: true });
     window.addEventListener("touchstart", triggerAnalytics, { passive: true });
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          videoRef.current?.play().catch(console.error);
-        } else {
-          videoRef.current?.pause();
-        }
-      },
-      { threshold: 0.2 }
-    );
-
-    if (sectionRef.current) {
-      observer.observe(sectionRef.current);
-    }
-
     return () => {
       cleanup();
-      observer.disconnect();
     };
   }, []);
 
@@ -230,417 +82,184 @@ export default function LandingPage() {
       <MarketingHeader current="home" />
 
       <main>
-        {/* Hero */}
-        <section className="relative flex items-start overflow-hidden px-4 pb-14 pt-28 sm:px-6 sm:pb-16 sm:pt-32 lg:min-h-[90vh] lg:items-center lg:pb-20 lg:pt-32">
-        {/* Background Video (Localized to Hero) */}
-        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-30">
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="w-full h-full object-cover"
-          >
-            <source src="/mainvid.min.mp4" type="video/mp4" />
-          </video>
-          {/* Dark gradient overlay for smooth transition to next section */}
-          <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/40 to-background" />
-          <div className="absolute inset-0 backdrop-blur-[2px]" />
-        </div>
+        <section className="landing-rebrand landing-hero" data-linktery-hero>
+          <div className="landing-hero__grid">
+            <div className="landing-hero__copy landing-fade-up">
+              <p className="landing-hero__eyebrow">Links that understand traffic</p>
 
-        <div className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-0 text-left lg:grid-cols-12 lg:gap-8">
-          {/* Left Column: Content */}
-          <div className="lg:col-span-6 flex flex-col items-start transform lg:translate-y-[2%]">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/5 px-3.5 py-1.5 text-xs text-accent sm:mb-7 sm:px-4 sm:text-sm">
-              <Zap className="w-3.5 h-3.5" />
-              Traffic Management Platform
-            </div>
-
-            <h1 className="mb-5 w-full text-[clamp(1.85rem,9.6vw,2.25rem)] font-extrabold leading-[1.12] tracking-tight text-foreground sm:mb-7 sm:text-5xl sm:leading-[1.15] lg:text-[70px]">
-              <span className="relative block overflow-hidden h-[1.15em] w-full">
-                <AnimatePresence mode="popLayout">
-                  <motion.span
-                    key={wordIndex}
-                    initial={prefersReducedMotion ? false : { y: "150%", opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={prefersReducedMotion ? { opacity: 0 } : { y: "-150%", opacity: 0 }}
-                    transition={{ duration: prefersReducedMotion ? 0 : 0.75, ease: [0.76, 0, 0.24, 1] }}
-                    className={`absolute inset-x-0 block whitespace-nowrap ${words[wordIndex].className}`}
-                  >
-                    {words[wordIndex].text}
-                  </motion.span>
-                </AnimatePresence>
-              </span>
-              <span className="gradient-text block mt-1">Built to Convert.</span>
-            </h1>
-
-            <p className="mb-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:mb-8 md:text-[20px]">
-              Smart links and Link-in-Bio profiles built to convert social traffic — with routing, analytics, and API access in one platform.
-            </p>
-
-            <div className="relative z-20 mb-6 flex w-full max-w-md flex-col items-start gap-4 sm:mb-8">
-              {showUser ? (
-                <Link to="/dashboard" className="btn-primary-glow text-base sm:text-[20px] inline-flex items-center justify-center gap-2 px-10 py-4.5 rounded-xl font-bold">
-                  Open Dashboard <ArrowRight className="w-4 h-4" />
-                </Link>
-              ) : (
-                <form
-                  data-landing-slug-form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    const slug = usernameInput.trim().toLowerCase();
-                    if (!slug || slugReservationLoading) return;
-                    setSlugReservationError("");
-                    setSlugReservationLoading(true);
-                    trackGrowthEvent("landing_cta_clicked", { surface: "hero_profile_slug" });
-                    try {
-                      await reserveStarterProfile(slug);
-                      navigate(`/register?profile=${encodeURIComponent(slug)}`);
-                    } catch (error) {
-                      setSlugReservationError(error instanceof Error ? error.message : "We couldn't reserve this address.");
-                      setSlugReservationLoading(false);
-                    }
-                  }}
-                  className="grid w-full grid-cols-1 gap-1.5 rounded-2xl border border-border/60 bg-surface/40 p-1.5 shadow-glow/5 backdrop-blur-xl transition-[border-color,box-shadow] duration-300 hover:border-border/80 focus-within:border-accent/40 focus-within:shadow-glow/15 min-[360px]:grid-cols-[minmax(0,1fr)_auto] min-[360px]:items-center min-[360px]:gap-0 min-[360px]:rounded-full"
-                >
-                  <div className="flex min-w-0 items-center">
-                    <div className="flex flex-shrink-0 select-none items-center pl-1 pr-0 text-[13px] font-medium text-zinc-300 sm:text-[16.6px]">
-                      <img src="/logo.webp" alt="" className="mr-1 h-8 w-auto flex-shrink-0 mix-blend-screen sm:h-10" />
-                      <span>linktery.com/</span>
-                    </div>
-                    <input
-                      type="text"
-                      aria-label="Choose your Public Profile address"
-                      value={usernameInput}
-                      onChange={(e) => {
-                        setSlugReservationError("");
-                        setUsernameInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 64));
-                      }}
-                      maxLength={64}
-                      placeholder="yourname"
-                      className="m-0 min-w-0 w-full border-0 bg-transparent p-0 py-2.5 pl-px pr-1 text-[13px] text-white outline-none placeholder:text-white/30 focus:ring-0 sm:pr-2 sm:text-[16.6px]"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={slugReservationLoading}
-                    className="btn-primary-glow min-h-11 w-full whitespace-nowrap !rounded-xl !px-4 !py-2.5 text-xs font-bold transition-transform active:scale-95 min-[360px]:w-auto min-[360px]:!rounded-full sm:!px-6 sm:text-sm"
-                  >
-                    {slugReservationLoading ? "Reserving…" : "Start for free"}
-                  </button>
-                </form>
-              )}
-              {slugReservationError && (
-                <p role="alert" className="px-4 text-sm text-red-300">{slugReservationError}</p>
-              )}
-            </div>
-
-            {/* Bullet points */}
-            <div className="mb-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm font-medium text-muted-foreground/80 sm:mb-10 sm:gap-x-4 sm:text-[15.5px]">
-              <span className="flex items-center gap-1.5">
-                <span className="text-accent">•</span> Free forever
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="text-accent">•</span> No credit card
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="text-accent">•</span> Profile link reserved at signup
-              </span>
-            </div>
-
-            {/* Rating social proof widget */}
-            <div className="flex w-full max-w-xl flex-row items-center gap-3 border-t border-border/50 pt-7 sm:gap-4 sm:pt-9">
-              <div className="flex -space-x-3.5">
-                <img
-                  className="inline-block h-10 w-10 rounded-full object-cover ring-2 ring-background sm:h-[44px] sm:w-[44px]"
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&h=100&q=80"
-                  alt="User avatar 1"
-                />
-                <img
-                  className="inline-block h-10 w-10 rounded-full object-cover ring-2 ring-background sm:h-[44px] sm:w-[44px]"
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80"
-                  alt="User avatar 2"
-                />
-                <img
-                  className="inline-block h-10 w-10 rounded-full object-cover ring-2 ring-background sm:h-[44px] sm:w-[44px]"
-                  src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&h=100&q=80"
-                  alt="User avatar 3"
-                />
-              </div>
-              <div className="flex flex-col items-start justify-center">
-                <div className="mb-1 flex items-center gap-0.5 text-amber-400">
-                  {[...Array(5)].map((_, i) => (
-                    <svg
-                      key={i}
-                      className="h-[19px] w-[19px] fill-current"
-                      viewBox="0 0 20 20"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-                <span className="text-left text-[13px] font-medium leading-snug text-muted-foreground sm:text-[14px] md:text-[16px]">
-                  Built for creators, marketers, and growing teams
+              <h1 className="landing-hero__headline">
+                <span className="landing-hero__headline-line">Make every</span>
+                <span className="landing-hero__headline-row">
+                  <span className="landing-hero__portrait-pill" aria-hidden="true">
+                    <img src={heroCreatorPortrait} alt="" width="116" height="61" decoding="async" />
+                  </span>
+                  <span>link work</span>
                 </span>
+                <span className="landing-hero__headline-row">
+                  <span>harder.</span>
+                  <a className="landing-hero__how" href="#features">
+                    <Play aria-hidden="true" size={16} fill="currentColor" />
+                    See how
+                  </a>
+                </span>
+              </h1>
+
+              <p className="landing-hero__lede">
+                Smart links and Link-in-Bio profiles with routing, analytics, custom domains, and API access — in one workspace.
+              </p>
+
+              <div className="landing-hero__actions">
+                {showUser ? (
+                  <Link to="/dashboard" className="landing-hero__dashboard">
+                    Open dashboard <ArrowUpRight aria-hidden="true" size={16} />
+                  </Link>
+                ) : (
+                  <form
+                    data-landing-slug-form
+                    data-auth-visibility="guest"
+                    className="landing-slug-form"
+                    onSubmit={async (event) => {
+                      event.preventDefault();
+                      const slug = usernameInput.trim().toLowerCase();
+                      if (!slug || slugReservationLoading) return;
+                      setSlugReservationError("");
+                      setSlugReservationLoading(true);
+                      trackGrowthEvent("landing_cta_clicked", { surface: "hero_profile_slug" });
+                      try {
+                        await reserveStarterProfile(slug);
+                        navigate(`/register?profile=${encodeURIComponent(slug)}`);
+                      } catch (error) {
+                        setSlugReservationError(error instanceof Error ? error.message : "We couldn't reserve this address.");
+                        setSlugReservationLoading(false);
+                      }
+                    }}
+                  >
+                    <label className="landing-slug-form__field">
+                      <span className="landing-slug-form__prefix" aria-hidden="true">
+                        linktery.com/
+                      </span>
+                      <span className="sr-only">Choose your Public Profile address</span>
+                      <input
+                        className="landing-slug-form__input"
+                        type="text"
+                        aria-label="Choose your Public Profile address"
+                        value={usernameInput}
+                        onChange={(event) => {
+                          setSlugReservationError("");
+                          setUsernameInput(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 64));
+                        }}
+                        maxLength={64}
+                        placeholder="yourname"
+                        autoComplete="off"
+                      />
+                    </label>
+                    <button className="landing-slug-form__submit" type="submit" disabled={slugReservationLoading}>
+                      {slugReservationLoading ? "Reserving…" : "Start free"}
+                      {!slugReservationLoading && <ArrowUpRight aria-hidden="true" size={16} />}
+                    </button>
+                  </form>
+                )}
+
+                <p
+                  role={slugReservationError ? "alert" : undefined}
+                  aria-live="polite"
+                  className={slugReservationError ? "landing-hero__error" : "landing-hero__error landing-hero__error--empty"}
+                >
+                  {slugReservationError || "No reservation error"}
+                </p>
+
+                <a className="landing-hero__secondary" href="#features">
+                  Explore the platform <ArrowRight aria-hidden="true" size={16} />
+                </a>
+              </div>
+
+              <div className="landing-hero__assurances" aria-label="Signup benefits">
+                <span><i aria-hidden="true" />Free forever</span>
+                <span><i aria-hidden="true" />No credit card</span>
+                <span><i aria-hidden="true" />Profile reserved at signup</span>
+              </div>
+
+              <div className="landing-hero__bottom">
+                <p className="landing-hero__bottom-copy">
+                  Built for
+                </p>
+                <div className="landing-capability-bar" aria-label="Who Linktery is built for">
+                  <span>Creators</span>
+                  <span>Coaches</span>
+                  <span>Marketers</span>
+                  <span>Online businesses</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Desktop-only product visual. Mobile keeps the primary action above the fold. */}
-          <div data-landing-product-visual className="relative hidden w-full lg:col-span-6 lg:flex lg:min-w-0 lg:justify-end lg:pr-6 xl:pr-12">
-            <div className="relative flex w-full max-w-[352px] justify-center motion-safe:animate-float xl:max-w-[384px] 2xl:max-w-[408px]">
-              <picture className="block w-full">
-                <source media="(min-width: 1024px)" srcSet={classicCoverPhone} type="image/webp" />
+            <div className="landing-proof-grid landing-fade-up landing-fade-up--late" data-hero-media-grid>
+              <article className="landing-proof-card landing-proof-card--profile" data-video-slot="profile-story">
+                <div className="landing-proof-card__top">
+                  <span className="landing-proof-card__tag">Link-in-Bio</span>
+                  <Link className="landing-proof-card__link" to="/templates" aria-label="Explore Linktery profile templates">
+                    <ArrowUpRight aria-hidden="true" size={20} />
+                  </Link>
+                </div>
+                <div className="landing-proof-card__copy">
+                  <h2 className="landing-proof-card__title">Your profile becomes the destination.</h2>
+                  <p className="landing-proof-card__description">Bring content, offers, and every important link into one branded page.</p>
+                </div>
                 <img
-                  src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E"
-                  alt="Example Linktery Classic Cover profile with a creator course, Lightroom presets, and a one-to-one session"
+                  className="landing-proof-card__phone"
+                  src={classicCoverPhone}
+                  alt="Linktery Classic Cover profile for creator Nora Lane"
                   width="941"
                   height="1672"
-                  className="block h-auto w-full select-none pointer-events-none"
                   loading="eager"
                   decoding="async"
                 />
-              </picture>
+              </article>
+
+              <article className="landing-proof-card landing-proof-card--routing" data-video-slot="routing">
+                <div className="landing-proof-card__top">
+                  <span className="landing-proof-card__tag">Smart routing</span>
+                  <a className="landing-proof-card__link" href="#features" aria-label="Learn about Linktery smart routing">
+                    <ArrowUpRight aria-hidden="true" size={20} />
+                  </a>
+                </div>
+                <div className="landing-route-map" aria-hidden="true">
+                  <span className="landing-route-map__node"><Route size={20} /></span>
+                  <span className="landing-route-map__track" />
+                  <span className="landing-route-map__node"><Smartphone size={20} /></span>
+                </div>
+                <div className="landing-proof-card__copy">
+                  <h2 className="landing-proof-card__title">Right visitor. Right destination.</h2>
+                </div>
+              </article>
+
+              <article className="landing-proof-card landing-proof-card--analytics" data-video-slot="analytics">
+                <div className="landing-proof-card__top">
+                  <span className="landing-proof-card__tag">Analytics</span>
+                  <Link className="landing-proof-card__link" to="/login" aria-label="Open Linktery analytics">
+                    <ArrowUpRight aria-hidden="true" size={20} />
+                  </Link>
+                </div>
+                <div className="landing-proof-card__copy">
+                  <h2 className="landing-proof-card__title">Know what converts.</h2>
+                </div>
+                <HeroAnalyticsPreview />
+              </article>
             </div>
           </div>
-        </div>
         </section>
+
+      <LandingSocialProof />
 
       {/* Features */}
-        <section id="features" ref={sectionRef} className="py-24 px-6 relative overflow-hidden group">
-        {/* Features Video Background */}
-        <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.07] scale-110 group-hover:scale-100 transition-transform [transition-duration:3s] ease-out">
-          <video
-            ref={videoRef}
-            loop
-            muted
-            playsInline
-            className="w-full h-full object-cover"
-          >
-            <source src="/features.min.mp4" type="video/mp4" />
-          </video>
-          {/* Gradients to blend with background */}
-          <div className="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
-        </div>
+      <LandingFeatures />
 
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16 px-6 relative">
-            <h2 className="text-5xl md:text-6xl font-black tracking-tight mb-6 leading-[1.1]">
-              Everything You <span className="gradient-text">Need</span>
-            </h2>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-              Powerful tools for modern link management and traffic optimization.
-            </p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((f, i) => (
-              <div key={f.title} className="glass-card-hover p-6 animate-fade-in" style={{ animationDelay: `${i * 0.1}s` }}>
-                <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center mb-4">
-                  <f.icon className="w-5 h-5 text-accent" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2 text-foreground">{f.title}</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">{f.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-        </section>
+      <LandingTestimonials />
 
-      {/* Pricing */}
-        <section id="pricing" className="relative z-10 px-4 py-24 sm:px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-accent/20 bg-accent/5 text-accent text-xs mb-4">
-              💰 Simple, transparent pricing
-            </div>
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">
-              Choose your <span className="gradient-text">growth plan</span>
-            </h2>
-            <p className="text-muted-foreground text-lg">Start free, upgrade when you're ready.</p>
-
-            {/* Billing Toggle */}
-            <div className="mt-10 flex flex-col items-center justify-center gap-3">
-              <div className="p-1 rounded-xl bg-surface border border-border flex items-center">
-                <button
-                  onClick={() => setBillingCycle("monthly")}
-                  className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${billingCycle === "monthly" ? "bg-accent text-accent-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"}`}
-                >
-                  Monthly
-                </button>
-                <div className="relative">
-                  <button
-                    onClick={() => setBillingCycle("annual")}
-                    className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${billingCycle === "annual" ? "bg-accent text-accent-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"}`}
-                  >
-                    Annual
-                  </button>
-                  <div className="absolute -top-3 -right-3 px-2 py-0.5 rounded-full bg-green-500 text-[10px] font-bold text-white shadow-xl animate-bounce">
-                    20% OFF
-                  </div>
-                </div>
-              </div>
-              {billingCycle === "annual" && (
-                <p className="text-xs font-bold text-green-500 animate-fade-in">
-                  ✨ Save up to $60 / year with annual billing
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div data-pricing-grid className="grid min-w-0 gap-8 md:grid-cols-3">
-            {plans.map((plan) => {
-              const effectivePlan = userPlan || "creator";
-              const isCurrent = !!user && effectivePlan === plan.id;
-              const isDowngrade = user && PLAN_RANKS[plan.id as PlanType] < PLAN_RANKS[effectivePlan as PlanType];
-              const isDisabled = isCurrent || isDowngrade;
-
-              const shouldHighlight = (effectivePlan === "creator" && plan.id === "pro") || isCurrent;
-              const showPopularBadge = plan.id === "pro";
-
-              const isPro = plan.id === "pro";
-              const isAgency = plan.id === "agency";
-
-              return (
-                <div data-pricing-card key={plan.id} className={`relative group min-w-0 transition-all duration-500 hover:translate-y-[-10px] flex flex-col ${isPro ? "hover:scale-[1.03]" : ""}`}>
-                  {/* Backdrop glowing background blurs */}
-                  {isPro && (
-                    <div className="absolute inset-0 bg-accent/10 rounded-[28px] blur-[30px] -z-10 group-hover:bg-accent/15 transition-all duration-500 pointer-events-none" />
-                  )}
-                  {isAgency && (
-                    <div className="absolute inset-0 bg-cyan-500/5 rounded-[28px] blur-[30px] -z-10 group-hover:bg-cyan-500/10 transition-all duration-500 pointer-events-none" />
-                  )}
-
-                  <div className={`glass-card relative flex h-full min-w-0 flex-col rounded-[28px] border bg-card/60 px-5 pb-8 pt-10 backdrop-blur-2xl transition-all duration-500 sm:px-8 ${isPro
-                    ? "border-accent/40 shadow-glow hover:border-accent/60"
-                    : isAgency
-                      ? "border-cyan-500/20 shadow-cyan-glow hover:border-cyan-500/40"
-                      : "border-white/5 hover:border-white/15"
-                    }`}>
-
-                    <div className="text-left mb-6">
-                      <h3 className={`text-2xl font-extrabold mb-2 tracking-tight ${isPro ? "text-accent" : isAgency ? "text-cyan-400" : "text-foreground"
-                        }`}>{plan.name}</h3>
-                      <p className="text-sm text-muted-foreground h-12 leading-relaxed">{plan.description}</p>
-
-                      <div className="flex items-baseline mt-5 mb-2 gap-1.5">
-                        <span className="text-5xl font-black text-white tracking-tight">
-                          ${billingCycle === "annual" && plan.annualPrice ? plan.annualPrice : plan.price}
-                        </span>
-                        <span className="text-base font-medium text-muted-foreground">/mo</span>
-                        {billingCycle === "annual" && plan.annualPrice && (
-                          <span className="ml-2 text-[10px] font-bold text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                            Save 20%
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <ul className="mb-8 min-w-0 flex-1 space-y-3.5 text-left">
-                      {plan.features.map((f, idx) => (
-                        <li key={idx} className="group/feature flex min-w-0 items-center gap-3 text-sm text-muted-foreground">
-                          <span className={`w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-sm flex-shrink-0 transition-all duration-300 ${isPro ? "group-hover/feature:bg-accent/10 group-hover/feature:border-accent/30" : isAgency ? "group-hover/feature:bg-cyan-500/10 group-hover/feature:border-cyan-500/30" : "group-hover/feature:bg-white/10"
-                            }`}>
-                            {f.icon}
-                          </span>
-                          <span className="min-w-0 flex-1 truncate">{f.text}</span>
-                          {f.tooltip && (
-                            <Tooltip delayDuration={0}>
-                              <TooltipTrigger asChild>
-                                <button type="button" className="w-4 h-4 rounded-full border border-muted-foreground/30 flex items-center justify-center text-[10px] cursor-help opacity-40 hover:opacity-100 hover:border-accent hover:text-accent transition-all flex-shrink-0">
-                                  i
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs text-[10px] leading-relaxed p-2 bg-surface border-border text-foreground shadow-2xl z-50">
-                                <p>{f.tooltip}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-
-                    {showUser ? (
-                      isCurrent ? (
-                        <button
-                          disabled
-                          className="w-full text-center py-3.5 rounded-xl font-bold bg-surface-hover border border-white/10 text-muted-foreground cursor-not-allowed opacity-80 text-sm"
-                        >
-                          Your Current Plan
-                        </button>
-                      ) : isDowngrade ? (
-                        <button
-                          disabled
-                          className="w-full text-center py-3.5 rounded-xl font-bold bg-surface-hover border border-border text-muted-foreground cursor-not-allowed opacity-60 text-sm"
-                        >
-                          Included in Your Plan
-                        </button>
-                      ) : (
-                        <Link
-                          to="/dashboard/pricing"
-                          className={`w-full text-center py-3.5 rounded-xl font-bold transition-all duration-300 block text-sm transform active:scale-95 ${isPro
-                            ? "btn-primary-glow"
-                            : isAgency
-                              ? "bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:bg-cyan-600 hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]"
-                              : "border border-border hover:bg-surface-hover text-foreground hover:border-white/20"
-                            }`}
-                        >
-                          {plan.buttonText}
-                        </Link>
-                      )
-                    ) : (
-                      <Link
-                        to="/register"
-                        className={`w-full text-center py-3.5 rounded-xl font-bold transition-all duration-300 block text-sm transform active:scale-95 ${isPro
-                          ? "btn-primary-glow"
-                          : isAgency
-                            ? "bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:bg-cyan-600 hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]"
-                            : "border border-border hover:bg-surface-hover text-foreground hover:border-white/20"
-                          }`}
-                      >
-                        {plan.id === "creator" ? "Get Started" : plan.buttonText}
-                      </Link>
-                    )}
-                  </div>
-
-                  {showPopularBadge && (
-                    <div className="absolute -top-3.5 left-6 bg-accent text-accent-foreground text-xs font-bold uppercase tracking-wider py-1 px-3.5 rounded-full flex items-center gap-1 shadow-lg shadow-accent/20">
-                      <Zap className="w-3.5 h-3.5 fill-current" /> Most Popular
-                    </div>
-                  )}
-
-                  {isAgency && (
-                    <div className="absolute -top-3.5 left-6 bg-cyan-500 text-white text-xs font-bold uppercase tracking-wider py-1 px-3.5 rounded-full flex items-center gap-1 shadow-lg shadow-cyan-500/20 animate-fade-in">
-                      <Sparkles className="w-3.5 h-3.5 fill-current" /> Power User
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Benefits Footer */}
-          <div className="mt-16 flex flex-col md:flex-row items-center justify-center gap-8 text-sm text-muted-foreground opacity-80">
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 font-bold">✓</div>
-              30 day money back guarantee
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 font-bold">✓</div>
-              Cancel anytime
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 font-bold">✓</div>
-              24/7 support
-            </div>
-          </div>
-        </div>
-        </section>
+      <LandingPricing authenticated={showUser} currentPlan={userPlan} />
       </main>
 
       {/* Footer */}
-      <Footer />
+      <Footer variant="landing" />
     </div>
   );
 }

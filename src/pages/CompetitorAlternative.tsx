@@ -1,656 +1,169 @@
-import { useState, useEffect } from "react";
-import { Link, useParams, Navigate } from "react-router-dom";
-import { 
-  ArrowRight, BarChart3, Shield, Zap, Globe, 
-  User as UserIcon, Check, X, ChevronDown, 
-  Sparkles, Layers, Compass, Award, AlertTriangle, HelpCircle,
-  Play, ShoppingBag, Target, HeartCrack, ChevronRight
-} from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { pb } from "@/lib/pocketbase";
-import { useSeo } from "@/hooks/useSeo";
-import competitorsData from "@/data/competitors.json";
+import { motion, useReducedMotion } from "framer-motion";
+import { ArrowRight, ArrowUpRight, BarChart3, Check, ChevronRight, CircleAlert, ExternalLink, Globe2, LayoutPanelTop, Route } from "lucide-react";
+import { Link, Navigate, useParams } from "react-router-dom";
 import Footer from "@/components/Footer";
+import MarketingHeader from "@/components/MarketingHeader";
+import BrandWordmark from "@/components/BrandWordmark";
+import { competitors } from "@/components/alternatives/alternativeData";
+import styles from "@/components/alternatives/Alternatives.module.css";
+import { useSeo } from "@/hooks/useSeo";
+import { PLANS } from "@/lib/plans";
+import { PRIMARY_ORIGIN } from "@/lib/siteConfig";
+import "@/styles/landing-rebrand.css";
 
-interface CompetitorPricing {
-  free: string;
-  pro: string;
-  customDomains: string;
-  watermarkRemoval: string;
-  transactionFee: string;
-}
-
-interface CompetitorFeatures {
-  deepLinking: string;
-  geotargeting: string;
-  analytics: string;
-  customDomains: string;
-}
-
-interface Competitor {
-  slug: string;
-  name: string;
-  emoji: string;
-  description: string;
-  pricing: CompetitorPricing;
-  features: CompetitorFeatures;
-  pros: string[];
-  cons: string[];
-  faqAnswer: string;
-  alternativeSeoTitle: string;
-  alternativeSeoDescription: string;
-  officialPricingUrl?: string;
-  reviewedAt?: string;
-}
+const linkteryStrengths = [
+  "Country and device rules in the same managed-link workflow",
+  "Random, equal-probability destination splitting on Agency",
+  "Public profiles, short links, domains, and analytics in one workspace",
+  "External checkout routing without a Linktery transaction fee",
+] as const;
 
 export default function CompetitorAlternative() {
   const { competitorSlug } = useParams<{ competitorSlug: string }>();
-  const { user } = useAuth();
-
-  // Find competitor from JSON data
-  const competitor = (competitorsData as Competitor[]).find(
-    (item) => item.slug === competitorSlug
-  );
-
-  const isValid = !!competitor;
-
-  // FAQ State
-  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
-  
-  // Case Study Tabs State
-  const [activeTab, setActiveTab] = useState<"musician" | "ecommerce" | "mediabuyer">("musician");
-  const [stars, setStars] = useState<{ id: number; top: string; left: string; size: number; delay: string; duration: string }[]>([]);
-
-  // Generate background stars
-  useEffect(() => {
-    const generatedStars = Array.from({ length: 50 }).map((_, i) => ({
-      id: i,
-      top: `${Math.random() * 100}%`,
-      left: `${Math.random() * 100}%`,
-      size: Math.random() * 1.5 + 0.5,
-      delay: `${Math.random() * 5}s`,
-      duration: `${Math.random() * 4 + 2}s`,
-    }));
-    setStars(generatedStars);
-  }, [competitorSlug]);
-
-  const getAvatarUrl = () => {
-    if (user?.avatar) {
-      return pb.files.getUrl(user, user.avatar, { thumb: '100x100' });
-    }
-    return null;
-  };
+  const reduceMotion = useReducedMotion();
+  const competitor = competitors.find((item) => item.slug === competitorSlug);
 
   const faqItems = competitor ? [
     {
-      question: `Which link-in-bio tool has the best free plan compared to ${competitor.name}?`,
-      answer: `Compare the current free-plan limits that matter to your workflow, including profile count, customization, analytics, and branding. Linktery offers a free Creator plan, while ${competitor.name} publishes its own current plan terms. Verify both pricing pages before choosing.`
+      question: `What should I compare before moving from ${competitor.name}?`,
+      answer: `${competitor.question} ${competitor.checks[0]} Test a real mobile journey before moving every published URL.`,
     },
     {
-      question: `How can I reduce Instagram and TikTok in-app browser friction with a ${competitor.name} alternative?`,
-      answer: `Links opened inside Instagram or TikTok can remain in an embedded browser. Linktery can route compatible destinations toward supported native-app or system-browser experiences and retain a web fallback. Actual handoff behavior depends on the destination, operating system, installed app, and browser.`
+      question: `Does Linktery have a free plan?`,
+      answer: `Yes. The Creator plan includes ${PLANS.creator.limits.links} Smart Links, ${PLANS.creator.limits.public_profiles} Public Profile, full profile customization, and device targeting. Advanced analytics, deep links, geo targeting, API access, and custom domains begin on Creator Pro.`,
     },
     {
-      question: `Can I connect my own custom domain to a bio link profile?`,
-      answer: `Yes. Creator Pro supports up to 2 custom subdomains or root domains, while Agency supports up to 10 for multi-brand and client setups. ${competitor.name} custom domain price: ${competitor.pricing.customDomains}.`
+      question: `Can I connect my own domain to Linktery?`,
+      answer: `Creator Pro supports up to ${PLANS.pro.limits.custom_domain} custom domains, while Agency supports up to ${PLANS.agency.limits.custom_domain}. Domain eligibility and DNS setup still need to be verified before publishing.`,
     },
     {
-      question: `Does Linktery charge commission fees on digital store sales?`,
-      answer: `Linktery routes visitors to external destinations and does not act as the payment gateway for those transactions. Any checkout, processor, or marketplace fees are controlled by the destination provider and should be reviewed separately.`
-    }
+      question: `Does Linktery replace my checkout or storefront?`,
+      answer: `No. Linktery routes visitors to the destination you configure. Payments, refunds, taxes, fulfillment, and processor fees remain with your storefront or checkout provider.`,
+    },
   ] : [];
 
-  // Dynamic JSON-LD Structured Data
-  const structuredData = isValid ? {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "SoftwareApplication",
-        "name": "Linktery",
-        "applicationCategory": "BusinessApplication",
-        "operatingSystem": "All",
-        "offers": {
-          "@type": "Offer",
-          "price": "0.00",
-          "priceCurrency": "USD"
-        },
-      },
-      {
-        "@type": "FAQPage",
-        "mainEntity": faqItems.map(item => ({
-          "@type": "Question",
-          "name": item.question,
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": item.answer
-          }
-        }))
-      }
-    ]
-  } : undefined;
-
-  // Register SEO configuration dynamically (Rules of Hooks compliant: called unconditionally)
   useSeo({
-    title: isValid ? competitor.alternativeSeoTitle : "Best Link-in-Bio Alternatives | Linktery",
-    description: isValid ? competitor.alternativeSeoDescription : "Compare link-in-bio alternatives.",
-    canonical: isValid ? `/alternatives/${competitor.slug}` : "",
-    structuredData
+    title: competitor?.alternativeSeoTitle || "Link-in-Bio Alternatives | Linktery",
+    description: competitor?.alternativeSeoDescription || "Compare link-in-bio alternatives.",
+    canonical: competitor ? `/alternatives/${competitor.slug}` : "",
+    faq: faqItems,
+    structuredData: competitor ? {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "SoftwareApplication",
+          "@id": `${PRIMARY_ORIGIN}/#software`,
+          name: "Linktery",
+          applicationCategory: "BusinessApplication",
+          operatingSystem: "Web",
+          offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+        },
+        {
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "Home", item: PRIMARY_ORIGIN },
+            { "@type": "ListItem", position: 2, name: "Alternatives", item: `${PRIMARY_ORIGIN}/alternatives` },
+            { "@type": "ListItem", position: 3, name: `${competitor.name} alternative`, item: `${PRIMARY_ORIGIN}/alternatives/${competitor.slug}` },
+          ],
+        },
+      ],
+    } : undefined,
   });
 
-  // Redirect if competitor slug is not in database
-  if (!isValid) {
-    return <Navigate to="/404" replace />;
-  }
+  if (!competitor) return <Navigate to="/404" replace />;
 
-  const relatedComparisons = (competitorsData as Competitor[])
-    .filter((item) => item.slug !== competitor.slug)
-    .map((item) => {
-      const pair = [competitor, item].sort((a, b) => a.slug.localeCompare(b.slug));
-      return {
-        name: `${pair[0].name} vs ${pair[1].name}`,
-        href: `/compare/${pair[0].slug}-vs-${pair[1].slug}`,
-      };
-    });
+  const related = competitors.filter((item) => item.slug !== competitor.slug).slice(0, 6);
+  const relatedComparisons = competitors.filter((item) => item.slug !== competitor.slug).map((item) => {
+    const pair = [competitor, item].sort((a, b) => a.slug.localeCompare(b.slug));
+    return { label: `${pair[0].name} vs ${pair[1].name}`, href: `/compare/${pair[0].slug}-vs-${pair[1].slug}` };
+  });
+  const comparisonRows = [
+    { label: "Free entry", linktery: `$0 · ${PLANS.creator.limits.links} Smart Links, ${PLANS.creator.limits.public_profiles} Public Profile`, competitor: competitor.facts.free },
+    { label: "Paid plan", linktery: `$${PLANS.pro.price}/mo Creator Pro`, competitor: competitor.facts.paid },
+    { label: "Custom domains", linktery: `${PLANS.pro.limits.custom_domain} on Pro · ${PLANS.agency.limits.custom_domain} on Agency`, competitor: competitor.facts.domains },
+    { label: "Brand removal", linktery: "Included with Creator Pro", competitor: competitor.facts.branding },
+    { label: "Country routing", linktery: "Creator Pro and Agency", competitor: competitor.facts.routing },
+    { label: "App-aware destinations", linktery: "Paid plans: supported handoff with HTTPS fallback", competitor: competitor.facts.apps },
+    { label: "Analytics", linktery: "Advanced analytics from Creator Pro", competitor: competitor.facts.analytics },
+    { label: "Selling model / fees", linktery: "External checkout; no Linktery transaction fee. Provider fees still apply.", competitor: competitor.facts.fees },
+  ];
+  const visibleRows = competitor.migrationOnly ? comparisonRows.slice(0, 3) : comparisonRows;
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden text-foreground">
-      {/* Starry Background */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-        {stars.map((star) => (
-          <div
-            key={star.id}
-            className="absolute rounded-full bg-white opacity-20 animate-pulse"
-            style={{
-              top: star.top,
-              left: star.left,
-              width: `${star.size}px`,
-              height: `${star.size}px`,
-              animationDelay: star.delay,
-              animationDuration: star.duration,
-            }}
-          />
-        ))}
-      </div>
+    <div className={styles.page} data-alternative-detail={competitor.slug}>
+      <a href="#comparison-table" className={styles.skipLink}>Skip to comparison</a>
+      <MarketingHeader current="alternatives" />
+      <main>
+        <section className={styles.detailHero}>
+          <div className={styles.container}>
+            <nav className={styles.breadcrumb} aria-label="Breadcrumb"><Link to="/">Home</Link><ChevronRight size={14} aria-hidden="true" /><Link to="/alternatives">Alternatives</Link><ChevronRight size={14} aria-hidden="true" /><span aria-current="page">{competitor.name}</span></nav>
+            <div className={styles.detailHeroGrid}>
+              <motion.div className={styles.detailHeroCopy} initial={reduceMotion ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, ease: [.16, 1, .3, 1] }}>
+                <span className={styles.eyebrow}>{competitor.topic}</span>
+                <h1>{competitor.name} alternative.</h1>
+                <p>{competitor.description}</p>
+                <div className={styles.heroActions}><a href="#comparison-table">See the comparison<ArrowRight size={17} aria-hidden="true" /></a><Link to="/register">Try Linktery free<ArrowUpRight size={16} aria-hidden="true" /></Link></div>
+              </motion.div>
 
-      {/* Decorative gradients */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-10">
-        <div className="absolute top-10 left-1/4 w-[400px] h-[400px] bg-accent rounded-full blur-[120px] mix-blend-screen animate-pulse" />
-        <div className="absolute bottom-10 right-1/4 w-[350px] h-[350px] bg-emerald-500 rounded-full blur-[100px] mix-blend-screen" />
-      </div>
-
-      {/* Navbar */}
-      <nav className="fixed top-0 w-full z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3.5 hover:opacity-80 transition-opacity">
-            <img src="/logo.webp" alt="Linktery Logo" className="h-[60px] w-auto mix-blend-screen" />
-            <span className="text-[22px] font-extrabold text-foreground tracking-tight">Linktery</span>
-          </Link>
-          <div className="hidden md:flex items-center gap-8">
-            <Link to="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Home</Link>
-            <Link to="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
-
-            {user ? (
-              <Link to="/dashboard" className="flex items-center gap-3 group">
-                <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">Dashboard</span>
-                <div className="w-8 h-8 rounded-full border border-accent/30 p-0.5 overflow-hidden group-hover:border-accent transition-colors">
-                  {getAvatarUrl() ? (
-                    <img src={getAvatarUrl()!} alt="User avatar" className="w-full h-full rounded-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full rounded-full bg-accent/10 flex items-center justify-center">
-                      <UserIcon className="w-4 h-4 text-accent" />
-                    </div>
-                  )}
-                </div>
-              </Link>
-            ) : (
-              <>
-                <Link to="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Login</Link>
-                <Link to="/register" className="btn-primary-glow text-sm !py-2 !px-4 inline-block">Get Started</Link>
-              </>
-            )}
-          </div>
-        </div>
-      </nav>
-
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-12 px-6 overflow-hidden flex items-center justify-center min-h-[55vh]">
-        <div className="max-w-4xl mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-accent text-sm mb-6 animate-fade-in font-semibold">
-            <Sparkles className="w-3.5 h-3.5" />
-            Best {competitor.name} Alternatives & Competitors
-          </div>
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 leading-tight uppercase">
-            Best {competitor.name} <span className="text-accent">Alternative</span> for Creators & Brands
-          </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed font-medium">
-            Avoid conversion leaks in sandboxed mobile webviews. Compare customization options, tracking parameters, and dynamic routing capabilities.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            {user ? (
-              <Link to="/dashboard" className="btn-primary-glow text-base inline-flex items-center justify-center gap-2">
-                Go to Dashboard <ArrowRight className="w-4 h-4" />
-              </Link>
-            ) : (
-              <Link to="/register" className="btn-primary-glow text-base inline-flex items-center justify-center gap-2">
-                Create Your Free Page <ArrowRight className="w-4 h-4" />
-              </Link>
-            )}
-            <a href="#comparison" className="px-6 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-surface-hover transition-all duration-200 text-base inline-flex items-center justify-center">
-              View Comparison Matrix
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Main Structural Layout Wrapper */}
-      <section className="py-8 px-6 max-w-7xl mx-auto relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* Left Column: Philosophical Angle & In-App Webview Warnings */}
-        <div className="lg:col-span-5 space-y-6 text-left">
-          
-          {/* Philosophical Box */}
-          <div className="glass-card p-6 rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/5 to-transparent relative overflow-hidden group hover:border-accent/40 transition-all duration-300">
-            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-              <HeartCrack className="w-20 h-20 text-accent" />
+              <motion.aside className={styles.snapshot} aria-labelledby="snapshot-title" initial={reduceMotion ? false : { opacity: 0, y: 14, scale: .985 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: .7, delay: .08, ease: [.16, 1, .3, 1] }}>
+                <div className={styles.snapshotHeader}><span id="snapshot-title">Decision snapshot</span><span><i />{competitor.migrationOnly ? "Migration checklist" : "Product fit"}</span></div>
+                <div className={styles.snapshotNames}><div><span className={styles.linkteryMark}><BrandWordmark tone="light" /></span><small>Profiles + routing</small><strong>Linktery</strong></div><span>vs</span><div><span className={styles.competitorMark} aria-hidden="true">{competitor.name.slice(0, 2)}</span><small>{competitor.migrationOnly ? "Moving from" : "Compare with"}</small><strong>{competitor.name}</strong></div></div>
+                <dl className={styles.snapshotFacts}><div><dt>Focus</dt><dd>{competitor.topic}</dd></div><div><dt>Key question</dt><dd>{competitor.question}</dd></div></dl>
+              </motion.aside>
             </div>
-            <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2 uppercase font-mono">
-              <HeartCrack className="w-5 h-5 text-accent" /> Plan and branding trade-offs
-            </h2>
-            <p className="text-xs md:text-sm text-slate-300 leading-relaxed font-medium">
-              Link-in-bio products place branding, custom domains, analytics, and profile limits on different plans. Compare the restrictions that affect your workflow instead of choosing from the headline price alone.
-            </p>
-            <p className="text-xs md:text-sm text-slate-300 leading-relaxed mt-2.5 font-medium">
-              With Linktery, we believe your social landing page belongs to you. We provide full theme customization for free on the Creator plan, up to 2 custom domains on Creator Pro, up to 10 on Agency, and watermark removal on paid plans.
-            </p>
-          </div>
-
-          {/* Webview Warning Box */}
-          <div className="glass-card p-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 group hover:border-amber-500/35 transition-all duration-300">
-            <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2 uppercase font-mono">
-              <AlertTriangle className="w-5 h-5 text-amber-400" /> The In-App Webview Jail
-            </h2>
-            <p className="text-xs md:text-sm text-slate-300 leading-relaxed font-medium">
-              Sharing a standard URL in a social bio can keep visitors inside an in-app browser, where login state and checkout capabilities may differ from the native app or system browser.
-            </p>
-            <p className="text-xs md:text-sm text-slate-300 leading-relaxed mt-2.5 font-medium">
-              Linktery can attempt supported app or external-browser handoffs on paid plans and keeps an HTTPS fallback. The final behavior depends on the operating system, installed application, source webview, and destination platform.
-            </p>
-          </div>
-
-        </div>
-
-        {/* Right Column: Case Studies & Scenarios with Interactive Tab Selector */}
-        <div className="lg:col-span-7 glass-card p-6 md:p-8 rounded-2xl border border-border bg-surface/40 backdrop-blur-md self-stretch flex flex-col justify-between text-left">
-          <div>
-            <div className="flex items-center justify-between border-b border-border/60 pb-4 mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-white uppercase tracking-tight">Real-World Solutions</h2>
-                <p className="text-xs text-muted-foreground">Select a business vertical to see redirection logic in action</p>
-              </div>
-              <Compass className="w-5 h-5 text-accent animate-spin" style={{ animationDuration: '15s' }} />
-            </div>
-
-            {/* Interactive Tab Selectors */}
-            <div className="flex flex-wrap gap-2.5 mb-6">
-              <button 
-                onClick={() => setActiveTab("musician")}
-                className={`px-4 py-2 text-xs md:text-sm font-semibold rounded-xl transition-all duration-200 flex items-center gap-1.5 ${
-                  activeTab === "musician" 
-                    ? "bg-accent text-background shadow-md scale-105" 
-                    : "border border-border text-muted-foreground hover:bg-surface-hover"
-                }`}
-              >
-                <Play className="w-3.5 h-3.5" /> Indie Musician
-              </button>
-              <button 
-                onClick={() => setActiveTab("ecommerce")}
-                className={`px-4 py-2 text-xs md:text-sm font-semibold rounded-xl transition-all duration-200 flex items-center gap-1.5 ${
-                  activeTab === "ecommerce" 
-                    ? "bg-accent text-background shadow-md scale-105" 
-                    : "border border-border text-muted-foreground hover:bg-surface-hover"
-                }`}
-              >
-                <ShoppingBag className="w-3.5 h-3.5" /> E-commerce Brand
-              </button>
-              <button 
-                onClick={() => setActiveTab("mediabuyer")}
-                className={`px-4 py-2 text-xs md:text-sm font-semibold rounded-xl transition-all duration-200 flex items-center gap-1.5 ${
-                  activeTab === "mediabuyer" 
-                    ? "bg-accent text-background shadow-md scale-105" 
-                    : "border border-border text-muted-foreground hover:bg-surface-hover"
-                }`}
-              >
-                <Target className="w-3.5 h-3.5" /> Paid Media Buyer
-              </button>
-            </div>
-
-            {/* Tab Contents */}
-            <div className="min-h-[160px] flex flex-col justify-center font-sans">
-              {activeTab === "musician" && (
-                <div className="animate-fade-in space-y-3">
-                  <h3 className="text-md font-bold text-white flex items-center gap-2">
-                    <Check className="w-4 h-4 text-accent" /> Spotify streams leaking in in-app webviews
-                  </h3>
-                  <p className="text-sm text-slate-300 leading-relaxed">
-                    An artist shares a release in Stories. Some visitors remain inside Instagram's embedded browser and reach Spotify's web experience instead of the installed application.
-                  </p>
-                  <p className="text-xs md:text-sm text-accent/90 bg-accent/5 border border-accent/20 p-3 rounded-xl mt-2 italic font-mono">
-                    Linktery approach: attempt a supported Spotify handoff and retain the normal HTTPS destination when the app or browser does not accept it.
-                  </p>
-                </div>
-              )}
-
-              {activeTab === "ecommerce" && (
-                <div className="animate-fade-in space-y-3">
-                  <h3 className="text-md font-bold text-white flex items-center gap-2">
-                    <Check className="w-4 h-4 text-accent" /> Fragmented regional store checkouts
-                  </h3>
-                  <p className="text-sm text-slate-300 leading-relaxed">
-                    A shop sells to UK and US audiences. UK visitors click the bio link but get sent to the USD store. They abandon checkout due to currency confusion and high international shipping costs.
-                  </p>
-                  <p className="text-xs md:text-sm text-accent/90 bg-accent/5 border border-accent/20 p-3 rounded-xl mt-2 italic font-mono">
-                    Linktery approach: use country routing rules so UK and US visitors can reach the corresponding configured store, with one default destination for unmatched traffic.
-                  </p>
-                </div>
-              )}
-
-              {activeTab === "mediabuyer" && (
-                <div className="animate-fade-in space-y-3">
-                  <h3 className="text-md font-bold text-white flex items-center gap-2">
-                    <Check className="w-4 h-4 text-accent" /> Ad attribution issues post iOS 14.5
-                  </h3>
-                  <p className="text-sm text-slate-300 leading-relaxed">
-                    A media buyer runs campaigns to a legacy root domain. Because they don't own the domain, they cannot verify it in Facebook Business Manager, breaking pixel conversion attribution.
-                  </p>
-                  <p className="text-xs md:text-sm text-accent/90 bg-accent/5 border border-accent/20 p-3 rounded-xl mt-2 italic font-mono">
-                    Linktery approach: connect an eligible custom domain on Creator Pro or Agency and configure supported tracking integrations. Attribution still depends on the destination and advertising platform setup.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="border-t border-border/50 pt-4 mt-6 flex justify-end">
-            <Link to="/register" className="text-xs font-bold text-accent hover:text-white transition-colors flex items-center gap-1 group font-mono uppercase">
-              Start Free Custom Workspace <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
-          </div>
-        </div>
-
-      </section>
-
-      {/* Comparison Matrix Section */}
-      <section id="comparison" className="py-12 px-6 max-w-6xl mx-auto relative z-10 border-t border-border/40">
-        <div className="text-center mb-8">
-          <span className="text-accent text-xs font-bold uppercase tracking-widest font-mono block mb-2">COMPARISON MATRIX</span>
-          <h2 className="text-3xl font-extrabold tracking-tight text-white uppercase">Linktery vs {competitor.name}</h2>
-        </div>
-
-        <div className="overflow-x-auto rounded-3xl border border-border bg-surface/50 backdrop-blur-md shadow-2xl">
-          <table className="w-full text-left border-collapse font-sans">
-            <thead>
-              <tr className="border-b border-border bg-slate-900/60 text-muted-foreground text-xs md:text-sm font-bold tracking-wider uppercase font-mono">
-                <th className="p-4 md:p-6">Feature Details</th>
-                <th className="p-4 md:p-6 text-accent">Linktery</th>
-                <th className="p-4 md:p-6">{competitor.name} {competitor.emoji}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border text-xs md:text-sm text-foreground/90 font-mono">
-              <tr className="hover:bg-surface-hover/40 transition-colors">
-                <td className="p-4 md:p-6 font-semibold text-white font-sans">Custom Domains pricing</td>
-                <td className="p-4 md:p-6 text-green-400 font-bold">✅ Requires Agency ($29/mo)</td>
-                <td className="p-4 md:p-6 text-slate-300">{competitor.pricing.customDomains}</td>
-              </tr>
-              <tr className="hover:bg-surface-hover/40 transition-colors">
-                <td className="p-4 md:p-6 font-semibold text-white font-sans">Watermark Removal</td>
-                <td className="p-4 md:p-6 text-green-400 font-bold">✅ Requires Pro ($11/mo)</td>
-                <td className="p-4 md:p-6 text-slate-300">{competitor.pricing.watermarkRemoval}</td>
-              </tr>
-              <tr className="hover:bg-surface-hover/40 transition-colors">
-                <td className="p-4 md:p-6 font-semibold text-white font-sans">App Deep Linking</td>
-                <td className="p-4 md:p-6 text-green-400 font-bold">Compatible app destinations with web fallback</td>
-                <td className="p-4 md:p-6 text-slate-400">{competitor.features.deepLinking}</td>
-              </tr>
-              <tr className="hover:bg-surface-hover/40 transition-colors">
-                <td className="p-4 md:p-6 font-semibold text-white font-sans">Smart Geolocation redirects</td>
-                <td className="p-4 md:p-6 text-green-400 font-bold">✅ Yes (Country routing rules)</td>
-                <td className="p-4 md:p-6 text-slate-400">{competitor.features.geotargeting}</td>
-              </tr>
-              <tr className="hover:bg-surface-hover/40 transition-colors">
-                <td className="p-4 md:p-6 font-semibold text-white font-sans">Transaction fee rates</td>
-                <td className="p-4 md:p-6 text-green-400 font-bold">✅ 0% (All plans)</td>
-                <td className="p-4 md:p-6 text-slate-300">{competitor.pricing.transactionFee}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p className="mt-4 text-xs leading-5 text-slate-500">
-          {competitor.officialPricingUrl ? <>
-            Source: <a className="text-accent hover:underline" href={competitor.officialPricingUrl} target="_blank" rel="noreferrer">{competitor.name} official pricing</a>
-            {competitor.reviewedAt ? ` · Reviewed ${competitor.reviewedAt}` : ""}.{" "}
-          </> : null}
-          Prices and plan features can change. Verify the current provider pages before purchasing.
-        </p>
-      </section>
-
-      {/* Competitor Review Detail Section */}
-      <section className="py-12 px-6 max-w-4xl mx-auto relative z-10 divide-y divide-border/60 text-left">
-        <div className="pb-12 space-y-6">
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <h2 className="text-2xl md:text-3xl font-extrabold text-white uppercase tracking-tight">Linktery: Performance Routing</h2>
-          </div>
-          <p className="text-slate-300 leading-relaxed font-sans font-medium text-sm md:text-base">
-            Linktery combines public profiles with short-link management, custom domains, device and country rules, weighted destinations, and analytics. Compatible app-aware destinations can use supported handoff behavior while retaining a web fallback.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-slate-900/60 p-6 rounded-2xl border border-border space-y-2">
-              <h3 className="font-bold text-white flex items-center gap-2 uppercase font-mono text-xs md:text-sm">
-                <Check className="w-4 h-4 text-accent" /> Linktery Advantages
-              </h3>
-              <ul className="space-y-2 text-xs md:text-sm text-slate-400 font-sans">
-                <li>• Optimized loading: lightweight public pages and cached assets.</li>
-                <li>• App-aware links: supported handoff attempts with web fallbacks.</li>
-                <li>• Domain mapping: connect up to 2 custom domains on Creator Pro or 10 on Agency.</li>
-                <li>• External checkout: Linktery does not process destination sales.</li>
-              </ul>
-            </div>
-            <div className="bg-slate-900/60 p-6 rounded-2xl border border-border space-y-2">
-              <h3 className="font-bold text-white flex items-center gap-2 uppercase font-mono text-xs md:text-sm">
-                <X className="w-4 h-4 text-red-500" /> Linktery Disadvantages
-              </h3>
-              <ul className="space-y-2 text-xs md:text-sm text-slate-400 font-sans">
-                <li>• Focuses on conversion metrics, which may feel excessive for general personal profiles.</li>
-                <li>• Does not act as an integrated billing store (redirects to Stripe/Shopify instead).</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div className="pt-12 pb-12 space-y-6">
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-slate-900 border border-border flex items-center justify-center text-slate-400">
-              <Layers className="w-5 h-5" />
-            </div>
-            <h2 className="text-2xl md:text-3xl font-extrabold text-white uppercase tracking-tight">{competitor.name}: Details</h2>
-          </div>
-          <p className="text-slate-300 leading-relaxed font-sans font-medium text-sm md:text-base">
-            {competitor.description} While it is popular and easy to setup, creators looking to maximize e-commerce conversion rates or run targeted campaigns often hit configuration barriers.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-slate-900/60 p-6 rounded-2xl border border-border space-y-2">
-              <h3 className="font-bold text-white flex items-center gap-2 uppercase font-mono text-xs md:text-sm">
-                <Check className="w-4 h-4 text-green-400" /> {competitor.name} Pros
-              </h3>
-              <ul className="space-y-2 text-xs md:text-sm text-slate-400 font-sans">
-                {competitor.pros.map((pro, idx) => (
-                  <li key={idx}>• {pro}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="bg-slate-900/60 p-6 rounded-2xl border border-border space-y-2">
-              <h3 className="font-bold text-white flex items-center gap-2 uppercase font-mono text-xs md:text-sm">
-                <X className="w-4 h-4 text-red-500" /> {competitor.name} Cons
-              </h3>
-              <ul className="space-y-2 text-xs md:text-sm text-slate-400 font-sans">
-                {competitor.cons.map((con, idx) => (
-                  <li key={idx}>• {con}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Showcase Grid */}
-      <section className="py-16 px-6 bg-surface/20 border-y border-border/50 relative z-10 text-left">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-extrabold tracking-tight text-white uppercase">Linktery Features</h2>
-            <p className="text-muted-foreground max-w-xl mx-auto text-sm md:text-base font-medium">
-              Linktery was engineered to provide premium, production-level traffic optimization capabilities.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center flex-shrink-0 text-accent">
-                <Zap className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white mb-2 uppercase tracking-tight">Smart Geolocation Rules</h3>
-                <p className="text-sm text-slate-400 leading-relaxed font-sans">
-                  Avoid routing visitors to pages they cannot purchase from. Automatically redirect users based on physical country criteria to point UK visitors to GBP sites and US visitors to USD checkouts.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center flex-shrink-0 text-accent">
-                <Compass className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white mb-2 uppercase tracking-tight">Deep App Launching</h3>
-                <p className="text-sm text-slate-400 leading-relaxed font-sans">
-                  Attempt supported native-app handoffs for compatible destinations and preserve a useful web fallback when the app or browser blocks the request.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center flex-shrink-0 text-accent">
-                <BarChart3 className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white mb-2 uppercase tracking-tight">Real-Time Telemetry</h3>
-                <p className="text-sm text-slate-400 leading-relaxed font-sans">
-                  Track dynamic click metadata, visitor locations, operating system distributions, referrers, and conversion goals. Analyze traffic quality instantly to optimize social campaigns.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center flex-shrink-0 text-accent">
-                <Globe className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white mb-2 uppercase tracking-tight">Custom Domain Mapping</h3>
-                <p className="text-sm text-slate-400 leading-relaxed font-sans">
-                  Build immediate brand authority and credibility. Map your profile to a custom subdomain (e.g. bio.yourbrand.com) on our Agency plan, avoiding standard footprint limitations.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ Section */}
-      <section className="py-16 px-6 max-w-3xl mx-auto relative z-10 text-left">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-extrabold tracking-tight text-white uppercase flex items-center justify-center gap-2">
-            <HelpCircle className="w-8 h-8 text-accent" /> FAQ
-          </h2>
-          <p className="text-muted-foreground text-sm md:text-base font-medium">
-            Common questions regarding {competitor.name} alternatives and pricing structures.
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          {faqItems.map((item, index) => (
-            <div 
-              key={index} 
-              className="glass-card rounded-2xl border border-border overflow-hidden transition-all duration-300"
-            >
-              <button 
-                onClick={() => setOpenFaqIndex(openFaqIndex === index ? null : index)}
-                className="w-full p-5 text-left font-bold text-white flex justify-between items-center hover:bg-surface-hover/50 transition-colors gap-4"
-              >
-                <span className="text-sm md:text-base font-sans">{item.question}</span>
-                <ChevronDown 
-                  className={`w-5 h-5 text-muted-foreground transition-transform duration-300 ${
-                    openFaqIndex === index ? "rotate-180 text-accent" : ""
-                  }`} 
-                />
-              </button>
-              {openFaqIndex === index && (
-                <div className="p-5 pt-0 border-t border-border/40 text-sm text-slate-300 leading-relaxed bg-slate-900/40 font-sans">
-                  {item.answer}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* CTA Footer Block */}
-      <section className="py-20 px-6 max-w-5xl mx-auto relative z-10 border-t border-border/40">
-        <div className="relative glass-card p-8 md:p-12 rounded-3xl overflow-hidden border border-accent/20 bg-gradient-to-tr from-accent/10 via-background to-background text-center shadow-glow">
-          <div className="absolute inset-0 z-0 opacity-10 pointer-events-none">
-            <div className="w-[300px] h-[300px] bg-accent rounded-full blur-[80px] -top-10 -left-10 absolute" />
-          </div>
-          
-          <h2 className="text-3xl md:text-5xl font-black text-white mb-4 relative z-10 uppercase tracking-tight">
-            Optimize Your Bio Traffic
-          </h2>
-          <p className="text-base md:text-lg text-slate-300 max-w-xl mx-auto mb-8 relative z-10 leading-relaxed font-sans font-medium">
-            Switch to Linktery for advanced geo-redirection, native deep app launching, and 0% transaction fees.
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center relative z-10">
-            {user ? (
-              <Link to="/dashboard" className="btn-primary-glow text-base px-8 py-4 inline-flex items-center justify-center gap-2">
-                Open Dashboard <ArrowRight className="w-5 h-5" />
-              </Link>
-            ) : (
-              <Link to="/register" className="btn-primary-glow text-base px-8 py-4 inline-flex items-center justify-center gap-2">
-                Create Your Free Page <ArrowRight className="w-5 h-5" />
-              </Link>
-            )}
-            <Link to="/pricing" className="px-6 py-4 rounded-xl border border-border text-foreground font-semibold hover:bg-surface-hover transition-all duration-200 text-base inline-flex items-center justify-center">
-              View Plans
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {relatedComparisons.length > 0 && (
-        <section className="py-12 px-6 max-w-4xl mx-auto relative z-10 border-t border-border/40">
-          <h2 className="text-2xl font-extrabold text-white uppercase mb-2">Compare {competitor.name}</h2>
-          <p className="text-sm text-slate-400 mb-6">Pricing and features can change. Verify current plan details on each provider's official website.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {relatedComparisons.map((comparison) => (
-              <Link key={comparison.href} to={comparison.href} className="rounded-xl border border-border bg-surface/30 px-4 py-3 text-sm font-semibold text-slate-200 hover:border-accent/40 hover:text-accent transition-colors">
-                {comparison.name}
-              </Link>
-            ))}
           </div>
         </section>
-      )}
 
-      {/* Footer */}
-      <Footer />
+        <section id="comparison-table" className={styles.comparisonSection} aria-labelledby="comparison-title">
+          <div className={styles.container}>
+            <div className={styles.sectionHeading}><div><span>Side-by-side</span><h2 id="comparison-title">Linktery vs {competitor.name}</h2></div><p>Use the table as a shortlist, then verify the current provider terms and test the workflows that matter to you.</p></div>
+            {competitor.notice && <p className={styles.contextNotice}><CircleAlert size={18} aria-hidden="true" />{competitor.notice}</p>}
+            <div className={styles.tableWrap}>
+              <table><caption className="sr-only">Linktery and {competitor.name}: plans and capabilities</caption><thead><tr><th scope="col">Decision</th><th scope="col">Linktery</th><th scope="col">{competitor.name}</th></tr></thead><tbody>{visibleRows.map((row) => <tr key={row.label}><th scope="row">{row.label}</th><td><span className={styles.mobileColumnLabel} aria-hidden="true">Linktery</span>{row.linktery}</td><td><span className={styles.mobileColumnLabel} aria-hidden="true">{competitor.name}</span>{row.competitor}</td></tr>)}</tbody></table>
+            </div>
+            <div className={styles.sourceNote}><CircleAlert size={17} aria-hidden="true" /><div><p>Reviewed {competitor.reviewedAt}. “Confirm” means this review has not established the current entitlement—not that the feature is unavailable. Verify plans before purchasing.</p><div className={styles.sourceLinks}><Link to="/pricing">Linktery plans<ArrowUpRight size={13} aria-hidden="true" /></Link>{competitor.sources.map((source) => <a key={source.href} href={source.href} target="_blank" rel="noreferrer">{source.label}<ExternalLink size={13} aria-hidden="true" /></a>)}</div></div></div>
+          </div>
+        </section>
+
+        <section className={styles.fitSection} aria-labelledby="fit-title">
+          <div className={`${styles.container} ${styles.fitGrid}`}>
+            <div className={styles.fitIntro}><span>Product fit</span><h2 id="fit-title">The stronger option depends on the workflow.</h2><p>Separate the public page from the system behind it. A beautiful profile may be enough; a campaign operation may also need routing, domains, analytics, and repeatable controls.</p></div>
+            <div className={styles.fitColumns}>
+              <article><div className={styles.fitTitle}><span className={styles.linkteryMark}><BrandWordmark tone="light" /></span><div><small>Choose when you need</small><h3>Linktery</h3></div></div><ul>{linkteryStrengths.map((item) => <li key={item}><Check size={15} aria-hidden="true" />{item}</li>)}</ul></article>
+              <article><div className={styles.fitTitle}><span className={styles.competitorMark} aria-hidden="true">{competitor.name.slice(0, 2)}</span><div><small>{competitor.migrationOnly ? "Keep track of" : "Consider if you rely on"}</small><h3>{competitor.name}</h3></div></div><ul>{competitor.strengths.map((item) => <li key={item}><Check size={15} aria-hidden="true" />{item}</li>)}</ul></article>
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.criteriaSection} aria-labelledby="criteria-title">
+          <div className={styles.container}>
+            <div className={styles.sectionHeading}><div><span>Look past the homepage</span><h2 id="criteria-title">Test three real journeys.</h2></div><p>A comparison becomes useful when it follows the visitor, the operator, and the brand owner through an actual task.</p></div>
+            <div className={styles.criteriaGrid}>
+              <article><Route size={25} strokeWidth={1.5} aria-hidden="true" /><span>Traffic journey</span><h3>One link, more than one audience</h3><p>Test country and device rules, the unmatched default, and a supported app-aware destination. The fallback should remain useful when a handoff is blocked.</p></article>
+              <article><BarChart3 size={25} strokeWidth={1.5} aria-hidden="true" /><span>Operator journey</span><h3>From publish to explanation</h3><p>Create a tracked link, label the campaign consistently, and confirm that reporting exposes the dimensions your team uses to make decisions.</p></article>
+              <article><Globe2 size={25} strokeWidth={1.5} aria-hidden="true" /><span>Ownership journey</span><h3>Move under your own brand</h3><p>Check domain eligibility, DNS setup, branding removal, profile limits, and what happens to public URLs if the plan changes later.</p></article>
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.tradeoffs} aria-labelledby="tradeoffs-title">
+          <div className={`${styles.container} ${styles.tradeoffGrid}`}>
+            <div><span>Before migrating</span><h2 id="tradeoffs-title">Your {competitor.name} move, thought through.</h2><p>Keep the parts of your current setup that work. You can test Linktery alongside an existing website or store before deciding what to replace.</p></div>
+            <article><div className={styles.tradeoffTitle}><LayoutPanelTop size={22} aria-hidden="true" /><h3>Migration checklist</h3></div><ul>{competitor.checks.map((item) => <li key={item}><Check size={15} aria-hidden="true" />{item}</li>)}</ul><p>Linktery does not include native checkout, product fulfillment, or collaborative team seats. Plan those tools separately if your current workflow depends on them.</p></article>
+          </div>
+        </section>
+
+        <section className={styles.faq} aria-labelledby="alternative-faq-title">
+          <div className={`${styles.container} ${styles.faqGrid}`}><div><span>Questions before switching</span><h2 id="alternative-faq-title">Resolve the practical details.</h2></div><div className={styles.faqList}>{faqItems.map((item) => <details key={item.question}><summary>{item.question}</summary><p>{item.answer}</p></details>)}</div></div>
+        </section>
+
+        <section className={styles.related} aria-labelledby="related-alternatives-title">
+          <div className={styles.container}><div className={styles.relatedHeading}><div><span>Keep comparing</span><h2 id="related-alternatives-title">Review another familiar platform.</h2></div><Link to="/alternatives">All alternatives<ArrowRight size={16} aria-hidden="true" /></Link></div><div className={styles.relatedGrid}>{related.map((item) => <Link key={item.slug} to={`/alternatives/${item.slug}`}><strong>{item.name}</strong><small>{item.topic}</small><ArrowUpRight size={16} aria-hidden="true" /></Link>)}</div><details className={styles.comparisonDirectory}><summary>Compare {competitor.name} with other platforms</summary><div>{relatedComparisons.map((item) => <Link key={item.href} to={item.href}>{item.label}<ArrowUpRight size={14} aria-hidden="true" /></Link>)}</div></details></div>
+        </section>
+
+        <section className={styles.detailCta}><div className={`${styles.container} ${styles.ctaCard}`}><div><span>Test the Linktery side</span><h2>Build one real workflow before you move every link.</h2></div><Link to="/register">Start free<ArrowUpRight size={18} aria-hidden="true" /></Link></div></section>
+      </main>
+      <Footer variant="landing" />
     </div>
   );
 }

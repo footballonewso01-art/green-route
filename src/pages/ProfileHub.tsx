@@ -25,6 +25,11 @@ import { getAvailableDomains } from "@/lib/siteConfig";
 import { maskError } from "@/lib/utils";
 import { isReservedPublicSlug } from "@/lib/systemRoutes";
 import { isPublicSlugAvailable } from "@/lib/publicAssets";
+import {
+  DashboardEmptyState,
+  DashboardPage,
+  DashboardPageHeader,
+} from "@/components/dashboard/DashboardPrimitives";
 
 interface ProfileRecord {
   id: string;
@@ -224,21 +229,12 @@ export default function ProfileHub() {
   };
 
   return (
-    <div className="space-y-7 overflow-visible pb-10 text-foreground">
-      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-accent/80">
-            <Layers className="h-3.5 w-3.5" />
-            Profile library
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-[-0.035em] text-foreground">
-            Public Profiles
-          </h1>
-          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Create, customize, and share your link-in-bio pages from one place.
-          </p>
-        </div>
-
+    <DashboardPage className="overflow-visible pb-10">
+      <DashboardPageHeader
+        eyebrow="Profile library"
+        title="Public Profiles"
+        description="Create, customize, and share your link-in-bio pages from one place."
+        actions={(
         <button
           type="button"
           onClick={requestCreateProfile}
@@ -247,7 +243,8 @@ export default function ProfileHub() {
           <Plus className="h-4 w-4" />
           New Profile
         </button>
-      </header>
+        )}
+      />
 
       {loading ? (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-3" aria-label="Loading profiles">
@@ -263,28 +260,19 @@ export default function ProfileHub() {
           ))}
         </div>
       ) : profiles.length === 0 ? (
-        <div className="relative overflow-hidden rounded-[28px] border border-border/70 bg-surface/45 px-6 py-16 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:py-20">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,hsl(var(--accent)/0.08),transparent_42%)]" />
-          <div className="relative">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] border border-accent/15 bg-accent/[0.07] text-accent/70">
-              <Layers className="h-7 w-7" />
-            </div>
-            <h2 className="mt-5 text-xl font-bold tracking-[-0.025em] text-foreground">
-              Create your first Public Profile
-            </h2>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-              Publish a shareable link-in-bio page, then shape it with your own template, cards, and social links.
-            </p>
-            <button
+        <DashboardEmptyState
+            icon={<Layers className="h-5 w-5" />}
+            title="Create your first Public Profile"
+            description="Publish a shareable link-in-bio page, then shape it with your own template, cards, and social links."
+            action={<button
               type="button"
               onClick={requestCreateProfile}
-              className="btn-primary-glow mt-6 inline-flex items-center gap-2 text-sm !px-6 !py-2.5"
+              className="btn-primary-glow inline-flex items-center gap-2 text-sm !px-6 !py-2.5"
             >
               <Plus className="h-4 w-4" />
               Create Public Profile
-            </button>
-          </div>
-        </div>
+            </button>}
+        />
       ) : (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-3">
           {profiles.map((profile) => {
@@ -385,6 +373,6 @@ export default function ProfileHub() {
         description={upgradeModal.description}
         planNeeded={upgradeModal.planNeeded}
       />
-    </div>
+    </DashboardPage>
   );
 }
