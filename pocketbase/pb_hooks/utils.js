@@ -3115,24 +3115,60 @@ var validateProfileLinkComposition = function(record, authInfo) {
 };
 
 var validateProfileSocialLinks = function(record) {
-    var socialLinks = record.get("social_links");
-    if (socialLinks) {
-        var list = [];
-        if (typeof socialLinks === "string" && socialLinks.trim() !== "") {
-            try { list = JSON.parse(socialLinks); } catch (e) { }
-        } else if (Array.isArray(socialLinks)) {
-            list = socialLinks;
-        } else if (typeof socialLinks === "object") {
-            try { list = JSON.parse(JSON.stringify(socialLinks)); } catch (e) { }
+    // get() exposes types.JSONRaw bytes, not social-link objects. Decode the
+    // JSON document for both ordinary requests and multipart image uploads.
+    var serialized = String(record.getString("social_links") || "").trim();
+    if (!serialized) return;
+    var list;
+    try {
+        list = JSON.parse(serialized);
+    } catch (err) {
+        throw new BadRequestError("Social links must be a valid JSON array.");
+    }
+    if (list === null || list === "") return;
+    if (!Array.isArray(list)) {
+        throw new BadRequestError("Social links must be a JSON array.");
+    }
+
+    // Previously accepted invalid URLs must not block an unrelated name or
+    // avatar edit. They remain hidden by the public renderer. Any change to
+    // the social-link list must pass validation; newly created records never
+    // receive this legacy exception.
+    var sameJsonValue = function(left, right) {
+        if (left === right) return true;
+        if (!left || !right || typeof left !== "object" || typeof right !== "object" ||
+            Array.isArray(left) !== Array.isArray(right)) return false;
+        var keys = Object.keys(left);
+        if (keys.length !== Object.keys(right).length) return false;
+        return keys.every(function(key) {
+            return Object.prototype.hasOwnProperty.call(right, key) && sameJsonValue(left[key], right[key]);
+        });
+    };
+    var unchanged = false;
+    try {
+        var original = record.original();
+        // PocketBase can reorder object keys when decoding multipart JSON.
+        unchanged = !!original && !!original.id &&
+            sameJsonValue(list, parseRecordJson(original.getString("social_links")));
+    } catch (err) {}
+
+    for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+            throw new BadRequestError("Each social link must be an object.");
         }
-        for (var i = 0; i < list.length; i++) {
-            var item = list[i];
-            if (item && item.url) {
-                var urlStr = String(item.url);
-                if (urlStr.indexOf("http://") !== 0 && urlStr.indexOf("https://") !== 0) {
-                    throw new BadRequestError("All social links must start with http:// or https://");
-                }
-            }
+        // The editor can save an unfinished social-link row alongside other
+        // profile settings. Empty rows are intentionally not published.
+        if (item.url === null || item.url === undefined) continue;
+        if (typeof item.url !== "string") {
+            throw new BadRequestError("Social link URLs must be text.");
+        }
+        var urlStr = item.url.trim();
+        if (!urlStr || unchanged) continue;
+        // Check the allowed scheme and a nonempty authority without applying
+        // routing-specific host restrictions (social URLs may contain IDNs).
+        if (!/^https?:\/\/[^\/?#\s]+(?:[\/?#]|$)/i.test(urlStr) || /[\u0000-\u001f\u007f]/.test(urlStr)) {
+            throw new BadRequestError("All social links must be HTTP(S) URLs starting with http:// or https://.");
         }
     }
 };

@@ -186,7 +186,11 @@ try {
   assert.equal(available.available, true);
   const taken = await stranger.send(`/api/public/slugs/${link.slug}/availability?exclude_link_id=${link.id}`, { method: "GET" });
   assert.equal(taken.available, false);
-  const profile = await admin.collection("public_profiles").create({
+  await assert.rejects(customer.collection("public_profiles").create({
+    user_id: owner.id, slug: "invalid-social-create", name: "Invalid social link", domain: "linktery.com",
+    social_links: [{ id: "website", url: "javascript:void(0)" }],
+  }), error => error.status === 400 && /social links/i.test(error.message));
+  const profile = await customer.collection("public_profiles").create({
     user_id: owner.id, slug: "security-smoke-profile", name: "Security profile", domain: "linktery.com",
     social_links: [{ id: "youtube", url: "https://youtube.com/@example", icon_type: "preset", icon_value: "youtube" }],
   });
@@ -274,6 +278,58 @@ try {
   assert.equal(downloaded.status, 200);
   assert.equal(downloaded.headers.get("X-Content-Type-Options"), "nosniff");
   assert.match(downloaded.headers.get("Content-Security-Policy") || "", /sandbox/);
+
+  // Profile JSON fields become JSONRaw even when the SDK automatically
+  // serializes an object with a File into multipart/form-data.
+  const socialLinks = [{ id: "youtube", url: "https://youtube.com/@example", icon_type: "preset", icon_value: "youtube" }];
+  await assert.rejects(customer.collection("public_profiles").create({
+    user_id: owner.id, slug: "invalid-social-multipart", name: "Rejected upload", domain: "linktery.com",
+    social_links: [{ id: "website", url: "javascript:void(0)" }],
+    avatar: new File([png], "rejected-create.png", { type: "image/png" }),
+  }), error => error.status === 400 && /social links/i.test(error.message));
+  const mixedProfile = await customer.collection("public_profiles").update(profile.id, {
+    name: "Mixed upload", social_links: socialLinks,
+    avatar: new File([png], "mixed-avatar.png", { type: "image/png" }),
+    profile_background_image: new File([png], "mixed-background.png", { type: "image/png" }),
+  });
+  assert.deepEqual(mixedProfile.social_links, socialLinks);
+  assert(mixedProfile.avatar && mixedProfile.profile_background_image);
+  for (const withImage of [false, true]) {
+    const invalidSocialUpdate = {
+      name: "Must not persist", social_links: [{ id: "website", url: "javascript:void(0)" }],
+      ...(withImage ? { avatar: new File([png], "rejected.png", { type: "image/png" }) } : {}),
+    };
+    await assert.rejects(customer.collection("public_profiles").update(profile.id, invalidSocialUpdate),
+      error => error.status === 400 && /social links/i.test(error.message));
+    const unchangedProfile = await customer.collection("public_profiles").getOne(profile.id);
+    assert.equal(unchangedProfile.name, mixedProfile.name);
+    assert.equal(unchangedProfile.avatar, mixedProfile.avatar);
+    assert.deepEqual(unchangedProfile.social_links, socialLinks);
+  }
+  for (const emptySocials of [null, [], [{ id: "draft", url: "", icon_type: "none", icon_value: "" }]]) {
+    const clearedProfile = await customer.collection("public_profiles").update(profile.id, {
+      social_links: emptySocials,
+      avatar: new File([png], "draft-avatar.png", { type: "image/png" }),
+    });
+    assert.deepEqual(clearedProfile.social_links, emptySocials);
+  }
+
+  // Seed only the disposable fixture with a historical value that the old
+  // validator accepted. Unrelated edits must work, while new invalid values
+  // must still be rejected and clearing the legacy data must remain possible.
+  const legacySocials = [{ id: "website", url: "example.com/legacy", icon_type: "none", icon_value: "" }];
+  sql(db, `UPDATE public_profiles SET social_links=${quote(JSON.stringify(legacySocials))} WHERE id=${quote(profile.id)};`);
+  await customer.collection("public_profiles").update(profile.id, { name: "Legacy metadata edit" });
+  const legacyRoundtrip = await customer.collection("public_profiles").update(profile.id, {
+    name: "Legacy full edit", social_links: legacySocials,
+    avatar: new File([png], "legacy-avatar.png", { type: "image/png" }),
+  });
+  assert.deepEqual(legacyRoundtrip.social_links, legacySocials);
+  await assert.rejects(customer.collection("public_profiles").update(profile.id, {
+    social_links: [{ ...legacySocials[0], url: "javascript:void(0)" }],
+  }), error => error.status === 400);
+  assert.deepEqual((await customer.collection("public_profiles").update(profile.id, { social_links: [] })).social_links, []);
+
   assert.equal(sql(db, "SELECT count(*) FROM _migrations WHERE file = '1787830000_harden_link_records_and_image_uploads.js';").trim(), "1");
   assert.equal(sql(db, "SELECT count(*) FROM _params WHERE id = 'settings' AND json_valid(value) = 0;").trim(), "1", "Settings must be encrypted at rest");
   const exited = once(processHandle, "exit");
@@ -283,7 +339,7 @@ try {
   execFileSync(executable, ["migrate", "up", `--dir=${temporary}`, "--encryptionEnv=PB_ENCRYPTION_KEY", `--migrationsDir=${path.join(root, "pocketbase/pb_migrations")}`], {
     env, windowsHide: true, stdio: "pipe",
   });
-  console.log("PASS: owner isolation, immutable ownership, server-side plan entitlements, private routing DTO, trusted geo, HTTP redirect and click count, profile/social data and view count, atomic card clicks from redirects and fallback telemetry, fresh analytics and cache/rate-limit isolation, slug checks, forged SVG rejection, raster upload and file CSP, migration, encrypted settings reload.");
+  console.log("PASS: owner isolation, immutable ownership, server-side plan entitlements, private routing DTO, trusted geo, HTTP redirect and click count, profile/social data and view count, atomic card clicks from redirects and fallback telemetry, fresh analytics and cache/rate-limit isolation, slug checks, forged SVG rejection, raster upload and file CSP, social JSONRaw validation on create/update/multipart with empty and legacy values, migration, encrypted settings reload.");
 } catch (error) {
   console.error(error.stack || String(error));
   process.exitCode = 1;
