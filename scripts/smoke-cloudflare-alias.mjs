@@ -7,6 +7,10 @@ const deployEnvironment = process.argv[3] || "production";
 if (deployEnvironment !== "production") {
   throw new Error("Alias smoke tests require a production artifact.");
 }
+const isLocalRuntime = ["127.0.0.1", "localhost", "[::1]"].includes(
+  baseUrl.hostname,
+);
+const missingSlugPath = `/alias-smoke-missing-${crypto.randomUUID()}`;
 
 const failures = [];
 
@@ -43,13 +47,32 @@ await expectPrimaryRedirect("/pricing?utm_source=alias-smoke", "/pricing");
 await expectPrimaryRedirect("/documentation?utm_source=alias-smoke", "/documentation");
 await expectPrimaryRedirect("/dashboard/settings?tab=api", "/dashboard/settings");
 
-for (const pathname of ["/nasty", "/index", "/landing"]) {
-  const response = await request(pathname);
+if (isLocalRuntime) {
+  // Local Wrangler has no resolver secret, so valid-looking public slugs keep
+  // the SPA shell. The live worker can resolve them authoritatively instead.
+  for (const pathname of ["/nasty", "/index", "/landing"]) {
+    const response = await request(pathname);
+    const body = await response.text();
+    check(response.status === 200, `${pathname}: expected SPA 200, received ${response.status}`);
+    check(
+      body.includes('<meta name="robots" content="noindex, nofollow" />'),
+      `${pathname}: public SPA shell is missing`,
+    );
+  }
+} else {
+  const response = await request(missingSlugPath);
   const body = await response.text();
-  check(response.status === 200, `${pathname}: expected SPA 200, received ${response.status}`);
+  check(
+    response.status === 404,
+    `${missingSlugPath}: expected 404, received ${response.status}`,
+  );
   check(
     body.includes('<meta name="robots" content="noindex, nofollow" />'),
-    `${pathname}: public SPA shell is missing`,
+    `${missingSlugPath}: noindex 404 shell is missing`,
+  );
+  check(
+    (response.headers.get("x-robots-tag") || "").includes("noindex"),
+    `${missingSlugPath}: X-Robots-Tag noindex is missing`,
   );
 }
 
