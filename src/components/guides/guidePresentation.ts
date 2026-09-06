@@ -16,6 +16,18 @@ interface GuidePresentation {
 }
 
 export const guidePresentation: Record<string, GuidePresentation> = {
+  "/guides/telegram-link-tracking": {
+    topic: "tracking",
+    summary: "Separate Telegram placements, test the full click path, and connect campaign costs with the outcomes recorded at your destination.",
+  },
+  "/guides/bot-clicks-in-link-analytics": {
+    topic: "tracking",
+    summary: "Investigate previews, scanners, and unexpected country spikes without mistaking every unusual visit for a bot.",
+  },
+  "/guides/change-link-destination": {
+    topic: "essentials",
+    summary: "Keep the published address while changing its destination, checking conditional routes, and preserving a clear reporting boundary.",
+  },
   "/guides/what-is-link-management": {
     topic: "essentials",
     summary: "Look beyond shortening. Learn how to organize shared URLs, update their destinations, and make sense of the traffic they bring.",

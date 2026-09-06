@@ -18,7 +18,7 @@ vi.mock("framer-motion", async () => {
 });
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: userState.current }) }));
 vi.mock("@/lib/pocketbase", () => ({ pb: { files: { getUrl: vi.fn() } } }));
-vi.mock("@/lib/telemetry", () => ({ trackGrowthEvent }));
+vi.mock("@/lib/telemetry", () => ({ trackGrowthEvent, trackMarketingPageView: vi.fn() }));
 
 import PricingPage from "@/pages/PricingPage";
 

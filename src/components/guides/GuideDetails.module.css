@@ -52,7 +52,7 @@
 .sectionLabel { display: flex; align-items: center; gap: .85rem; }
 .sectionLabel span:first-child { color: var(--landing-ink-muted); font-family: "Geist Mono", monospace; font-weight: 500; }
 .articleSection h2 { max-width: 16ch; margin: 1rem 0 0; font-family: var(--landing-display); font-size: clamp(2.25rem, 4.2vw, 3.9rem); font-weight: 640; letter-spacing: -.06em; line-height: 1.02; }
-.prose { margin-top: 1.7rem; }
+.prose { margin-top: 1.7rem; overflow-wrap: anywhere; }
 .prose p { margin: 0; color: var(--landing-ink-soft); font-size: clamp(.94rem, 1.2vw, 1.04rem); line-height: 1.9; }
 .prose p + p { margin-top: 1.1rem; }
 .articleSection > ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; margin: 1.8rem 0 0; padding: 0; list-style: none; }

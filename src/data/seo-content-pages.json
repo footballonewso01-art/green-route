@@ -322,7 +322,7 @@
     ],
     "related": [
       "/features/public-profile-analytics",
-      "/guides/build-link-analytics-dashboard-with-api",
+      "/guides/bot-clicks-in-link-analytics",
       "/guides/how-to-track-link-clicks",
       "/tools/utm-builder"
     ]
@@ -973,7 +973,7 @@
       { "question": "Do I need UTM parameters if the link platform has analytics?", "answer": "UTM parameters remain useful because they pass campaign context to the destination's analytics system." },
       { "question": "Can I track public-profile cards separately?", "answer": "Yes. Linktery records profile engagement and card clicks separately from standalone short-link traffic." }
     ],
-    "related": ["/features/link-analytics", "/features/public-profile-analytics", "/guides/utm-parameters-guide", "/features/url-shortener"]
+    "related": ["/features/link-analytics", "/guides/telegram-link-tracking", "/guides/utm-parameters-guide", "/features/url-shortener"]
   },
   {
     "path": "/guides/how-to-create-branded-short-url",
@@ -1023,7 +1023,7 @@
       { "question": "Do dynamic QR codes require internet access?", "answer": "A URL-based QR code requires network access to open the encoded URL and follow any redirect." },
       { "question": "Can Linktery generate a QR code for a public profile?", "answer": "Yes. A public profile URL can be encoded just like a short URL or any other valid HTTPS address." }
     ],
-    "related": ["/tools/qr-code-generator", "/solutions/qr-code-biolink", "/features/url-shortener", "/features/link-analytics"]
+    "related": ["/tools/qr-code-generator", "/solutions/qr-code-biolink", "/guides/change-link-destination", "/features/link-analytics"]
   },
   {
     "path": "/guides/utm-parameters-guide",
@@ -1479,5 +1479,87 @@
       { "label": "Bitly: Move custom links from another link manager", "url": "https://support.bitly.com/hc/en-us/articles/360039085531-How-do-I-move-my-custom-links-from-my-old-link-manager-to-Bitly" }
     ],
     "related": ["/alternatives/bitly", "/features/public-api", "/guides/how-to-create-branded-short-url", "/features/url-shortener"]
+  },
+  {
+    "path": "/guides/telegram-link-tracking",
+    "kind": "guide",
+    "eyebrow": "CAMPAIGN PLAYBOOK",
+    "title": "Track links across Telegram placements",
+    "seoTitle": "Telegram Link Tracking: Measure Campaign Clicks | Linktery",
+    "seoDescription": "Set up a separate tracking link for each Telegram placement, keep UTM tags consistent, and compare clicks with destination results without confusing them with joins.",
+    "lead": "Use one managed link per placement, even when every post promotes the same offer. Combine Linktery click reporting with the destination's registration or order data; a click report alone cannot establish channel joins, sales, or profit.",
+    "highlights": [
+      { "title": "One placement, one link", "text": "Keep two channels and two publication dates distinguishable instead of sharing a single tracking address." },
+      { "title": "Consistent campaign tags", "text": "Use the same campaign name and give each placement a stable content label." },
+      { "title": "Clicks are one stage", "text": "Confirm registrations or purchases in the system that actually records them." }
+    ],
+    "sections": [
+      { "heading": "Prepare the placement ledger", "paragraphs": ["Suppose you buy posts in two Telegram channels for the same webinar. Record the channel label, publication date, cost, destination, and tracking URL before either post goes live. Use internal placement labels rather than personal information in query parameters.", "Create a separate Linktery Smart Link for each placement. Reusing one address across both posts combines their click totals; Telegram's referrer is not a dependable replacement for the missing placement identifier. Forwarded copies can continue using the same address, so the report describes the shared link, not a verified channel membership."], "bullets": ["Placement A: channel_alpha_2026_09_10", "Placement B: channel_beta_2026_09_12", "Same final offer, separate managed URLs", "Record the exact published URL and time"] },
+      { "heading": "Build the tagged destination before shortening", "paragraphs": ["In the UTM Builder, enter your real destination and use a convention such as utm_source=telegram, utm_medium=paid_social, utm_campaign=webinar_september, and utm_content=channel_alpha_2026_09_10. Use organic_social instead when it is genuinely an unpaid placement. Keep casing and separators consistent across your team.", "An illustrative destination is https://example.com/webinar?utm_source=telegram&utm_medium=paid_social&utm_campaign=webinar_september&utm_content=channel_alpha_2026_09_10. Replace example.com with your own destination before publishing. Copy the generated destination into the Linktery link editor, save, and share the resulting managed URL in the post. For the second placement, change utm_content and create a second managed link."], "bullets": ["Preserve any destination parameters the offer requires", "Do not put email addresses or credentials in UTM values", "Avoid applying duplicate UTM tags at several redirect layers", "Use a clear Link Title matching the placement ledger"] },
+      { "heading": "Test the path from the Telegram app", "paragraphs": ["Open a draft post on a real phone and follow the link to the final destination. Check the address after redirects, the offer itself, and whether the destination analytics receives your campaign tags. Repeat with the routing conditions you actually enabled; a country or device rule may send a visitor somewhere other than the default URL.", "Link previews and security scanners may request a URL before a person taps it. Linktery filters recognizable automated signals, but this does not guarantee a perfectly human-only count. Mark your own test period in the ledger and avoid interpreting every early click as interest from the purchased placement."], "bullets": ["Test iOS and Android when both audiences matter", "Verify the default destination and enabled rule destinations", "Confirm the destination retains the expected tags", "Record your test time separately from the publication time"] },
+      { "heading": "Compare the same reporting window", "paragraphs": ["For each managed link, compare clicks over the same elapsed period after publication. With access to detailed analytics, inspect country and device patterns as context, not proof of traffic quality. A VPN, travel, and privacy infrastructure can affect country attribution. Bring placement cost from your own ledger; Linktery does not automatically know what you paid the channel.", "If an illustrative placement costs $120 and records 300 counted clicks, its cost per counted click is $0.40. That is not cost per subscriber or customer. Confirm registrations, orders, and refunds in the destination system. If the destination is a Telegram invite, use Telegram's available invite-link reporting for joins: an HTTP link click is not a verified membership event."], "bullets": ["Cost per counted click = placement cost / counted clicks", "Use comparable windows and record the time zone", "Do not treat daily unique signals as permanent unique people", "Check business outcomes before increasing the next placement budget"] }
+    ],
+    "faqs": [
+      { "question": "Can Linktery tell me how many users joined a Telegram channel?", "answer": "Not from a managed-link click alone. Use available invite-link or membership reporting in Telegram for joins. Linktery measures the visit to the managed address, not completion of the membership action." },
+      { "question": "Why create different links when the destination is identical?", "answer": "Separate addresses preserve the placement distinction in click reporting. If one tracking address appears in several posts, its total covers all of them and any forwarded copies." },
+      { "question": "Does a Telegram referrer always identify the original channel?", "answer": "No. Referrer information can be absent or lose channel detail, and forwarded links retain their original tracking address. Use explicit placement labels and distinct links." },
+      { "question": "Do I need a paid plan to create the links?", "answer": "Create links within your current plan's limits. Detailed analytics and country routing require the corresponding paid entitlement; consult Pricing for current limits before preparing a large campaign." }
+    ],
+    "sources": [{ "label": "Google Analytics: campaign URL parameters", "url": "https://support.google.com/analytics/answer/10917952" }],
+    "related": ["/tools/utm-builder", "/features/link-analytics", "/guides/bot-clicks-in-link-analytics", "/guides/how-to-track-link-clicks"]
+  },
+  {
+    "path": "/guides/bot-clicks-in-link-analytics",
+    "kind": "guide",
+    "eyebrow": "ANALYTICS TROUBLESHOOTING",
+    "title": "Investigate bot clicks and unexpected traffic",
+    "seoTitle": "Bot Clicks in Link Analytics: What to Check | Linktery",
+    "seoDescription": "Investigate unexpected link clicks, previews, scanners, and country spikes. Understand Linktery's traffic filtering limits without blocking ordinary visitors.",
+    "lead": "Unexpected clicks do not automatically mean a campaign succeeded, a person visited, or another account's traffic was mixed into your report. Start with the exact resource and time window, then separate automation signals from assumptions about geography.",
+    "highlights": [
+      { "title": "Check the scope", "text": "A profile view, profile card click, and managed-link click answer different questions." },
+      { "title": "Automation has several causes", "text": "Previews, security scanning, and deliberate bots can all make requests before a human visit." },
+      { "title": "Do not block by suspicion alone", "text": "Missing referrers and unfamiliar countries are not sufficient proof of automation." }
+    ],
+    "sections": [
+      { "heading": "Confirm which resource and event you are reading", "paragraphs": ["Write down the public URL, the resource being viewed in the dashboard, the reporting period, and when you first noticed the spike. If a profile contains a managed link, opening the profile and clicking its card are distinct actions. Do not compare totals from different scopes and infer contamination just because they do not match.", "Check whether the URL was published in a social bio, submitted to a partner, pasted into a messenger, or exposed through a public page. Not buying traffic does not make a public URL undiscoverable. If you suspect cross-account attribution, provide the resource URL, account ID, timestamps, and a screenshot privately to support; never send passwords or API keys."], "bullets": ["Identify profile views versus card clicks versus link clicks", "Use one reporting window and note its time zone", "Check your own tests and preview activity", "Escalate ownership concerns with concrete resource identifiers"] },
+      { "heading": "Understand why a non-human request happens", "paragraphs": ["A messenger may retrieve a page to generate its preview. A security service can inspect a link before allowing a recipient to open it. Search crawlers, uptime checks, and scraping tools also fetch public addresses. Some reveal themselves through request metadata; others can imitate a regular browser.", "Linktery's current filtering looks for recognizable automated requests, including known crawler or automation user agents and available prefetch or navigation signals. Where a trustworthy edge bot signal is available, it can also be used. This is a best-effort filter rather than a certification that every retained event came from a person."], "bullets": ["A preview request is not a confirmed reader", "A scanner can fetch a link before publication or delivery", "Browser-like automation may evade simple signatures", "Changes in filtering can affect comparability across reporting periods"] },
+      { "heading": "Do not treat a country or missing referrer as a verdict", "paragraphs": ["Country attribution follows the network address visible to the service, not a person's nationality or verified physical location. VPNs, corporate gateways, mobile networks, and privacy relays can all change the apparent location. Likewise, browsers and apps may omit referrer information during an ordinary visit.", "For that reason, an unfamiliar country or an empty referrer should prompt investigation rather than blanket blocking. A burst that aligns with a real placement may be legitimate. A burst immediately after a preview is generated may have another explanation. Neither observation alone proves fraud."], "bullets": ["Compare timing with actual publications and tests", "Read country and device patterns together", "Do not blacklist a region just to make a report look cleaner", "Keep destination access separate from analytics filtering"] },
+      { "heading": "Validate with a controlled test and an outcome metric", "paragraphs": ["Choose a quiet period, record the starting counts, and perform a small number of clearly timed visits from ordinary browsers. Avoid refreshing repeatedly or opening several nested links without recording the sequence. Allow reporting to refresh, then compare the expected event scope. Daily unique click signals are not a permanent person identifier and should not be expected to match total clicks.", "For campaign decisions, corroborate clicks with the action that matters at the destination, such as a submitted registration or an order. Do not describe bot filtering as a way to guarantee advertising approval, hide prohibited content, or prove all remaining traffic is billable human traffic. If a reproducible mismatch remains, share the test sequence privately with support."], "bullets": ["Record the URL, test time, browser, and actions taken", "Wait for the report to refresh before concluding an event is missing", "Avoid exposing raw visitor data or account secrets", "Use confirmed destination outcomes to evaluate campaign value"] }
+    ],
+    "faqs": [
+      { "question": "Does Linktery remove every bot click?", "answer": "No. It filters recognizable automated signals while preserving ordinary browser visits. Sophisticated automation can resemble human traffic, and incomplete request metadata limits classification." },
+      { "question": "Are clicks from another country necessarily fake?", "answer": "No. Network routing, VPNs, privacy relays, travel, and the real audience distribution can explain them. Country alone is not a reliable bot detector." },
+      { "question": "Can I infer that another user's clicks were counted for me?", "answer": "A surprising total is not enough to establish that. First verify the exact link or profile scope and time window. Send a reproducible example with resource identifiers to support if ownership attribution still looks wrong." },
+      { "question": "Will stronger filtering rewrite all historical reports?", "answer": "Do not assume historical backfilling. Filtering changes apply to the relevant ingestion path; previously stored events are not automatically reclassified simply because new rules are introduced." }
+    ],
+    "related": ["/features/link-analytics", "/features/public-profile-analytics", "/guides/telegram-link-tracking", "/guides/link-in-bio-analytics-guide"]
+  },
+  {
+    "path": "/guides/change-link-destination",
+    "kind": "guide",
+    "eyebrow": "LINK MANAGEMENT PLAYBOOK",
+    "title": "Change a link destination after publishing",
+    "seoTitle": "Change a Short Link Destination After Sharing | Linktery",
+    "seoDescription": "Update a managed link without changing the shared address. Check country and device rules, QR-code destinations, caching, and your analytics cutover.",
+    "lead": "Edit the existing managed link rather than creating a replacement address. Keep its public URL stable, check every enabled routing rule, and verify the saved result before assuming all visitors now reach the new destination.",
+    "highlights": [
+      { "title": "Keep the public address", "text": "Changing a destination is different from changing the shared slug or domain." },
+      { "title": "Review every route", "text": "A country, device, or rotation rule may still point to the previous offer." },
+      { "title": "Record the change", "text": "The same managed link can cover more than one destination over its lifetime." }
+    ],
+    "sections": [
+      { "heading": "Confirm what address you published", "paragraphs": ["Suppose a post contains a Linktery managed URL that currently leads to a September webinar. If you control that Linktery record, you can edit its destination while keeping the shared address. If the post contains the webinar website's direct URL instead, changing an unrelated Linktery record cannot alter that post.", "In Dashboard, open Links, locate the existing entry by its title or slug, and open its editor. Record its current destination and public address before editing. Do not delete the record and create a new link as a substitute for changing the destination: the new address will not replace URLs already distributed."], "bullets": ["Copy the exact URL from the published post", "Find the matching existing managed link", "Save the previous destination for rollback", "Keep the existing domain and slug unchanged"] },
+      { "heading": "Update the destination and inspect routing rules", "paragraphs": ["Replace the destination with the intended URL, including any required campaign or offer parameters, then save the link. Confirm that the editor reports success and reopen the record to verify the value persisted. An error message is not a completed update.", "Check enabled device targeting, country targeting, rotation destinations, and other destination-specific settings. Updating the default URL alone does not mean every configured branch now uses it. For example, a country rule may still lead to last month's local offer even though the default route has changed. Edit only the rules you intend to change; leave unrelated access and safety settings intact."], "bullets": ["Validate the new URL independently before saving", "Review the default fallback", "Review each enabled conditional destination", "Verify the saved record instead of relying on the unsaved form"] },
+      { "heading": "Test the shared URL, including printed QR codes", "paragraphs": ["Open the original managed address in a fresh browser context and check the final page after redirects. Repeat for the device and country conditions relevant to the campaign where practical. A cached redirect or an already opened page can make an immediate repeat visit misleading; do not assume every browser cache is cleared by saving the record.", "A printed QR code stores an address, not a live copy of your editor settings. If it encodes the existing managed URL, future requests to that URL can use the updated destination. If it encodes the old destination directly, it cannot be rewritten by editing Linktery. Scan the physical code to confirm which address it actually contains."], "bullets": ["Use the exact previously shared URL", "Test a fresh browser context as well as the normal mobile flow", "Scan the actual printed QR code", "Verify the expected fallback for visitors outside configured rules"] },
+      { "heading": "Keep a reporting boundary and a rollback plan", "paragraphs": ["Record when the change was saved and which destinations or rules changed. Because the managed link remains the same resource, its reports can span both the old and new destination. Do not interpret lifetime clicks as the performance of the new offer alone. Use a suitable reporting period and your destination's own campaign data.", "If clean separation by offer is more important than preserving the published address, create a new managed link for future placements and keep the old one available. That is a different decision from updating the existing link. If testing fails, restore the recorded previous destination and recheck the original URL before distributing more traffic."], "bullets": ["Log the destination change time", "Keep old and new campaign results distinguishable", "Use a new address for future placements when separation matters more", "Retest after rollback instead of assuming restoration succeeded"] }
+    ],
+    "faqs": [
+      { "question": "Do I need to replace the link in every old post?", "answer": "Not when those posts use the same existing managed address and you update that record's destination. Posts that contain a direct destination URL or another managed address are unaffected." },
+      { "question": "Will editing the default destination update country and device rules?", "answer": "Do not assume it will. Review each enabled branch and its fallback. A conditional destination can remain different from the default." },
+      { "question": "Can I change where an already printed QR code leads?", "answer": "Only through control of the address encoded in it. A QR code pointing to your managed URL can follow its updated route; a direct URL in the printed image cannot be edited remotely through an unrelated Linktery record." },
+      { "question": "Will old analytics disappear when I change the destination?", "answer": "Editing the destination is not creating a new analytics resource. Keep a change timestamp and separate reporting windows; do not assume previous clicks are relabelled as activity for the new offer." }
+    ],
+    "related": ["/features/link-management", "/features/geo-targeting", "/guides/dynamic-vs-static-qr-codes", "/guides/telegram-link-tracking"]
   }
 ]

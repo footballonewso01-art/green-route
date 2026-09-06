@@ -16,6 +16,7 @@ const setup = (file = ":memory:") => {
   databases.push(db);
   db.exec(`
     PRAGMA foreign_keys=ON;
+    CREATE TABLE users(id TEXT PRIMARY KEY);
     CREATE TABLE public_profiles (id TEXT PRIMARY KEY);
     CREATE TABLE links (id TEXT PRIMARY KEY);
     CREATE TABLE clicks (id TEXT PRIMARY KEY, source_profile_id TEXT, profile_link_id TEXT, link_id TEXT, created TEXT, is_unique INTEGER);
@@ -32,6 +33,9 @@ const setup = (file = ":memory:") => {
     migrate: (up: (app: object) => void) => up({
       db: () => ({ newQuery: (sql: string) => ({ execute: () => db.exec(sql) }) }),
     }),
+  });
+  vm.runInNewContext(fs.readFileSync("pocketbase/pb_migrations/1788610000_add_stats_adjustments.js", "utf8"), {
+    migrate: (up: (app: object) => void) => up({ db: () => ({ newQuery: (sql: string) => ({ execute: () => db.exec(sql) }) }) }),
   });
   return db;
 };
@@ -50,6 +54,20 @@ afterEach(() => {
 });
 
 describe("atomic profile click counters", () => {
+  it("preserves applied adjustment deltas during repeated reconciliation and missing-row repair", () => {
+    const db = setup(); insert(db, "real");
+    db.exec(`INSERT INTO users VALUES('owner');
+      INSERT INTO stats_adjustments(id,user_id,actor_id,state,mode,resource_id,start_at,end_at,reason,config,summary,fingerprint,created)
+      VALUES('adjustment','owner','admin','applied','links','link','','','test','{}','{}','','');
+      INSERT INTO stats_adjustment_rows SELECT 'adjustment','card','link','profile','card',bucket,'all','',99,79 FROM profile_click_hourly_rollup;
+      UPDATE profile_click_hourly_rollup SET total=100,unique_count=80;`);
+    db.exec(reconciliation); db.exec(reconciliation);
+    expect(totals(db)).toEqual({ total: 100, uniq: 80 });
+    db.exec("DELETE FROM profile_click_hourly_rollup"); db.exec(reconciliation);
+    expect(totals(db)).toEqual({ total: 100, uniq: 80 });
+    db.exec("UPDATE stats_adjustments SET state='reverted'"); db.exec(reconciliation);
+    expect(totals(db)).toEqual({ total: 1, uniq: 1 });
+  });
   it("increments once at insertion, and repeated reconciliation cannot double count", () => {
     const db = setup();
     insert(db, "one");

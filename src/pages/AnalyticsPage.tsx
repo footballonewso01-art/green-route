@@ -57,7 +57,10 @@ interface TrendDatum {
   cardClicks?: number;
 }
 
-export default function AnalyticsPage() {
+export default function AnalyticsPage({ adminUserId, adminLinks }: {
+  adminUserId?: string;
+  adminLinks?: { id: string; name: string; slug: string }[];
+} = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const linkId = searchParams.get("link");
   const profileScope = searchParams.get("profile");
@@ -65,7 +68,8 @@ export default function AnalyticsPage() {
   const isAllProfiles = profileScope === ALL_PROFILES_SCOPE || profileScope === "";
   const profileId = isProfileMode && !isAllProfiles ? profileScope : null;
   const { user } = useAuth();
-  const analyticsScopeKey = `${user?.id || "guest"}|${isProfileMode
+  const subjectId = adminUserId || user?.id;
+  const analyticsScopeKey = `${subjectId || "guest"}|${isProfileMode
     ? `profiles:${profileScope || ALL_PROFILES_SCOPE}`
     : `links:${linkId || "all"}`}`;
   const [period, setPeriod] = useState("7d");
@@ -92,7 +96,7 @@ export default function AnalyticsPage() {
   const [resolvedAnalyticsScope, setResolvedAnalyticsScope] = useState<string | null>(null);
 
   const userPlan = (user as { plan?: string })?.plan || "creator";
-  const canUseAnalytics = checkPlan(userPlan, "analytics");
+  const canUseAnalytics = (Boolean(adminUserId) && user?.role === "admin") || checkPlan(userPlan, "analytics");
   const profileScopeNeedsNormalization = isProfileMode
     && profileOptionsLoaded
     && !profileOptionsFailed
@@ -110,7 +114,7 @@ export default function AnalyticsPage() {
     setProfileOptionsLoaded(false);
     setProfileOptionsFailed(false);
     pb.collection("public_profiles").getFullList<AnalyticsProfileOption>({
-      filter: `user_id="${user.id}"`,
+      filter: pb.filter('user_id={:id}', { id: subjectId }),
       sort: "created",
       fields: "id,name,slug",
       requestKey: "analytics-profile-options",
@@ -128,7 +132,7 @@ export default function AnalyticsPage() {
       active = false;
       pb.cancelRequest("analytics-profile-options");
     };
-  }, [canUseAnalytics, user?.id]);
+  }, [canUseAnalytics, user?.id, subjectId]);
 
   useEffect(() => {
     if (!isProfileMode || !profileOptionsLoaded || profileOptionsFailed) return;
@@ -163,6 +167,7 @@ export default function AnalyticsPage() {
         // === SERVER-SIDE SQL AGGREGATION ===
         // Single API call returns pre-aggregated data (~2KB) instead of thousands of raw records.
         const queryParams = new URLSearchParams({ period });
+        if (adminUserId) queryParams.set("adminUserId", adminUserId);
         if (refresh) queryParams.set("refresh", "1");
         if (isProfileMode) queryParams.set("profileId", profileScope || ALL_PROFILES_SCOPE);
         else if (linkId) queryParams.set("linkId", linkId);
@@ -325,7 +330,7 @@ export default function AnalyticsPage() {
       stopReturnRefresh();
       pb.cancelRequest(requestKey);
     };
-  }, [analyticsScopeKey, canUseAnalytics, isProfileMode, linkId, period, profileOptionsLoaded, profileScope, profileScopeNeedsNormalization, user?.id]);
+  }, [analyticsScopeKey, canUseAnalytics, isProfileMode, linkId, period, profileOptionsLoaded, profileScope, profileScopeNeedsNormalization, user?.id, adminUserId]);
 
   useEffect(() => {
     if (!canUseAnalytics || !user?.id) return;
@@ -338,6 +343,7 @@ export default function AnalyticsPage() {
     let pendingReturnRefresh = false;
     const requestKey = "analytics-recent";
     const queryParams = new URLSearchParams();
+    if (adminUserId) queryParams.set("adminUserId", adminUserId);
     if (linkId) queryParams.set("linkId", linkId);
     const suffix = queryParams.toString() ? `?${queryParams.toString()}` : "";
 
@@ -373,7 +379,7 @@ export default function AnalyticsPage() {
       stopReturnRefresh();
       pb.cancelRequest(requestKey);
     };
-  }, [linkId, isProfileMode, canUseAnalytics, user?.id]);
+  }, [linkId, isProfileMode, canUseAnalytics, user?.id, adminUserId]);
 
   if (!canUseAnalytics) {
     return (
@@ -473,6 +479,7 @@ export default function AnalyticsPage() {
       <DashboardPageHeader
         eyebrow="Performance"
         title="Analytics"
+        headingLevel={adminUserId ? 2 : 1}
         description={analyticsDescription}
         actions={(
         <div className="flex items-center gap-1 p-1 rounded-xl bg-surface border border-border">
@@ -507,6 +514,23 @@ export default function AnalyticsPage() {
           </button>
         </div>
 
+        {!isProfileMode && adminUserId && adminLinks && (
+          <select
+            aria-label="Analytics link"
+            className="min-h-10 min-w-0 max-w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground sm:max-w-xs"
+            value={linkId || "all"}
+            onChange={event => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("profile");
+              if (event.target.value === "all") next.delete("link");
+              else next.set("link", event.target.value);
+              setSearchParams(next);
+            }}
+          >
+            <option value="all">All links</option>
+            {adminLinks.map(link => <option key={link.id} value={link.id}>{link.name} /{link.slug}</option>)}
+          </select>
+        )}
         {isProfileMode && (
           <div className="w-full sm:w-auto">
             <ProfileScopeSelect

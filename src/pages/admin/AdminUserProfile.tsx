@@ -24,6 +24,7 @@ import {
     AdminPartnerInfo,
     type AdminPartnerInfoData,
 } from "@/components/admin/AdminPartnerInfo";
+import { AdminUserStats } from "@/components/admin/AdminUserStats";
 
 interface AdminUser {
     id: string;
@@ -355,6 +356,9 @@ export default function AdminUserProfile() {
                     <TabsTrigger value="links" className="shrink-0 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground py-2 px-4 rounded-lg flex items-center gap-2">
                         <LinkIcon className="w-4 h-4" /> Links ({totalLinks})
                     </TabsTrigger>
+                    <TabsTrigger value="stats" className="shrink-0 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground py-2 px-4 rounded-lg flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4" /> Stats
+                    </TabsTrigger>
                     <TabsTrigger value="billing" className="shrink-0 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground py-2 px-4 rounded-lg flex items-center gap-2">
                         <CreditCard className="w-4 h-4" /> Billing & Notes
                     </TabsTrigger>
@@ -369,6 +373,18 @@ export default function AdminUserProfile() {
                 </TabsList>
 
                 {/* OVERVIEW TAB */}
+                <TabsContent value="stats">
+                    <AdminUserStats key={id} userId={id as string} onChanged={() => {
+                        void pb.send<AdminUserActivityResponse>(`/api/admin/users/${encodeURIComponent(id as string)}/activity`, { method: "GET", requestKey: null }).then(response => {
+                            setClicksTotalItems(response.data.total_clicks);
+                            const counts = new Map(response.data.trend.map(p => [p.date, p.clicks]));
+                            setChartData(Array.from({ length: 7 }, (_, i) => {
+                                const date = new Date(Date.now() - (6 - i) * 86400000);
+                                return { time: date.toLocaleDateString('en-US', { weekday: 'short' }), clicks: counts.get(date.toISOString().slice(0, 10)) || 0 };
+                            }));
+                        }).catch(() => toast.error("Overview could not refresh. Reopen the user to retry."));
+                    }} />
+                </TabsContent>
                 <TabsContent value="overview" className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-surface border border-border rounded-2xl p-6">

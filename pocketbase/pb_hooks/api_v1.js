@@ -667,7 +667,7 @@ var readLinkAnalytics = function(c) {
         return errorResponse(c, auth, 400, "invalid_period", "period must be one of: 24h, 7d, 30d, 90d.");
     }
 
-    var cacheKey = "public-api-link-analytics|" + auth.user.id + "|" + link.id + "|" + period;
+    var cacheKey = "public-api-link-analytics|" + auth.user.id + "|" + link.id + "|" + period + "|" + require('./stats_adjustments.js').revision($app, auth.user.id);
     var cached = utils.getAnalyticsCache(cacheKey);
     if (cached) {
         utils.applyApiResponseHeaders(c, auth);

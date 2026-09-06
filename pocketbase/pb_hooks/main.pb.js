@@ -1956,6 +1956,7 @@ routerAdd("POST", "/api/telemetry", (c) => {
             "event_id": "",
             "journey_id": "",
             "path": "",
+            "landing_path": "",
             "source": "",
             "medium": "",
             "campaign": "",
@@ -2022,12 +2023,23 @@ routerAdd("POST", "/api/telemetry", (c) => {
             var eventId = String(data.event_id || "");
             if (eventName === "signup_completed" && authUser) {
                 eventId = "signup:" + authUser.id;
+                // Browser completion only enriches a recent server-created
+                // signup. It cannot invent signups for existing accounts.
+                var signupRow = new DynamicModel({ "id": "" });
+                $app.db().newQuery("SELECT id FROM growth_events WHERE id = {:id} AND event_name = 'signup_completed' AND created >= datetime('now', '-1 day')")
+                    .bind({ id: eventId }).one(signupRow);
+                if (!signupRow.id) return c.json(202, { accepted: false });
+            } else if (!/^web:[a-zA-Z0-9_-]{12,80}$/.test(eventId)) {
+                // Keep client retry ids out of the server milestone namespace.
+                eventId = "web:" + $security.randomString(32);
             }
             utils.recordGrowthEvent($app, {
                 id: eventId,
                 eventName: eventName,
                 userId: authUser ? authUser.id : "",
                 journeyId: data.journey_id,
+                path: path,
+                landingPath: data.landing_path,
                 source: data.source,
                 medium: data.medium,
                 campaign: data.campaign,
@@ -3130,8 +3142,20 @@ cronAdd("reconcile_profile_click_rollups", "29 * * * *", () => {
                 c.profile_link_id,
                 c.link_id,
                 strftime('%Y-%m-%dT%H:00:00Z', c.created),
-                count(*),
-                sum(CASE WHEN c.is_unique = 1 THEN 1 ELSE 0 END)
+                count(*) + COALESCE((
+                    SELECT sum(a.total) FROM stats_adjustment_rows a
+                    JOIN stats_adjustments s ON s.id=a.adjustment_id AND s.state='applied'
+                    WHERE a.kind='card' AND a.resource_id=c.link_id
+                      AND a.profile_id=c.source_profile_id AND a.card_id=c.profile_link_id
+                      AND a.bucket=strftime('%Y-%m-%dT%H:00:00Z', c.created)
+                ),0),
+                sum(CASE WHEN c.is_unique = 1 THEN 1 ELSE 0 END) + COALESCE((
+                    SELECT sum(a.unique_count) FROM stats_adjustment_rows a
+                    JOIN stats_adjustments s ON s.id=a.adjustment_id AND s.state='applied'
+                    WHERE a.kind='card' AND a.resource_id=c.link_id
+                      AND a.profile_id=c.source_profile_id AND a.card_id=c.profile_link_id
+                      AND a.bucket=strftime('%Y-%m-%dT%H:00:00Z', c.created)
+                ),0)
             FROM clicks c INDEXED BY idx_clicks_created
             INNER JOIN public_profiles p ON p.id = c.source_profile_id
             INNER JOIN links l ON l.id = c.link_id
@@ -5373,13 +5397,16 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
     var ownsInflight = false;
     try {
         var utils = require(__hooks + '/utils.js');
-        var user = c.auth;
+        var statsAccess = require(__hooks + '/stats_adjustments.js');
+        var resolved = statsAccess.subject($app, c);
+        if (resolved.status) return c.json(resolved.status, { message: resolved.message });
+        var user = resolved.user;
         if (!user || user.collection().name !== "users") {
             return c.json(401, { message: "Unauthorized" });
         }
 
         var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
-        if (!plan.analytics && user.get("role") !== "admin") {
+        if (!plan.analytics && c.auth.get("role") !== "admin") {
             return c.json(403, { message: "Advanced Analytics requires Creator Pro or Agency." });
         }
 
@@ -5404,7 +5431,7 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
             }
         }
 
-        cacheKey = "stats|" + userId + "|" + linkId + "|" + period;
+        cacheKey = "stats|" + userId + "|" + linkId + "|" + period + "|" + statsAccess.revision($app, userId);
         var cached = utils.getAnalyticsCache(cacheKey);
         // A tab-return refresh bypasses only the response cache. Ownership,
         // plan checks, the computation rate limit and inflight guard still apply.
@@ -5584,7 +5611,7 @@ routerAdd("GET", "/api/analytics/stats", (c) => {
         $app.logger().error("Analytics stats API error: " + e.toString());
         return c.json(500, { message: "Analytics query failed." });
     } finally {
-        if (ownsInflight && utils) delete utils.ANALYTICS_INFLIGHT[c.auth ? c.auth.id : ""];
+        if (ownsInflight && utils) delete utils.ANALYTICS_INFLIGHT[userId];
     }
 });
 
@@ -5599,13 +5626,16 @@ routerAdd("GET", "/api/analytics/profile-stats", (c) => {
     var utils = null;
     try {
         utils = require(__hooks + '/utils.js');
-        var user = c.auth;
+        var statsAccess = require(__hooks + '/stats_adjustments.js');
+        var resolved = statsAccess.subject($app, c);
+        if (resolved.status) return c.json(resolved.status, { message: resolved.message });
+        var user = resolved.user;
         if (!user || user.collection().name !== "users") {
             return c.json(401, { message: "Unauthorized" });
         }
 
         var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
-        if (!plan.analytics && user.get("role") !== "admin") {
+        if (!plan.analytics && c.auth.get("role") !== "admin") {
             return c.json(403, { message: "Advanced Analytics requires Creator Pro or Agency." });
         }
 
@@ -5653,7 +5683,7 @@ routerAdd("GET", "/api/analytics/profile-stats", (c) => {
             }
         }
 
-        cacheKey = "profile-stats|" + user.id + "|" + profileId + "|" + scopeFingerprint + "|" + period;
+        cacheKey = "profile-stats|" + user.id + "|" + profileId + "|" + scopeFingerprint + "|" + period + "|" + statsAccess.revision($app, user.id);
         var cached = utils.getAnalyticsCache(cacheKey);
         var refreshRequested = query.get("refresh") === "1";
         if (cached && !refreshRequested) return c.json(200, cached);
@@ -5906,10 +5936,12 @@ routerAdd("GET", "/api/analytics/profile-stats", (c) => {
 routerAdd("GET", "/api/analytics/recent", (c) => {
     try {
         var utils = require(__hooks + '/utils.js');
-        var user = c.auth;
+        var resolved = require(__hooks + '/stats_adjustments.js').subject($app, c);
+        if (resolved.status) return c.json(resolved.status, { message: resolved.message });
+        var user = resolved.user;
         if (!user || user.collection().name !== "users") return c.json(401, { message: "Unauthorized" });
         var plan = utils.getPlanCatalogEntry(user.get("plan") || "creator");
-        if (!plan.analytics && user.get("role") !== "admin") return c.json(403, { message: "Advanced Analytics requires Creator Pro or Agency." });
+        if (!plan.analytics && c.auth.get("role") !== "admin") return c.json(403, { message: "Advanced Analytics requires Creator Pro or Agency." });
 
         var linkId = c.request.url.query().get("linkId") || "";
         var params = { userId: user.id };
@@ -5956,7 +5988,7 @@ routerAdd("GET", "/api/links/sparklines", (c) => {
         var utils = require(__hooks + '/utils.js');
         var user = c.auth;
         if (!user || user.collection().name !== "users") return c.json(401, { message: "Unauthorized" });
-        var cacheKey = "sparklines|" + user.id;
+        var cacheKey = "sparklines|" + user.id + "|" + require(__hooks + '/stats_adjustments.js').revision($app, user.id);
         var cached = utils.getAnalyticsCache(cacheKey);
         if (cached) return c.json(200, cached);
 
@@ -5999,7 +6031,7 @@ routerAdd("GET", "/api/dashboard/summary", (c) => {
         var startedAt = new Date().getTime();
         var user = c.auth;
         if (!user || user.collection().name !== "users") return c.json(401, { message: "Unauthorized" });
-        var cacheKey = "dashboard|" + user.id;
+        var cacheKey = "dashboard|" + user.id + "|" + require(__hooks + '/stats_adjustments.js').revision($app, user.id);
         var cached = utils.getAnalyticsCache(cacheKey);
         if (cached) return c.json(200, cached);
 

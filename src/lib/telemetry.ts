@@ -1,4 +1,6 @@
 import { pb } from "@/lib/pocketbase";
+import { acquisitionSource, marketingPath } from "@/lib/growthAttribution";
+import { isCustomPublicHostname } from "@/lib/siteConfig";
 
 export type GrowthEvent =
   | "landing_pageview"
@@ -18,6 +20,7 @@ interface TelemetryPayload {
   event_id?: string;
   journey_id?: string;
   path?: string;
+  landing_path?: string;
   source?: string;
   medium?: string;
   campaign?: string;
@@ -41,10 +44,12 @@ interface GrowthContext {
   source: string;
   medium: string;
   campaign: string;
+  landingPath: string;
 }
 
 const GROWTH_CONTEXT_KEY = "linktery_growth_context_v1";
 const GROWTH_CONTEXT_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+let memoryContext: (GrowthContext & { capturedAt: number }) | undefined;
 
 const truncate = (value: unknown, max: number) => String(value ?? "").slice(0, max);
 
@@ -67,27 +72,16 @@ function safeAttributionValue(value: unknown, max: number): string {
     .slice(0, max);
 }
 
-function referrerSource(): string {
-  if (typeof document === "undefined" || !document.referrer) return "direct";
-  try {
-    const hostname = new URL(document.referrer).hostname.toLowerCase().replace(/^www\./, "");
-    if (!hostname || hostname === window.location.hostname.toLowerCase().replace(/^www\./, "")) {
-      return "direct";
-    }
-    return safeAttributionValue(hostname, 64) || "referral";
-  } catch {
-    return "referral";
-  }
-}
-
 function readGrowthContext(): GrowthContext {
   const fallback: GrowthContext = {
     journeyId: randomId().replace(/-/g, "_"),
     source: "direct",
     medium: "",
     campaign: "",
+    landingPath: "",
   };
   if (typeof window === "undefined") return fallback;
+  if (memoryContext && memoryContext.capturedAt > Date.now() - GROWTH_CONTEXT_MAX_AGE_MS) return memoryContext;
 
   try {
     const raw = window.localStorage.getItem(GROWTH_CONTEXT_KEY);
@@ -96,30 +90,32 @@ function readGrowthContext(): GrowthContext {
       if (
         typeof parsed.journeyId === "string" &&
         /^[a-zA-Z0-9_-]{12,64}$/.test(parsed.journeyId) &&
-        Number(parsed.capturedAt || 0) > Date.now() - GROWTH_CONTEXT_MAX_AGE_MS
+        Number(parsed.capturedAt || 0) > Date.now() - GROWTH_CONTEXT_MAX_AGE_MS &&
+        Number(parsed.capturedAt) <= Date.now()
       ) {
-        return {
+        memoryContext = {
           journeyId: parsed.journeyId,
           source: safeAttributionValue(parsed.source || "direct", 64).toLowerCase() || "direct",
           medium: safeAttributionValue(parsed.medium, 64).toLowerCase(),
           campaign: safeAttributionValue(parsed.campaign, 96),
+          // Legacy contexts have no known landing page. Never invent one
+          // from the registration page or a later visit.
+          landingPath: parsed.landingPath ? marketingPath(parsed.landingPath) : "",
+          capturedAt: Number(parsed.capturedAt),
         };
+        return memoryContext;
       }
     }
 
-    const params = new URLSearchParams(window.location.search);
-    const context = {
-      journeyId: fallback.journeyId,
-      source: safeAttributionValue(params.get("utm_source") || referrerSource(), 64).toLowerCase() || "direct",
-      medium: safeAttributionValue(params.get("utm_medium"), 64).toLowerCase(),
-      campaign: safeAttributionValue(params.get("utm_campaign"), 96),
-      capturedAt: Date.now(),
-    };
-    window.localStorage.setItem(GROWTH_CONTEXT_KEY, JSON.stringify(context));
-    return context;
-  } catch {
-    return fallback;
-  }
+  } catch { /* Storage can be unavailable; keep the journey in memory. */ }
+  memoryContext = {
+    journeyId: fallback.journeyId,
+    ...acquisitionSource(window.location.search, document.referrer, window.location.hostname),
+    landingPath: marketingPath(window.location.pathname),
+    capturedAt: Date.now(),
+  };
+  try { window.localStorage.setItem(GROWTH_CONTEXT_KEY, JSON.stringify(memoryContext)); } catch { /* Best effort. */ }
+  return memoryContext;
 }
 
 export function getGrowthJourneyId(): string {
@@ -133,6 +129,7 @@ export function sendTelemetry(payload: TelemetryPayload): void {
     event_id: truncate(payload.event_id, 96),
     journey_id: truncate(payload.journey_id, 64),
     path: truncate(payload.path || window.location.pathname, 160),
+    landing_path: payload.landing_path ? marketingPath(payload.landing_path) : "",
     source: truncate(payload.source, 64),
     medium: truncate(payload.medium, 64),
     campaign: truncate(payload.campaign, 96),
@@ -146,7 +143,7 @@ export function sendTelemetry(payload: TelemetryPayload): void {
     stack: truncate(payload.stack, 1000),
   };
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (pb.authStore.isValid && pb.authStore.token) {
+  if (pb.authStore?.isValid && pb.authStore.token) {
     headers.Authorization = pb.authStore.token;
   }
 
@@ -168,8 +165,23 @@ export function trackGrowthEvent(eventName: GrowthEvent, properties: GrowthPrope
     source: context.source,
     medium: context.medium,
     campaign: context.campaign,
+    landing_path: context.landingPath,
     surface: properties.surface,
     target_plan: properties.target_plan,
     reason: properties.reason,
   });
+}
+
+const pageViews = new Map<string, number>();
+export function trackMarketingPageView(path: string): void {
+  if (typeof window === "undefined" || isCustomPublicHostname(window.location.hostname)) return;
+  const safePath = marketingPath(path);
+  if (!safePath || safePath !== marketingPath(window.location.pathname)) return;
+  const key = `linktery_pageview:${safePath}`;
+  let last = pageViews.get(key) || 0;
+  try { last = Math.max(last, Number(sessionStorage.getItem(key)) || 0); } catch { /* Memory fallback. */ }
+  if (last > Date.now() - 30 * 60 * 1000) return;
+  pageViews.set(key, Date.now());
+  try { sessionStorage.setItem(key, String(Date.now())); } catch { /* Memory fallback. */ }
+  trackGrowthEvent("landing_pageview", { surface: safePath === "/" ? "landing" : "seo_content" });
 }

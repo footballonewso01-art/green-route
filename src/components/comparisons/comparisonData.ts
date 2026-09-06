@@ -1,4 +1,5 @@
 import { competitors } from "@/components/alternatives/alternativeData";
+import { comparisonEditorial } from "./comparisonEditorial";
 
 export type ComparisonProduct = (typeof competitors)[number];
 
@@ -145,6 +146,8 @@ export function getComparisonRows(a: ComparisonProduct, b: ComparisonProduct) {
 }
 
 export function getComparisonFaq(a: ComparisonProduct, b: ComparisonProduct) {
+  const editorial = comparisonEditorial[[a.slug, b.slug].sort().join("-vs-")];
+  if (editorial) return editorial.faq;
   return [
     {
       question: `How do ${a.name} and ${b.name} differ?`,

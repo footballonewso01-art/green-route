@@ -8,6 +8,7 @@ import BrandWordmark from "@/components/BrandWordmark";
 import { competitors } from "@/components/alternatives/alternativeData";
 import { comparisonPath, getComparisonFaq, getComparisonRows, productBriefs, resolveComparison, type ComparisonProduct } from "@/components/comparisons/comparisonData";
 import styles from "@/components/comparisons/Comparisons.module.css";
+import { comparisonEditorial } from "@/components/comparisons/comparisonEditorial";
 import indexableComparisons from "@/data/indexable-comparisons.json";
 import { useSeo } from "@/hooks/useSeo";
 import { PLANS } from "@/lib/plans";
@@ -22,6 +23,7 @@ function ComparisonPage({ a, b }: { a: ComparisonProduct; b: ComparisonProduct }
   const [first, setFirst] = useState(a.slug);
   const [second, setSecond] = useState(b.slug);
   const canonical = comparisonPath(a, b);
+  const editorial = comparisonEditorial[canonical.replace("/compare/", "")];
   const faq = getComparisonFaq(a, b);
   const rows = getComparisonRows(a, b);
   const migrationComparison = a.migrationOnly || b.migrationOnly;
@@ -95,6 +97,24 @@ function ComparisonPage({ a, b }: { a: ComparisonProduct; b: ComparisonProduct }
           </div>
         </section>
 
+        {editorial && <section className={styles.decision} aria-labelledby="workflow-heading">
+          <div className={styles.container}>
+            <div className={styles.sectionHeading}><h2 id="workflow-heading">Which fits your workflow?</h2></div>
+            <p className={styles.editorialVerdict}>{editorial.verdict}</p>
+            <p className={styles.tableNote}>Editorial analysis by Linktery, a competing provider. Sources checked September 5, 2026. The scenarios below are illustrative evaluation exercises, not measured customer results or hands-on benchmark claims.</p>
+            <div className={styles.checks}>
+              {editorial.sections.map((section) => <article key={section.title}>
+                <h3>{section.title}</h3><p>{section.body}</p>
+                <ul className={styles.editorialSteps}>{section.steps.map((step) => <li key={step}>{step}</li>)}</ul>
+              </article>)}
+            </div>
+            <div className={styles.sources}>
+              <div><h3>Evidence for this analysis</h3><ul>{editorial.sources.map((source) => <li key={source.href}><a href={source.href} target="_blank" rel="noreferrer">{source.label}<ExternalLink size={13} aria-hidden="true" /></a></li>)}</ul></div>
+              <div><h3>Put the decision into practice</h3><ul>{editorial.related.map((link) => <li key={link.href}><Link to={link.href}>{link.label}<ArrowUpRight size={13} aria-hidden="true" /></Link></li>)}</ul></div>
+            </div>
+          </div>
+        </section>}
+
         <section id="comparison-table" className={styles.comparison} aria-labelledby="details-heading">
           <div className={styles.container}>
             <div className={styles.sectionHeading}><h2 id="details-heading">{migrationComparison ? "Start with availability." : "The details that decide it."}</h2><span>Reviewed <time dateTime={a.reviewedAt}>{a.reviewedAt}</time></span></div>
@@ -115,9 +135,9 @@ function ComparisonPage({ a, b }: { a: ComparisonProduct; b: ComparisonProduct }
         <section className={styles.decision} aria-labelledby="decision-heading">
           <motion.div className={styles.container} {...reveal}>
             <div className={styles.sectionHeading}><h2 id="decision-heading">Before you choose.</h2><p>Try the work you actually do, not just the first screen.</p></div>
-            <div className={styles.checks}>
+            {!editorial && <div className={styles.checks}>
               {pair.map((product) => <article key={product.slug}><span>Check with {product.name}</span><p>{productBriefs[product.slug].check}</p><Link to={`/alternatives/${product.slug}`}>Read the {product.name} alternative guide<ArrowUpRight size={16} aria-hidden="true" /></Link></article>)}
-            </div>
+            </div>}
             <aside className={styles.linkteryOption} aria-labelledby="linktery-option-heading">
               <div className={styles.optionIntro}><BrandWordmark tone="light" /><span>A different fit</span><h3 id="linktery-option-heading">Need a page and a routing layer?</h3><p>Linktery combines public profiles with managed links. Keep your existing store or website as the destination.</p><Link to="/features">Explore Linktery features<ArrowUpRight size={17} aria-hidden="true" /></Link></div>
               <div className={styles.optionDetails}><dl><div><dt>Creator · ${PLANS.creator.price}</dt><dd>{PLANS.creator.limits.links} Smart Links, {PLANS.creator.limits.public_profiles} Public Profile, customization, and device targeting.</dd></div><div><dt>Creator Pro · ${PLANS.pro.price}/mo</dt><dd>{PLANS.pro.limits.links} Smart Links, {PLANS.pro.limits.public_profiles} profiles, {PLANS.pro.limits.custom_domain} custom domains, analytics, geo targeting, supported deep links, and API access.</dd></div></dl><p>No built-in checkout or collaborative seats. App handoffs depend on the destination and browser, with a web fallback.</p><Link to="/pricing">Full plan limits<ArrowRight size={15} aria-hidden="true" /></Link></div>

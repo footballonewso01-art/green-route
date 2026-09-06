@@ -38,6 +38,16 @@ def connect(path: Path, timeout: float = 30.0) -> sqlite3.Connection:
 
 def read_state(db_path: Path) -> tuple[str, int, int]:
     with connect(db_path) as db:
+        # Corrections are materialized aggregates backed by an undo ledger.
+        # An operator must undo them before rebuilding from raw events, or
+        # deliberately run a ledger-aware reconciliation outside this script.
+        has_adjustments = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='stats_adjustments'"
+        ).fetchone()
+        if has_adjustments and db.execute(
+            "SELECT 1 FROM stats_adjustments WHERE state='applied' LIMIT 1"
+        ).fetchone():
+            raise RuntimeError("Undo active statistics adjustments before running the raw-event backfill")
         row = db.execute(
             "SELECT status, max_click_rowid, last_stage_id "
             "FROM analytics_rollup_state WHERE id = 'historical'"

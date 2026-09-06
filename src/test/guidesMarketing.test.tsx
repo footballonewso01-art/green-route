@@ -46,8 +46,8 @@ describe("Guides marketing library", () => {
 
   it("includes each existing guide exactly once and keeps its full title and address", () => {
     renderGuides();
-    expect(document.querySelectorAll("[data-guide-card]")).toHaveLength(14);
-    expect(pages).toHaveLength(14);
+    expect(document.querySelectorAll("[data-guide-card]")).toHaveLength(pages.length);
+    expect(pages).toHaveLength(17);
     for (const page of pages) {
       expect(guidePresentation[page.path]).toBeDefined();
       expect(document.querySelectorAll(`[data-guide-card="${page.path}"]`)).toHaveLength(1);
@@ -59,8 +59,8 @@ describe("Guides marketing library", () => {
   });
 
   it.each([
-    ["Essentials (5)", "essentials", 5],
-    ["Traffic & tracking (5)", "tracking", 5],
+    ["Essentials (6)", "essentials", 6],
+    ["Traffic & tracking (7)", "tracking", 7],
     ["API recipes (2)", "api", 2],
     ["Migration (2)", "migration", 2],
   ] as const)("filters the catalog with %s", (name, topic, count) => {
@@ -74,8 +74,8 @@ describe("Guides marketing library", () => {
       if (getGuidePresentation(page).topic === topic) expect(entry).toBeInTheDocument();
       else expect(entry).not.toBeInTheDocument();
     }
-    fireEvent.click(screen.getByRole("button", { name: "All guides (14)" }));
-    expect(document.querySelectorAll("[data-guide-card]")).toHaveLength(14);
+    fireEvent.click(screen.getByRole("button", { name: `All guides (${pages.length})` }));
+    expect(document.querySelectorAll("[data-guide-card]")).toHaveLength(pages.length);
   });
 
   it("searches titles, summaries, and section headings without case or whitespace sensitivity", () => {
@@ -102,8 +102,8 @@ describe("Guides marketing library", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(screen.getByRole("searchbox")).toHaveValue("");
     expect(screen.getByRole("searchbox")).toHaveFocus();
-    expect(screen.getByRole("button", { name: "All guides (14)" })).toHaveAttribute("aria-pressed", "true");
-    expect(document.querySelectorAll("[data-guide-card]")).toHaveLength(14);
+    expect(screen.getByRole("button", { name: `All guides (${pages.length})` })).toHaveAttribute("aria-pressed", "true");
+    expect(document.querySelectorAll("[data-guide-card]")).toHaveLength(pages.length);
   });
 
   it("clears only the search on Escape or the clear button, keeping the selected topic", () => {

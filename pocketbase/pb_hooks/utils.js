@@ -288,26 +288,32 @@ var recordGrowthEvent = function(app, options) {
     if (targetPlan !== "creator" && targetPlan !== "pro" && targetPlan !== "agency") targetPlan = "";
     var objectId = normalizeGrowthField(options.objectId, 64, "");
     var reason = normalizeGrowthField(options.reason, 48, "").toLowerCase();
+    var path = normalizeGrowthField(options.path, 160, "").split(/[?#]/)[0];
+    if (path.charAt(0) !== "/" || path.indexOf("//") === 0) path = "";
+    var landingPath = normalizeGrowthField(options.landingPath, 160, "").split(/[?#]/)[0];
+    if (!/^(?:\/|\/(?:features|guides|tools|templates|solutions|alternatives|compare)(?:\/[a-z0-9-]+)?|\/pricing|\/documentation)$/.test(landingPath)) landingPath = "";
 
     app.db().newQuery(`
         INSERT INTO growth_events (
             id, event_name, user_id, journey_id, source, medium, campaign,
-            surface, target_plan, object_id, reason, created
+            surface, target_plan, object_id, reason, path, landing_path, created
         ) VALUES (
             {:id}, {:eventName}, {:userId}, {:journeyId}, {:source}, {:medium},
-            {:campaign}, {:surface}, {:targetPlan}, {:objectId}, {:reason},
+            {:campaign}, {:surface}, {:targetPlan}, {:objectId}, {:reason}, {:path}, {:landingPath},
             strftime('%Y-%m-%d %H:%M:%fZ', 'now')
         )
         ON CONFLICT(id) DO UPDATE SET
             user_id = COALESCE(excluded.user_id, growth_events.user_id),
-            journey_id = CASE WHEN excluded.journey_id != '' THEN excluded.journey_id ELSE growth_events.journey_id END,
-            source = CASE WHEN excluded.source NOT IN ('', 'direct') THEN excluded.source ELSE growth_events.source END,
-            medium = CASE WHEN excluded.medium != '' THEN excluded.medium ELSE growth_events.medium END,
-            campaign = CASE WHEN excluded.campaign != '' THEN excluded.campaign ELSE growth_events.campaign END,
+            journey_id = CASE WHEN growth_events.landing_path != '' THEN growth_events.journey_id WHEN excluded.journey_id != '' THEN excluded.journey_id ELSE growth_events.journey_id END,
+            source = CASE WHEN growth_events.landing_path != '' THEN growth_events.source WHEN excluded.source NOT IN ('', 'direct') THEN excluded.source ELSE growth_events.source END,
+            medium = CASE WHEN growth_events.landing_path != '' THEN growth_events.medium WHEN excluded.medium != '' THEN excluded.medium ELSE growth_events.medium END,
+            campaign = CASE WHEN growth_events.landing_path != '' THEN growth_events.campaign WHEN excluded.campaign != '' THEN excluded.campaign ELSE growth_events.campaign END,
             surface = CASE WHEN excluded.surface != '' THEN excluded.surface ELSE growth_events.surface END,
             target_plan = CASE WHEN excluded.target_plan != '' THEN excluded.target_plan ELSE growth_events.target_plan END,
             object_id = CASE WHEN excluded.object_id != '' THEN excluded.object_id ELSE growth_events.object_id END,
-            reason = CASE WHEN excluded.reason != '' THEN excluded.reason ELSE growth_events.reason END
+            reason = CASE WHEN excluded.reason != '' THEN excluded.reason ELSE growth_events.reason END,
+            path = CASE WHEN growth_events.path = '' THEN excluded.path ELSE growth_events.path END,
+            landing_path = CASE WHEN growth_events.landing_path = '' THEN excluded.landing_path ELSE growth_events.landing_path END
     `).bind({
         id: eventId,
         eventName: eventName,
@@ -319,7 +325,9 @@ var recordGrowthEvent = function(app, options) {
         surface: surface,
         targetPlan: targetPlan,
         objectId: objectId,
-        reason: reason
+        reason: reason,
+        path: path,
+        landingPath: landingPath
     }).execute();
 
     return eventId;

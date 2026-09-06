@@ -13,14 +13,16 @@ interface DashboardPageHeaderProps extends Omit<HTMLAttributes<HTMLElement>, "ti
   description?: ReactNode;
   eyebrow?: ReactNode;
   actions?: ReactNode;
+  headingLevel?: 1 | 2;
 }
 
-export function DashboardPageHeader({ title, description, eyebrow, actions, className, ...props }: DashboardPageHeaderProps) {
+export function DashboardPageHeader({ title, description, eyebrow, actions, headingLevel = 1, className, ...props }: DashboardPageHeaderProps) {
+  const Heading = headingLevel === 2 ? "h2" : "h1";
   return (
     <header className={cn(styles.header, className)} {...props}>
       <div className={styles.intro}>
         {eyebrow && <div className={styles.eyebrow}>{eyebrow}</div>}
-        <h1 className={styles.title}>{title}</h1>
+        <Heading className={styles.title}>{title}</Heading>
         {description && <p className={styles.description}>{description}</p>}
       </div>
       {actions && <div className={styles.actions}>{actions}</div>}

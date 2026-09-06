@@ -6,6 +6,7 @@ import AnalyticsPage from "@/pages/AnalyticsPage";
 const mocks = vi.hoisted(() => ({ send: vi.fn(), cancelRequest: vi.fn(), profiles: vi.fn(), toast: vi.fn() }));
 vi.mock("@/lib/pocketbase", () => ({ pb: {
   send: mocks.send, cancelRequest: mocks.cancelRequest,
+  filter: (_: string, values: { id: string }) => `user_id="${values.id}"`,
   collection: () => ({ getFullList: mocks.profiles }),
 } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "owner", plan: "agency" } }) }));

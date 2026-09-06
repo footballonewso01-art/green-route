@@ -452,7 +452,10 @@ The command performs this sequence:
 5. run local primary and alias Worker smoke tests;
 6. deploy `linktery-frontend`;
 7. deploy `linktery-frontend-alias` from the same artifact;
-8. run live smoke tests on the primary domain and all three aliases.
+8. run live smoke tests on the primary domain and all three aliases;
+9. verify the deployed IndexNow key and changed pages, then submit the content
+   change notification (see `docs/indexnow.md`). A notification failure does not
+   roll back an already healthy deployment.
 
 The two Workers publish atomically per Worker, but not as one cross-Worker
 transaction. If the primary deploy succeeds and the alias deploy fails, stop,
@@ -503,13 +506,14 @@ The canonical Bing Webmaster Tools property is `https://linktery.com/`. Its
 sitemap is `https://linktery.com/sitemap.xml`; alias domains must not be added
 as separate canonical properties or submitted as sitemap hosts.
 
-IndexNow notifications are provided by Cloudflare **Crawler Hints** on the
-`linktery.com` zone. Keep **Caching -> Configuration -> Crawler Hints** enabled.
-Cloudflare uses cache change signals to notify IndexNow-compatible search
-engines without adding a public IndexNow key or a network-dependent step to the
-frontend build. Do not submit every sitemap URL after every deploy: the sitemap
-is the complete URL inventory, while Crawler Hints is the incremental change
-signal.
+Keep Cloudflare **Caching -> Configuration -> Crawler Hints** enabled on the
+`linktery.com` zone. In addition, the production release pipeline now sends
+explicit IndexNow content-change notifications after successful live checks.
+The public verification key is deployed with the site; no network-dependent
+submission runs during the build or a staging release. The first notification
+establishes the canonical marketing catalogue baseline, and later notifications
+include only new, changed, or removed content. Preserve the receipt between
+releases to avoid resubmitting the full catalogue. See `docs/indexnow.md`.
 
 Crawler Hints is a zone-level setting and is not stored in `wrangler.jsonc`.
 Re-verify it after a zone transfer, account migration, DNS cutover, or accidental
@@ -518,8 +522,8 @@ URLs must continue to emit `X-Robots-Tag: noindex`; this keeps global crawler
 hints from turning private dashboard routes or short-link hops into SEO pages.
 The production SEO audit also requires `CF-Cache-Status` on the sitemap and every
 canonical sitemap URL. This verifies that Cloudflare can observe the cache change
-signals used by Crawler Hints; it does not attempt to duplicate those signals by
-submitting the full sitemap through a second IndexNow client.
+signals used by Crawler Hints. Explicit release notifications independently
+verify live page fingerprints and exclude user profiles, app routes, and aliases.
 
 ## DNS invariants
 

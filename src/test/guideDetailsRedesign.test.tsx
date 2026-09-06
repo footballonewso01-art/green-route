@@ -26,7 +26,7 @@ afterEach(() => {
 
 describe("redesigned guide details", () => {
   it("covers the complete guide catalog", () => {
-    expect(guidePages).toHaveLength(14);
+    expect(guidePages).toHaveLength(17);
   });
 
   it.each(guidePages)("renders $path as a focused editorial page", (page) => {

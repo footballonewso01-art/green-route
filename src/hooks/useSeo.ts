@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { PRIMARY_ORIGIN } from "@/lib/siteConfig";
 import { collectServerSeo } from "@/lib/serverSeo";
+import { trackMarketingPageView } from "@/lib/telemetry";
 
 export interface FAQItem {
   question: string;
@@ -21,6 +22,10 @@ interface SeoOptions {
 
 export function useSeo({ title, description, canonical, noIndex, followLinksOnNoIndex = false, ogImage, twitterCard, faq, structuredData }: SeoOptions) {
   collectServerSeo({ faq, structuredData });
+
+  useEffect(() => {
+    if (!noIndex && canonical?.startsWith("/")) trackMarketingPageView(canonical);
+  }, [canonical, noIndex]);
 
   useEffect(() => {
     // 1. Helper function for meta updates

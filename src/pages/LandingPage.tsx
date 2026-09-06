@@ -32,48 +32,6 @@ export default function LandingPage() {
 
   useSeo(SEO_PAGES.home);
 
-  useEffect(() => {
-    const recordPageView = () => {
-      try {
-        const isTracked = sessionStorage.getItem("landing_viewed");
-        if (!isTracked) {
-          trackGrowthEvent("landing_pageview", { surface: "landing" });
-          sessionStorage.setItem("landing_viewed", "true");
-        }
-      } catch (e) {
-        // Ignored
-      }
-    };
-
-    const triggerAnalytics = () => {
-      cleanup();
-      if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-        window.requestIdleCallback(() => recordPageView());
-      } else {
-        setTimeout(recordPageView, 1000);
-      }
-    };
-
-    const cleanup = () => {
-      clearTimeout(timer);
-      window.removeEventListener("scroll", triggerAnalytics);
-      window.removeEventListener("click", triggerAnalytics);
-      window.removeEventListener("touchstart", triggerAnalytics);
-    };
-
-    // Backup timer: 5 seconds for non-interactive views
-    const timer = window.setTimeout(triggerAnalytics, 5000);
-
-    // Fast trigger on user interaction
-    window.addEventListener("scroll", triggerAnalytics, { passive: true });
-    window.addEventListener("click", triggerAnalytics, { passive: true });
-    window.addEventListener("touchstart", triggerAnalytics, { passive: true });
-
-    return () => {
-      cleanup();
-    };
-  }, []);
-
   const showUser = mounted && !!user;
   const userPlan = (user as { plan?: PlanType })?.plan;
 

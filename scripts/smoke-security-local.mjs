@@ -29,7 +29,7 @@ const rawGet = (url, headers) => new Promise((resolve, reject) => {
   });
   request.on("error", reject);
 });
-const password = randomBytes(24).toString("hex");
+const password = process.env.LINKTERY_SMOKE_PASSWORD || randomBytes(24).toString("hex");
 const redirectSecret = randomBytes(32).toString("hex");
 const encryptionKey = randomBytes(16).toString("hex");
 const executable = path.join(root, "pocketbase", "pocketbase-0.24.exe");
@@ -60,12 +60,13 @@ try {
   const port = listener.address().port;
   await new Promise(resolve => listener.close(resolve));
   const origin = `http://127.0.0.1:${port}`;
-  processHandle = spawn(executable, [
+  const launchServer = () => spawn(executable, [
     "serve", "--dev", `--http=127.0.0.1:${port}`, `--dir=${temporary}`,
     `--hooksDir=${path.join(root, "pocketbase/pb_hooks")}`,
     `--migrationsDir=${path.join(root, "pocketbase/pb_migrations")}`,
     "--encryptionEnv=PB_ENCRYPTION_KEY",
   ], { env, windowsHide: true, stdio: "pipe" });
+  processHandle = launchServer();
   // Keep a bounded, in-memory diagnostic buffer for this synthetic instance.
   const capture = chunk => { serverLog = (serverLog + String(chunk)).slice(-6000); };
   processHandle.stdout.on("data", capture);
@@ -330,6 +331,73 @@ try {
   }), error => error.status === 400);
   assert.deepEqual((await customer.collection("public_profiles").update(profile.id, { social_links: [] })).social_links, []);
 
+  // Statistics corrections exercise the real PocketBase JSVM and its SQL
+  // transaction implementation, using only this instance's synthetic users.
+  // Earlier assertions deliberately exhaust the in-memory analytics limiter.
+  // Restart only this disposable process before the independent stats suite.
+  const statsRestart = once(processHandle, 'exit');
+  processHandle.kill(); await statsRestart;
+  processHandle = launchServer();
+  processHandle.stdout.on('data', capture); processHandle.stderr.on('data', capture);
+  let statsReady = false;
+  for (let i=0;i<80&&!statsReady;i++) {
+    try { statsReady=(await fetch(`${origin}/api/health`)).ok; } catch { /* startup */ }
+    if(!statsReady) await new Promise(resolve=>setTimeout(resolve,125));
+  }
+  assert(statsReady,'Stats fixture restart failed');
+  const statsOwner = owner;
+  const statsAdmin = other;
+  await admin.collection("users").update(statsAdmin.id, { role: "admin" });
+  const operator = new PocketBase(origin);
+  await operator.collection("users").authWithPassword(statsAdmin.email, password);
+  const statsCustomer = new PocketBase(origin);
+  await statsCustomer.collection("users").authWithPassword(statsOwner.email, password);
+  const statsLink = await admin.collection("links").create({ user_id: statsOwner.id, title: "Stats fixture", slug: "stats-fixture", destination_url: "https://example.com", domain: "linktery.com", mode: "redirect", active: true });
+  const statsProfile = await admin.collection("public_profiles").create({ user_id: statsOwner.id, name: "Stats fixture", slug: "stats-fixture-profile" });
+  sql(db, `UPDATE links SET created=datetime('now','-30 days') WHERE id=${quote(statsLink.id)}; UPDATE public_profiles SET created=datetime('now','-30 days') WHERE id=${quote(statsProfile.id)};`);
+  const statsPath = `/api/admin/users/${statsOwner.id}/stats`;
+  await assert.rejects(statsCustomer.send(statsPath, {}), e => e.status === 403);
+  await assert.rejects(statsCustomer.send(`/api/analytics/stats?adminUserId=${owner.id}`, {}), e => e.status === 403);
+  assert((await operator.send(statsPath, {})).links.some(l => l.id === statsLink.id));
+  const utcDay = offset => new Date(Date.now()+offset*86400000).toISOString().slice(0,10);
+  for (const mode of ["links", "profile_views"]) {
+    const analyticsPath = mode === "links" ? `/api/analytics/stats?period=7d&linkId=${statsLink.id}` : `/api/analytics/profile-stats?period=7d&profileId=${statsProfile.id}`;
+    const before = await statsCustomer.send(analyticsPath, {});
+    assert.equal(mode === "links" ? before.total : before.views, 0);
+    const dashboardBefore = await statsCustomer.send('/api/dashboard/summary', {}); // prime previous revision
+    const preview = await operator.send(`${statsPath}/preview`, { method: "POST", body: {
+      mode, resourceId: mode === "links" ? statsLink.id : statsProfile.id,
+      start: utcDay(-6), end: utcDay(-1), total: 12500, uniquePercent: 80, countries: "US, GB, DE", reason: "Synthetic local smoke test; no customer data."
+    } });
+    assert.equal(preview.summary.after, 12500);
+    assert.equal((await operator.send(statsPath, {})).history.filter(i => i.state === 'applied').length, 0);
+    await operator.send(`${statsPath}/${preview.id}/apply`, { method: "POST" });
+    await operator.send(`${statsPath}/${preview.id}/apply`, { method: "POST" });
+    const after = await statsCustomer.send(analyticsPath, {});
+    const asAdmin = await operator.send(`${analyticsPath}&adminUserId=${statsOwner.id}`, {});
+    assert.equal(mode === "links" ? after.total : after.views, 12500);
+    assert.equal(mode === "links" ? after.unique : after.uniqueViews, 10000);
+    assert.deepEqual(asAdmin.trend, after.trend);
+    assert.equal(after.trend.length, 6);
+    assert.equal(after.countries.reduce((sum, c) => sum+(c.clicks ?? c.views),0),12500);
+    if (mode === 'links') {
+      assert.equal((await statsCustomer.send('/api/dashboard/summary',{})).totalClicks,dashboardBefore.totalClicks+12500);
+      assert.equal((await statsCustomer.collection('links').getOne(statsLink.id)).clicks_count,12500);
+      assert.equal((await statsCustomer.send('/api/links/sparklines',{})).items.filter(p => p.link_id === statsLink.id).reduce((sum,p)=>sum+p.clicks,0),12500);
+    }
+    await operator.send(`${statsPath}/${preview.id}/undo`, { method: "POST" });
+    const restored = await statsCustomer.send(analyticsPath, {});
+    assert.equal(mode === "links" ? restored.total : restored.views, 0);
+  }
+  assert.equal(sql(db, `SELECT count(*) FROM clicks WHERE link_id=${quote(statsLink.id)}`).trim(), '0');
+  assert.equal(sql(db, `SELECT count(*) FROM profile_view_events WHERE profile_id=${quote(statsProfile.id)}`).trim(), '0');
+  console.log("PASS: admin statistics preview/apply/undo in PocketBase JSVM; owner isolation; matching user/admin views; revision-safe dashboard, link counts, geography, unique share and sparklines; original events untouched.");
+  if (process.argv.includes('--hold')) {
+    console.log(JSON.stringify({ localVisualFixture: origin, userId: statsOwner.id, adminEmail: statsAdmin.email }));
+    // Optional, bounded local-only visual QA. The fixture is deleted afterwards.
+    await new Promise(resolve => { const timer=setTimeout(resolve,180000); process.once('SIGINT',()=>{clearTimeout(timer);resolve();}); });
+  }
+
   assert.equal(sql(db, "SELECT count(*) FROM _migrations WHERE file = '1787830000_harden_link_records_and_image_uploads.js';").trim(), "1");
   assert.equal(sql(db, "SELECT count(*) FROM _params WHERE id = 'settings' AND json_valid(value) = 0;").trim(), "1", "Settings must be encrypted at rest");
   const exited = once(processHandle, "exit");
@@ -342,6 +410,9 @@ try {
   console.log("PASS: owner isolation, immutable ownership, server-side plan entitlements, private routing DTO, trusted geo, HTTP redirect and click count, profile/social data and view count, atomic card clicks from redirects and fallback telemetry, fresh analytics and cache/rate-limit isolation, slug checks, forged SVG rejection, raster upload and file CSP, social JSONRaw validation on create/update/multipart with empty and legacy values, migration, encrypted settings reload.");
 } catch (error) {
   console.error(error.stack || String(error));
+  // This server contains synthetic fixtures only; show bounded error lines,
+  // never tokens, environment variables or request bodies.
+  console.error(serverLog.split(/\r?\n/).filter(line => /^(?:ERROR|WARN)/.test(line)).slice(-10).join('\n'));
   process.exitCode = 1;
 } finally {
   if (processHandle && processHandle.exitCode === null && processHandle.signalCode === null) {
