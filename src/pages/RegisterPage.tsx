@@ -10,6 +10,7 @@ import { maskError } from "@/lib/utils";
 import { captureReferral, claimStoredReferral, normalizeReferralCode } from "@/lib/affiliate";
 import { trackGrowthEvent } from "@/lib/telemetry";
 import { ensureStarterProfile, getPostRegistrationDestination } from "@/lib/profileOnboarding";
+import { clearStoredCampaignPromocode, getStoredCampaignPromocode } from "@/lib/campaignOffer";
 import AuthShell from "@/components/auth/AuthShell";
 import styles from "@/components/auth/AuthShell.module.css";
 
@@ -23,8 +24,9 @@ export default function RegisterPage() {
   const [username, setUsername] = useState(searchParams.get("username") || "");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [promocode, setPromocode] = useState("");
-  const [showPromocode, setShowPromocode] = useState(false);
+  const initialCampaignPromo = normalizeReferralCode(searchParams.get("promo") || getStoredCampaignPromocode()).toUpperCase();
+  const [promocode, setPromocode] = useState(initialCampaignPromo);
+  const [showPromocode, setShowPromocode] = useState(Boolean(initialCampaignPromo));
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -165,6 +167,7 @@ export default function RegisterPage() {
             body: { code: trimmedPromo }
           });
           if (applyRes.success) {
+            clearStoredCampaignPromocode();
             promoResultMessage = String(applyRes.message || "Your promo code was applied.");
             // Refresh auth state to get updated plan and promocode_used into AuthContext
             await pb.collection("users").authRefresh();

@@ -21,6 +21,8 @@ describe("first-touch acquisition", () => {
     expect(acquisitionSource("", "https://google.com.evil.test/", "linktery.com").medium).toBe("referral");
     expect(acquisitionSource("", "https://linktery.bio/a", "linktery.com").source).toBe("direct");
     expect(acquisitionSource("", "", "linktery.com").medium).toBe("");
+    expect(acquisitionSource("?utm_campaign=launch&utm_content=creator_a", "", "linktery.com"))
+      .toMatchObject({ campaign: "launch", content: "creator_a" });
   });
   it("excludes private paths and strips query strings", () => {
     expect(marketingPath("/features/link-analytics?email=private#form")).toBe("/features/link-analytics");
@@ -54,5 +56,39 @@ describe("first-touch acquisition", () => {
     const { trackGrowthEvent } = await import("@/lib/telemetry");
     trackGrowthEvent("signup_started");
     expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string).landing_path).toBe("");
+  });
+
+  it("enriches an empty /go context but never overwrites an earlier first touch", async () => {
+    window.history.replaceState({}, "", "/go/m_campaign123");
+    // Explicit placement attribution must beat the immediate referrer captured
+    // on this redirect page; only a context from an earlier visit is immutable.
+    Object.defineProperty(document, "referrer", { configurable: true, value: "https://t.me/channel" });
+    const { captureCampaignAttribution, getGrowthJourneyId, trackGrowthEvent } = await import("@/lib/telemetry");
+    const journeyId = getGrowthJourneyId();
+    captureCampaignAttribution({
+      journeyId,
+      source: "telegram",
+      medium: "paid_social",
+      campaign: "cmp_launch",
+      content: "plc_creator_a",
+      landingPath: "/pricing",
+    });
+    captureCampaignAttribution({
+      journeyId,
+      source: "other",
+      medium: "display",
+      campaign: "cmp_overwrite",
+      content: "plc_overwrite",
+      landingPath: "/",
+    });
+    trackGrowthEvent("signup_started");
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string)).toMatchObject({
+      journey_id: journeyId,
+      source: "telegram",
+      medium: "paid_social",
+      campaign: "cmp_launch",
+      content: "plc_creator_a",
+      landing_path: "/pricing",
+    });
   });
 });

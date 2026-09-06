@@ -3,6 +3,7 @@ export interface AcquisitionContext {
   source: string;
   medium: string;
   campaign: string;
+  content: string;
   landingPath: string;
   capturedAt: number;
 }
@@ -36,5 +37,6 @@ export function acquisitionSource(search: string, referrer: string, hostname: st
     // Explicit campaign tags take precedence over a search-engine referrer.
     medium: clean(params.get("utm_medium") || (tagged ? (params.has("gclid") || params.has("msclkid") ? "cpc" : "campaign") : medium), 64).toLowerCase(),
     campaign: clean(params.get("utm_campaign"), 96),
+    content: clean(params.get("utm_content"), 64),
   };
 }

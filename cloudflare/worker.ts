@@ -340,9 +340,10 @@ async function handleFirstPartyServiceRequest(
 
   const isClick = url.pathname === "/api/track-click";
   const isTelemetry = url.pathname === "/api/telemetry";
+  const isCampaignVisit = /^\/api\/campaigns\/visit\/[a-z0-9_-]{8,40}$/.test(url.pathname);
   const isOnboarding = url.pathname === "/api/onboarding/profile-reservation"
     || url.pathname === "/api/onboarding/profile-claim";
-  if (!isClick && !isTelemetry && !isOnboarding) return null;
+  if (!isClick && !isTelemetry && !isCampaignVisit && !isOnboarding) return null;
   if (request.method !== "POST") {
     return applyResponseHeaders(request, env, new Response("Method not allowed.", {
       status: 405,
@@ -417,7 +418,7 @@ async function handleFirstPartyServiceRequest(
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
-  if (isClick) attachAnalyticsTrafficQuality(headers, request, false);
+  if (isClick || isCampaignVisit) attachAnalyticsTrafficQuality(headers, request, false);
 
   try {
     const upstream = await fetch(upstreamUrl, {
@@ -429,14 +430,16 @@ async function handleFirstPartyServiceRequest(
     });
     const validOrigin = isOnboarding
       ? upstream.headers.get("X-Linktery-Service-Origin") === "v1"
-      : upstream.headers.get("X-Linktery-Telemetry-Origin") === "v1";
+      : isCampaignVisit
+        ? upstream.headers.get("X-Linktery-Campaign-Origin") === "v1"
+        : upstream.headers.get("X-Linktery-Telemetry-Origin") === "v1";
     if (!validOrigin) {
       return applyResponseHeaders(request, env, new Response(null, { status: 502 }), {
         noIndex: true,
         cacheControl: "no-store",
       });
     }
-    if (isOnboarding) {
+    if (isOnboarding || isCampaignVisit) {
       const body = await upstream.text();
       return applyResponseHeaders(request, env, new Response(body, {
         status: upstream.status,

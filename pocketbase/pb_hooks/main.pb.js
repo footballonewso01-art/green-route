@@ -1440,27 +1440,7 @@ routerAdd("GET", "/{slug}", (c) => {
                 else if (/Firefox/i.test(uaStr)) browser = "Firefox";
                 else if (/Edg/i.test(uaStr)) browser = "Edge";
 
-                let referrer = "Direct";
-                const rawUrl = request.url ? String(request.url) : "";
-                const refParamMatch = rawUrl.match(/[?&]ref=([^&]+)/);
-                if (refParamMatch && refParamMatch[1] === "profile") {
-                    referrer = "Profile";
-                } else {
-                    const ref = request.header.get("Referer") || "";
-                    if (ref) {
-                        try {
-                            if (ref.includes("instagram.com")) referrer = "Instagram";
-                            else if (ref.includes("t.co") || ref.includes("twitter.com")) referrer = "Twitter";
-                            else if (ref.includes("facebook.com")) referrer = "Facebook";
-                            else if (ref.includes("tiktok.com")) referrer = "TikTok";
-                            else if (ref.includes("snapchat.com") || ref.includes("snap.com")) referrer = "Snapchat";
-                            else if (ref.includes("google.com")) referrer = "Google";
-                            else if (ref.includes("com.google.android.googlequicksearchbox")) referrer = "Google App";
-                            else referrer = ref.split("/")[2] || "Other";
-                        } catch (e) { }
-                    }
-                }
-                referrer = utils.normalizeAnalyticsReferrer(referrer);
+                const referrer = utils.getRequestAnalyticsSource(request, true);
 
                 let profileIdParam = "";
                 let profileLinkIdParam = "";
@@ -1960,6 +1940,7 @@ routerAdd("POST", "/api/telemetry", (c) => {
             "source": "",
             "medium": "",
             "campaign": "",
+            "content": "",
             "surface": "",
             "target_plan": "",
             "reason": "",
@@ -2043,6 +2024,7 @@ routerAdd("POST", "/api/telemetry", (c) => {
                 source: data.source,
                 medium: data.medium,
                 campaign: data.campaign,
+                content: data.content,
                 surface: data.surface,
                 targetPlan: data.target_plan,
                 reason: data.reason
@@ -2315,6 +2297,7 @@ routerAdd("POST", "/api/track-click", (c) => {
         const data = new DynamicModel({
             "link_id": "",
             "referrer": "Direct",
+            "utm_source": "",
             "profile_id": "",
             "profile_link_id": ""
         });
@@ -2360,7 +2343,7 @@ routerAdd("POST", "/api/track-click", (c) => {
         else if (/Firefox/i.test(uaStr)) browser = "Firefox";
         else if (/Edg/i.test(uaStr)) browser = "Edge";
 
-        let referrer = utils.normalizeAnalyticsReferrer(data.referrer);
+        const referrer = utils.resolveAnalyticsSource(data.referrer, data.utm_source, false);
         const profileAttribution = utils.resolveProfileClickAttribution(
             $app,
             link.id,
@@ -3480,6 +3463,7 @@ routerAdd("POST", "/api/admin/promocodes", (c) => {
                 "code": code,
                 "internal_name": internalName,
                 "partner_id": txPartnerUser.id,
+                "owner_type": "partner",
                 "max_uses": maxUses,
                 "current_uses": 0,
                 "reward_enabled": rewardEnabled,
@@ -3513,6 +3497,36 @@ routerAdd("POST", "/api/admin/promocodes", (c) => {
         throw new BadRequestError("We couldn't create this affiliate offer. Check the details and try again.");
     }
 });
+
+// Project-owned campaigns are deliberately separate from affiliate contracts.
+// They may attach an unowned promocode, but can never create partner commission.
+routerAdd("GET", "/api/admin/campaigns", (c) => {
+    return require(__hooks + '/marketing_campaigns.js').listCampaigns(c);
+});
+
+routerAdd("POST", "/api/admin/campaigns", (c) => {
+    return require(__hooks + '/marketing_campaigns.js').createCampaign(c);
+}, $apis.bodyLimit(16 * 1024));
+
+routerAdd("GET", "/api/admin/campaigns/{id}", (c) => {
+    return require(__hooks + '/marketing_campaigns.js').getCampaign(c);
+});
+
+routerAdd("PUT", "/api/admin/campaigns/{id}", (c) => {
+    return require(__hooks + '/marketing_campaigns.js').updateCampaign(c);
+}, $apis.bodyLimit(16 * 1024));
+
+routerAdd("POST", "/api/admin/campaigns/{id}/placements", (c) => {
+    return require(__hooks + '/marketing_campaigns.js').createPlacement(c);
+}, $apis.bodyLimit(8 * 1024));
+
+routerAdd("PUT", "/api/admin/campaigns/{id}/placements/{placementId}", (c) => {
+    return require(__hooks + '/marketing_campaigns.js').updatePlacement(c);
+}, $apis.bodyLimit(8 * 1024));
+
+routerAdd("POST", "/api/campaigns/visit/{slug}", (c) => {
+    return require(__hooks + '/marketing_campaigns.js').recordVisit(c);
+}, $apis.bodyLimit(2 * 1024));
 
 // Public referral-code validation. The response intentionally contains no
 // account metadata, which prevents referral URLs from becoming a user lookup.
@@ -4203,6 +4217,18 @@ routerAdd("POST", "/api/promocodes/validate", (c) => {
             throw new BadRequestError("Invalid or inactive promocode");
         }
 
+        const campaignId = promo.get("campaign_id") || "";
+        if (campaignId) {
+            try {
+                const campaign = $app.findRecordById("marketing_campaigns", campaignId);
+                if (!require(__hooks + '/marketing_campaigns.js').campaignIsLive(campaign)) {
+                    throw new Error("campaign-not-live");
+                }
+            } catch (campaignError) {
+                throw new BadRequestError("Invalid or inactive promocode");
+            }
+        }
+
         const maxUses = promo.get("max_uses") || 0;
         const currentUses = promo.get("current_uses") || 0;
         if (maxUses > 0 && currentUses >= maxUses) {
@@ -4267,6 +4293,18 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
             throw new BadRequestError("Invalid or inactive promocode");
         }
 
+        const campaignId = promo.get("campaign_id") || "";
+        if (campaignId) {
+            try {
+                const campaign = $app.findRecordById("marketing_campaigns", campaignId);
+                if (!require(__hooks + '/marketing_campaigns.js').campaignIsLive(campaign)) {
+                    throw new Error("campaign-not-live");
+                }
+            } catch (campaignError) {
+                throw new BadRequestError("Invalid or inactive promocode");
+            }
+        }
+
         const maxUses = promo.get("max_uses") || 0;
         const currentUses = promo.get("current_uses") || 0;
         if (maxUses > 0 && currentUses >= maxUses) {
@@ -4291,6 +4329,18 @@ routerAdd("POST", "/api/promocodes/apply", (c) => {
             // STRICT RACE CONDITION CHECKS
             if (txUser.get("promocode_used")) {
                 throw new BadRequestError("You have already used a promocode on this account");
+            }
+
+            const txCampaignId = txPromo.get("campaign_id") || "";
+            if (txCampaignId) {
+                try {
+                    const txCampaign = txApp.findRecordById("marketing_campaigns", txCampaignId);
+                    if (!require(__hooks + '/marketing_campaigns.js').campaignIsLive(txCampaign)) {
+                        throw new Error("campaign-not-live");
+                    }
+                } catch (campaignError) {
+                    throw new BadRequestError("Invalid or inactive promocode");
+                }
             }
 
             const txMaxUses = txPromo.get("max_uses") || 0;

@@ -3,6 +3,8 @@ export function getDashboardBrowserTitle(pathname: string): string {
   if (pathname.startsWith("/admin/users/")) return "Admin User";
   if (pathname.startsWith("/admin/users")) return "Admin Users";
   if (pathname.startsWith("/admin/links")) return "Link Safety";
+  if (pathname.startsWith("/admin/campaigns/")) return "Campaign Details";
+  if (pathname.startsWith("/admin/campaigns")) return "Campaigns";
   if (pathname.startsWith("/admin/promocodes/")) return "Promocode Details";
   if (pathname.startsWith("/admin/promocodes")) return "Promocodes";
   if (pathname === "/dashboard") return "Dashboard";

@@ -38,6 +38,7 @@ const QrCodeGenerator = lazy(() => import("./pages/QrCodeGenerator"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const ReferralCapture = lazy(() => import("./pages/ReferralCapture"));
+const CampaignRedirect = lazy(() => import("./pages/CampaignRedirect"));
 const DashboardLayout = lazy(() => import("./components/DashboardLayout"));
 const DashboardHome = lazy(() => import("./pages/DashboardHome"));
 const LinksManager = lazy(() => import("./pages/LinksManager"));
@@ -59,6 +60,8 @@ const AdminUserProfile = lazy(() => import("./pages/admin/AdminUserProfile"));
 const AdminLinks = lazy(() => import("./pages/admin/AdminLinks"));
 const AdminPromocodes = lazy(() => import("./pages/admin/AdminPromocodes"));
 const AdminPromocodeStats = lazy(() => import("./pages/admin/AdminPromocodeStats"));
+const AdminCampaigns = lazy(() => import("./pages/admin/AdminCampaigns"));
+const AdminCampaignDetails = lazy(() => import("./pages/admin/AdminCampaignDetails"));
 
 const queryClient = new QueryClient();
 
@@ -133,6 +136,7 @@ const AppRoutes = () => (
     <Route path="/login" element={<LoginPage />} />
     <Route path="/register" element={<RegisterPage />} />
     <Route path="/ref/:referralCode" element={<ReferralCapture />} />
+    <Route path="/go/:trackingSlug" element={<CampaignRedirect />} />
     <Route path="/pricing" element={<PricingPage />} />
     <Route path="/privacy" element={<PrivacyPolicy />} />
     <Route path="/terms" element={<TermsAndConditions />} />
@@ -178,6 +182,8 @@ const AppRoutes = () => (
         <Route path="links" element={<AdminLinks />} />
         <Route path="promocodes" element={<AdminPromocodes />} />
         <Route path="promocodes/:id" element={<AdminPromocodeStats />} />
+        <Route path="campaigns" element={<AdminCampaigns />} />
+        <Route path="campaigns/:id" element={<AdminCampaignDetails />} />
       </Route>
     </Route>
 

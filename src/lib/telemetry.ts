@@ -24,6 +24,7 @@ interface TelemetryPayload {
   source?: string;
   medium?: string;
   campaign?: string;
+  content?: string;
   surface?: string;
   target_plan?: "creator" | "pro" | "agency" | "";
   reason?: string;
@@ -44,12 +45,14 @@ interface GrowthContext {
   source: string;
   medium: string;
   campaign: string;
+  content: string;
   landingPath: string;
 }
 
 const GROWTH_CONTEXT_KEY = "linktery_growth_context_v1";
 const GROWTH_CONTEXT_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 let memoryContext: (GrowthContext & { capturedAt: number }) | undefined;
+let memoryContextWasStored = false;
 
 const truncate = (value: unknown, max: number) => String(value ?? "").slice(0, max);
 
@@ -78,6 +81,7 @@ function readGrowthContext(): GrowthContext {
     source: "direct",
     medium: "",
     campaign: "",
+    content: "",
     landingPath: "",
   };
   if (typeof window === "undefined") return fallback;
@@ -98,11 +102,13 @@ function readGrowthContext(): GrowthContext {
           source: safeAttributionValue(parsed.source || "direct", 64).toLowerCase() || "direct",
           medium: safeAttributionValue(parsed.medium, 64).toLowerCase(),
           campaign: safeAttributionValue(parsed.campaign, 96),
+          content: safeAttributionValue(parsed.content, 64),
           // Legacy contexts have no known landing page. Never invent one
           // from the registration page or a later visit.
           landingPath: parsed.landingPath ? marketingPath(parsed.landingPath) : "",
           capturedAt: Number(parsed.capturedAt),
         };
+        memoryContextWasStored = true;
         return memoryContext;
       }
     }
@@ -114,12 +120,48 @@ function readGrowthContext(): GrowthContext {
     landingPath: marketingPath(window.location.pathname),
     capturedAt: Date.now(),
   };
+  memoryContextWasStored = false;
   try { window.localStorage.setItem(GROWTH_CONTEXT_KEY, JSON.stringify(memoryContext)); } catch { /* Best effort. */ }
   return memoryContext;
 }
 
 export function getGrowthJourneyId(): string {
   return readGrowthContext().journeyId;
+}
+
+interface CampaignAttributionInput {
+  journeyId: string;
+  source: string;
+  medium: string;
+  campaign: string;
+  content: string;
+  landingPath: string;
+}
+
+// /go creates an empty context before it resolves a placement. Enrich only
+// that empty context; a prior landing/referral remains the immutable first touch.
+export function captureCampaignAttribution(input: CampaignAttributionInput): GrowthContext {
+  const current = readGrowthContext();
+  if (
+    memoryContextWasStored ||
+    current.landingPath
+  ) return current;
+
+  const journeyId = /^[a-zA-Z0-9_-]{12,64}$/.test(input.journeyId)
+    ? input.journeyId
+    : current.journeyId;
+  memoryContext = {
+    journeyId,
+    source: safeAttributionValue(input.source, 64).toLowerCase() || "direct",
+    medium: safeAttributionValue(input.medium, 64).toLowerCase(),
+    campaign: safeAttributionValue(input.campaign, 96),
+    content: safeAttributionValue(input.content, 64),
+    landingPath: marketingPath(input.landingPath),
+    capturedAt: Date.now(),
+  };
+  memoryContextWasStored = true;
+  try { window.localStorage.setItem(GROWTH_CONTEXT_KEY, JSON.stringify(memoryContext)); } catch { /* Best effort. */ }
+  return memoryContext;
 }
 
 export function sendTelemetry(payload: TelemetryPayload): void {
@@ -133,6 +175,7 @@ export function sendTelemetry(payload: TelemetryPayload): void {
     source: truncate(payload.source, 64),
     medium: truncate(payload.medium, 64),
     campaign: truncate(payload.campaign, 96),
+    content: truncate(payload.content, 64),
     surface: truncate(payload.surface, 64),
     target_plan: payload.target_plan || "",
     reason: truncate(payload.reason, 48),
@@ -165,6 +208,7 @@ export function trackGrowthEvent(eventName: GrowthEvent, properties: GrowthPrope
     source: context.source,
     medium: context.medium,
     campaign: context.campaign,
+    content: context.content,
     landing_path: context.landingPath,
     surface: properties.surface,
     target_plan: properties.target_plan,

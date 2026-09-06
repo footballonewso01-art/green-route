@@ -81,6 +81,7 @@ var SYSTEM_ROUTE_SLUGS = {
     "pricing": true,
     "privacy": true,
     "ref": true,
+    "go": true,
     "register": true,
     "solutions": true,
     "templates": true,
@@ -283,6 +284,7 @@ var recordGrowthEvent = function(app, options) {
     var source = normalizeGrowthField(options.source, 64, "direct").toLowerCase();
     var medium = normalizeGrowthField(options.medium, 64, "").toLowerCase();
     var campaign = normalizeGrowthField(options.campaign, 96, "");
+    var content = normalizeGrowthField(options.content, 64, "");
     var surface = normalizeGrowthField(options.surface, 64, "").toLowerCase();
     var targetPlan = normalizeGrowthField(options.targetPlan, 16, "").toLowerCase();
     if (targetPlan !== "creator" && targetPlan !== "pro" && targetPlan !== "agency") targetPlan = "";
@@ -295,11 +297,11 @@ var recordGrowthEvent = function(app, options) {
 
     app.db().newQuery(`
         INSERT INTO growth_events (
-            id, event_name, user_id, journey_id, source, medium, campaign,
+            id, event_name, user_id, journey_id, source, medium, campaign, content,
             surface, target_plan, object_id, reason, path, landing_path, created
         ) VALUES (
             {:id}, {:eventName}, {:userId}, {:journeyId}, {:source}, {:medium},
-            {:campaign}, {:surface}, {:targetPlan}, {:objectId}, {:reason}, {:path}, {:landingPath},
+            {:campaign}, {:content}, {:surface}, {:targetPlan}, {:objectId}, {:reason}, {:path}, {:landingPath},
             strftime('%Y-%m-%d %H:%M:%fZ', 'now')
         )
         ON CONFLICT(id) DO UPDATE SET
@@ -308,6 +310,7 @@ var recordGrowthEvent = function(app, options) {
             source = CASE WHEN growth_events.landing_path != '' THEN growth_events.source WHEN excluded.source NOT IN ('', 'direct') THEN excluded.source ELSE growth_events.source END,
             medium = CASE WHEN growth_events.landing_path != '' THEN growth_events.medium WHEN excluded.medium != '' THEN excluded.medium ELSE growth_events.medium END,
             campaign = CASE WHEN growth_events.landing_path != '' THEN growth_events.campaign WHEN excluded.campaign != '' THEN excluded.campaign ELSE growth_events.campaign END,
+            content = CASE WHEN growth_events.landing_path != '' THEN growth_events.content WHEN excluded.content != '' THEN excluded.content ELSE growth_events.content END,
             surface = CASE WHEN excluded.surface != '' THEN excluded.surface ELSE growth_events.surface END,
             target_plan = CASE WHEN excluded.target_plan != '' THEN excluded.target_plan ELSE growth_events.target_plan END,
             object_id = CASE WHEN excluded.object_id != '' THEN excluded.object_id ELSE growth_events.object_id END,
@@ -322,6 +325,7 @@ var recordGrowthEvent = function(app, options) {
         source: source,
         medium: medium,
         campaign: campaign,
+        content: content,
         surface: surface,
         targetPlan: targetPlan,
         objectId: objectId,
@@ -335,31 +339,98 @@ var recordGrowthEvent = function(app, options) {
 
 var normalizeAnalyticsReferrer = function(value) {
     var raw = String(value || "").trim();
-    if (!raw || raw === "Direct") return "Direct";
-    var labels = {
-        "Profile": true,
-        "Instagram": true,
-        "Twitter": true,
-        "Facebook": true,
-        "TikTok": true,
-        "Google": true,
-        "Google App": true
-    };
-    if (labels[raw]) return raw;
+    if (!raw) return "Direct";
+    // Accept labels sent by already deployed clients during a rolling release.
+    var labels = ["Direct", "Other", "Profile", "Instagram", "Twitter", "Facebook",
+        "TikTok", "Snapchat", "Google", "Google App", "Pinterest", "Telegram",
+        "YouTube", "LinkedIn", "Reddit", "Threads", "WhatsApp", "Discord", "Bing",
+        "DuckDuckGo", "Yahoo", "Yandex", "Twitch"];
+    for (var li = 0; li < labels.length; li++) {
+        if (raw.toLowerCase() === labels[li].toLowerCase()) return labels[li];
+    }
+
+    // Android app referrers carry a package name, not a web hostname.
+    var appMatch = raw.match(/^android-app:\/\/([^\/?#]+)(?:[\/?#]|$)/i);
+    if (appMatch) {
+        var apps = {
+            "com.google.android.googlequicksearchbox": "Google App",
+            "com.instagram.android": "Instagram",
+            "com.facebook.katana": "Facebook",
+            "com.snapchat.android": "Snapchat",
+            "com.pinterest": "Pinterest",
+            "com.twitter.android": "Twitter"
+        };
+        var appId = String(appMatch[1]).toLowerCase();
+        return Object.prototype.hasOwnProperty.call(apps, appId) ? apps[appId] : "Other";
+    }
 
     var hostname = "";
-    var match = raw.match(/^[a-z][a-z0-9+.-]*:\/\/([^\/?#]+)/i);
+    var match = raw.match(/^https?:\/\/([^\/?#]+)/i);
     if (match) hostname = String(match[1] || "");
     else if (/^[a-z0-9.-]+(?::\d{1,5})?$/i.test(raw)) hostname = raw;
     hostname = hostname.toLowerCase().replace(/^www\./, "").replace(/:\d{1,5}$/, "").replace(/\.+$/, "");
     if (
         !hostname ||
-        hostname.length > 253 ||
+        hostname.length > 200 ||
         !/^[a-z0-9.-]+$/.test(hostname) ||
         hostname.indexOf(".") === -1 ||
         hostname.indexOf("..") !== -1
     ) return "Other";
+    // Match the parsed hostname on domain boundaries, never URL substrings.
+    var platforms = [
+        ["Instagram", ["instagram.com"]],
+        ["Twitter", ["twitter.com", "x.com", "t.co"]],
+        ["Facebook", ["facebook.com", "fb.com", "fb.me"]],
+        ["TikTok", ["tiktok.com"]],
+        ["Snapchat", ["snapchat.com", "snap.com"]],
+        ["Pinterest", ["pinterest.com", "pin.it"]],
+        ["Telegram", ["t.me", "telegram.me", "telegram.org"]],
+        ["YouTube", ["youtube.com", "youtu.be"]],
+        ["LinkedIn", ["linkedin.com", "lnkd.in"]],
+        ["Reddit", ["reddit.com", "redd.it"]],
+        ["Threads", ["threads.net", "threads.com"]],
+        ["WhatsApp", ["whatsapp.com", "wa.me"]],
+        ["Discord", ["discord.com", "discord.gg"]],
+        ["Twitch", ["twitch.tv"]],
+        ["Bing", ["bing.com"]],
+        ["DuckDuckGo", ["duckduckgo.com"]],
+        ["Yahoo", ["search.yahoo.com"]],
+        ["Yandex", ["yandex.ru", "yandex.com"]]
+    ];
+    for (var pi = 0; pi < platforms.length; pi++) {
+        var domains = platforms[pi][1];
+        for (var di = 0; di < domains.length; di++) {
+            var domain = domains[di];
+            if (hostname === domain || hostname.slice(-(domain.length + 1)) === "." + domain) {
+                return platforms[pi][0];
+            }
+        }
+    }
+    if (/^(?:[a-z0-9-]+\.)*google\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$/.test(hostname)) return "Google";
     return hostname;
+};
+
+// The column is historically named referrer, but represents the displayed
+// traffic source. Keep explicit campaign tags distinguishable from observation.
+var resolveAnalyticsSource = function(referrer, utmSource, fromProfile) {
+    if (fromProfile || String(referrer || "").trim() === "Profile") return "Profile";
+    var tagged = String(utmSource || "").trim().toLowerCase();
+    if (tagged.length <= 64 && /^[a-z0-9][a-z0-9._ -]*$/.test(tagged)) {
+        var normalized = normalizeAnalyticsReferrer(tagged);
+        return "UTM: " + (normalized === "Other" ? tagged : normalized);
+    }
+    return normalizeAnalyticsReferrer(referrer);
+};
+
+var getRequestAnalyticsSource = function(request, allowProfileMarker) {
+    var utmSource = "";
+    var fromProfile = false;
+    try {
+        var query = request.url.query();
+        utmSource = query.get("utm_source") || "";
+        fromProfile = allowProfileMarker === true && query.get("ref") === "profile";
+    } catch (err) { /* Older request mocks and empty queries have no tags. */ }
+    return resolveAnalyticsSource(request.header.get("Referer") || "", utmSource, fromProfile);
 };
 
 var resetApiAuthAbuseWindow = function(now) {
@@ -571,21 +642,7 @@ var getTrackingDimensions = function(request) {
     else if (/Safari/i.test(ua)) browser = "Safari";
     else if (/Firefox/i.test(ua)) browser = "Firefox";
 
-    var referrer = "Direct";
-    var rawReferrer = String(request.header.get("Referer") || "").trim();
-    if (rawReferrer) {
-        try {
-            if (rawReferrer.indexOf("instagram.com") !== -1) referrer = "Instagram";
-            else if (rawReferrer.indexOf("t.co") !== -1 || rawReferrer.indexOf("twitter.com") !== -1) referrer = "Twitter";
-            else if (rawReferrer.indexOf("facebook.com") !== -1) referrer = "Facebook";
-            else if (rawReferrer.indexOf("tiktok.com") !== -1) referrer = "TikTok";
-            else if (rawReferrer.indexOf("google.com") !== -1) referrer = "Google";
-            else referrer = rawReferrer.split("/")[2] || "Other";
-        } catch (err) {
-            referrer = "Other";
-        }
-    }
-    if (referrer.length > 200) referrer = referrer.substring(0, 200);
+    var referrer = getRequestAnalyticsSource(request, false);
 
     return { userAgent: ua, device: device, os: os, browser: browser, referrer: referrer };
 };
@@ -3542,6 +3599,8 @@ module.exports = {
     publicReadRateLimitAllows,
     recordGrowthEvent,
     normalizeAnalyticsReferrer,
+    resolveAnalyticsSource,
+    getRequestAnalyticsSource,
     clickRateLimitAllows,
     isUniqueTrackedClick,
     profileViewRateLimitAllows,

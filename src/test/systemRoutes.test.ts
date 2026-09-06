@@ -15,6 +15,7 @@ describe("system route namespace policy", () => {
     expect(isSystemRoute("/templates/link-in-bio")).toBe(true);
     expect(isSystemRoute("/guides/what-is-link-management")).toBe(true);
     expect(isSystemRoute("/ref/lt_partner123")).toBe(true);
+    expect(isSystemRoute("/go/m_campaign123")).toBe(true);
     expect(isSystemRoute("/documentation")).toBe(true);
   });
 

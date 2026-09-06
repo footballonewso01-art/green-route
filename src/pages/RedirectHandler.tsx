@@ -175,26 +175,18 @@ export default function RedirectHandler({ slugOverride, customDomainRoot = false
         const isBot = /bot|crawler|spider|criteo|facebookexternalhit/i.test(ua);
         if (isBot) return;
 
-        let referrer = "Direct";
         const urlParams = new URLSearchParams(window.location.search);
         const refParam = urlParams.get("ref");
         const sourceProfileId = urlParams.get("profile_id") || "";
         const profileLinkId = urlParams.get("profile_link_id") || "";
-        if (refParam === "profile") {
-            referrer = "Profile";
-        } else {
-            const ref = document.referrer;
-            if (ref) {
-                try {
-                    const url = new URL(ref);
-                    referrer = url.hostname;
-                    if (referrer.includes("instagram.com")) referrer = "Instagram";
-                    else if (referrer.includes("t.co")) referrer = "Twitter";
-                    else if (referrer.includes("facebook.com")) referrer = "Facebook";
-                    else if (referrer.includes("tiktok.com")) referrer = "TikTok";
-                    else if (referrer.includes("google.com")) referrer = "Google";
-                } catch { referrer = "Other"; }
-            }
+        // Send only the origin (no referring page/query data); classification is
+        // shared server-side with document redirects and profile views.
+        let referrer = refParam === "profile" ? "Profile" : "Direct";
+        if (refParam !== "profile" && document.referrer) {
+            try {
+                const referringUrl = new URL(document.referrer);
+                referrer = `${referringUrl.protocol}//${referringUrl.host}`;
+            } catch { referrer = "Other"; }
         }
 
         // BUG-04 FIX: Use cookie-based uniqueness (matches server-side approach)
@@ -209,6 +201,7 @@ export default function RedirectHandler({ slugOverride, customDomainRoot = false
         const payload = new URLSearchParams({
             link_id: String(link.id || ""),
             referrer,
+            utm_source: urlParams.get("utm_source") || "",
             is_unique: isUnique ? "true" : "false"
         });
         if (sourceProfileId && profileLinkId) {

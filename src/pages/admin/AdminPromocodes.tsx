@@ -134,7 +134,11 @@ export default function AdminPromocodes() {
         expand: "partner_id",
         requestKey: null,
       });
-      setPromocodes(records as unknown as PromocodeRecord[]);
+      // Project offers are managed with their campaign. Keeping this view
+      // partner-only preserves the meaning of affiliate commission KPIs.
+      setPromocodes(
+        (records as unknown as PromocodeRecord[]).filter((record) => record.owner_type !== "project"),
+      );
     } catch (err: unknown) {
       if ((err as { isAbort?: boolean })?.isAbort) return;
       console.error("fetchPromocodes error:", err);

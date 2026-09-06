@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
-import { BadgeDollarSign, Building2, LayoutDashboard, Link2, BarChart3, User, Settings, Zap, Menu, X, LogOut, Search, Tag, ShieldCheck, HelpCircle, Bell, Share2, ShieldAlert, Users, Link as LinkIcon, ArrowUpRight } from "lucide-react";
+import { BadgeDollarSign, Building2, LayoutDashboard, Link2, BarChart3, User, Settings, Zap, Menu, X, LogOut, Search, Tag, ShieldCheck, HelpCircle, Bell, Share2, ShieldAlert, Users, Link as LinkIcon, ArrowUpRight, Megaphone } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { PLANS, PlanType } from "@/lib/plans";
 import { pb } from "@/lib/pocketbase";
@@ -88,6 +88,7 @@ export default function DashboardLayout() {
       { title: "Overview", path: "/admin/overview", icon: BarChart3, badge: { text: "Admin", color: "bg-red-500/20 text-red-500" } },
       { title: "Users", path: "/admin/users", icon: Users, badge: { text: "Admin", color: "bg-red-500/20 text-red-500" } },
       { title: "Links Safety", path: "/admin/links", icon: LinkIcon, badge: { text: "Admin", color: "bg-red-500/20 text-red-500" } },
+      { title: "Campaigns", path: "/admin/campaigns", icon: Megaphone, badge: { text: "Admin", color: "bg-red-500/20 text-red-500" } },
       { title: "Promocodes", path: "/admin/promocodes", icon: Zap, badge: { text: "Admin", color: "bg-red-500/20 text-red-500" } },
     ]
   };

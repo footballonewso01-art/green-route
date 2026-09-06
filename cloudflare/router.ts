@@ -57,7 +57,8 @@ function isSpaPrefixRoute(pathname: string): boolean {
     pathname.startsWith("/dashboard/") ||
     pathname === "/admin" ||
     pathname.startsWith("/admin/") ||
-    pathname.startsWith("/ref/")
+    pathname.startsWith("/ref/") ||
+    pathname.startsWith("/go/")
   );
 }
 

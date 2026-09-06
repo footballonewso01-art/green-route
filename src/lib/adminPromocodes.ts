@@ -13,6 +13,8 @@ export type PromocodeRecord = {
   reward_days: number;
   reward_enabled?: boolean;
   partner_id?: string;
+  owner_type?: "partner" | "project" | "legacy" | "";
+  campaign_id?: string;
   internal_name?: string;
   commission_rate_bps?: number;
   expand?: { partner_id?: PromocodePartner };
