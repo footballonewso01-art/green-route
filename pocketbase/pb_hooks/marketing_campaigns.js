@@ -27,8 +27,8 @@ var normalizeLandingPath = function(value) {
 
 var normalizeCampaignStatus = function(value) {
     var status = cleanText(value, 16).toLowerCase();
-    if (["draft", "active", "paused", "ended"].indexOf(status) === -1) {
-        throw new BadRequestError("Campaign status must be draft, active, paused, or ended.");
+    if (["draft", "active", "paused", "ended", "archived"].indexOf(status) === -1) {
+        throw new BadRequestError("Campaign status must be draft, active, paused, ended, or archived.");
     }
     return status;
 };
@@ -233,6 +233,47 @@ var fullCampaignJson = function(app, campaign) {
     return output;
 };
 
+var loadRecordedHistory = function(app, campaign, placement) {
+    var result = new DynamicModel({ "visits": 0, "growth_events": 0, "promo_uses": 0 });
+    var placementId = placement ? placement.id : "";
+    var contentKey = placement ? String(placement.get("content_key") || "") : "";
+    app.db().newQuery(`
+        SELECT
+          (SELECT count(*) FROM marketing_campaign_visits v
+             WHERE v.campaign_id = {:campaignId}
+               AND ({:placementId} = '' OR v.placement_id = {:placementId})) AS visits,
+          (SELECT count(*) FROM growth_events ge
+             WHERE ge.campaign = {:trackingKey}
+               AND ({:contentKey} = '' OR ge.content = {:contentKey})) AS growth_events,
+          (SELECT count(*) FROM promocode_logs pl
+             JOIN promocodes p ON p.id = pl.promocode_id
+             WHERE p.campaign_id = {:campaignId}) AS promo_uses
+    `).bind({
+        campaignId: campaign.id,
+        placementId: placementId,
+        trackingKey: String(campaign.get("tracking_key") || ""),
+        contentKey: contentKey
+    }).one(result);
+    return {
+        visits: Number(result.visits || 0),
+        growth_events: Number(result.growth_events || 0),
+        promo_uses: Number(result.promo_uses || 0)
+    };
+};
+
+var removalModeForHistory = function(history, includePromoUses) {
+    return Number(history.visits || 0) > 0 ||
+        Number(history.growth_events || 0) > 0 ||
+        (includePromoUses === true && Number(history.promo_uses || 0) > 0)
+        ? "archive" : "delete";
+};
+
+var assertCampaignEditable = function(campaign) {
+    if (String(campaign.get("status") || "") === "archived") {
+        throw new BadRequestError("Archived campaigns are read-only.");
+    }
+};
+
 var createCampaign = function(c) {
     requireCampaignAdmin(c);
     var data = new DynamicModel({
@@ -366,6 +407,7 @@ var updateCampaign = function(c) {
     requireCampaignAdmin(c);
     var id = c.request.pathValue("id");
     var current = $app.findRecordById("marketing_campaigns", id);
+    assertCampaignEditable(current);
     var data = new DynamicModel({
         name: String(current.get("name") || ""),
         objective: String(current.get("objective") || "signups"),
@@ -399,6 +441,7 @@ var updateCampaign = function(c) {
 var createPlacement = function(c) {
     requireCampaignAdmin(c);
     var campaign = $app.findRecordById("marketing_campaigns", c.request.pathValue("id"));
+    assertCampaignEditable(campaign);
     var data = new DynamicModel({
         name: "",
         source: "",
@@ -438,6 +481,7 @@ var createPlacement = function(c) {
 var updatePlacement = function(c) {
     requireCampaignAdmin(c);
     var campaign = $app.findRecordById("marketing_campaigns", c.request.pathValue("id"));
+    assertCampaignEditable(campaign);
     var placement = $app.findRecordById("marketing_placements", c.request.pathValue("placementId"));
     if (String(placement.get("campaign_id") || "") !== campaign.id) throw new BadRequestError("Placement not found.");
     var data = new DynamicModel({
@@ -467,6 +511,82 @@ var updatePlacement = function(c) {
     placement.set("notes", cleanText(data.notes, 500));
     $app.save(placement);
     return c.json(200, fullCampaignJson($app, campaign));
+};
+
+var removePlacement = function(c) {
+    requireCampaignAdmin(c);
+    var campaign = $app.findRecordById("marketing_campaigns", c.request.pathValue("id"));
+    var placement = $app.findRecordById("marketing_placements", c.request.pathValue("placementId"));
+    if (String(placement.get("campaign_id") || "") !== campaign.id) throw new BadRequestError("Placement not found.");
+    var action = removalModeForHistory(loadRecordedHistory($app, campaign, placement), false);
+    if (action === "archive") {
+        placement.set("is_active", false);
+        $app.save(placement);
+    } else {
+        $app.delete(placement);
+    }
+    return c.json(200, { action: action === "archive" ? "disabled" : "deleted", campaign: fullCampaignJson($app, campaign) });
+};
+
+var removeCampaign = function(c) {
+    requireCampaignAdmin(c);
+    var campaign = $app.findRecordById("marketing_campaigns", c.request.pathValue("id"));
+    var action = removalModeForHistory(loadRecordedHistory($app, campaign, null), true);
+    var campaignId = campaign.id;
+    var promoId = String(campaign.get("promocode_id") || "");
+
+    if (action === "archive") {
+        $app.runInTransaction(function(txApp) {
+            var txCampaign = txApp.findRecordById("marketing_campaigns", campaignId);
+            txCampaign.set("status", "archived");
+            txApp.save(txCampaign);
+            var placements = txApp.findRecordsByFilter(
+                "marketing_placements", "campaign_id = {:campaignId}", "created", 200, 0, { campaignId: campaignId }
+            );
+            for (var i = 0; i < placements.length; i++) {
+                placements[i].set("is_active", false);
+                txApp.save(placements[i]);
+            }
+            if (promoId) {
+                try {
+                    var promo = txApp.findRecordById("promocodes", promoId);
+                    if (String(promo.get("campaign_id") || "") === campaignId &&
+                        String(promo.get("owner_type") || "") === "project") {
+                        promo.set("is_active", false);
+                        txApp.save(promo);
+                    }
+                } catch (promoError) {}
+            }
+        });
+        return c.json(200, {
+            action: "archived",
+            campaign: fullCampaignJson($app, $app.findRecordById("marketing_campaigns", campaignId))
+        });
+    }
+
+    $app.runInTransaction(function(txApp) {
+        var txCampaign = txApp.findRecordById("marketing_campaigns", campaignId);
+        txCampaign.set("promocode_id", "");
+        txApp.save(txCampaign);
+        if (promoId) {
+            try {
+                var promo = txApp.findRecordById("promocodes", promoId);
+                if (String(promo.get("campaign_id") || "") === campaignId &&
+                    String(promo.get("owner_type") || "") === "project" &&
+                    Number(promo.get("current_uses") || 0) === 0) {
+                    promo.set("campaign_id", "");
+                    txApp.save(promo);
+                    txApp.delete(promo);
+                }
+            } catch (promoError) {}
+        }
+        var placements = txApp.findRecordsByFilter(
+            "marketing_placements", "campaign_id = {:campaignId}", "created", 200, 0, { campaignId: campaignId }
+        );
+        for (var i = 0; i < placements.length; i++) txApp.delete(placements[i]);
+        txApp.delete(txCampaign);
+    });
+    return c.json(200, { action: "deleted", id: campaignId });
 };
 
 var recordVisit = function(c) {
@@ -531,9 +651,12 @@ module.exports = {
     listCampaigns: listCampaigns,
     getCampaign: getCampaign,
     updateCampaign: updateCampaign,
+    removeCampaign: removeCampaign,
     createPlacement: createPlacement,
     updatePlacement: updatePlacement,
+    removePlacement: removePlacement,
     recordVisit: recordVisit,
     campaignIsLive: campaignIsLive,
-    normalizeLandingPath: normalizeLandingPath
+    normalizeLandingPath: normalizeLandingPath,
+    removalModeForHistory: removalModeForHistory
 };

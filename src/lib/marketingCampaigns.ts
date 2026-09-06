@@ -1,4 +1,4 @@
-export type CampaignStatus = "draft" | "active" | "paused" | "ended";
+export type CampaignStatus = "draft" | "active" | "paused" | "ended" | "archived";
 export type CampaignObjective = "signups" | "activation" | "revenue";
 
 export interface CampaignMetrics {

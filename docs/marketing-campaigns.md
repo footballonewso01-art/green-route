@@ -17,6 +17,12 @@ turning a campaign into a fake affiliate account.
 The marketing report uses first-touch Growth attribution. A later campaign
 visit cannot overwrite a visitor's earlier acquisition context.
 
+Removal is history-aware. Unused placements and campaigns are deleted. Once a
+placement has campaign visits or Growth attribution it is disabled instead; a
+campaign with visits, Growth events, or promocode uses is archived. Archiving
+atomically disables every placement and its project-owned promocode so historic
+reports remain attributable and shared URLs stop resolving.
+
 ## Promocodes and affiliates
 
 Promocodes created inside a project campaign have `owner_type=project`, no

@@ -3516,6 +3516,10 @@ routerAdd("PUT", "/api/admin/campaigns/{id}", (c) => {
     return require(__hooks + '/marketing_campaigns.js').updateCampaign(c);
 }, $apis.bodyLimit(16 * 1024));
 
+routerAdd("DELETE", "/api/admin/campaigns/{id}", (c) => {
+    return require(__hooks + '/marketing_campaigns.js').removeCampaign(c);
+});
+
 routerAdd("POST", "/api/admin/campaigns/{id}/placements", (c) => {
     return require(__hooks + '/marketing_campaigns.js').createPlacement(c);
 }, $apis.bodyLimit(8 * 1024));
@@ -3523,6 +3527,10 @@ routerAdd("POST", "/api/admin/campaigns/{id}/placements", (c) => {
 routerAdd("PUT", "/api/admin/campaigns/{id}/placements/{placementId}", (c) => {
     return require(__hooks + '/marketing_campaigns.js').updatePlacement(c);
 }, $apis.bodyLimit(8 * 1024));
+
+routerAdd("DELETE", "/api/admin/campaigns/{id}/placements/{placementId}", (c) => {
+    return require(__hooks + '/marketing_campaigns.js').removePlacement(c);
+});
 
 routerAdd("POST", "/api/campaigns/visit/{slug}", (c) => {
     return require(__hooks + '/marketing_campaigns.js').recordVisit(c);

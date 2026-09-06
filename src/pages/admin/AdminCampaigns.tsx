@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Activity,
+  Archive,
   ArrowRight,
   ChevronLeft,
   CircleDollarSign,
@@ -58,6 +59,7 @@ const statusTone: Record<string, string> = {
   Draft: "border-border bg-background/50 text-muted-foreground",
   Paused: "border-amber-500/25 bg-amber-500/10 text-amber-300",
   Ended: "border-border bg-background/50 text-muted-foreground",
+  Archived: "border-border bg-background/50 text-muted-foreground",
 };
 
 export default function AdminCampaigns() {
@@ -67,6 +69,7 @@ export default function AdminCampaigns() {
   const [refreshing, setRefreshing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [name, setName] = useState("");
   const [objective, setObjective] = useState("signups");
   const [status, setStatus] = useState("draft");
@@ -100,16 +103,19 @@ export default function AdminCampaigns() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const totals = useMemo(() => campaigns.reduce((sum, campaign) => ({
+  const currentCampaigns = useMemo(() => campaigns.filter((campaign) => campaign.status !== "archived"), [campaigns]);
+  const archivedCount = campaigns.length - currentCampaigns.length;
+  const visibleCampaigns = showArchived ? campaigns : currentCampaigns;
+  const totals = useMemo(() => currentCampaigns.reduce((sum, campaign) => ({
     live: sum.live + (campaign.is_live ? 1 : 0),
     visits: sum.visits + campaign.metrics.unique_visitors,
     signups: sum.signups + campaign.metrics.signups,
     paid: sum.paid + campaign.metrics.paid,
     spend: sum.spend + campaign.spent_cents,
-  }), { live: 0, visits: 0, signups: 0, paid: 0, spend: 0 }), [campaigns]);
-  const campaignCurrencies = useMemo(() => new Set(campaigns.map((campaign) => campaign.currency)), [campaigns]);
+  }), { live: 0, visits: 0, signups: 0, paid: 0, spend: 0 }), [currentCampaigns]);
+  const campaignCurrencies = useMemo(() => new Set(currentCampaigns.map((campaign) => campaign.currency)), [currentCampaigns]);
   const spendSummary = campaignCurrencies.size <= 1
-    ? `${formatCampaignMoney(totals.spend, campaigns[0]?.currency || "USD")} recorded spend`
+    ? `${formatCampaignMoney(totals.spend, currentCampaigns[0]?.currency || "USD")} recorded spend`
     : `${campaignCurrencies.size} currencies · spend tracked per campaign`;
 
   const resetForm = () => {
@@ -171,6 +177,7 @@ export default function AdminCampaigns() {
           </div>
         </div>
         <div className="flex gap-2">
+          {archivedCount > 0 && <button type="button" onClick={() => setShowArchived((shown) => !shown)} className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-sm font-semibold ${showArchived ? "border-accent/30 bg-accent/10 text-accent" : "border-border bg-surface text-muted-foreground hover:text-foreground"}`}><Archive className="h-4 w-4" /> {showArchived ? "Hide archived" : `Archived (${archivedCount})`}</button>}
           <button type="button" onClick={() => void load(true)} disabled={refreshing} className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-sm font-semibold text-muted-foreground hover:text-foreground disabled:opacity-60">
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
           </button>
@@ -179,7 +186,7 @@ export default function AdminCampaigns() {
       </header>
 
       <section className="grid overflow-hidden rounded-2xl border border-border bg-surface/70 sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-border">
-        <Metric label="Live campaigns" value={String(totals.live)} detail={`${campaigns.length} total`} icon={Megaphone} />
+        <Metric label="Live campaigns" value={String(totals.live)} detail={`${currentCampaigns.length} current`} icon={Megaphone} />
         <Metric label="Unique visits" value={totals.visits.toLocaleString()} detail="human campaign traffic" icon={Route} />
         <Metric label="Registrations" value={totals.signups.toLocaleString()} detail={`${campaignRate(totals.signups, totals.visits).toFixed(1)}% of unique visits`} icon={UserPlus} />
         <Metric label="Paid users" value={totals.paid.toLocaleString()} detail={spendSummary} icon={CircleDollarSign} />
@@ -187,13 +194,13 @@ export default function AdminCampaigns() {
 
       {loading ? (
         <div className="grid min-h-64 place-items-center rounded-2xl border border-border bg-surface/50"><Loader2 className="h-6 w-6 animate-spin text-accent" /></div>
-      ) : campaigns.length === 0 ? (
+      ) : visibleCampaigns.length === 0 ? (
         <section className="grid min-h-72 place-items-center rounded-2xl border border-dashed border-border bg-surface/35 p-8 text-center">
-          <div><Megaphone className="mx-auto h-8 w-8 text-accent" /><h2 className="mt-4 text-lg font-semibold text-foreground">Create the first project campaign</h2><p className="mt-2 max-w-md text-sm text-muted-foreground">Campaigns group placements, tracked URLs, an optional offer, spend, and conversion reporting.</p><button type="button" onClick={() => setDialogOpen(true)} className="btn-primary-glow mt-5 inline-flex h-10 items-center gap-2 px-4 py-0 text-sm"><Plus className="h-4 w-4" /> New campaign</button></div>
+          <div><Megaphone className="mx-auto h-8 w-8 text-accent" /><h2 className="mt-4 text-lg font-semibold text-foreground">{campaigns.length > 0 ? "No current campaigns" : "Create the first project campaign"}</h2><p className="mt-2 max-w-md text-sm text-muted-foreground">{campaigns.length > 0 ? "Archived campaigns remain available from the filter above." : "Campaigns group placements, tracked URLs, an optional offer, spend, and conversion reporting."}</p><button type="button" onClick={() => setDialogOpen(true)} className="btn-primary-glow mt-5 inline-flex h-10 items-center gap-2 px-4 py-0 text-sm"><Plus className="h-4 w-4" /> New campaign</button></div>
         </section>
       ) : (
         <section className="grid gap-4 xl:grid-cols-2">
-          {campaigns.map((campaign) => {
+          {visibleCampaigns.map((campaign) => {
             const statusLabel = campaignStatusLabel(campaign);
             const cps = campaignCostPerSignup(campaign);
             return (
