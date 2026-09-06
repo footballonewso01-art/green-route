@@ -26,13 +26,19 @@ Two metrics are deliberately separate:
   activity heatmap and view timeline. Existing card clicks remain unchanged; CTR
   recomputes from card clicks/views. A view is not automatically a link click.
 
-The reconstructed timeline is deterministic. It blends recorded daily activity
-with a bounded hourly curve and modest variation, so an old one-hour burst is not
-multiplied into an artificial single-hour spike. Resources receive shares based
-on existing counts, or equal shares when all have zero traffic. No bucket predates
-the resource's creation hour. Unique counts use the selected 75–85% estimate, with
-integer allocation and unique ≤ total. They retain the existing product's unique
-scope (not a claim of reconstructed identifiable visitors).
+The reconstructed timeline is seeded per preview. It blends recorded daily
+activity with persistent day-level variation, independently moving activity
+peaks, correlated hourly noise, quiet intervals and occasional short traffic
+bursts. Generating a fresh preview produces a different shape; the persisted
+seed and exact delta rows keep a selected preview stable through apply and undo.
+No generated hour can exceed 4.5% of a resource's requested range total unless
+the number of eligible hours makes a higher cap mathematically necessary. This
+prevents a pathological isolated spike without flattening ordinary bursts.
+Resources receive shares based on existing counts, or equal shares when all have
+zero traffic. No bucket predates the resource's creation hour. Unique counts use
+the selected 75–85% estimate, with integer allocation and unique ≤ total. They
+retain the existing product's unique scope (not a claim of reconstructed
+identifiable visitors).
 
 Existing dimension shares are reused. Missing geography defaults to weighted US,
 GB, DE, CA and NL; admins can supply a ranked ISO-country list. Device/OS/browser

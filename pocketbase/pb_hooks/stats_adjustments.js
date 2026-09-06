@@ -62,6 +62,9 @@ var list = function(app, userId) {
 };
 var preview = function(app, userId, actorId, body) {
     var config = math.normalize(body), result;
+    // Each explicit generation gets a fresh shape. The seed is persisted with
+    // the preview, while the materialized rows guarantee preview/apply parity.
+    config.seed = $security.randomString(24);
     app.runInTransaction(function(tx) {
         var state = snapshot(tx, userId, config), built = math.build(config, state.resources, state.before, state.cards);
         if (!built.rows.length) math.fail('The requested values already match this range.');

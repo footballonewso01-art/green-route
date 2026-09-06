@@ -5,10 +5,10 @@ import { createHash, randomBytes } from "node:crypto";
 import vm from "node:vm";
 import { describe, expect, it } from "vitest";
 
-type Config = { mode: string; resourceId: string; start: string; end: string; total: number; uniquePercent: number; countries: string; reason: string; startAt?: string; endAt?: string };
+type Config = { mode: string; resourceId: string; start: string; end: string; total: number; uniquePercent: number; countries: string; reason: string; startAt?: string; endAt?: string; seed?: string };
 type Aggregate = { kind: string; resource_id: string; profile_id: string; card_id: string; bucket: string; dimension_type: string; dimension_value: string; total: number; unique_count: number };
-interface MathModule { allocate: (n: number, weights: number[]) => number[]; normalize: (c: Config, now?: number) => Config; build: (c: Config, resources: { id: string; created: string }[], rows: Aggregate[], cards: Aggregate[]) => { rows: Aggregate[]; summary: { after: number; unique: number; before: number; countries: { name: string; clicks: number }[]; trend: { date: string; clicks: number }[] } } }
-interface Service { authorize: (app: unknown, event: unknown) => string; subject: (app: unknown, event: unknown) => { status?: number; user?: { id: string } }; preview: (app: unknown, user: string, actor: string, c: Config) => { id: string; summary: { before: number; after: number } }; change: (app: unknown, user: string, actor: string, id: string, undo: boolean) => void; revision: (app: unknown, user: string) => number; list: (app: unknown, user: string) => unknown }
+interface MathModule { allocate: (n: number, weights: number[]) => number[]; allocateCapped: (n: number, weights: number[], maximum: number) => number[]; normalize: (c: Config, now?: number) => Config; build: (c: Config, resources: { id: string; created: string }[], rows: Aggregate[], cards: Aggregate[]) => { rows: Aggregate[]; summary: { after: number; unique: number; before: number; countries: { name: string; clicks: number }[]; trend: { date: string; clicks: number }[] } } }
+interface Service { authorize: (app: unknown, event: unknown) => string; subject: (app: unknown, event: unknown) => { status?: number; user?: { id: string } }; preview: (app: unknown, user: string, actor: string, c: Config) => { id: string; summary: { before: number; after: number; trend: { date: string; clicks: number }[] } }; change: (app: unknown, user: string, actor: string, id: string, undo: boolean) => void; revision: (app: unknown, user: string) => number; list: (app: unknown, user: string) => unknown }
 const loadMath = () => { const module = { exports: {} }; vm.runInNewContext(readFileSync('pocketbase/pb_hooks/stats_adjustment_math.js','utf8'), { module }); return module.exports as MathModule; };
 const day = (offset: number) => new Date(Date.now()+offset*86400000).toISOString().slice(0,10);
 const config = (extra: Partial<Config> = {}): Config => ({ mode: 'links', resourceId: 'all', start: day(-7), end: day(-1), total: 12500, uniquePercent: 80, countries: '', reason: 'Manual correction after verified ingestion outage.', ...extra });
@@ -71,18 +71,27 @@ describe('statistics adjustment math', () => {
       if(total<=62) expect(values.every((n,i)=>n<=weights[i])).toBe(true);
     }
   });
+  it('caps isolated hourly outliers while preserving the exact total', () => {
+    const values=loadMath().allocateCapped(1000,[...Array(23).fill(1),1000],100);
+    expect(values.reduce((a,b)=>a+b,0)).toBe(1000);
+    expect(Math.max(...values)).toBeLessThanOrEqual(100);
+  });
   it('rejects future, invalid, oversized dates and invalid totals or unique share', () => {
     const math=loadMath();
     for(const changes of [{end:day(0)},{start:'2026-02-30'},{start:day(-92)},{total:-1},{total:1.5},{total:10000001},{uniquePercent:74},{resourceId:'" OR true'},{reason:'short'}]) expect(()=>math.normalize(config(changes))).toThrow();
   });
-  it('builds deterministic distributed history for a new resource without individual events', () => {
-    const math=loadMath(), c=math.normalize(config());
+  it('builds reproducible but irregular distributed history for a new resource without individual events', () => {
+    const math=loadMath(), c={...math.normalize(config()),seed:'dispersion-contract-v1'};
     const build=()=>math.build(c,[{id:lid,created:day(-30)+' 00:00:00.000Z'}],[],[]);
     const result=build(); expect(result).toEqual(build());
     const all=result.rows.filter(r=>r.dimension_type==='all');
-    expect(all.length).toBe(168); expect(Math.max(...all.map(r=>r.total))).toBeLessThan(200);
+    expect(all.length).toBe(168); expect(Math.max(...all.map(r=>r.total))).toBeLessThan(12500*.05);
     expect(all.reduce((a,r)=>a+r.total,0)).toBe(12500);
     expect(all.reduce((a,r)=>a+r.unique_count,0)).toBe(10000);
+    const daily=result.summary.trend.map(point=>point.clicks), average=12500/daily.length;
+    const coefficientOfVariation=Math.sqrt(daily.reduce((sum,value)=>sum+(value-average)**2,0)/daily.length)/average;
+    expect(coefficientOfVariation).toBeGreaterThan(.25);
+    expect(math.build({...c,seed:'another-shape-v1'},[{id:lid,created:day(-30)+' 00:00:00.000Z'}],[],[]).summary.trend).not.toEqual(result.summary.trend);
     for(const dimension of ['country','device','os','browser','referrer']) expect(result.rows.filter(r=>r.dimension_type===dimension).reduce((sum,r)=>sum+r.total,0)).toBe(12500);
     expect(result.rows.every(r=>r.unique_count<=r.total)).toBe(true);
   });
@@ -95,6 +104,13 @@ describe('statistics adjustment math', () => {
 });
 
 describe('statistics adjustment SQL integration', () => {
+  it('generates a fresh aggregate shape for each preview of the same inputs',()=>{
+    const {db,app,service}=fixture();
+    const first=service.preview(app,uid,actor,config()), second=service.preview(app,uid,actor,config());
+    expect(second.summary.trend).not.toEqual(first.summary.trend);
+    expect(second.summary.trend.reduce((sum,point)=>sum+point.clicks,0)).toBe(12500);
+    db.close();
+  });
   it.each([12500,125,0])('updates totals, all dimensions, timeline, daily counters and card attribution to %i; undo preserves later traffic', total => {
     const {db,app,service,down,buckets}=fixture();
     const p=service.preview(app,uid,actor,config({total}));
