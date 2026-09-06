@@ -258,9 +258,9 @@ export default function AnalyticsPage({ adminUserId, adminLinks }: {
           // Hourly buckets for last 24h
           for (let i = 23; i >= 0; i--) {
             const d = new Date();
-            d.setMinutes(0, 0, 0);
-            d.setHours(d.getHours() - i);
-            const key = d.toISOString().replace(/:\d{2}\.\d{3}Z$/, ':00:00Z');
+            d.setUTCMinutes(0, 0, 0);
+            d.setUTCHours(d.getUTCHours() - i);
+            const key = `${d.toISOString().slice(0, 13)}:00:00Z`;
             filledTrend.push({
               date: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               clicks: trendMap[key]?.clicks || 0,

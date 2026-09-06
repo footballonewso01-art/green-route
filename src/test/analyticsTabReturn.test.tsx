@@ -1,9 +1,10 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 
-const mocks = vi.hoisted(() => ({ send: vi.fn(), cancelRequest: vi.fn(), profiles: vi.fn(), toast: vi.fn() }));
+const mocks = vi.hoisted(() => ({ send: vi.fn(), cancelRequest: vi.fn(), profiles: vi.fn(), toast: vi.fn(), areaChart: vi.fn() }));
 vi.mock("@/lib/pocketbase", () => ({ pb: {
   send: mocks.send, cancelRequest: mocks.cancelRequest,
   filter: (_: string, values: { id: string }) => `user_id="${values.id}"`,
@@ -12,9 +13,13 @@ vi.mock("@/lib/pocketbase", () => ({ pb: {
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "owner", plan: "agency" } }) }));
 vi.mock("sonner", () => ({ toast: { error: mocks.toast } }));
 vi.mock("@/components/analytics/WorldTrafficMap", () => ({ default: () => null }));
-vi.mock("recharts", () => Object.fromEntries([
-  "AreaChart", "Area", "XAxis", "YAxis", "CartesianGrid", "Tooltip", "ResponsiveContainer", "PieChart", "Pie", "Cell",
-].map(name => [name, () => null])));
+vi.mock("recharts", () => ({
+  ...Object.fromEntries([
+    "Area", "XAxis", "YAxis", "CartesianGrid", "Tooltip", "PieChart", "Pie", "Cell",
+  ].map(name => [name, () => null])),
+  ResponsiveContainer: ({ children }: { children?: ReactNode }) => children,
+  AreaChart: (props: { data?: { date: string; clicks: number }[] }) => { mocks.areaChart(props); return null; },
+}));
 
 const profileId = "profile00000001";
 const snapshot = (fresh = false) => ({
@@ -56,6 +61,20 @@ afterEach(() => {
 });
 
 describe("Analytics tab-return integration", () => {
+  it("matches canonical UTC buckets when rendering the last 24 hours", async () => {
+    vi.setSystemTime(new Date("2026-09-06T09:30:00Z"));
+    mocks.send.mockImplementation(async (url: string) => url.includes("/recent") ? { items: [] } : {
+      ...snapshot(), total: 7, unique: 6,
+      trend: [{ date: "2026-09-06T08:00:00Z", clicks: 7 }],
+    });
+    await mount("?link=link00000000001");
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "24h" })); });
+    const chartCall = [...mocks.areaChart.mock.calls].reverse().find(([props]) => props.data?.length === 24);
+    expect(chartCall).toBeDefined();
+    expect(chartCall![0].data.reduce((sum: number, point: { clicks: number }) => sum + point.clicks, 0)).toBe(7);
+    expect(mocks.send.mock.calls.some(([url]) => String(url).includes("period=24h"))).toBe(true);
+  });
+
   it.each([profileId, "all"])("refreshes %s with the same selected period and bypasses the response cache", async scope => {
     await mount(`?profile=${scope}`);
     expect(screen.getByText("Original card")).toBeInTheDocument();
