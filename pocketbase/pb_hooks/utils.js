@@ -1475,6 +1475,33 @@ var normalizeAffiliateCode = function (value) {
     return String(value || "").trim().replace(/[^a-zA-Z0-9_-]/g, "").substring(0, 40);
 };
 
+var findPromocodeCodeConflict = function(app, value, ignoredPromocodeId) {
+    var code = String(value || "").trim();
+    if (!code) return null;
+    var rows = arrayOf(new DynamicModel({ "id": "" }));
+    app.db().newQuery(`
+        SELECT id
+        FROM promocodes
+        WHERE code = {:code} COLLATE NOCASE
+          AND ({:ignoredId} = '' OR id != {:ignoredId})
+        LIMIT 1
+    `).bind({
+        code: code,
+        ignoredId: String(ignoredPromocodeId || "")
+    }).all(rows);
+    if (!rows.length || !rows[0].id) return null;
+    return app.findRecordById("promocodes", String(rows[0].id));
+};
+
+var assertPromocodeCodeAvailable = function(app, value, ignoredPromocodeId) {
+    var conflict = findPromocodeCodeConflict(app, value, ignoredPromocodeId);
+    if (!conflict) return;
+    var owner = conflict.get("partner_id")
+        ? "a partner"
+        : (conflict.get("campaign_id") ? "another campaign" : "an existing legacy offer");
+    throw new BadRequestError("Promocode " + String(conflict.get("code") || value).toUpperCase() + " is already used by " + owner + ". Choose a different code.");
+};
+
 var getAccountAgeMs = function (record) {
     var created = record ? String(record.get("created") || "") : "";
     var createdMs = created ? new Date(created).getTime() : NaN;
@@ -3636,6 +3663,8 @@ module.exports = {
     getRedirectLoopHtml,
     getSafePromocodeError,
     normalizeAffiliateCode,
+    findPromocodeCodeConflict,
+    assertPromocodeCodeAvailable,
     getAccountAgeMs,
     ensureAffiliatePartner,
     createAffiliateAttribution,

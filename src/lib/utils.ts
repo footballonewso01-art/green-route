@@ -21,7 +21,8 @@ export function maskError(error: unknown, fallback: string = "Something went wro
   if (!error) return fallback;
   const errorLike = (typeof error === "string" ? { message: error } : error) as ErrorLike;
   const status = Number(errorLike.status || errorLike.code || errorLike.response?.status || errorLike.response?.code || 0);
-  const msg = String(errorLike.response?.message || errorLike.response?.error || errorLike.message || "").toLowerCase();
+  const rawMessage = String(errorLike.response?.message || errorLike.response?.error || errorLike.message || "");
+  const msg = rawMessage.toLowerCase();
 
   if (status === 401) return "Your session has expired. Please sign in again.";
   if (status === 403) return "You don't have permission to complete this action.";
@@ -29,6 +30,12 @@ export function maskError(error: unknown, fallback: string = "Something went wro
   if (status === 409) return "This item changed while you were editing it. Refresh the page and try again.";
   if (status === 413) return "The uploaded file is too large.";
   if (status === 429) return "Too many requests. Wait a moment and try again.";
+  if (
+    status === 400 &&
+    /^Promocode [A-Z0-9_-]{3,32} is already used by (a partner|another campaign|an existing legacy offer)\. Choose a different code\.$/.test(rawMessage)
+  ) {
+    return rawMessage;
+  }
 
   if (msg.includes("failed to fetch") || msg.includes("networkerror") || msg.includes("network request failed")) {
     return "We couldn't reach Linktery. Check your connection and try again.";

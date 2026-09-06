@@ -3456,6 +3456,7 @@ routerAdd("POST", "/api/admin/promocodes", (c) => {
 
         var createdPromoId = "";
         $app.runInTransaction((txApp) => {
+            utils.assertPromocodeCodeAvailable(txApp, code, "");
             var txPartnerUser = txApp.findRecordById("users", partnerUser.id);
             var affiliatePartner = utils.ensureAffiliatePartner(txApp, txPartnerUser);
             var collection = txApp.findCollectionByNameOrId("promocodes");
@@ -3515,6 +3516,10 @@ routerAdd("GET", "/api/admin/campaigns/{id}", (c) => {
 routerAdd("PUT", "/api/admin/campaigns/{id}", (c) => {
     return require(__hooks + '/marketing_campaigns.js').updateCampaign(c);
 }, $apis.bodyLimit(16 * 1024));
+
+routerAdd("POST", "/api/admin/campaigns/{id}/promocode", (c) => {
+    return require(__hooks + '/marketing_campaigns.js').createCampaignPromocode(c);
+}, $apis.bodyLimit(8 * 1024));
 
 routerAdd("DELETE", "/api/admin/campaigns/{id}", (c) => {
     return require(__hooks + '/marketing_campaigns.js').removeCampaign(c);

@@ -9,6 +9,7 @@ import {
   formatCampaignMoney,
   type MarketingCampaign,
 } from "@/lib/marketingCampaigns";
+import { maskError } from "@/lib/utils";
 
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
@@ -90,5 +91,29 @@ describe("project marketing campaigns", () => {
     const hooks = read("pocketbase/pb_hooks/main.pb.js");
     expect(hooks).toContain('routerAdd("DELETE", "/api/admin/campaigns/{id}"');
     expect(hooks).toContain('routerAdd("DELETE", "/api/admin/campaigns/{id}/placements/{placementId}"');
+  });
+
+  it("creates offers on existing campaigns and enforces one global promocode namespace", () => {
+    const module = read("pocketbase/pb_hooks/marketing_campaigns.js");
+    const hooks = read("pocketbase/pb_hooks/main.pb.js");
+    const utils = read("pocketbase/pb_hooks/utils.js");
+    const migration = read("pocketbase/pb_migrations/1788623000_enforce_global_promocode_codes.js");
+    const details = read("src/pages/admin/AdminCampaignDetails.tsx");
+
+    expect(hooks).toContain('routerAdd("POST", "/api/admin/campaigns/{id}/promocode"');
+    expect(module).toContain("createCampaignPromocode: createCampaignPromocode");
+    expect(module).toContain("utils.assertPromocodeCodeAvailable(app, input.code");
+    expect(hooks).toContain("utils.assertPromocodeCodeAvailable(txApp, code");
+    expect(utils).toContain("WHERE code = {:code} COLLATE NOCASE");
+    expect(utils).toContain('conflict.get("partner_id")');
+    expect(utils).toContain('conflict.get("campaign_id")');
+    expect(migration).toContain("CREATE UNIQUE INDEX IF NOT EXISTS idx_promocodes_code_nocase");
+    expect(migration).toContain("code COLLATE NOCASE");
+    expect(details).toContain("Create campaign promocode");
+    expect(details).toContain("partner, project campaign, and legacy offer");
+    expect(maskError({ status: 400, response: { message: "Promocode PARTNER10 is already used by a partner. Choose a different code." } })).toBe(
+      "Promocode PARTNER10 is already used by a partner. Choose a different code.",
+    );
+    expect(maskError({ status: 400, response: { message: "arbitrary server detail" } }, "Could not create.")).toBe("Could not create.");
   });
 });

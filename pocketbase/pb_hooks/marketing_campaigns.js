@@ -274,6 +274,55 @@ var assertCampaignEditable = function(campaign) {
     }
 };
 
+var normalizeProjectPromocode = function(data, required) {
+    var code = cleanText(data.promocode_code || data.code, 32).toUpperCase();
+    if (required && !code) throw new BadRequestError("Promocode is required.");
+    var rewardEnabled = data.reward_enabled === true;
+    var rewardPlan = cleanText(data.reward_plan, 16).toLowerCase();
+    var rewardDays = Math.max(0, parseInt(data.reward_days, 10) || 0);
+    var maxUses = Math.max(0, Math.min(1000000, parseInt(data.max_uses, 10) || 0));
+    if (code && !/^[A-Z0-9][A-Z0-9_-]{2,31}$/.test(code)) {
+        throw new BadRequestError("Promocode must be 3-32 letters, numbers, underscores, or hyphens.");
+    }
+    if (code && rewardEnabled && ["pro", "agency"].indexOf(rewardPlan) === -1) {
+        throw new BadRequestError("Choose Pro or Agency for the campaign reward.");
+    }
+    if (code && rewardEnabled && (rewardDays < 1 || rewardDays > 1095)) {
+        throw new BadRequestError("Reward duration must be between 1 and 1095 days.");
+    }
+    return {
+        code: code,
+        rewardEnabled: rewardEnabled,
+        rewardPlan: rewardEnabled ? rewardPlan : "creator",
+        rewardDays: rewardEnabled ? rewardDays : 0,
+        maxUses: maxUses
+    };
+};
+
+var createProjectPromocodeRecord = function(app, campaign, input) {
+    utils.assertPromocodeCodeAvailable(app, input.code, "");
+    var promos = app.findCollectionByNameOrId("promocodes");
+    var promo = new Record(promos, {
+        code: input.code,
+        internal_name: String(campaign.get("name") || "").substring(0, 120),
+        partner_id: "",
+        owner_type: "project",
+        campaign_id: campaign.id,
+        max_uses: input.maxUses,
+        current_uses: 0,
+        reward_enabled: input.rewardEnabled,
+        reward_plan: input.rewardPlan,
+        reward_months: 0,
+        reward_days: input.rewardDays,
+        commission_rate_bps: 0,
+        is_active: true
+    });
+    app.save(promo);
+    campaign.set("promocode_id", promo.id);
+    app.save(campaign);
+    return promo;
+};
+
 var createCampaign = function(c) {
     requireCampaignAdmin(c);
     var data = new DynamicModel({
@@ -307,22 +356,9 @@ var createCampaign = function(c) {
     assertDateRange(startsAt, endsAt);
     var notes = cleanText(data.notes, 1000);
     var existingPromoId = cleanText(data.promocode_id, 32);
-    var promoCode = cleanText(data.promocode_code, 32).toUpperCase();
+    var promoInput = normalizeProjectPromocode(data, false);
+    var promoCode = promoInput.code;
     if (existingPromoId && promoCode) throw new BadRequestError("Choose an existing promocode or create a new one, not both.");
-
-    var rewardEnabled = data.reward_enabled === true;
-    var rewardPlan = cleanText(data.reward_plan, 16).toLowerCase();
-    var rewardDays = Math.max(0, parseInt(data.reward_days, 10) || 0);
-    var maxUses = Math.max(0, Math.min(1000000, parseInt(data.max_uses, 10) || 0));
-    if (promoCode && !/^[A-Z0-9][A-Z0-9_-]{2,31}$/.test(promoCode)) {
-        throw new BadRequestError("Promocode must be 3-32 letters, numbers, underscores, or hyphens.");
-    }
-    if (promoCode && rewardEnabled && ["pro", "agency"].indexOf(rewardPlan) === -1) {
-        throw new BadRequestError("Choose Pro or Agency for the campaign reward.");
-    }
-    if (promoCode && rewardEnabled && (rewardDays < 1 || rewardDays > 1095)) {
-        throw new BadRequestError("Reward duration must be between 1 and 1095 days.");
-    }
 
     var createdId = "";
     $app.runInTransaction((txApp) => {
@@ -353,25 +389,9 @@ var createCampaign = function(c) {
                 throw new BadRequestError("This promocode already belongs to another campaign.");
             }
         } else if (promoCode) {
-            var promos = txApp.findCollectionByNameOrId("promocodes");
-            promo = new Record(promos, {
-                code: promoCode,
-                internal_name: name,
-                partner_id: "",
-                owner_type: "project",
-                campaign_id: campaign.id,
-                max_uses: maxUses,
-                current_uses: 0,
-                reward_enabled: rewardEnabled,
-                reward_plan: rewardEnabled ? rewardPlan : "creator",
-                reward_months: 0,
-                reward_days: rewardEnabled ? rewardDays : 0,
-                commission_rate_bps: 0,
-                is_active: true
-            });
-            txApp.save(promo);
+            promo = createProjectPromocodeRecord(txApp, campaign, promoInput);
         }
-        if (promo) {
+        if (promo && existingPromoId) {
             promo.set("owner_type", "project");
             promo.set("campaign_id", campaign.id);
             promo.set("commission_rate_bps", 0);
@@ -382,6 +402,36 @@ var createCampaign = function(c) {
     });
 
     return c.json(201, fullCampaignJson($app, $app.findRecordById("marketing_campaigns", createdId)));
+};
+
+var createCampaignPromocode = function(c) {
+    requireCampaignAdmin(c);
+    var campaignId = c.request.pathValue("id");
+    var campaign = $app.findRecordById("marketing_campaigns", campaignId);
+    assertCampaignEditable(campaign);
+    if (String(campaign.get("promocode_id") || "")) {
+        throw new BadRequestError("This campaign already has a promocode.");
+    }
+    var data = new DynamicModel({
+        "code": "",
+        "reward_enabled": false,
+        "reward_plan": "pro",
+        "reward_days": 0,
+        "max_uses": 0
+    });
+    c.bindBody(data);
+    var input = normalizeProjectPromocode(data, true);
+
+    $app.runInTransaction((txApp) => {
+        var txCampaign = txApp.findRecordById("marketing_campaigns", campaignId);
+        assertCampaignEditable(txCampaign);
+        if (String(txCampaign.get("promocode_id") || "")) {
+            throw new BadRequestError("This campaign already has a promocode.");
+        }
+        createProjectPromocodeRecord(txApp, txCampaign, input);
+    });
+
+    return c.json(201, fullCampaignJson($app, $app.findRecordById("marketing_campaigns", campaignId)));
 };
 
 var listCampaigns = function(c) {
@@ -651,6 +701,7 @@ module.exports = {
     listCampaigns: listCampaigns,
     getCampaign: getCampaign,
     updateCampaign: updateCampaign,
+    createCampaignPromocode: createCampaignPromocode,
     removeCampaign: removeCampaign,
     createPlacement: createPlacement,
     updatePlacement: updatePlacement,
